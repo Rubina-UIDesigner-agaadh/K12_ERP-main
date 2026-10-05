@@ -442,28 +442,15 @@ const timetableSidebar: SidebarSection[] = [{ title: 'Timetable', items: [{ labe
 const administrationSidebar: SidebarSection[] = [
   { title: 'Administration', items: [
     { label: 'My Workflow Hub', id: 'my-workflow-hub' },
-    { label: 'Workflow Setup Desk', id: 'workflow-setup-desk' },
+    { label: 'Workflow Setup Desk', id: 'workflow-setup-desk' }
+  ] },
+  { title: 'Governance & Audit', items: [
     { label: 'Central Control & Audit Vault', id: 'central-control-audit-vault' },
     { label: 'Administrative Control Reports', id: 'administrative-control-reports' },
     { label: 'Consent Log', id: 'consent-log' },
     { label: 'Data Governance & Lock Manager', id: 'data-governance-lock-manager' }
   ] }
 ];
-const curriculumSidebar: SidebarSection[] = [
-  {
-    title: 'Curriculum',
-    items: [
-      { label: 'Curriculum Setup', id: 'curriculum-setup' },
-      { label: 'Learning Outcomes Mapping', id: 'learning-outcomes-mapping' },
-      { label: 'Subject Management', id: 'subject-management' },
-      { label: 'Syllabus Planner', id: 'syllabus-planner' },
-      { label: 'Academic Calendar', id: 'academic-calendar' },
-      { label: 'Lesson Planning', id: 'lesson-planning' },
-      { label: 'Planning Classroom Operations', id: 'planning-classroom-operations' }
-    ]
-  }
-];
-
 const academicsSidebar: SidebarSection[] = [{ title: 'Planning & Tracking', items: [{ label: 'Academic Planning & Execution', id: 'academic-planning-execution' }, { label: 'Curriculum Progress Tracker', id: 'curriculum-progress-tracker' }, { label: 'Skill Development Assessment', id: 'skill-development-assessment' }] }, { title: 'Operations', items: [{ label: 'Classroom Operations', id: 'classroom-operations' }, { label: 'Teacher Progress Dashboard', id: 'teacher-progress-dashboard' }, { label: 'Homework & Assignments', id: 'homework-assignments' }, { label: 'Study Material', id: 'study-material' }, { label: 'Classwork', id: 'classwork' }, { label: 'School Diary', id: 'school-diary' }] }];
 const healthSidebar: SidebarSection[] = [{ title: 'Health', items: [{ label: 'Health Records', id: 'health-records' }, { label: 'Health Checkups', id: 'health-checkups' }, { label: 'Incident Management', id: 'incident-management' }, { label: 'Vaccination Tracking', id: 'vaccination-tracking' }] }];
 const misSidebar: SidebarSection[] = [{ title: 'Dashboards', items: [{ label: 'Executive Dashboards', id: 'executive-dashboards' }, { label: 'Academic Analytics', id: 'academic-analytics' }, { label: 'Attendance Analytics', id: 'attendance-analytics' }, { label: 'Financial Overview', id: 'financial-overview' }] }, { title: 'Reports', items: [{ label: 'Compliance & Government Data', id: 'compliance-government-data' }, { label: 'Custom Report Builder', id: 'custom-report-builder-mis' }] }];
@@ -502,7 +489,7 @@ const alertPluginSidebar: SidebarSection[] = [{ title: 'Alert', items: [{ label:
 export const modules: Module[] = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, subModules: createSubModules(['User Dashboard', 'EIS Consolidate Dashboard', 'MIS Consolidate Dashboard', 'SMS Predefine Alert']) },
   { id: 'student', label: 'Student', icon: Users, subModules: [{ id: 'student-management', label: 'Student Management', sidebarConfig: studentManagementSidebar }, { id: 'student-settings', label: 'Student Settings', sidebarConfig: studentSettingsSidebar }, { id: 'admissions', label: 'Admissions', sidebarConfig: admissionSidebar }, { id: 'attendance', label: 'Attendance', sidebarConfig: attendanceSidebar }, { id: 'certificates', label: 'Certificates', sidebarConfig: certificateSidebar }] },
-  { id: 'academic', label: 'Academic', icon: GraduationCap, subModules: [{ id: 'academics', label: 'Academics', sidebarConfig: academicsSidebar }, { id: 'curriculum', label: 'Curriculum', sidebarConfig: curriculumSidebar }, { id: 'timetable', label: 'Timetable', sidebarConfig: timetableSidebar }, { id: 'event-activities', label: 'Event/Activities', sidebarConfig: eventActivitiesSidebar }] },
+  { id: 'academic', label: 'Academic', icon: GraduationCap, subModules: [{ id: 'academics', label: 'Academics', sidebarConfig: academicsSidebar }, { id: 'timetable', label: 'Timetable', sidebarConfig: timetableSidebar }, { id: 'event-activities', label: 'Event/Activities', sidebarConfig: eventActivitiesSidebar }] },
   { id: 'finance', label: 'Finance', icon: Wallet, subModules: [{ id: 'ledgers', label: 'Ledgers', sidebarConfig: ledgersSidebar }, { id: 'fees', label: 'Fees', sidebarConfig: feesSidebar }, { id: 'charge', label: 'Charge', sidebarConfig: chargeSidebar }, { id: 'scholarship', label: 'Scholarship', sidebarConfig: scholarshipSidebar }, { id: 'expenses', label: 'Expenses', sidebarConfig: expensesSidebar }] },
   { id: 'hr', label: 'HR', icon: Briefcase, subModules: [{ id: 'employee', label: 'Employee', sidebarConfig: employeeSidebar }, { id: 'attendance', label: 'Attendance', sidebarConfig: hrAttendanceSidebar }, { id: 'payroll', label: 'Payroll', sidebarConfig: payrollSidebar }, { id: 'master', label: 'Master', sidebarConfig: hrMasterSidebar }, { id: 'appraisal', label: 'Appraisal', sidebarConfig: appraisalSidebar }, { id: 'recruitment', label: 'Recruitment', sidebarConfig: recruitmentSidebar }, { id: 'income-tax', label: 'Income Tax', sidebarConfig: incomeTaxSidebar }] },
   { id: 'assessment', label: 'Assessment', icon: ClipboardList, subModules: [{ id: 'general', label: 'Assessment Setup', sidebarConfig: generalAssessmentSidebar }, { id: 'preschool-assessment', label: 'Preschool Assessment', sidebarConfig: preschoolAssessmentSidebar }, { id: 'cce-management', label: 'CCE Management', sidebarConfig: ccemanagementSidebar }, { id: 'result-card-management', label: 'Result Card Management', sidebarConfig: resultCardManagementSidebar }, { id: 'gseb', label: 'GSEB', sidebarConfig: gsebSidebar }, { id: 'cbse', label: 'CBSE', sidebarConfig: cbseSidebar }, { id: 'cisce', label: 'CISCE', sidebarConfig: cisceSidebar }] },

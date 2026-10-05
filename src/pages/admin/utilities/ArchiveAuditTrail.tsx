@@ -517,7 +517,7 @@ export function ArchiveAuditTrail() {
                 <Printer className="w-3.5 h-3.5 mr-1.5" /> Print
               </Button>
               <Button variant="outline" size="sm" className="text-xs" onClick={() => downloadEventDetail(detail)}>
-                <FileDown className="w-3.5 h-3.5 mr-1.5" /> Download
+                <FileDown className="w-3.5 h-3.5 mr-1.5" /> Download JSON
               </Button>
               <Button variant="ghost" size="sm" className="text-xs" onClick={() => setDetail(null)}>
                 Close

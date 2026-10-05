@@ -6,96 +6,61 @@ import { Badge } from '../../../components/ui/Badge';
 import { Input } from '../../../components/ui/Input';
 import { Select } from '../../../components/ui/Select';
 import {
-  Plus,
-  Edit2,
-  Trash2,
-  X,
-  Save,
-  Search,
-  Filter,
-  Download,
-  Upload,
-  Users,
-  BookOpen,
-  ChevronDown,
-  ChevronRight,
-  Eye,
-  Mail,
-  Phone,
-  MapPin,
-  Calendar,
-  Award,
-  TrendingUp,
-  Activity,
-  AlertCircle,
-  CheckCircle,
-  Info,
-  AlertTriangle,
-  FileText,
-  BarChart,
-  PieChart,
-  Settings,
-  RefreshCw,
-  Copy,
-  Archive,
-  UserPlus,
-  BookPlus,
-  Briefcase,
-  GraduationCap,
-  Clock,
-  DollarSign,
-  Target } from
-'lucide-react';
+  Plus, Edit2, Trash2, X, Save, Search, Filter, Download, Upload,
+  Users, BookOpen, ChevronDown, ChevronRight, Mail, Phone,
+  Calendar, Activity, AlertCircle, CheckCircle, Info, FileText,
+  Building2, GraduationCap, Clock, Target
+} from 'lucide-react';
 
 // ==================== TYPES ====================
+type DepartmentType = 'Academic' | 'Administrative' | 'Support' | 'Co-curricular';
+type SubjectCategory = 'Main / Core' | 'Optional / Elective' | 'Language' | 'Activity / Skill';
+type SubjectGroup = 'Core' | 'Optional' | 'Language' | 'Activity' | 'Not grouped';
+type LeaveApproval = 'HOD' | 'Principal';
+type SetupTab = 'Departments' | 'Subjects' | 'Subject Grouping' | 'Teacher Mapping';
+
 interface Subject {
-  id: string;
-  name: string;
-  code: string;
-  description: string;
-  type: 'theory' | 'practical' | 'both';
-  credits: number;
-  hoursPerWeek: number;
-  isElective: boolean;
-  isActive: boolean;
+  id: string; name: string; code: string; description: string;
+  type: 'theory' | 'practical' | 'both'; credits: number;
+  hoursPerWeek: number; isElective: boolean; isActive: boolean;
 }
-
+interface SubjectRecord extends Subject {
+  departmentId: string; shortName: string; boardCode: string;
+  classLevels: string[]; category: SubjectCategory; isCompulsory: boolean;
+  hasPractical: boolean; practicalType: string; theoryPeriods: number;
+  practicalPeriods: number; languagePosition: string;
+}
 interface StaffMember {
-  id: string;
-  name: string;
-  designation: string;
-  email: string;
-  phone: string;
-  qualification: string;
-  experience: number;
-  joiningDate: string;
-  subjects: string[];
-  workload: number;
-  isHOD: boolean;
+  id: string; name: string; designation: string; email: string; phone: string;
+  qualification: string; experience: number; joiningDate: string;
+  subjects: string[]; workload: number; isHOD: boolean;
 }
-
 interface Department {
-  id: string;
-  name: string;
-  code: string;
-  head: string;
-  headId: string;
-  description: string;
-  subjects: Subject[];
-  staff: StaffMember[];
-  establishedDate: string;
-  budget: number;
-  location: string;
-  email: string;
-  phone: string;
-  isActive: boolean;
-  createdAt: string;
-  modifiedAt: string;
+  id: string; name: string; code: string; head: string; headId: string;
+  description: string; subjects: Subject[]; staff: StaffMember[];
+  establishedDate: string; budget: number; location: string; email: string;
+  phone: string; isActive: boolean; createdAt: string; modifiedAt: string;
+  departmentType?: DepartmentType; applicableClasses?: string[];
+  hodDesignation?: string; leaveApproval?: LeaveApproval; staffRoom?: string;
+  primaryBuilding?: string; displayOrder?: number;
 }
-
+interface DepartmentFormState {
+  name: string; code: string; description: string; departmentType: DepartmentType;
+  applicableClasses: string[]; establishedDate: string; budget: string;
+  staffRoom: string; primaryBuilding: string; displayOrder: string;
+  hodId: string; hodDesignation: string; leaveApproval: LeaveApproval;
+  staffIds: string[]; isActive: boolean;
+}
+interface SubjectFormState {
+  name: string; shortName: string; code: string; boardCode: string;
+  description: string; departmentId: string; category: SubjectCategory;
+  classLevels: string[]; type: Subject['type']; credits: string;
+  hoursPerWeek: string; theoryPeriods: string; practicalPeriods: string;
+  hasPractical: boolean; practicalType: string; languagePosition: string;
+  isActive: boolean;
+}
 interface Notification {
-  type: 'success' | 'error' | 'info' | 'warning';
-  message: string;
+  type: 'success' | 'error' | 'info' | 'warning'; message: string;
 }
 
 // ==================== MOCK DATA ====================
@@ -537,2042 +502,595 @@ const initialDepartments: Department[] = [
 }];
 
 
+const CLASS_OPTIONS = Array.from({ length: 12 }, (_, index) => `Class ${index + 1}`);
+const DEPARTMENT_TYPES: DepartmentType[] = ['Academic', 'Administrative', 'Support', 'Co-curricular'];
+const SUBJECT_CATEGORIES: SubjectCategory[] = ['Main / Core', 'Optional / Elective', 'Language', 'Activity / Skill'];
+const SUBJECT_GROUPS: { value: SubjectGroup; label: string; description: string }[] = [
+  { value: 'Core', label: 'Core / Compulsory', description: 'Required subjects for the selected class.' },
+  { value: 'Optional', label: 'Optional / Elective', description: 'Student-choice subjects and electives.' },
+  { value: 'Language', label: 'Languages', description: 'First, second, and additional languages.' },
+  { value: 'Activity', label: 'Activity / Skill', description: 'Practical, activity, and skill subjects.' },
+  { value: 'Not grouped', label: 'Not yet grouped', description: 'Subjects awaiting a class-group assignment.' }
+];
+const assignmentKey = (className: string, subjectId: string) => `${className}::${subjectId}`;
+const inferSubjectCategory = (subject: Subject): SubjectCategory => {
+  const name = subject.name.toLowerCase();
+  if (/english|hindi|sanskrit|gujarati|language/.test(name)) return 'Language';
+  if (/physical education|art|craft|music|sport|activity/.test(name)) return 'Activity / Skill';
+  return subject.isElective ? 'Optional / Elective' : 'Main / Core';
+};
+const createSubjectRecord = (subject: Subject, departmentId = ''): SubjectRecord => {
+  const category = inferSubjectCategory(subject);
+  const languagePosition = subject.name === 'English' ? 'First Language' : subject.name === 'Hindi' ? 'Second Language' : subject.name === 'Sanskrit' ? 'Third Language' : '';
+  return {
+    ...subject, departmentId, shortName: subject.name.length > 18 ? subject.name.slice(0, 18) : subject.name,
+    boardCode: subject.code, classLevels: ['Class 9', 'Class 10'], category,
+    isCompulsory: !subject.isElective && category !== 'Activity / Skill',
+    hasPractical: subject.type !== 'theory',
+    practicalType: subject.type === 'both' ? 'Lab + Practical' : subject.type === 'practical' ? 'Practical' : 'Not applicable',
+    theoryPeriods: subject.type === 'practical' ? 0 : subject.hoursPerWeek,
+    practicalPeriods: subject.type === 'theory' ? 0 : Math.max(1, Math.floor(subject.hoursPerWeek / 2)),
+    languagePosition
+  };
+};
+const initialSubjectCatalog: SubjectRecord[] = (() => {
+  const records = new Map<string, SubjectRecord>();
+  initialDepartments.forEach((department) => department.subjects.forEach((subject) => records.set(subject.id, createSubjectRecord(subject, department.id))));
+  mockSubjects.forEach((subject) => { if (!records.has(subject.id)) records.set(subject.id, createSubjectRecord(subject)); });
+  return Array.from(records.values());
+})();
+const toDepartmentSubject = (subject: SubjectRecord): Subject => ({
+  id: subject.id, name: subject.name, code: subject.code, description: subject.description,
+  type: subject.type, credits: subject.credits, hoursPerWeek: subject.hoursPerWeek,
+  isElective: subject.isElective, isActive: subject.isActive
+});
+const getDefaultGroup = (subject: SubjectRecord): SubjectGroup =>
+  subject.category === 'Language' ? 'Language' : subject.category === 'Activity / Skill' ? 'Activity' : subject.category === 'Optional / Elective' ? 'Optional' : 'Core';
+const emptyDepartmentForm = (): DepartmentFormState => ({
+  name: '', code: '', description: '', departmentType: 'Academic',
+  applicableClasses: ['Class 9', 'Class 10'], establishedDate: new Date().toISOString().slice(0, 10),
+  budget: '', staffRoom: '', primaryBuilding: '', displayOrder: '1', hodId: '',
+  hodDesignation: '', leaveApproval: 'HOD', staffIds: [], isActive: true
+});
+const emptySubjectForm = (): SubjectFormState => ({
+  name: '', shortName: '', code: '', boardCode: '', description: '', departmentId: '',
+  category: 'Main / Core', classLevels: ['Class 9', 'Class 10'], type: 'theory',
+  credits: '3', hoursPerWeek: '4', theoryPeriods: '4', practicalPeriods: '0',
+  hasPractical: false, practicalType: 'Not applicable', languagePosition: '', isActive: true
+});
+
 // ==================== MAIN COMPONENT ====================
 export function DepartmentSubjectGroupingSetup() {
-  // State Management
-  const [departments, setDepartments] = useState<Department[]>(initialDepartments);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [showViewModal, setShowViewModal] = useState(false);
-  const [showAddSubjectModal, setShowAddSubjectModal] = useState(false);
-  const [showAddStaffModal, setShowAddStaffModal] = useState(false);
-  const [showSubjectDetailsModal, setShowSubjectDetailsModal] = useState(false);
-  const [showStaffDetailsModal, setShowStaffDetailsModal] = useState(false);
-  const [showStatsModal, setShowStatsModal] = useState(false);
-  const [selectedDepartment, setSelectedDepartment] = useState<Department | null>(null);
-  const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
-  const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null);
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+    const [departments, setDepartments] = useState<Department[]>(initialDepartments);
+  const [subjectCatalog, setSubjectCatalog] = useState<SubjectRecord[]>(initialSubjectCatalog);
+  const [activeTab, setActiveTab] = useState<SetupTab>('Departments');
   const [notification, setNotification] = useState<Notification | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [selectedDepartments, setSelectedDepartments] = useState<Set<string>>(new Set());
-  const [showBulkActions, setShowBulkActions] = useState(false);
-  const [showImportModal, setShowImportModal] = useState(false);
+  const [expandedDepartments, setExpandedDepartments] = useState<Set<string>>(new Set());
 
-  // Form States
-  const [deptFormData, setDeptFormData] = useState({
-    name: '',
-    code: '',
-    headId: '',
-    description: '',
-    establishedDate: '',
-    budget: '',
-    location: '',
-    email: '',
-    phone: ''
+  const [showDepartmentModal, setShowDepartmentModal] = useState(false);
+  const [editingDepartmentId, setEditingDepartmentId] = useState<string | null>(null);
+  const [departmentForm, setDepartmentForm] = useState<DepartmentFormState>(emptyDepartmentForm);
+  const [departmentPendingDelete, setDepartmentPendingDelete] = useState<Department | null>(null);
+  const [showSubjectModal, setShowSubjectModal] = useState(false);
+  const [editingSubjectId, setEditingSubjectId] = useState<string | null>(null);
+  const [subjectForm, setSubjectForm] = useState<SubjectFormState>(emptySubjectForm);
+  const [subjectPendingDelete, setSubjectPendingDelete] = useState<SubjectRecord | null>(null);
+
+  const [departmentSearch, setDepartmentSearch] = useState('');
+  const [departmentStatusFilter, setDepartmentStatusFilter] = useState('all');
+  const [departmentTypeFilter, setDepartmentTypeFilter] = useState('all');
+  const [subjectSearch, setSubjectSearch] = useState('');
+  const [subjectDepartmentFilter, setSubjectDepartmentFilter] = useState('all');
+  const [subjectClassFilter, setSubjectClassFilter] = useState('all');
+  const [subjectCategoryFilter, setSubjectCategoryFilter] = useState('all');
+  const [subjectStatusFilter, setSubjectStatusFilter] = useState('all');
+
+  const [selectedClass, setSelectedClass] = useState('Class 10');
+  const [selectedTeacherClass, setSelectedTeacherClass] = useState('Class 10');
+  const [teacherView, setTeacherView] = useState<'subject' | 'teacher' | 'matrix'>('subject');
+  const [groupingAssignments, setGroupingAssignments] = useState<Record<string, SubjectGroup>>(() => {
+    const seed: [string, SubjectGroup][] = ['Class 9', 'Class 10'].flatMap((className) =>
+      initialSubjectCatalog.slice(0, 12).map((subject): [string, SubjectGroup] => [assignmentKey(className, subject.id), getDefaultGroup(subject)])
+    );
+    return Object.fromEntries(seed);
+  });
+  const [teacherAssignments, setTeacherAssignments] = useState<Record<string, string>>(() => {
+    const entries: [string, string][] = [];
+    ['Class 9', 'Class 10'].forEach((className) => initialSubjectCatalog.forEach((subject) => {
+      const teacher = mockStaff.find((staff) => staff.subjects.includes(subject.code));
+      if (teacher) entries.push([assignmentKey(className, subject.id), teacher.id]);
+    }));
+    return Object.fromEntries(entries);
   });
 
-  const [subjectFormData, setSubjectFormData] = useState({
-    name: '',
-    code: '',
-    description: '',
-    type: 'theory' as Subject['type'],
-    credits: '',
-    hoursPerWeek: '',
-    isElective: false
-  });
-
-  const [staffFormData, setStaffFormData] = useState({
-    staffId: '',
-    subjects: [] as string[]
-  });
-
-  // Notification Helper
   const showNotification = useCallback((type: Notification['type'], message: string) => {
     setNotification({ type, message });
-    setTimeout(() => setNotification(null), 4000);
+    window.setTimeout(() => setNotification(null), 3500);
   }, []);
+  const departmentSubjectCount = (id: string) => subjectCatalog.filter((subject) => subject.departmentId === id).length;
+  const getDepartmentName = (id: string) => departments.find((department) => department.id === id)?.name || 'Unassigned';
+  const getGroupFor = (subject: SubjectRecord, className = selectedClass): SubjectGroup => groupingAssignments[assignmentKey(className, subject.id)] || 'Not grouped';
+  const getTeacherFor = (subject: SubjectRecord, className = selectedTeacherClass) => teacherAssignments[assignmentKey(className, subject.id)] || '';
 
-  // Filter and Search
-  const filteredDepartments = useMemo(() => {
-    return departments.filter((dept) => {
-      const matchesSearch =
-      dept.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      dept.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      dept.head.toLowerCase().includes(searchTerm.toLowerCase());
+  const filteredDepartments = useMemo(() => departments.filter((department) => {
+    const query = departmentSearch.trim().toLowerCase();
+    const matchesSearch = !query || [department.name, department.code, department.head].some((value) => value.toLowerCase().includes(query));
+    const matchesStatus = departmentStatusFilter === 'all' || (departmentStatusFilter === 'active' ? department.isActive : !department.isActive);
+    const matchesType = departmentTypeFilter === 'all' || (department.departmentType || 'Academic') === departmentTypeFilter;
+    return matchesSearch && matchesStatus && matchesType;
+  }), [departments, departmentSearch, departmentStatusFilter, departmentTypeFilter]);
+  const filteredSubjects = useMemo(() => subjectCatalog.filter((subject) => {
+    const query = subjectSearch.trim().toLowerCase();
+    const matchesSearch = !query || [subject.name, subject.shortName, subject.code, subject.boardCode].some((value) => value.toLowerCase().includes(query));
+    const matchesDepartment = subjectDepartmentFilter === 'all' || subject.departmentId === subjectDepartmentFilter;
+    const matchesClass = subjectClassFilter === 'all' || subject.classLevels.length === 0 || subject.classLevels.includes(subjectClassFilter);
+    const matchesCategory = subjectCategoryFilter === 'all' || subject.category === subjectCategoryFilter;
+    const matchesStatus = subjectStatusFilter === 'all' || (subjectStatusFilter === 'active' ? subject.isActive : !subject.isActive);
+    return matchesSearch && matchesDepartment && matchesClass && matchesCategory && matchesStatus;
+  }), [subjectCatalog, subjectSearch, subjectDepartmentFilter, subjectClassFilter, subjectCategoryFilter, subjectStatusFilter]);
+  const selectedClassSubjects = useMemo(() => subjectCatalog.filter((subject) => subject.isActive && (subject.classLevels.length === 0 || subject.classLevels.includes(selectedClass))), [subjectCatalog, selectedClass]);
+  const selectedTeacherSubjects = useMemo(() => subjectCatalog.filter((subject) => subject.isActive && (subject.classLevels.length === 0 || subject.classLevels.includes(selectedTeacherClass))), [subjectCatalog, selectedTeacherClass]);
 
-      const matchesStatus =
-      filterStatus === 'all' ||
-      filterStatus === 'active' && dept.isActive ||
-      filterStatus === 'inactive' && !dept.isActive;
+  const ungroupedCount = subjectCatalog.filter((subject) => subject.isActive && getGroupFor(subject, selectedClass) === 'Not grouped').length;
+  const compulsoryCount = subjectCatalog.filter((subject) => subject.isCompulsory).length;
+  const optionalCount = subjectCatalog.filter((subject) => subject.isElective).length;
+  const latestUpdate = departments.length ? new Date(Math.max(...departments.map((department) => new Date(department.modifiedAt).getTime()))).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
-      return matchesSearch && matchesStatus;
+  const classSelectOptions = CLASS_OPTIONS.map((value) => ({ value, label: value }));
+  const departmentSelectOptions = [{ value: 'all', label: 'All departments' }, ...departments.map((department) => ({ value: department.id, label: `${department.name} (${department.code})` }))];
+  const categorySelectOptions = [{ value: 'all', label: 'All categories' }, ...SUBJECT_CATEGORIES.map((value) => ({ value, label: value }))];
+  const statusSelectOptions = [{ value: 'all', label: 'All statuses' }, { value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }];
+  const groupSelectOptions = SUBJECT_GROUPS.map((group) => ({ value: group.value, label: group.label }));
+  const teacherSelectOptions = [{ value: '', label: 'Unassigned' }, ...mockStaff.map((staff) => ({ value: staff.id, label: `${staff.name} · ${staff.designation}` }))];
+
+  const updateSubjectCatalog = (next: SubjectRecord[]) => {
+    setSubjectCatalog(next);
+    setDepartments((previous) => previous.map((department) => ({ ...department, subjects: next.filter((subject) => subject.departmentId === department.id).map(toDepartmentSubject) })));
+  };
+  const openDepartmentForm = (department?: Department) => {
+    if (!department) {
+      setEditingDepartmentId(null);
+      setDepartmentForm(emptyDepartmentForm());
+    } else {
+      setEditingDepartmentId(department.id);
+      setDepartmentForm({
+        name: department.name, code: department.code, description: department.description,
+        departmentType: department.departmentType || 'Academic',
+        applicableClasses: department.applicableClasses?.length ? department.applicableClasses : ['Class 9', 'Class 10'],
+        establishedDate: department.establishedDate, budget: String(department.budget || 0),
+        staffRoom: department.staffRoom || '', primaryBuilding: department.primaryBuilding || department.location,
+        displayOrder: String(department.displayOrder || 1), hodId: department.headId,
+        hodDesignation: department.hodDesignation || mockStaff.find((staff) => staff.id === department.headId)?.designation || '',
+        leaveApproval: department.leaveApproval || 'HOD', staffIds: department.staff.map((staff) => staff.id), isActive: department.isActive
+      });
+    }
+    setShowDepartmentModal(true);
+  };
+  const saveDepartment = () => {
+    if (!departmentForm.name.trim() || !departmentForm.code.trim() || !departmentForm.hodId) {
+      showNotification('error', 'Department name, code, and HOD are required.'); return;
+    }
+    const code = departmentForm.code.trim().toUpperCase();
+    if (departments.some((department) => department.code.toUpperCase() === code && department.id !== editingDepartmentId)) {
+      showNotification('error', 'That department code is already in use.'); return;
+    }
+    const head = mockStaff.find((staff) => staff.id === departmentForm.hodId);
+    if (!head) { showNotification('error', 'Select a valid Head of Department.'); return; }
+    const previous = departments.find((department) => department.id === editingDepartmentId);
+    const now = new Date().toISOString();
+    const staff = Array.from(new Set([...departmentForm.staffIds, head.id])).map((id) => mockStaff.find((item) => item.id === id)).filter((item): item is StaffMember => Boolean(item));
+    const saved: Department = {
+      id: editingDepartmentId || `dept-${Date.now()}`, name: departmentForm.name.trim(), code,
+      head: head.name, headId: head.id, description: departmentForm.description.trim(), subjects: previous?.subjects || [], staff,
+      establishedDate: departmentForm.establishedDate || now.slice(0, 10), budget: Number(departmentForm.budget) || 0,
+      location: [departmentForm.primaryBuilding, departmentForm.staffRoom].filter(Boolean).join(' · '),
+      email: head.email, phone: head.phone, isActive: departmentForm.isActive,
+      createdAt: previous?.createdAt || now, modifiedAt: now,
+      departmentType: departmentForm.departmentType, applicableClasses: departmentForm.applicableClasses,
+      hodDesignation: departmentForm.hodDesignation || head.designation, leaveApproval: departmentForm.leaveApproval,
+      staffRoom: departmentForm.staffRoom, primaryBuilding: departmentForm.primaryBuilding, displayOrder: Number(departmentForm.displayOrder) || 1
+    };
+    setDepartments((previousDepartments) => editingDepartmentId ? previousDepartments.map((department) => department.id === editingDepartmentId ? saved : department) : [...previousDepartments, saved]);
+    setShowDepartmentModal(false); setEditingDepartmentId(null); setDepartmentForm(emptyDepartmentForm());
+    showNotification('success', `Department “${saved.name}” saved.`);
+  };
+  const requestDeleteDepartment = (department: Department) => {
+    if (departmentSubjectCount(department.id) > 0) { showNotification('warning', 'Remove or reassign all associated subjects before deleting this department.'); return; }
+    setDepartmentPendingDelete(department);
+  };
+  const confirmDeleteDepartment = () => {
+    if (!departmentPendingDelete) return;
+    if (departmentSubjectCount(departmentPendingDelete.id) > 0) { showNotification('warning', 'A department with associated subjects cannot be deleted.'); setDepartmentPendingDelete(null); return; }
+    setDepartments((previous) => previous.filter((department) => department.id !== departmentPendingDelete.id));
+    setDepartmentPendingDelete(null); showNotification('success', 'Department deleted.');
+  };
+  const toggleDepartmentStatus = (department: Department) => setDepartments((previous) => previous.map((item) => item.id === department.id ? { ...item, isActive: !item.isActive, modifiedAt: new Date().toISOString() } : item));
+  const showDepartmentSubjects = (department: Department) => { setSubjectDepartmentFilter(department.id); setActiveTab('Subjects'); };
+
+  const openSubjectForm = (subject?: SubjectRecord) => {
+    if (!subject) {
+      setEditingSubjectId(null);
+      setSubjectForm(emptySubjectForm());
+    } else {
+      setEditingSubjectId(subject.id);
+      setSubjectForm({
+        name: subject.name, shortName: subject.shortName, code: subject.code, boardCode: subject.boardCode,
+        description: subject.description, departmentId: subject.departmentId, category: subject.category,
+        classLevels: subject.classLevels, type: subject.type, credits: String(subject.credits),
+        hoursPerWeek: String(subject.hoursPerWeek), theoryPeriods: String(subject.theoryPeriods),
+        practicalPeriods: String(subject.practicalPeriods), hasPractical: subject.hasPractical,
+        practicalType: subject.practicalType, languagePosition: subject.languagePosition, isActive: subject.isActive
+      });
+    }
+    setShowSubjectModal(true);
+  };
+  const saveSubject = () => {
+    if (!subjectForm.name.trim() || !subjectForm.code.trim()) {
+      showNotification('error', 'Subject name and subject code are required.'); return;
+    }
+    const code = subjectForm.code.trim().toUpperCase();
+    if (subjectCatalog.some((subject) => subject.code.toUpperCase() === code && subject.id !== editingSubjectId)) {
+      showNotification('error', 'That subject code is already in use.'); return;
+    }
+    const saved: SubjectRecord = {
+      id: editingSubjectId || `sub-${Date.now()}`, name: subjectForm.name.trim(),
+      shortName: subjectForm.shortName.trim() || subjectForm.name.trim().slice(0, 18), code,
+      boardCode: subjectForm.boardCode.trim() || code, description: subjectForm.description.trim(),
+      departmentId: subjectForm.departmentId, category: subjectForm.category, classLevels: subjectForm.classLevels,
+      type: subjectForm.type, credits: Number(subjectForm.credits) || 0, hoursPerWeek: Number(subjectForm.hoursPerWeek) || 0,
+      theoryPeriods: Number(subjectForm.theoryPeriods) || 0,
+      practicalPeriods: subjectForm.hasPractical ? Number(subjectForm.practicalPeriods) || 0 : 0,
+      hasPractical: subjectForm.hasPractical, practicalType: subjectForm.hasPractical ? subjectForm.practicalType : 'Not applicable',
+      languagePosition: subjectForm.category === 'Language' ? subjectForm.languagePosition : '',
+      isCompulsory: subjectForm.category === 'Main / Core' || subjectForm.category === 'Language',
+      isElective: subjectForm.category === 'Optional / Elective', isActive: subjectForm.isActive
+    };
+    updateSubjectCatalog(editingSubjectId ? subjectCatalog.map((item) => item.id === editingSubjectId ? saved : item) : [...subjectCatalog, saved]);
+    setShowSubjectModal(false); setEditingSubjectId(null); setSubjectForm(emptySubjectForm());
+    showNotification('success', `Subject “${saved.name}” saved.`);
+  };
+  const confirmDeleteSubject = () => {
+    if (!subjectPendingDelete) return;
+    const subjectId = subjectPendingDelete.id;
+    updateSubjectCatalog(subjectCatalog.filter((subject) => subject.id !== subjectId));
+    setGroupingAssignments((previous) => Object.fromEntries(Object.entries(previous).filter(([key]) => !key.endsWith(`::${subjectId}`))));
+    setTeacherAssignments((previous) => Object.fromEntries(Object.entries(previous).filter(([key]) => !key.endsWith(`::${subjectId}`))));
+    setSubjectPendingDelete(null); showNotification('success', 'Subject deleted from the catalogue.');
+  };
+  const toggleSubjectStatus = (subject: SubjectRecord) => updateSubjectCatalog(subjectCatalog.map((item) => item.id === subject.id ? { ...item, isActive: !item.isActive } : item));
+
+  const toggleFormClass = (className: string, form: 'department' | 'subject') => {
+    if (form === 'department') {
+      setDepartmentForm((previous) => ({ ...previous, applicableClasses: previous.applicableClasses.includes(className) ? previous.applicableClasses.filter((value) => value !== className) : [...previous.applicableClasses, className] }));
+    } else {
+      setSubjectForm((previous) => ({ ...previous, classLevels: previous.classLevels.includes(className) ? previous.classLevels.filter((value) => value !== className) : [...previous.classLevels, className] }));
+    }
+  };
+  const toggleDepartmentStaff = (staffId: string) => setDepartmentForm((previous) => ({ ...previous, staffIds: previous.staffIds.includes(staffId) ? previous.staffIds.filter((value) => value !== staffId) : [...previous.staffIds, staffId] }));
+  const changeGrouping = (subjectId: string, group: SubjectGroup) => setGroupingAssignments((previous) => ({ ...previous, [assignmentKey(selectedClass, subjectId)]: group }));
+  const copyGroupingFromLastYear = () => {
+    const sourceClass = selectedClass === 'Class 10' ? 'Class 9' : 'Class 10';
+    setGroupingAssignments((previous) => {
+      const next = { ...previous };
+      subjectCatalog.forEach((subject) => { next[assignmentKey(selectedClass, subject.id)] = previous[assignmentKey(sourceClass, subject.id)] || getDefaultGroup(subject); });
+      return next;
     });
-  }, [departments, searchTerm, filterStatus]);
-
-  // Department Management Functions
-  const handleAddDepartment = () => {
-    if (!deptFormData.name || !deptFormData.code || !deptFormData.headId) {
-      showNotification('error', 'Please fill all required fields');
-      return;
-    }
-
-    // Check for duplicate code
-    if (departments.some((d) => d.code === deptFormData.code)) {
-      showNotification('error', 'Department code already exists');
-      return;
-    }
-
-    const selectedHead = mockStaff.find((s) => s.id === deptFormData.headId);
-    if (!selectedHead) {
-      showNotification('error', 'Invalid HOD selected');
-      return;
-    }
-
-    const newDepartment: Department = {
-      id: `dept-${Date.now()}`,
-      name: deptFormData.name,
-      code: deptFormData.code,
-      head: selectedHead.name,
-      headId: deptFormData.headId,
-      description: deptFormData.description,
-      subjects: [],
-      staff: [selectedHead],
-      establishedDate: deptFormData.establishedDate || new Date().toISOString().split('T')[0],
-      budget: parseFloat(deptFormData.budget) || 0,
-      location: deptFormData.location,
-      email: deptFormData.email,
-      phone: deptFormData.phone,
-      isActive: true,
-      createdAt: new Date().toISOString(),
-      modifiedAt: new Date().toISOString()
-    };
-
-    setDepartments((prev) => [...prev, newDepartment]);
-    setShowAddModal(false);
-    resetDeptForm();
-    showNotification('success', `Department "${deptFormData.name}" created successfully`);
+    showNotification('success', `Previous-year grouping copied to ${selectedClass}.`);
   };
-
-  const handleEditDepartment = () => {
-    if (!selectedDepartment || !deptFormData.name || !deptFormData.code || !deptFormData.headId) {
-      showNotification('error', 'Please fill all required fields');
-      return;
-    }
-
-    // Check for duplicate code (excluding current department)
-    if (departments.some((d) => d.code === deptFormData.code && d.id !== selectedDepartment.id)) {
-      showNotification('error', 'Department code already exists');
-      return;
-    }
-
-    const selectedHead = mockStaff.find((s) => s.id === deptFormData.headId);
-    if (!selectedHead) {
-      showNotification('error', 'Invalid HOD selected');
-      return;
-    }
-
-    setDepartments((prev) => prev.map((dept) =>
-    dept.id === selectedDepartment.id ?
-    {
-      ...dept,
-      name: deptFormData.name,
-      code: deptFormData.code,
-      head: selectedHead.name,
-      headId: deptFormData.headId,
-      description: deptFormData.description,
-      establishedDate: deptFormData.establishedDate,
-      budget: parseFloat(deptFormData.budget) || 0,
-      location: deptFormData.location,
-      email: deptFormData.email,
-      phone: deptFormData.phone,
-      modifiedAt: new Date().toISOString()
-    } :
-    dept
-    ));
-
-    setShowEditModal(false);
-    setSelectedDepartment(null);
-    resetDeptForm();
-    showNotification('success', 'Department updated successfully');
+  const changeTeacherAssignment = (subjectId: string, teacherId: string, className = selectedTeacherClass) => setTeacherAssignments((previous) => ({ ...previous, [assignmentKey(className, subjectId)]: teacherId }));
+  const handleExport = () => {
+    const blob = new Blob([JSON.stringify({ departments, subjects: subjectCatalog, groupingAssignments, teacherAssignments }, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a'); link.href = url;
+    link.download = `department-subject-setup-${new Date().toISOString().slice(0, 10)}.json`;
+    link.click(); URL.revokeObjectURL(url); showNotification('success', 'Setup exported.');
   };
-
-  const handleDeleteDepartment = () => {
-    if (!selectedDepartment) return;
-
-    if (selectedDepartment.subjects.length > 0 || selectedDepartment.staff.length > 0) {
-      showNotification('warning', 'Cannot delete department with subjects or staff. Remove them first.');
-      return;
-    }
-
-    setDepartments((prev) => prev.filter((dept) => dept.id !== selectedDepartment.id));
-    setShowDeleteConfirm(false);
-    setSelectedDepartment(null);
-    showNotification('success', 'Department deleted successfully');
-  };
-
-  const handleToggleStatus = (dept: Department) => {
-    setDepartments((prev) => prev.map((d) =>
-    d.id === dept.id ?
-    { ...d, isActive: !d.isActive, modifiedAt: new Date().toISOString() } :
-    d
-    ));
-    showNotification('info', `Department ${dept.isActive ? 'deactivated' : 'activated'}`);
-  };
-
-  const handleDuplicateDepartment = (dept: Department) => {
-    const duplicatedDept: Department = {
-      ...dept,
-      id: `dept-${Date.now()}`,
-      name: `${dept.name} (Copy)`,
-      code: `${dept.code}-COPY`,
-      subjects: [],
-      staff: [],
-      createdAt: new Date().toISOString(),
-      modifiedAt: new Date().toISOString()
-    };
-
-    setDepartments((prev) => [...prev, duplicatedDept]);
-    showNotification('success', `Department duplicated as "${duplicatedDept.name}"`);
-  };
-
-  // Subject Management Functions
-  const handleAddSubject = () => {
-    if (!selectedDepartment || !subjectFormData.name || !subjectFormData.code) {
-      showNotification('error', 'Please fill all required fields');
-      return;
-    }
-
-    // Check if subject code already exists in this department
-    if (selectedDepartment.subjects.some((s) => s.code === subjectFormData.code)) {
-      showNotification('error', 'Subject code already exists in this department');
-      return;
-    }
-
-    const newSubject: Subject = {
-      id: `sub-${Date.now()}`,
-      name: subjectFormData.name,
-      code: subjectFormData.code,
-      description: subjectFormData.description,
-      type: subjectFormData.type,
-      credits: parseInt(subjectFormData.credits) || 0,
-      hoursPerWeek: parseInt(subjectFormData.hoursPerWeek) || 0,
-      isElective: subjectFormData.isElective,
-      isActive: true
-    };
-
-    setDepartments((prev) => prev.map((dept) =>
-    dept.id === selectedDepartment.id ?
-    {
-      ...dept,
-      subjects: [...dept.subjects, newSubject],
-      modifiedAt: new Date().toISOString()
-    } :
-    dept
-    ));
-
-    setSelectedDepartment((prev) => prev ? {
-      ...prev,
-      subjects: [...prev.subjects, newSubject]
-    } : null);
-
-    resetSubjectForm();
-    showNotification('success', 'Subject added successfully');
-  };
-
-  const handleRemoveSubject = (subjectId: string) => {
-    if (!selectedDepartment) return;
-
-    setDepartments((prev) => prev.map((dept) =>
-    dept.id === selectedDepartment.id ?
-    {
-      ...dept,
-      subjects: dept.subjects.filter((s) => s.id !== subjectId),
-      modifiedAt: new Date().toISOString()
-    } :
-    dept
-    ));
-
-    setSelectedDepartment((prev) => prev ? {
-      ...prev,
-      subjects: prev.subjects.filter((s) => s.id !== subjectId)
-    } : null);
-
-    showNotification('success', 'Subject removed from department');
-  };
-
-  const handleToggleSubjectStatus = (subject: Subject) => {
-    if (!selectedDepartment) return;
-
-    setDepartments((prev) => prev.map((dept) =>
-    dept.id === selectedDepartment.id ?
-    {
-      ...dept,
-      subjects: dept.subjects.map((s) =>
-      s.id === subject.id ? { ...s, isActive: !s.isActive } : s
-      ),
-      modifiedAt: new Date().toISOString()
-    } :
-    dept
-    ));
-
-    setSelectedDepartment((prev) => prev ? {
-      ...prev,
-      subjects: prev.subjects.map((s) =>
-      s.id === subject.id ? { ...s, isActive: !s.isActive } : s
-      )
-    } : null);
-
-    showNotification('info', `Subject ${subject.isActive ? 'deactivated' : 'activated'}`);
-  };
-
-  // Staff Management Functions
-  const handleAddStaff = () => {
-    if (!selectedDepartment || !staffFormData.staffId) {
-      showNotification('error', 'Please select a staff member');
-      return;
-    }
-
-    const selectedStaffMember = mockStaff.find((s) => s.id === staffFormData.staffId);
-    if (!selectedStaffMember) {
-      showNotification('error', 'Invalid staff member selected');
-      return;
-    }
-
-    // Check if staff already exists in department
-    if (selectedDepartment.staff.some((s) => s.id === staffFormData.staffId)) {
-      showNotification('warning', 'Staff member already exists in this department');
-      return;
-    }
-
-    const updatedStaff: StaffMember = {
-      ...selectedStaffMember,
-      subjects: staffFormData.subjects
-    };
-
-    setDepartments((prev) => prev.map((dept) =>
-    dept.id === selectedDepartment.id ?
-    {
-      ...dept,
-      staff: [...dept.staff, updatedStaff],
-      modifiedAt: new Date().toISOString()
-    } :
-    dept
-    ));
-
-    setSelectedDepartment((prev) => prev ? {
-      ...prev,
-      staff: [...prev.staff, updatedStaff]
-    } : null);
-
-    resetStaffForm();
-    setShowAddStaffModal(false);
-    showNotification('success', 'Staff member added successfully');
-  };
-
-  const handleRemoveStaff = (staffId: string) => {
-    if (!selectedDepartment) return;
-
-    // Don't allow removing HOD
-    if (staffId === selectedDepartment.headId) {
-      showNotification('error', 'Cannot remove HOD from department');
-      return;
-    }
-
-    setDepartments((prev) => prev.map((dept) =>
-    dept.id === selectedDepartment.id ?
-    {
-      ...dept,
-      staff: dept.staff.filter((s) => s.id !== staffId),
-      modifiedAt: new Date().toISOString()
-    } :
-    dept
-    ));
-
-    setSelectedDepartment((prev) => prev ? {
-      ...prev,
-      staff: prev.staff.filter((s) => s.id !== staffId)
-    } : null);
-
-    showNotification('success', 'Staff member removed from department');
-  };
-
-  // Bulk Actions
-  const handleBulkDelete = () => {
-    const canDelete = Array.from(selectedDepartments).every((id) => {
-      const dept = departments.find((d) => d.id === id);
-      return dept && dept.subjects.length === 0 && dept.staff.length === 0;
-    });
-
-    if (!canDelete) {
-      showNotification('error', 'Cannot delete departments with subjects or staff');
-      return;
-    }
-
-    setDepartments((prev) => prev.filter((d) => !selectedDepartments.has(d.id)));
-    setSelectedDepartments(new Set());
-    showNotification('success', `${selectedDepartments.size} departments deleted`);
-  };
-
-  const handleBulkActivate = (activate: boolean) => {
-    setDepartments((prev) => prev.map((d) =>
-    selectedDepartments.has(d.id) ?
-    { ...d, isActive: activate, modifiedAt: new Date().toISOString() } :
-    d
-    ));
-    setSelectedDepartments(new Set());
-    showNotification('success', `${selectedDepartments.size} departments ${activate ? 'activated' : 'deactivated'}`);
-  };
-
-  const handleBulkExport = () => {
-    const selectedDepts = departments.filter((d) => selectedDepartments.has(d.id));
-    const dataStr = JSON.stringify(selectedDepts, null, 2);
-    const dataBlob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(dataBlob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `departments-${new Date().toISOString().split('T')[0]}.json`;
-    link.click();
-    showNotification('success', 'Departments exported successfully');
-  };
-
-  // Import/Export Functions
-  const handleExportAll = () => {
-    const dataStr = JSON.stringify(departments, null, 2);
-    const dataBlob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(dataBlob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `all-departments-${new Date().toISOString().split('T')[0]}.json`;
-    link.click();
-    showNotification('success', 'All departments exported successfully');
-  };
-
   const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+    const input = event.currentTarget;
+    const file = input.files?.[0];
     if (!file) return;
-
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = () => {
       try {
-        const importedData = JSON.parse(e.target?.result as string);
-        if (Array.isArray(importedData)) {
-          setDepartments((prev) => [...prev, ...importedData]);
-          showNotification('success', `${importedData.length} departments imported successfully`);
-          setShowImportModal(false);
-        } else {
-          showNotification('error', 'Invalid file format');
-        }
-      } catch (error) {
-        showNotification('error', 'Failed to parse file');
+        const data = JSON.parse(String(reader.result || '{}'));
+        if (!Array.isArray(data.departments) || !Array.isArray(data.subjects)) throw new Error('Invalid setup file');
+        setDepartments(data.departments as Department[]);
+        setSubjectCatalog(data.subjects as SubjectRecord[]);
+        if (data.groupingAssignments) setGroupingAssignments(data.groupingAssignments as Record<string, SubjectGroup>);
+        if (data.teacherAssignments) setTeacherAssignments(data.teacherAssignments as Record<string, string>);
+        showNotification('success', 'Setup imported.');
+      } catch {
+        showNotification('error', 'Could not import this setup file. Choose a valid exported JSON file.');
       }
+      input.value = '';
     };
     reader.readAsText(file);
   };
 
-  // UI Helper Functions
-  const toggleRowExpansion = (deptId: string) => {
-    setExpandedRows((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(deptId)) {
-        newSet.delete(deptId);
-      } else {
-        newSet.add(deptId);
-      }
-      return newSet;
-    });
-  };
+  const departmentColumns = [
+    { key: 'department', header: 'Department', render: (department: Department) => <div className="min-w-[180px]"><div className="font-semibold text-gray-900">{department.name}</div><div className="mt-0.5 text-xs text-gray-500">{department.code} · {department.description}</div></div> },
+    { key: 'type', header: 'Type', render: (department: Department) => <Badge variant="secondary">{department.departmentType || 'Academic'}</Badge> },
+    { key: 'hod', header: 'HOD / Contact', render: (department: Department) => {
+      const head = mockStaff.find((staff) => staff.id === department.headId);
+      return <div className="min-w-[170px]"><div className="font-medium text-gray-900">{department.head}</div><div className="mt-1 flex items-center gap-1 text-xs text-gray-500"><Mail className="h-3 w-3" />{head?.email || department.email}</div><div className="mt-0.5 flex items-center gap-1 text-xs text-gray-500"><Phone className="h-3 w-3" />{head?.phone || department.phone}</div></div>;
+    }},
+    { key: 'classes', header: 'Applicable Classes', render: (department: Department) => {
+      const classes = department.applicableClasses?.length ? department.applicableClasses : ['Class 9', 'Class 10'];
+      return <div className="max-w-[190px] text-xs text-gray-600">{classes.slice(0, 4).join(', ')}{classes.length > 4 ? ` +${classes.length - 4}` : ''}</div>;
+    }},
+    { key: 'subjects', header: 'Subjects', render: (department: Department) => <span className="font-semibold">{departmentSubjectCount(department.id)}</span> },
+    { key: 'staff', header: 'Staff', render: (department: Department) => <span className="font-semibold">{department.staff.length}</span> },
+    { key: 'status', header: 'Status', render: (department: Department) => <button onClick={() => toggleDepartmentStatus(department)} title="Toggle department status"><Badge variant={department.isActive ? 'success' : 'secondary'}>{department.isActive ? 'Active' : 'Inactive'}</Badge></button> },
+    { key: 'actions', header: 'Actions', render: (department: Department) => <div className="flex items-center gap-1">
+      <Button variant="ghost" size="xs" title="View subjects" onClick={() => showDepartmentSubjects(department)}><BookOpen className="h-4 w-4" /></Button>
+      <Button variant="ghost" size="xs" title="Edit department" onClick={() => openDepartmentForm(department)}><Edit2 className="h-4 w-4" /></Button>
+      <Button variant="ghost" size="xs" title={departmentSubjectCount(department.id) ? 'Remove associated subjects before deleting' : 'Delete department'} onClick={() => requestDeleteDepartment(department)} disabled={departmentSubjectCount(department.id) > 0}><Trash2 className="h-4 w-4 text-red-500" /></Button>
+      <Button variant="ghost" size="xs" title={expandedDepartments.has(department.id) ? 'Collapse details' : 'Expand details'} onClick={() => setExpandedDepartments((previous) => { const next = new Set(previous); next.has(department.id) ? next.delete(department.id) : next.add(department.id); return next; })}>{expandedDepartments.has(department.id) ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</Button>
+    </div> }
+  ];
 
-  const toggleDepartmentSelection = (deptId: string) => {
-    setSelectedDepartments((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(deptId)) {
-        newSet.delete(deptId);
-      } else {
-        newSet.add(deptId);
-      }
-      return newSet;
-    });
-  };
+  const subjectColumns = [
+    { key: 'subject', header: 'Subject', render: (subject: SubjectRecord) => <div className="min-w-[150px]"><div className="font-semibold text-gray-900">{subject.name}</div><div className="text-xs text-gray-500">{subject.shortName}</div></div> },
+    { key: 'code', header: 'Subject / Board Code', render: (subject: SubjectRecord) => <div className="text-sm font-medium">{subject.code}<div className="text-xs text-gray-500">Board: {subject.boardCode}</div></div> },
+    { key: 'department', header: 'Department', render: (subject: SubjectRecord) => getDepartmentName(subject.departmentId) },
+    { key: 'classes', header: 'Applicable Classes', render: (subject: SubjectRecord) => <div className="max-w-[150px] text-xs text-gray-600">{subject.classLevels.length ? subject.classLevels.join(', ') : 'All classes'}</div> },
+    { key: 'category', header: 'Category', render: (subject: SubjectRecord) => <Badge variant={subject.category === 'Optional / Elective' ? 'info' : subject.category === 'Activity / Skill' ? 'warning' : 'secondary'}>{subject.category}</Badge> },
+    { key: 'periods', header: 'Periods / Week', render: (subject: SubjectRecord) => <span>{subject.hoursPerWeek}</span> },
+    { key: 'practical', header: 'Practical', render: (subject: SubjectRecord) => subject.hasPractical ? <Badge variant="warning">{subject.practicalType}</Badge> : <span className="text-gray-400">—</span> },
+    { key: 'status', header: 'Status', render: (subject: SubjectRecord) => <button onClick={() => toggleSubjectStatus(subject)} title="Toggle subject status"><Badge variant={subject.isActive ? 'success' : 'secondary'}>{subject.isActive ? 'Active' : 'Inactive'}</Badge></button> },
+    { key: 'actions', header: 'Actions', render: (subject: SubjectRecord) => <div className="flex items-center gap-1"><Button variant="ghost" size="xs" title="Edit subject" onClick={() => openSubjectForm(subject)}><Edit2 className="h-4 w-4" /></Button><Button variant="ghost" size="xs" title="Delete subject" onClick={() => setSubjectPendingDelete(subject)}><Trash2 className="h-4 w-4 text-red-500" /></Button></div> }
+  ];
 
-  const selectAllDepartments = () => {
-    if (selectedDepartments.size === filteredDepartments.length) {
-      setSelectedDepartments(new Set());
-    } else {
-      setSelectedDepartments(new Set(filteredDepartments.map((d) => d.id)));
-    }
-  };
-
-  // Form Reset Functions
-  const resetDeptForm = () => {
-    setDeptFormData({
-      name: '',
-      code: '',
-      headId: '',
-      description: '',
-      establishedDate: '',
-      budget: '',
-      location: '',
-      email: '',
-      phone: ''
-    });
-  };
-
-  const resetSubjectForm = () => {
-    setSubjectFormData({
-      name: '',
-      code: '',
-      description: '',
-      type: 'theory',
-      credits: '',
-      hoursPerWeek: '',
-      isElective: false
-    });
-  };
-
-  const resetStaffForm = () => {
-    setStaffFormData({
-      staffId: '',
-      subjects: []
-    });
-  };
-
-  // Open Modal Functions
-  const openAddModal = () => {
-    resetDeptForm();
-    setShowAddModal(true);
-  };
-
-  const openEditModal = (dept: Department) => {
-    setSelectedDepartment(dept);
-    setDeptFormData({
-      name: dept.name,
-      code: dept.code,
-      headId: dept.headId,
-      description: dept.description,
-      establishedDate: dept.establishedDate,
-      budget: dept.budget.toString(),
-      location: dept.location,
-      email: dept.email,
-      phone: dept.phone
-    });
-    setShowEditModal(true);
-  };
-
-  const openDeleteConfirm = (dept: Department) => {
-    setSelectedDepartment(dept);
-    setShowDeleteConfirm(true);
-  };
-
-  const openViewModal = (dept: Department) => {
-    setSelectedDepartment(dept);
-    setShowViewModal(true);
-  };
-
-  const openAddSubjectModal = (dept: Department) => {
-    setSelectedDepartment(dept);
-    resetSubjectForm();
-    setShowAddSubjectModal(true);
-  };
-
-  const openAddStaffModal = (dept: Department) => {
-    setSelectedDepartment(dept);
-    resetStaffForm();
-    setShowAddStaffModal(true);
-  };
-
-  const openSubjectDetails = (subject: Subject) => {
-    setSelectedSubject(subject);
-    setShowSubjectDetailsModal(true);
-  };
-
-  const openStaffDetails = (staff: StaffMember) => {
-    setSelectedStaff(staff);
-    setShowStaffDetailsModal(true);
-  };
-
-  // Statistics Calculation
-  const stats = useMemo(() => {
-    return {
-      total: departments.length,
-      active: departments.filter((d) => d.isActive).length,
-      inactive: departments.filter((d) => !d.isActive).length,
-      totalSubjects: departments.reduce((sum, d) => sum + d.subjects.length, 0),
-      totalStaff: departments.reduce((sum, d) => sum + d.staff.length, 0),
-      avgSubjectsPerDept: departments.length > 0 ?
-      (departments.reduce((sum, d) => sum + d.subjects.length, 0) / departments.length).toFixed(1) :
-      0,
-      avgStaffPerDept: departments.length > 0 ?
-      (departments.reduce((sum, d) => sum + d.staff.length, 0) / departments.length).toFixed(1) :
-      0,
-      totalBudget: departments.reduce((sum, d) => sum + d.budget, 0)
-    };
-  }, [departments]);
-
-  // Format currency
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      maximumFractionDigits: 0
-    }).format(amount);
-  };
-
-  // Format date
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric'
-    });
-  };
-
-  // Table Columns
-  const columns = [
-  {
-    key: 'select',
-    header: showBulkActions ?
-    <input
-      type="checkbox"
-      checked={selectedDepartments.size === filteredDepartments.length && filteredDepartments.length > 0}
-      onChange={selectAllDepartments}
-      className="rounded" /> :
-
-    null,
-    render: (row: Department) => showBulkActions ?
-    <input
-      type="checkbox"
-      checked={selectedDepartments.has(row.id)}
-      onChange={() => toggleDepartmentSelection(row.id)}
-      className="rounded" /> :
-
-    null
-  },
-  {
-    key: 'expand',
-    header: '',
-    render: (row: Department) =>
-    <button
-      onClick={() => toggleRowExpansion(row.id)}
-      className="p-1 hover:bg-gray-100 rounded">
-
-          {expandedRows.has(row.id) ?
-      <ChevronDown className="w-4 h-4" /> :
-
-      <ChevronRight className="w-4 h-4" />
-      }
-        </button>
-
-  },
-  {
-    key: 'dept',
-    header: 'Department Name',
-    render: (row: Department) =>
-    <div>
-          <div className="font-medium flex items-center gap-2">
-            {row.name}
-            {!row.isActive && <Badge variant="secondary">Inactive</Badge>}
-          </div>
-          <div className="text-xs text-gray-500">Code: {row.code}</div>
-        </div>
-
-  },
-  {
-    key: 'head',
-    header: 'HOD',
-    render: (row: Department) =>
-    <div>
-          <div className="font-medium">{row.head}</div>
-          <div className="text-xs text-gray-500">{row.email}</div>
-        </div>
-
-  },
-  {
-    key: 'subjects',
-    header: 'Subjects Managed',
-    render: (row: Department) =>
-    <div>
-          <div className="font-medium">
-            {row.subjects.length} Subject{row.subjects.length !== 1 ? 's' : ''}
-          </div>
-          <div className="text-xs text-gray-500">
-            {row.subjects.slice(0, 2).map((s) => s.name).join(', ')}
-            {row.subjects.length > 2 && ` +${row.subjects.length - 2} more`}
-          </div>
-        </div>
-
-  },
-  {
-    key: 'staff',
-    header: 'Staff Count',
-    render: (row: Department) =>
-    <div className="text-center">
-          <div className="font-medium">{row.staff.length}</div>
-          <div className="text-xs text-gray-500">members</div>
-        </div>
-
-  },
-  {
-    key: 'budget',
-    header: 'Budget',
-    render: (row: Department) =>
-    <div className="text-right">
-          <div className="font-medium">{formatCurrency(row.budget)}</div>
-        </div>
-
-  },
-  {
-    key: 'actions',
-    header: 'Actions',
-    render: (row: Department) =>
-    <div className="flex gap-1">
-          <Button
-        variant="ghost"
-        size="xs"
-        onClick={() => openViewModal(row)}
-        title="View Details">
-
-            <Eye className="w-4 h-4" />
-          </Button>
-          <Button
-        variant="ghost"
-        size="xs"
-        onClick={() => openEditModal(row)}
-        title="Edit">
-
-            <Edit2 className="w-4 h-4" />
-          </Button>
-          <Button
-        variant="ghost"
-        size="xs"
-        onClick={() => openDeleteConfirm(row)}
-        title="Delete"
-        className="text-red-500">
-
-            <Trash2 className="w-4 h-4" />
-          </Button>
-        </div>
-
-  }];
-
+  const teacherColumns = [
+    { key: 'subject', header: 'Subject', render: (subject: SubjectRecord) => <div><div className="font-medium">{subject.name}</div><div className="text-xs text-gray-500">{subject.code} · {subject.hoursPerWeek} periods / week</div></div> },
+    { key: 'department', header: 'Department', render: (subject: SubjectRecord) => getDepartmentName(subject.departmentId) },
+    { key: 'category', header: 'Grouping', render: (subject: SubjectRecord) => <Badge variant="secondary">{getGroupFor(subject, selectedTeacherClass)}</Badge> },
+    { key: 'teacher', header: 'Mapped Teacher', render: (subject: SubjectRecord) => <Select options={teacherSelectOptions} value={getTeacherFor(subject, selectedTeacherClass)} onChange={(event) => changeTeacherAssignment(subject.id, event.target.value)} className="min-w-[230px]" /> },
+    { key: 'workload', header: 'Workload', render: (subject: SubjectRecord) => { const teacher = mockStaff.find((staff) => staff.id === getTeacherFor(subject, selectedTeacherClass)); return teacher ? <span>{teacher.workload} periods / week</span> : <span className="text-gray-400">—</span>; } }
+  ];
 
   return (
     <div className="space-y-6 p-6">
-      {/* Notification */}
-      {notification &&
-      <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg flex items-center gap-2 min-w-[300px] ${
-      notification.type === 'success' ? 'bg-green-100 text-green-800' :
-      notification.type === 'error' ? 'bg-red-100 text-red-800' :
-      notification.type === 'warning' ? 'bg-yellow-100 text-yellow-800' :
-      'bg-blue-100 text-blue-800'}`
-      }>
-          {notification.type === 'success' && <CheckCircle className="w-5 h-5" />}
-          {notification.type === 'error' && <AlertCircle className="w-5 h-5" />}
-          {notification.type === 'warning' && <AlertTriangle className="w-5 h-5" />}
-          {notification.type === 'info' && <Info className="w-5 h-5" />}
-          <span className="flex-1">{notification.message}</span>
-          <button onClick={() => setNotification(null)}>
-            <X className="w-4 h-4" />
-          </button>
+      {notification && (
+        <div className={`fixed right-4 top-4 z-50 flex min-w-[280px] items-center gap-2 rounded-lg border p-4 shadow-lg ${notification.type === 'success' ? 'border-green-200 bg-green-50 text-green-800' : notification.type === 'warning' ? 'border-amber-200 bg-amber-50 text-amber-800' : notification.type === 'error' ? 'border-red-200 bg-red-50 text-red-800' : 'border-blue-200 bg-blue-50 text-blue-800'}`}>
+          {notification.type === 'success' ? <CheckCircle className="h-5 w-5" /> : <AlertCircle className="h-5 w-5" />}
+          <span className="flex-1 text-sm">{notification.message}</span>
+          <button onClick={() => setNotification(null)} aria-label="Dismiss notification"><X className="h-4 w-4" /></button>
         </div>
-      }
+      )}
 
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            Departments & Grouping
-          </h1>
-          <p className="text-sm text-gray-500">
-            Organize subjects and staff into departments
-          </p>
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-100 text-blue-700"><Building2 className="h-6 w-6" /></div>
+          <div><h1 className="text-2xl font-bold text-gray-900">Department &amp; Subject Grouping Setup</h1><p className="mt-1 text-sm text-gray-500">Organize academic departments, subject structures, class groups, and teacher assignments.</p></div>
         </div>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={() => setShowStatsModal(true)}
-            title="View Statistics">
+        <div className="flex flex-wrap gap-2"><input id="department-setup-import" type="file" accept=".json,application/json" className="hidden" onChange={handleImport} /><Button variant="outline" onClick={() => document.getElementById('department-setup-import')?.click()}><Upload className="h-4 w-4" />Import Setup</Button><Button variant="outline" onClick={handleExport}><Download className="h-4 w-4" />Export Setup</Button><Button onClick={() => openDepartmentForm()}><Plus className="h-4 w-4" />Add Department</Button></div>
+      </header>
 
-            <BarChart className="w-4 h-4 mr-2" />
-            Stats
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => setShowBulkActions(!showBulkActions)}>
-
-            <Settings className="w-4 h-4 mr-2" />
-            Bulk Actions
-          </Button>
-          <Button
-            variant="outline"
-            onClick={handleExportAll}>
-
-            <Download className="w-4 h-4 mr-2" />
-            Export
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => setShowImportModal(true)}>
-
-            <Upload className="w-4 h-4 mr-2" />
-            Import
-          </Button>
-          <Button onClick={openAddModal}>
-            <Plus className="w-4 h-4 mr-2" />
-            Add Department
-          </Button>
-        </div>
-      </div>
-
-      {/* Quick Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
-        <Card>
-          <div className="text-center">
-            <div className="text-2xl font-bold">{stats.total}</div>
-            <div className="text-sm text-gray-500">Total Depts</div>
-          </div>
-        </Card>
-        <Card>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-green-600">{stats.active}</div>
-            <div className="text-sm text-gray-500">Active</div>
-          </div>
-        </Card>
-        <Card>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-gray-600">{stats.inactive}</div>
-            <div className="text-sm text-gray-500">Inactive</div>
-          </div>
-        </Card>
-        <Card>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-blue-600">{stats.totalSubjects}</div>
-            <div className="text-sm text-gray-500">Subjects</div>
-          </div>
-        </Card>
-        <Card>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-purple-600">{stats.totalStaff}</div>
-            <div className="text-sm text-gray-500">Staff</div>
-          </div>
-        </Card>
-        <Card>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-orange-600">{stats.avgSubjectsPerDept}</div>
-            <div className="text-sm text-gray-500">Avg Subjects</div>
-          </div>
-        </Card>
-        <Card>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-teal-600">{stats.avgStaffPerDept}</div>
-            <div className="text-sm text-gray-500">Avg Staff</div>
-          </div>
-        </Card>
-        <Card>
-          <div className="text-center">
-            <div className="text-lg font-bold text-indigo-600">
-              {formatCurrency(stats.totalBudget).split('.')[0]}
-            </div>
-            <div className="text-sm text-gray-500">Total Budget</div>
-          </div>
-        </Card>
-      </div>
-
-      {/* Filters and Search */}
-      <Card>
-        <div className="flex flex-wrap gap-4 items-center">
-          <div className="flex-1 min-w-[200px]">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <Input
-                placeholder="Search departments..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10" />
-
-            </div>
-          </div>
-          <Select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            options={[
-            { value: 'all', label: 'All Status' },
-            { value: 'active', label: 'Active Only' },
-            { value: 'inactive', label: 'Inactive Only' }]
-            }
-            className="w-40" />
-
-          {searchTerm &&
-          <Button
-            variant="outline"
-            onClick={() => setSearchTerm('')}
-            size="sm">
-
-              Clear
-            </Button>
-          }
+      <Card className="p-4">
+        <div className="grid grid-cols-1 gap-4 text-sm md:grid-cols-3">
+          <div className="flex items-center gap-2"><Building2 className="h-4 w-4 text-gray-400" /><span className="text-gray-500">Institute</span><span className="font-medium text-gray-900">Sunshine Public School</span></div>
+          <div className="flex items-center gap-2"><Calendar className="h-4 w-4 text-gray-400" /><span className="text-gray-500">Academic Year</span><span className="font-medium text-gray-900">2025–26</span></div>
+          <div className="flex items-center gap-2"><Clock className="h-4 w-4 text-gray-400" /><span className="text-gray-500">Last Updated</span><span className="font-medium text-gray-900">{latestUpdate}</span></div>
         </div>
       </Card>
 
-      {/* Bulk Actions Bar */}
-      {showBulkActions && selectedDepartments.size > 0 &&
-      <Card>
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-600">
-              {selectedDepartments.size} department(s) selected
-            </div>
-            <div className="flex gap-2">
-              <Button
-              variant="outline"
-              onClick={handleBulkExport}>
+      <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900"><Info className="mt-0.5 h-5 w-5 shrink-0" /><p><span className="font-semibold">Setup note:</span> Define departments and subject details first, then group subjects by class and map teachers. A department can only be deleted after its associated subjects have been moved or removed.</p></div>
 
-                <Download className="w-4 h-4 mr-2" />
-                Export Selected
-              </Button>
-              <Button
-              variant="outline"
-              onClick={() => handleBulkActivate(true)}>
+      <section aria-label="Setup overview" className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <Card className="p-4"><div className="flex items-center gap-3"><Building2 className="h-8 w-8 text-blue-600" /><div><div className="text-2xl font-bold">{departments.length}</div><div className="text-xs text-gray-500">Total Departments</div></div></div></Card>
+        <Card className="p-4"><div className="flex items-center gap-3"><Activity className="h-8 w-8 text-emerald-600" /><div><div className="text-2xl font-bold">{departments.filter((department) => department.isActive).length}</div><div className="text-xs text-gray-500">Active Departments</div></div></div></Card>
+        <Card className="p-4"><div className="flex items-center gap-3"><BookOpen className="h-8 w-8 text-indigo-600" /><div><div className="text-2xl font-bold">{subjectCatalog.length}</div><div className="text-xs text-gray-500">Total Subjects</div></div></div></Card>
+        <Card className="p-4"><div className="flex items-center gap-3"><GraduationCap className="h-8 w-8 text-sky-600" /><div><div className="text-2xl font-bold">{compulsoryCount}</div><div className="text-xs text-gray-500">Compulsory Subjects</div></div></div></Card>
+        <Card className="p-4"><div className="flex items-center gap-3"><Users className="h-8 w-8 text-purple-600" /><div><div className="text-2xl font-bold">{optionalCount}</div><div className="text-xs text-gray-500">Optional Subjects</div></div></div></Card>
+        <Card className="p-4"><div className="flex items-center gap-3"><Target className="h-8 w-8 text-amber-600" /><div><div className="text-2xl font-bold">{ungroupedCount}</div><div className="text-xs text-gray-500">Not Yet Grouped</div></div></div></Card>
+      </section>
 
-                <CheckCircle className="w-4 h-4 mr-2" />
-                Activate
-              </Button>
-              <Button
-              variant="outline"
-              onClick={() => handleBulkActivate(false)}>
+      <nav className="flex flex-wrap gap-1 border-b border-gray-200" role="tablist" aria-label="Department and subject setup">
+        {(['Departments', 'Subjects', 'Subject Grouping', 'Teacher Mapping'] as SetupTab[]).map((tab) => <button key={tab} role="tab" aria-selected={activeTab === tab} onClick={() => setActiveTab(tab)} className={`border-b-2 px-4 py-3 text-sm font-medium transition-colors ${activeTab === tab ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}`}>{tab}</button>)}
+      </nav>
 
-                <X className="w-4 h-4 mr-2" />
-                Deactivate
-              </Button>
-              <Button
-              variant="outline"
-              onClick={handleBulkDelete}>
-
-                <Trash2 className="w-4 h-4 mr-2" />
-                Delete Selected
-              </Button>
-            </div>
+      {activeTab === 'Departments' && (
+        <Card title="Department Directory">
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            <div className="relative min-w-[220px] flex-1"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" /><Input placeholder="Search departments, code, or HOD..." value={departmentSearch} onChange={(event) => setDepartmentSearch(event.target.value)} className="pl-10" /></div>
+            <Select options={statusSelectOptions} value={departmentStatusFilter} onChange={(event) => setDepartmentStatusFilter(event.target.value)} className="w-40" />
+            <Select options={[{ value: 'all', label: 'All department types' }, ...DEPARTMENT_TYPES.map((type) => ({ value: type, label: type }))]} value={departmentTypeFilter} onChange={(event) => setDepartmentTypeFilter(event.target.value)} className="w-52" />
           </div>
+          <Table columns={departmentColumns} data={filteredDepartments} emptyMessage="No departments match the selected filters." expandedContent={(department: Department) => expandedDepartments.has(department.id) ? (
+            <div className="grid grid-cols-1 gap-4 bg-slate-50 p-4 md:grid-cols-3">
+              <div className="rounded-lg border bg-white p-3"><div className="mb-2 text-xs font-semibold uppercase text-gray-500">Operational Details</div><div className="space-y-1 text-sm"><div>Established: {department.establishedDate}</div><div>Building: {department.primaryBuilding || department.location || '—'}</div><div>Staff room: {department.staffRoom || '—'}</div><div>Annual budget: ₹{department.budget.toLocaleString('en-IN')}</div></div></div>
+              <div className="rounded-lg border bg-white p-3"><div className="mb-2 text-xs font-semibold uppercase text-gray-500">Leadership</div><div className="space-y-1 text-sm"><div>HOD: {department.head}</div><div>Designation: {department.hodDesignation || mockStaff.find((staff) => staff.id === department.headId)?.designation || '—'}</div><div>Leave approval: {department.leaveApproval || 'HOD'}</div><div>{department.email}</div><div>{department.phone}</div></div></div>
+              <div className="rounded-lg border bg-white p-3"><div className="mb-2 text-xs font-semibold uppercase text-gray-500">Staff &amp; Classes</div><div className="mb-2 flex flex-wrap gap-1">{(department.applicableClasses?.length ? department.applicableClasses : ['Class 9', 'Class 10']).map((className) => <Badge key={className} variant="secondary">{className}</Badge>)}</div><div className="text-sm">{department.staff.map((staff) => staff.name).join(', ') || 'No staff assigned'}</div><div className="mt-1 text-xs text-gray-500">{departmentSubjectCount(department.id)} subjects · order {department.displayOrder || 1}</div></div>
+            </div>
+          ) : null} />
         </Card>
-      }
+      )}
 
-      {/* Main Table */}
-      <Card>
-        <Table
-          columns={columns}
-          data={filteredDepartments}
-          expandedContent={(row: Department) => expandedRows.has(row.id) ?
-          <div className="p-4 bg-gray-50 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* Department Info */}
-                <div>
-                  <div className="text-sm font-medium text-gray-500 mb-2">Department Information</div>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-start gap-2">
-                      <FileText className="w-4 h-4 text-gray-400 mt-0.5" />
-                      <div>
-                        <div className="text-gray-600">Description:</div>
-                        <div className="font-medium">{row.description || 'N/A'}</div>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <MapPin className="w-4 h-4 text-gray-400 mt-0.5" />
-                      <div>
-                        <div className="text-gray-600">Location:</div>
-                        <div className="font-medium">{row.location || 'N/A'}</div>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <Calendar className="w-4 h-4 text-gray-400 mt-0.5" />
-                      <div>
-                        <div className="text-gray-600">Established:</div>
-                        <div className="font-medium">{formatDate(row.establishedDate)}</div>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <Mail className="w-4 h-4 text-gray-400 mt-0.5" />
-                      <div>
-                        <div className="text-gray-600">Email:</div>
-                        <div className="font-medium">{row.email || 'N/A'}</div>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <Phone className="w-4 h-4 text-gray-400 mt-0.5" />
-                      <div>
-                        <div className="text-gray-600">Phone:</div>
-                        <div className="font-medium">{row.phone || 'N/A'}</div>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <DollarSign className="w-4 h-4 text-gray-400 mt-0.5" />
-                      <div>
-                        <div className="text-gray-600">Budget:</div>
-                        <div className="font-medium">{formatCurrency(row.budget)}</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Subjects Section */}
-                <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <div className="text-sm font-medium text-gray-500">
-                      Subjects ({row.subjects.length})
-                    </div>
-                    <Button
-                    size="xs"
-                    onClick={() => openAddSubjectModal(row)}>
-
-                      <Plus className="w-3 h-3 mr-1" />
-                      Add
-                    </Button>
-                  </div>
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {row.subjects.map((subject) =>
-                  <div
-                    key={subject.id}
-                    className="p-2 bg-white rounded border flex justify-between items-start">
-
-                        <div className="flex-1">
-                          <div className="font-medium text-sm flex items-center gap-2">
-                            {subject.name}
-                            {!subject.isActive &&
-                        <Badge variant="secondary" className="text-xs">Inactive</Badge>
-                        }
-                            {subject.isElective &&
-                        <Badge variant="info" className="text-xs">Elective</Badge>
-                        }
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {subject.code} • {subject.credits} credits • {subject.hoursPerWeek}h/week
-                          </div>
-                        </div>
-                        <div className="flex gap-1">
-                          <button
-                        onClick={() => openSubjectDetails(subject)}
-                        className="p-1 hover:bg-gray-100 rounded"
-                        title="View Details">
-
-                            <Eye className="w-3 h-3" />
-                          </button>
-                          <button
-                        onClick={() => handleToggleSubjectStatus(subject)}
-                        className="p-1 hover:bg-gray-100 rounded"
-                        title={subject.isActive ? 'Deactivate' : 'Activate'}>
-
-                            <Activity className="w-3 h-3" />
-                          </button>
-                          <button
-                        onClick={() => {
-                          setSelectedDepartment(row);
-                          handleRemoveSubject(subject.id);
-                        }}
-                        className="p-1 hover:bg-gray-100 rounded text-red-600"
-                        title="Remove">
-
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        </div>
-                      </div>
-                  )}
-                    {row.subjects.length === 0 &&
-                  <p className="text-sm text-gray-500 text-center py-4">
-                        No subjects added yet
-                      </p>
-                  }
-                  </div>
-                </div>
-
-                {/* Staff Section */}
-                <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <div className="text-sm font-medium text-gray-500">
-                      Staff ({row.staff.length})
-                    </div>
-                    <Button
-                    size="xs"
-                    onClick={() => openAddStaffModal(row)}>
-
-                      <Plus className="w-3 h-3 mr-1" />
-                      Add
-                    </Button>
-                  </div>
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {row.staff.map((staff) =>
-                  <div
-                    key={staff.id}
-                    className="p-2 bg-white rounded border flex justify-between items-start">
-
-                        <div className="flex-1">
-                          <div className="font-medium text-sm flex items-center gap-2">
-                            {staff.name}
-                            {staff.isHOD &&
-                        <Badge variant="success" className="text-xs">HOD</Badge>
-                        }
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {staff.designation}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {staff.subjects.length} subject(s) • {staff.workload}h/week
-                          </div>
-                        </div>
-                        <div className="flex gap-1">
-                          <button
-                        onClick={() => openStaffDetails(staff)}
-                        className="p-1 hover:bg-gray-100 rounded"
-                        title="View Details">
-
-                            <Eye className="w-3 h-3" />
-                          </button>
-                          {!staff.isHOD &&
-                      <button
-                        onClick={() => {
-                          setSelectedDepartment(row);
-                          handleRemoveStaff(staff.id);
-                        }}
-                        className="p-1 hover:bg-gray-100 rounded text-red-600"
-                        title="Remove">
-
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                      }
-                        </div>
-                      </div>
-                  )}
-                    {row.staff.length === 0 &&
-                  <p className="text-sm text-gray-500 text-center py-4">
-                        No staff added yet
-                      </p>
-                  }
-                  </div>
-                </div>
-              </div>
-
-              {/* Quick Actions */}
-              <div className="flex gap-2 pt-2 border-t">
-                <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleToggleStatus(row)}>
-
-                  <Activity className="w-4 h-4 mr-2" />
-                  {row.isActive ? 'Deactivate' : 'Activate'}
-                </Button>
-                <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleDuplicateDepartment(row)}>
-
-                  <Copy className="w-4 h-4 mr-2" />
-                  Duplicate
-                </Button>
-                <Button
-                variant="outline"
-                size="sm"
-                onClick={() => openViewModal(row)}>
-
-                  <Eye className="w-4 h-4 mr-2" />
-                  View Full Details
-                </Button>
-              </div>
-            </div> :
-          null} />
-
-        {filteredDepartments.length === 0 &&
-        <div className="text-center py-8 text-gray-500">
-            No departments found
+      {activeTab === 'Subjects' && (
+        <Card title="Subject Catalogue">
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            <div className="relative min-w-[210px] flex-1"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" /><Input placeholder="Search subject, short name, or code..." value={subjectSearch} onChange={(event) => setSubjectSearch(event.target.value)} className="pl-10" /></div>
+            <Select options={departmentSelectOptions} value={subjectDepartmentFilter} onChange={(event) => setSubjectDepartmentFilter(event.target.value)} className="w-48" />
+            <Select options={[{ value: 'all', label: 'All classes' }, ...classSelectOptions]} value={subjectClassFilter} onChange={(event) => setSubjectClassFilter(event.target.value)} className="w-36" />
+            <Select options={categorySelectOptions} value={subjectCategoryFilter} onChange={(event) => setSubjectCategoryFilter(event.target.value)} className="w-48" />
+            <Select options={statusSelectOptions} value={subjectStatusFilter} onChange={(event) => setSubjectStatusFilter(event.target.value)} className="w-36" />
+            <Button onClick={() => openSubjectForm()}><Plus className="h-4 w-4" />Add Subject</Button>
           </div>
-        }
-      </Card>
+          <div className="mb-3 flex items-center gap-2 text-xs text-gray-500"><Filter className="h-3.5 w-3.5" />{filteredSubjects.length} subjects shown · filter by department, class, category, and status.</div>
+          <Table columns={subjectColumns} data={filteredSubjects} emptyMessage="No subjects match the selected filters." />
+        </Card>
+      )}
 
-      {/* Add Department Modal */}
-      {showAddModal &&
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b flex justify-between items-center">
-              <h2 className="text-xl font-bold">Add New Department</h2>
-              <button onClick={() => setShowAddModal(false)}>
-                <X className="w-5 h-5" />
-              </button>
+      {activeTab === 'Subject Grouping' && (
+        <div className="space-y-4">
+          <Card>
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div><h2 className="text-lg font-semibold">Class Subject Grouping</h2><p className="text-sm text-gray-500">Assign each active subject to a group for the selected class.</p></div>
+              <div className="flex flex-wrap items-center gap-2"><Select label="Class" options={classSelectOptions} value={selectedClass} onChange={(event) => setSelectedClass(event.target.value)} className="w-36" /><Button variant="outline" onClick={copyGroupingFromLastYear}><Calendar className="h-4 w-4" />Copy from Last Year</Button></div>
             </div>
-            <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Department Name *
-                  </label>
-                  <Input
-                  placeholder="e.g., Science"
-                  value={deptFormData.name}
-                  onChange={(e) => setDeptFormData({ ...deptFormData, name: e.target.value })} />
-
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Department Code *
-                  </label>
-                  <Input
-                  placeholder="e.g., SCI"
-                  value={deptFormData.code}
-                  onChange={(e) => setDeptFormData({ ...deptFormData, code: e.target.value.toUpperCase() })} />
-
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Head of Department (HOD) *
-                </label>
-                <Select
-                value={deptFormData.headId}
-                onChange={(e) => setDeptFormData({ ...deptFormData, headId: e.target.value })}
-                options={[
-                { value: '', label: 'Select HOD' },
-                ...mockStaff.map((s) => ({ value: s.id, label: `${s.name} - ${s.designation}` }))]
-                } />
-
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Description
-                </label>
-                <textarea
-                className="w-full border rounded p-2 text-sm"
-                rows={3}
-                placeholder="Department description..."
-                value={deptFormData.description}
-                onChange={(e) => setDeptFormData({ ...deptFormData, description: e.target.value })} />
-
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Established Date
-                  </label>
-                  <Input
-                  type="date"
-                  value={deptFormData.establishedDate}
-                  onChange={(e) => setDeptFormData({ ...deptFormData, establishedDate: e.target.value })} />
-
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Annual Budget (₹)
-                  </label>
-                  <Input
-                  type="number"
-                  placeholder="0"
-                  value={deptFormData.budget}
-                  onChange={(e) => setDeptFormData({ ...deptFormData, budget: e.target.value })} />
-
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Location
-                </label>
-                <Input
-                placeholder="e.g., Science Block, 2nd Floor"
-                value={deptFormData.location}
-                onChange={(e) => setDeptFormData({ ...deptFormData, location: e.target.value })} />
-
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Email
-                  </label>
-                  <Input
-                  type="email"
-                  placeholder="dept@school.edu"
-                  value={deptFormData.email}
-                  onChange={(e) => setDeptFormData({ ...deptFormData, email: e.target.value })} />
-
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Phone
-                  </label>
-                  <Input
-                  type="tel"
-                  placeholder="+91-XXXXXXXXXX"
-                  value={deptFormData.phone}
-                  onChange={(e) => setDeptFormData({ ...deptFormData, phone: e.target.value })} />
-
-                </div>
-              </div>
-            </div>
-            <div className="p-6 border-t flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setShowAddModal(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleAddDepartment}>
-                <Save className="w-4 h-4 mr-2" />
-                Create Department
-              </Button>
-            </div>
-          </div>
-        </div>
-      }
-
-      {/* Edit Department Modal */}
-      {showEditModal && selectedDepartment &&
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b flex justify-between items-center">
-              <h2 className="text-xl font-bold">Edit Department</h2>
-              <button onClick={() => setShowEditModal(false)}>
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Department Name *
-                  </label>
-                  <Input
-                  placeholder="e.g., Science"
-                  value={deptFormData.name}
-                  onChange={(e) => setDeptFormData({ ...deptFormData, name: e.target.value })} />
-
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Department Code *
-                  </label>
-                  <Input
-                  placeholder="e.g., SCI"
-                  value={deptFormData.code}
-                  onChange={(e) => setDeptFormData({ ...deptFormData, code: e.target.value.toUpperCase() })} />
-
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Head of Department (HOD) *
-                </label>
-                <Select
-                value={deptFormData.headId}
-                onChange={(e) => setDeptFormData({ ...deptFormData, headId: e.target.value })}
-                options={[
-                { value: '', label: 'Select HOD' },
-                ...mockStaff.map((s) => ({ value: s.id, label: `${s.name} - ${s.designation}` }))]
-                } />
-
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Description
-                </label>
-                <textarea
-                className="w-full border rounded p-2 text-sm"
-                rows={3}
-                placeholder="Department description..."
-                value={deptFormData.description}
-                onChange={(e) => setDeptFormData({ ...deptFormData, description: e.target.value })} />
-
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Established Date
-                  </label>
-                  <Input
-                  type="date"
-                  value={deptFormData.establishedDate}
-                  onChange={(e) => setDeptFormData({ ...deptFormData, establishedDate: e.target.value })} />
-
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Annual Budget (₹)
-                  </label>
-                  <Input
-                  type="number"
-                  placeholder="0"
-                  value={deptFormData.budget}
-                  onChange={(e) => setDeptFormData({ ...deptFormData, budget: e.target.value })} />
-
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Location
-                </label>
-                <Input
-                placeholder="e.g., Science Block, 2nd Floor"
-                value={deptFormData.location}
-                onChange={(e) => setDeptFormData({ ...deptFormData, location: e.target.value })} />
-
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Email
-                  </label>
-                  <Input
-                  type="email"
-                  placeholder="dept@school.edu"
-                  value={deptFormData.email}
-                  onChange={(e) => setDeptFormData({ ...deptFormData, email: e.target.value })} />
-
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Phone
-                  </label>
-                  <Input
-                  type="tel"
-                  placeholder="+91-XXXXXXXXXX"
-                  value={deptFormData.phone}
-                  onChange={(e) => setDeptFormData({ ...deptFormData, phone: e.target.value })} />
-
-                </div>
-              </div>
-            </div>
-            <div className="p-6 border-t flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setShowEditModal(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleEditDepartment}>
-                <Save className="w-4 h-4 mr-2" />
-                Save Changes
-              </Button>
-            </div>
-          </div>
-        </div>
-      }
-
-      {/* Delete Confirmation Modal */}
-      {showDeleteConfirm && selectedDepartment &&
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-md w-full">
-            <div className="p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
-                  <AlertTriangle className="w-6 h-6 text-red-600" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold">Delete Department</h3>
-                  <p className="text-sm text-gray-500">This action cannot be undone</p>
-                </div>
-              </div>
-              <p className="text-gray-700 mb-2">
-                Are you sure you want to delete <strong>{selectedDepartment.name}</strong>?
-              </p>
-              {(selectedDepartment.subjects.length > 0 || selectedDepartment.staff.length > 0) &&
-            <div className="bg-yellow-50 border border-yellow-200 rounded p-3 mb-4">
-                  <p className="text-sm text-yellow-800">
-                    This department has {selectedDepartment.subjects.length} subject(s) and {selectedDepartment.staff.length} staff member(s).
-                    Please remove them before deleting the department.
-                  </p>
-                </div>
-            }
-              <div className="flex gap-2 justify-end mt-6">
-                <Button variant="outline" onClick={() => {
-                setShowDeleteConfirm(false);
-                setSelectedDepartment(null);
-              }}>
-                  Cancel
-                </Button>
-                <Button
-                onClick={handleDeleteDepartment}
-                className="bg-red-600 hover:bg-red-700"
-                disabled={selectedDepartment.subjects.length > 0 || selectedDepartment.staff.length > 0}>
-
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Delete
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      }
-
-      {/* View Details Modal */}
-      {showViewModal && selectedDepartment &&
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b flex justify-between items-center">
-              <div>
-                <h2 className="text-xl font-bold">{selectedDepartment.name}</h2>
-                <p className="text-sm text-gray-500">Department Code: {selectedDepartment.code}</p>
-              </div>
-              <button onClick={() => setShowViewModal(false)}>
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-6 space-y-6">
-              {/* Overview */}
-              <div>
-                <h3 className="font-medium mb-3">Overview</h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <Card>
-                    <div className="text-center">
-                      <BookOpen className="w-8 h-8 mx-auto mb-2 text-blue-600" />
-                      <div className="text-2xl font-bold">{selectedDepartment.subjects.length}</div>
-                      <div className="text-sm text-gray-500">Subjects</div>
-                    </div>
-                  </Card>
-                  <Card>
-                    <div className="text-center">
-                      <Users className="w-8 h-8 mx-auto mb-2 text-green-600" />
-                      <div className="text-2xl font-bold">{selectedDepartment.staff.length}</div>
-                      <div className="text-sm text-gray-500">Staff Members</div>
-                    </div>
-                  </Card>
-                  <Card>
-                    <div className="text-center">
-                      <DollarSign className="w-8 h-8 mx-auto mb-2 text-purple-600" />
-                      <div className="text-lg font-bold">{formatCurrency(selectedDepartment.budget).split('.')[0]}</div>
-                      <div className="text-sm text-gray-500">Annual Budget</div>
-                    </div>
-                  </Card>
-                  <Card>
-                    <div className="text-center">
-                      <Activity className="w-8 h-8 mx-auto mb-2 text-orange-600" />
-                      <div className="text-2xl font-bold">
-                        <Badge variant={selectedDepartment.isActive ? 'success' : 'secondary'}>
-                          {selectedDepartment.isActive ? 'Active' : 'Inactive'}
-                        </Badge>
-                      </div>
-                      <div className="text-sm text-gray-500">Status</div>
-                    </div>
-                  </Card>
-                </div>
-              </div>
-
-              {/* Department Info */}
-              <div>
-                <h3 className="font-medium mb-3">Department Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 p-4 rounded">
-                  <div>
-                    <label className="text-sm text-gray-600">Description:</label>
-                    <p className="font-medium">{selectedDepartment.description || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm text-gray-600">Head of Department:</label>
-                    <p className="font-medium">{selectedDepartment.head}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm text-gray-600">Location:</label>
-                    <p className="font-medium">{selectedDepartment.location || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm text-gray-600">Established:</label>
-                    <p className="font-medium">{formatDate(selectedDepartment.establishedDate)}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm text-gray-600">Email:</label>
-                    <p className="font-medium">{selectedDepartment.email || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm text-gray-600">Phone:</label>
-                    <p className="font-medium">{selectedDepartment.phone || 'N/A'}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Subjects */}
-              <div>
-                <h3 className="font-medium mb-3">Subjects ({selectedDepartment.subjects.length})</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {selectedDepartment.subjects.map((subject) =>
-                <div key={subject.id} className="border rounded p-3">
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <div className="font-medium">{subject.name}</div>
-                          <div className="text-sm text-gray-500">{subject.code}</div>
-                        </div>
-                        <div className="flex gap-1">
-                          {!subject.isActive && <Badge variant="secondary">Inactive</Badge>}
-                          {subject.isElective && <Badge variant="info">Elective</Badge>}
-                        </div>
-                      </div>
-                      <div className="text-sm text-gray-600 space-y-1">
-                        <div>Type: {subject.type}</div>
-                        <div>Credits: {subject.credits} • Hours/Week: {subject.hoursPerWeek}</div>
-                      </div>
-                    </div>
-                )}
-                  {selectedDepartment.subjects.length === 0 &&
-                <p className="text-gray-500 text-center py-4 col-span-2">No subjects added</p>
-                }
-                </div>
-              </div>
-
-              {/* Staff */}
-              <div>
-                <h3 className="font-medium mb-3">Staff Members ({selectedDepartment.staff.length})</h3>
+          </Card>
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            {SUBJECT_GROUPS.map((group) => {
+              const groupSubjects = selectedClassSubjects.filter((subject) => getGroupFor(subject) === group.value);
+              return <Card key={group.value}>
+                <div className="mb-3 flex items-start justify-between gap-3"><div><h3 className="font-semibold text-gray-900">{group.label}</h3><p className="mt-1 text-xs text-gray-500">{group.description}</p></div><Badge variant={group.value === 'Not grouped' ? 'warning' : 'info'}>{groupSubjects.length}</Badge></div>
                 <div className="space-y-2">
-                  {selectedDepartment.staff.map((staff) =>
-                <div key={staff.id} className="border rounded p-3 flex justify-between items-center">
-                      <div>
-                        <div className="font-medium flex items-center gap-2">
-                          {staff.name}
-                          {staff.isHOD && <Badge variant="success">HOD</Badge>}
-                        </div>
-                        <div className="text-sm text-gray-500">{staff.designation}</div>
-                        <div className="text-sm text-gray-600">
-                          {staff.email} • {staff.phone}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-sm font-medium">{staff.workload}h/week</div>
-                        <div className="text-xs text-gray-500">{staff.subjects.length} subject(s)</div>
-                      </div>
-                    </div>
-                )}
-                  {selectedDepartment.staff.length === 0 &&
-                <p className="text-gray-500 text-center py-4">No staff added</p>
-                }
+                  {!groupSubjects.length && <div className="rounded-lg border border-dashed p-4 text-center text-sm text-gray-400">No subjects in this group.</div>}
+                  {groupSubjects.map((subject) => <div key={subject.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-100 bg-gray-50 p-3"><div className="min-w-[150px] flex-1"><div className="font-medium text-gray-900">{subject.name}</div><div className="text-xs text-gray-500">{subject.code} · {subject.hoursPerWeek} periods / week</div></div><Select options={groupSelectOptions} value={getGroupFor(subject)} onChange={(event) => changeGrouping(subject.id, event.target.value as SubjectGroup)} className="w-48" /></div>)}
+                </div>
+              </Card>;
+            })}
+          </div>
+          <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><Info className="mt-0.5 h-4 w-4 shrink-0" /><span>Grouping is saved per class. Newly added subjects begin as “Not yet grouped” until assigned.</span></div>
+        </div>
+      )}
+
+      {activeTab === 'Teacher Mapping' && (
+        <div className="space-y-4">
+          <Card>
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div><h2 className="text-lg font-semibold">Teacher Mapping</h2><p className="text-sm text-gray-500">Assign qualified teachers to subjects and classes.</p></div>
+              <div className="flex flex-wrap items-end gap-3">
+                <Select label="Class" options={classSelectOptions} value={selectedTeacherClass} onChange={(event) => setSelectedTeacherClass(event.target.value)} className="w-36" />
+                <div className="flex rounded-lg border bg-gray-50 p-1">
+                  {([['subject', 'By Subject'], ['teacher', 'By Teacher'], ['matrix', 'Matrix']] as const).map(([value, label]) => <button key={value} onClick={() => setTeacherView(value)} className={`rounded-md px-3 py-1.5 text-sm ${teacherView === value ? 'bg-white font-medium text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}>{label}</button>)}
                 </div>
               </div>
             </div>
-            <div className="p-6 border-t flex justify-end">
-              <Button onClick={() => setShowViewModal(false)}>Close</Button>
+          </Card>
+
+          {teacherView === 'subject' && <Card title={`Subject Assignments · ${selectedTeacherClass}`}><div className="mb-3 flex items-center gap-2 text-xs text-gray-500"><Users className="h-4 w-4" />Choose a teacher for each subject. Leaving a subject unassigned is allowed until mapping is complete.</div><Table columns={teacherColumns} data={selectedTeacherSubjects} emptyMessage="No active subjects are assigned to this class." /></Card>}
+
+          {teacherView === 'teacher' && <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">{mockStaff.map((staff) => {
+            const assigned = selectedTeacherSubjects.filter((subject) => getTeacherFor(subject, selectedTeacherClass) === staff.id);
+            return <Card key={staff.id}><div className="flex items-start justify-between gap-3"><div><h3 className="font-semibold">{staff.name}</h3><p className="text-sm text-gray-500">{staff.designation} · {staff.qualification}</p><p className="mt-1 flex items-center gap-1 text-xs text-gray-500"><Mail className="h-3 w-3" />{staff.email}</p></div><Badge variant="info">{assigned.length} mapped</Badge></div><div className="mt-4 flex flex-wrap gap-2">{assigned.length ? assigned.map((subject) => <Badge key={subject.id} variant="secondary">{subject.shortName}</Badge>) : <span className="text-sm text-gray-400">No subjects mapped for {selectedTeacherClass}.</span>}</div><div className="mt-3 flex items-center gap-2 text-xs text-gray-500"><Clock className="h-3.5 w-3.5" />Current workload: {staff.workload} periods / week</div></Card>;
+          })}</div>}
+
+          {teacherView === 'matrix' && <Card title={`Teacher / Subject Matrix · ${selectedTeacherClass}`}><div className="mb-3 text-xs text-gray-500">Select one teacher per subject. Scroll horizontally to view all staff columns.</div><div className="overflow-x-auto rounded-lg border"><table className="min-w-full border-collapse text-sm"><thead className="bg-gray-50"><tr><th className="sticky left-0 min-w-[180px] border-b px-3 py-2 text-left">Subject</th>{mockStaff.map((staff) => <th key={staff.id} className="min-w-[130px] border-b px-3 py-2 text-center font-medium">{staff.name}</th>)}<th className="min-w-[100px] border-b px-3 py-2 text-center">Unassigned</th></tr></thead><tbody>{selectedTeacherSubjects.map((subject) => {
+            const assignedId = getTeacherFor(subject, selectedTeacherClass);
+            return <tr key={subject.id} className="border-b last:border-0"><td className="sticky left-0 bg-white px-3 py-2"><div className="font-medium">{subject.name}</div><div className="text-xs text-gray-500">{subject.code}</div></td>{mockStaff.map((staff) => <td key={staff.id} className="px-3 py-2 text-center"><input aria-label={`${subject.name} assigned to ${staff.name}`} type="radio" name={`matrix-${subject.id}`} checked={assignedId === staff.id} onChange={() => changeTeacherAssignment(subject.id, staff.id)} /></td>)}<td className="px-3 py-2 text-center"><input aria-label={`${subject.name} unassigned`} type="radio" name={`matrix-${subject.id}`} checked={!assignedId} onChange={() => changeTeacherAssignment(subject.id, '')} /></td></tr>;
+          })}</tbody></table></div></Card>}
+        </div>
+      )}
+
+            {showDepartmentModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-xl bg-white shadow-xl">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-6 py-4"><div><h2 className="text-xl font-bold">{editingDepartmentId ? 'Edit Department' : 'Add Department'}</h2><p className="text-sm text-gray-500">Define department identity, leadership, operations, staff, and classes.</p></div><button onClick={() => setShowDepartmentModal(false)} aria-label="Close"><X className="h-5 w-5" /></button></div>
+            <div className="grid grid-cols-1 gap-4 p-6 xl:grid-cols-2">
+              <Card title="1. Department Details">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <Input label="Department Name *" value={departmentForm.name} onChange={(event) => setDepartmentForm((previous) => ({ ...previous, name: event.target.value }))} placeholder="e.g. Science" />
+                  <Input label="Department Code *" value={departmentForm.code} onChange={(event) => setDepartmentForm((previous) => ({ ...previous, code: event.target.value.toUpperCase() }))} placeholder="e.g. SCI" />
+                  <Select label="Department Type" options={DEPARTMENT_TYPES.map((type) => ({ value: type, label: type }))} value={departmentForm.departmentType} onChange={(event) => setDepartmentForm((previous) => ({ ...previous, departmentType: event.target.value as DepartmentType }))} />
+                  <Input label="Display Order" type="number" min="1" value={departmentForm.displayOrder} onChange={(event) => setDepartmentForm((previous) => ({ ...previous, displayOrder: event.target.value }))} />
+                  <div className="md:col-span-2"><Input label="Description" value={departmentForm.description} onChange={(event) => setDepartmentForm((previous) => ({ ...previous, description: event.target.value }))} placeholder="Department scope and responsibilities" /></div>
+                </div>
+              </Card>
+
+              <Card title="2. Operational Details">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <Input label="Established Date" type="date" value={departmentForm.establishedDate} onChange={(event) => setDepartmentForm((previous) => ({ ...previous, establishedDate: event.target.value }))} />
+                  <Input label="Annual Budget (₹)" type="number" min="0" value={departmentForm.budget} onChange={(event) => setDepartmentForm((previous) => ({ ...previous, budget: event.target.value }))} placeholder="0" />
+                  <Input label="Primary Building" value={departmentForm.primaryBuilding} onChange={(event) => setDepartmentForm((previous) => ({ ...previous, primaryBuilding: event.target.value }))} placeholder="e.g. Science Block" />
+                  <Input label="Staff Room / Location" value={departmentForm.staffRoom} onChange={(event) => setDepartmentForm((previous) => ({ ...previous, staffRoom: event.target.value }))} placeholder="e.g. 2nd Floor, Room 204" />
+                  <label className="flex items-center gap-2 text-sm md:col-span-2"><input type="checkbox" checked={departmentForm.isActive} onChange={(event) => setDepartmentForm((previous) => ({ ...previous, isActive: event.target.checked }))} />Department is active</label>
+                </div>
+              </Card>
+
+              <Card title="3. Leadership & HOD Contacts">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <Select label="Head of Department (HOD) *" options={[{ value: '', label: 'Select HOD' }, ...mockStaff.map((staff) => ({ value: staff.id, label: `${staff.name} · ${staff.designation}` }))]} value={departmentForm.hodId} onChange={(event) => {
+                    const head = mockStaff.find((staff) => staff.id === event.target.value);
+                    setDepartmentForm((previous) => ({ ...previous, hodId: event.target.value, hodDesignation: head?.designation || previous.hodDesignation }));
+                  }} />
+                  <Input label="HOD Designation" value={departmentForm.hodDesignation} onChange={(event) => setDepartmentForm((previous) => ({ ...previous, hodDesignation: event.target.value }))} placeholder="e.g. Head of Science" />
+                  <Select label="Leave Approval Authority" options={[{ value: 'HOD', label: 'HOD' }, { value: 'Principal', label: 'Principal' }]} value={departmentForm.leaveApproval} onChange={(event) => setDepartmentForm((previous) => ({ ...previous, leaveApproval: event.target.value as LeaveApproval }))} />
+                  <div className="rounded-lg border bg-gray-50 p-3 text-sm"><div className="mb-1 font-medium text-gray-700">HOD contact details</div>{(() => { const head = mockStaff.find((staff) => staff.id === departmentForm.hodId); return head ? <><div className="flex items-center gap-2 text-gray-600"><Mail className="h-3.5 w-3.5" />{head.email}</div><div className="mt-1 flex items-center gap-2 text-gray-600"><Phone className="h-3.5 w-3.5" />{head.phone}</div></> : <span className="text-gray-400">Select a HOD to populate contact details.</span>; })()}</div>
+                </div>
+              </Card>
+
+              <Card title="4. Staff Assignment">
+                <p className="mb-3 text-xs text-gray-500">The HOD is automatically included in the department staff list.</p>
+                <div className="grid max-h-64 grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2">
+                  {mockStaff.map((staff) => <label key={staff.id} className="flex items-start gap-2 rounded-md border p-2 text-sm"><input type="checkbox" checked={departmentForm.hodId === staff.id || departmentForm.staffIds.includes(staff.id)} disabled={departmentForm.hodId === staff.id} onChange={() => toggleDepartmentStaff(staff.id)} className="mt-0.5" /><span><span className="font-medium">{staff.name}</span><span className="block text-xs text-gray-500">{staff.designation} · {staff.qualification}</span></span></label>)}
+                </div>
+              </Card>
+
+              <Card title="5. Applicable Classes" className="xl:col-span-2">
+                <p className="mb-3 text-xs text-gray-500">Choose the grades served by this department.</p>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-6">{CLASS_OPTIONS.map((className) => <label key={className} className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm"><input type="checkbox" checked={departmentForm.applicableClasses.includes(className)} onChange={() => toggleFormClass(className, 'department')} />{className}</label>)}</div>
+              </Card>
             </div>
+            <div className="sticky bottom-0 flex justify-end gap-2 border-t bg-white px-6 py-4"><Button variant="outline" onClick={() => setShowDepartmentModal(false)}>Cancel</Button><Button onClick={saveDepartment}><Save className="h-4 w-4" />Save Department</Button></div>
           </div>
         </div>
-      }
+      )}
 
-      {/* Add Subject Modal */}
-      {showAddSubjectModal && selectedDepartment &&
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b flex justify-between items-center">
-              <h2 className="text-xl font-bold">Add Subject to {selectedDepartment.name}</h2>
-              <button onClick={() => setShowAddSubjectModal(false)}>
-                <X className="w-5 h-5" />
-              </button>
+      {showSubjectModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-xl bg-white shadow-xl">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-6 py-4"><div><h2 className="text-xl font-bold">{editingSubjectId ? 'Edit Subject' : 'Add Subject'}</h2><p className="text-sm text-gray-500">Set subject identity, class applicability, category, periods, and practical details.</p></div><button onClick={() => setShowSubjectModal(false)} aria-label="Close"><X className="h-5 w-5" /></button></div>
+            <div className="grid grid-cols-1 gap-4 p-6 xl:grid-cols-2">
+              <Card title="1. Subject Details">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <Input label="Subject Name *" value={subjectForm.name} onChange={(event) => setSubjectForm((previous) => ({ ...previous, name: event.target.value }))} placeholder="e.g. Environmental Science" />
+                  <Input label="Short Name" value={subjectForm.shortName} onChange={(event) => setSubjectForm((previous) => ({ ...previous, shortName: event.target.value }))} placeholder="e.g. EVS" />
+                  <Input label="Subject Code *" value={subjectForm.code} onChange={(event) => setSubjectForm((previous) => ({ ...previous, code: event.target.value.toUpperCase() }))} placeholder="e.g. EVS101" />
+                  <Input label="Board / Affiliation Code" value={subjectForm.boardCode} onChange={(event) => setSubjectForm((previous) => ({ ...previous, boardCode: event.target.value.toUpperCase() }))} placeholder="Defaults to subject code" />
+                  <Select label="Department" options={[{ value: '', label: 'Unassigned' }, ...departments.map((department) => ({ value: department.id, label: `${department.name} (${department.code})` }))]} value={subjectForm.departmentId} onChange={(event) => setSubjectForm((previous) => ({ ...previous, departmentId: event.target.value }))} />
+                  <Select label="Subject Category" options={SUBJECT_CATEGORIES.map((category) => ({ value: category, label: category }))} value={subjectForm.category} onChange={(event) => setSubjectForm((previous) => ({ ...previous, category: event.target.value as SubjectCategory }))} />
+                  <div className="md:col-span-2"><Input label="Description" value={subjectForm.description} onChange={(event) => setSubjectForm((previous) => ({ ...previous, description: event.target.value }))} placeholder="Short description of the subject" /></div>
+                </div>
+              </Card>
+
+              <Card title="2. Class Applicability & Status">
+                <p className="mb-3 text-xs text-gray-500">Choose one or more classes. If none are selected, the subject is treated as available to all classes.</p>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{CLASS_OPTIONS.map((className) => <label key={className} className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm"><input type="checkbox" checked={subjectForm.classLevels.includes(className)} onChange={() => toggleFormClass(className, 'subject')} />{className}</label>)}</div>
+                <label className="mt-4 flex items-center gap-2 text-sm"><input type="checkbox" checked={subjectForm.isActive} onChange={(event) => setSubjectForm((previous) => ({ ...previous, isActive: event.target.checked }))} />Subject is active</label>
+              </Card>
+
+              <Card title="3. Periods & Practical Work">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <Select label="Delivery Type" options={[{ value: 'theory', label: 'Theory' }, { value: 'practical', label: 'Practical' }, { value: 'both', label: 'Theory + Practical' }]} value={subjectForm.type} onChange={(event) => setSubjectForm((previous) => ({ ...previous, type: event.target.value as Subject['type'], hasPractical: event.target.value !== 'theory', practicalType: event.target.value === 'theory' ? 'Not applicable' : previous.practicalType === 'Not applicable' ? 'Practical' : previous.practicalType }))} />
+                  <Input label="Credits" type="number" min="0" value={subjectForm.credits} onChange={(event) => setSubjectForm((previous) => ({ ...previous, credits: event.target.value }))} />
+                  <Input label="Total Periods / Week" type="number" min="0" value={subjectForm.hoursPerWeek} onChange={(event) => setSubjectForm((previous) => ({ ...previous, hoursPerWeek: event.target.value }))} />
+                  <Input label="Theory Periods / Week" type="number" min="0" value={subjectForm.theoryPeriods} onChange={(event) => setSubjectForm((previous) => ({ ...previous, theoryPeriods: event.target.value }))} />
+                  <label className="flex items-center gap-2 text-sm md:col-span-2"><input type="checkbox" checked={subjectForm.hasPractical} onChange={(event) => setSubjectForm((previous) => ({ ...previous, hasPractical: event.target.checked }))} />Includes practical / activity work</label>
+                  {subjectForm.hasPractical && <><Input label="Practical Periods / Week" type="number" min="0" value={subjectForm.practicalPeriods} onChange={(event) => setSubjectForm((previous) => ({ ...previous, practicalPeriods: event.target.value }))} /><Select label="Practical Type" options={[{ value: 'Lab', label: 'Lab' }, { value: 'Practical', label: 'Practical' }, { value: 'Activity', label: 'Activity' }, { value: 'Lab + Practical', label: 'Lab + Practical' }]} value={subjectForm.practicalType === 'Not applicable' ? 'Practical' : subjectForm.practicalType} onChange={(event) => setSubjectForm((previous) => ({ ...previous, practicalType: event.target.value }))} /></>}
+                </div>
+              </Card>
+
+              <Card title="4. Language Position & Classification">
+                {subjectForm.category === 'Language' ? <Select label="Language Position" options={[{ value: 'First Language', label: 'First Language' }, { value: 'Second Language', label: 'Second Language' }, { value: 'Third Language', label: 'Third Language' }, { value: 'Additional Language', label: 'Additional Language' }]} value={subjectForm.languagePosition} onChange={(event) => setSubjectForm((previous) => ({ ...previous, languagePosition: event.target.value }))} /> : <div className="rounded-lg bg-gray-50 p-3 text-sm text-gray-600">Choose “Language” as the subject category to set a language position.</div>}
+                <div className="mt-3 rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900"><FileText className="mr-2 inline h-4 w-4" />Category controls the default compulsory / optional grouping; class grouping can be adjusted separately.</div>
+              </Card>
             </div>
-            <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Subject Name *
-                  </label>
-                  <Input
-                  placeholder="e.g., Advanced Physics"
-                  value={subjectFormData.name}
-                  onChange={(e) => setSubjectFormData({ ...subjectFormData, name: e.target.value })} />
-
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Subject Code *
-                  </label>
-                  <Input
-                  placeholder="e.g., PHY201"
-                  value={subjectFormData.code}
-                  onChange={(e) => setSubjectFormData({ ...subjectFormData, code: e.target.value.toUpperCase() })} />
-
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Description
-                </label>
-                <textarea
-                className="w-full border rounded p-2 text-sm"
-                rows={2}
-                placeholder="Subject description..."
-                value={subjectFormData.description}
-                onChange={(e) => setSubjectFormData({ ...subjectFormData, description: e.target.value })} />
-
-              </div>
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Type
-                  </label>
-                  <Select
-                  value={subjectFormData.type}
-                  onChange={(e) => setSubjectFormData({ ...subjectFormData, type: e.target.value as Subject['type'] })}
-                  options={[
-                  { value: 'theory', label: 'Theory' },
-                  { value: 'practical', label: 'Practical' },
-                  { value: 'both', label: 'Both' }]
-                  } />
-
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Credits
-                  </label>
-                  <Input
-                  type="number"
-                  placeholder="0"
-                  value={subjectFormData.credits}
-                  onChange={(e) => setSubjectFormData({ ...subjectFormData, credits: e.target.value })} />
-
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Hours/Week
-                  </label>
-                  <Input
-                  type="number"
-                  placeholder="0"
-                  value={subjectFormData.hoursPerWeek}
-                  onChange={(e) => setSubjectFormData({ ...subjectFormData, hoursPerWeek: e.target.value })} />
-
-                </div>
-              </div>
-              <div>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                  type="checkbox"
-                  checked={subjectFormData.isElective}
-                  onChange={(e) => setSubjectFormData({ ...subjectFormData, isElective: e.target.checked })}
-                  className="rounded" />
-
-                  <span className="text-sm">This is an elective subject</span>
-                </label>
-              </div>
-            </div>
-            <div className="p-6 border-t flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setShowAddSubjectModal(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleAddSubject}>
-                <Save className="w-4 h-4 mr-2" />
-                Add Subject
-              </Button>
-            </div>
+            <div className="sticky bottom-0 flex justify-end gap-2 border-t bg-white px-6 py-4"><Button variant="outline" onClick={() => setShowSubjectModal(false)}>Cancel</Button><Button onClick={saveSubject}><Save className="h-4 w-4" />Save Subject</Button></div>
           </div>
         </div>
-      }
+      )}
 
-      {/* Add Staff Modal */}
-      {showAddStaffModal && selectedDepartment &&
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b flex justify-between items-center">
-              <h2 className="text-xl font-bold">Add Staff to {selectedDepartment.name}</h2>
-              <button onClick={() => setShowAddStaffModal(false)}>
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Select Staff Member *
-                </label>
-                <Select
-                value={staffFormData.staffId}
-                onChange={(e) => setStaffFormData({ ...staffFormData, staffId: e.target.value })}
-                options={[
-                { value: '', label: 'Select staff member' },
-                ...mockStaff.
-                filter((s) => !selectedDepartment.staff.some((ds) => ds.id === s.id)).
-                map((s) => ({ value: s.id, label: `${s.name} - ${s.designation}` }))]
-                } />
-
-              </div>
-              {staffFormData.staffId &&
-            <div>
-                  <label className="block text-sm font-medium mb-2">
-                    Assign Subjects (Optional)
-                  </label>
-                  <div className="space-y-2 max-h-48 overflow-y-auto border rounded p-3">
-                    {selectedDepartment.subjects.map((subject) =>
-                <label
-                  key={subject.id}
-                  className="flex items-center gap-2 cursor-pointer p-2 hover:bg-gray-50 rounded">
-
-                        <input
-                    type="checkbox"
-                    checked={staffFormData.subjects.includes(subject.code)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setStaffFormData({
-                          ...staffFormData,
-                          subjects: [...staffFormData.subjects, subject.code]
-                        });
-                      } else {
-                        setStaffFormData({
-                          ...staffFormData,
-                          subjects: staffFormData.subjects.filter((s) => s !== subject.code)
-                        });
-                      }
-                    }}
-                    className="rounded" />
-
-                        <span className="text-sm">
-                          {subject.name} ({subject.code})
-                        </span>
-                      </label>
-                )}
-                    {selectedDepartment.subjects.length === 0 &&
-                <p className="text-sm text-gray-500 text-center py-2">
-                        No subjects available to assign
-                      </p>
-                }
-                  </div>
-                </div>
-            }
-            </div>
-            <div className="p-6 border-t flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setShowAddStaffModal(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleAddStaff}>
-                <Save className="w-4 h-4 mr-2" />
-                Add Staff Member
-              </Button>
-            </div>
+      {departmentPendingDelete && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+            <div className="flex items-center gap-3"><div className="rounded-full bg-red-100 p-2 text-red-700"><AlertCircle className="h-5 w-5" /></div><div><h3 className="font-semibold">Delete department?</h3><p className="text-sm text-gray-500">This removes {departmentPendingDelete.name} from the setup.</p></div></div>
+            <p className="mt-4 text-sm text-gray-600">Deletion is allowed only when no subjects are associated with this department.</p>
+            <div className="mt-6 flex justify-end gap-2"><Button variant="outline" onClick={() => setDepartmentPendingDelete(null)}>Cancel</Button><Button variant="danger" onClick={confirmDeleteDepartment}>Delete Department</Button></div>
           </div>
         </div>
-      }
+      )}
 
-      {/* Subject Details Modal */}
-      {showSubjectDetailsModal && selectedSubject &&
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-2xl w-full">
-            <div className="p-6 border-b flex justify-between items-center">
-              <h2 className="text-xl font-bold">Subject Details</h2>
-              <button onClick={() => setShowSubjectDetailsModal(false)}>
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm text-gray-600">Subject Name:</label>
-                  <p className="font-medium text-lg">{selectedSubject.name}</p>
-                </div>
-                <div>
-                  <label className="text-sm text-gray-600">Subject Code:</label>
-                  <p className="font-medium text-lg">{selectedSubject.code}</p>
-                </div>
-              </div>
-              <div>
-                <label className="text-sm text-gray-600">Description:</label>
-                <p className="font-medium">{selectedSubject.description || 'N/A'}</p>
-              </div>
-              <div className="grid grid-cols-3 gap-4 bg-gray-50 p-4 rounded">
-                <div>
-                  <label className="text-sm text-gray-600">Type:</label>
-                  <p className="font-medium capitalize">{selectedSubject.type}</p>
-                </div>
-                <div>
-                  <label className="text-sm text-gray-600">Credits:</label>
-                  <p className="font-medium">{selectedSubject.credits}</p>
-                </div>
-                <div>
-                  <label className="text-sm text-gray-600">Hours per Week:</label>
-                  <p className="font-medium">{selectedSubject.hoursPerWeek}</p>
-                </div>
-              </div>
-              <div className="flex gap-4">
-                <div>
-                  <label className="text-sm text-gray-600">Status:</label>
-                  <div className="mt-1">
-                    <Badge variant={selectedSubject.isActive ? 'success' : 'secondary'}>
-                      {selectedSubject.isActive ? 'Active' : 'Inactive'}
-                    </Badge>
-                  </div>
-                </div>
-                <div>
-                  <label className="text-sm text-gray-600">Subject Type:</label>
-                  <div className="mt-1">
-                    <Badge variant={selectedSubject.isElective ? 'info' : 'default'}>
-                      {selectedSubject.isElective ? 'Elective' : 'Core'}
-                    </Badge>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="p-6 border-t flex justify-end">
-              <Button onClick={() => setShowSubjectDetailsModal(false)}>Close</Button>
-            </div>
+      {subjectPendingDelete && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+            <div className="flex items-center gap-3"><div className="rounded-full bg-red-100 p-2 text-red-700"><AlertCircle className="h-5 w-5" /></div><div><h3 className="font-semibold">Delete subject?</h3><p className="text-sm text-gray-500">{subjectPendingDelete.name} ({subjectPendingDelete.code})</p></div></div>
+            <p className="mt-4 text-sm text-gray-600">The subject will be removed from its department, class grouping, and teacher mapping.</p>
+            <div className="mt-6 flex justify-end gap-2"><Button variant="outline" onClick={() => setSubjectPendingDelete(null)}>Cancel</Button><Button variant="danger" onClick={confirmDeleteSubject}>Delete Subject</Button></div>
           </div>
         </div>
-      }
-
-      {/* Staff Details Modal */}
-      {showStaffDetailsModal && selectedStaff &&
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-2xl w-full">
-            <div className="p-6 border-b flex justify-between items-center">
-              <h2 className="text-xl font-bold">Staff Member Details</h2>
-              <button onClick={() => setShowStaffDetailsModal(false)}>
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center">
-                  <Users className="w-8 h-8 text-blue-600" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold flex items-center gap-2">
-                    {selectedStaff.name}
-                    {selectedStaff.isHOD && <Badge variant="success">HOD</Badge>}
-                  </h3>
-                  <p className="text-gray-600">{selectedStaff.designation}</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded">
-                <div>
-                  <label className="text-sm text-gray-600">Email:</label>
-                  <p className="font-medium">{selectedStaff.email}</p>
-                </div>
-                <div>
-                  <label className="text-sm text-gray-600">Phone:</label>
-                  <p className="font-medium">{selectedStaff.phone}</p>
-                </div>
-                <div>
-                  <label className="text-sm text-gray-600">Qualification:</label>
-                  <p className="font-medium">{selectedStaff.qualification}</p>
-                </div>
-                <div>
-                  <label className="text-sm text-gray-600">Experience:</label>
-                  <p className="font-medium">{selectedStaff.experience} years</p>
-                </div>
-                <div>
-                  <label className="text-sm text-gray-600">Joining Date:</label>
-                  <p className="font-medium">{formatDate(selectedStaff.joiningDate)}</p>
-                </div>
-                <div>
-                  <label className="text-sm text-gray-600">Workload:</label>
-                  <p className="font-medium">{selectedStaff.workload} hours/week</p>
-                </div>
-              </div>
-              <div>
-                <label className="text-sm text-gray-600 mb-2 block">Subjects Teaching:</label>
-                <div className="flex flex-wrap gap-2">
-                  {selectedStaff.subjects.map((subCode) =>
-                <Badge key={subCode} variant="info">{subCode}</Badge>
-                )}
-                  {selectedStaff.subjects.length === 0 &&
-                <p className="text-gray-500 text-sm">No subjects assigned</p>
-                }
-                </div>
-              </div>
-            </div>
-            <div className="p-6 border-t flex justify-end">
-              <Button onClick={() => setShowStaffDetailsModal(false)}>Close</Button>
-            </div>
-          </div>
-        </div>
-      }
-
-      {/* Statistics Modal */}
-      {showStatsModal &&
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b flex justify-between items-center">
-              <h2 className="text-xl font-bold">Department Statistics</h2>
-              <button onClick={() => setShowStatsModal(false)}>
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-6 space-y-6">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Card>
-                  <div className="text-center">
-                    <div className="text-3xl font-bold">{stats.total}</div>
-                    <div className="text-sm text-gray-500">Total Departments</div>
-                  </div>
-                </Card>
-                <Card>
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-green-600">{stats.active}</div>
-                    <div className="text-sm text-gray-500">Active</div>
-                  </div>
-                </Card>
-                <Card>
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-blue-600">{stats.totalSubjects}</div>
-                    <div className="text-sm text-gray-500">Total Subjects</div>
-                  </div>
-                </Card>
-                <Card>
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-purple-600">{stats.totalStaff}</div>
-                    <div className="text-sm text-gray-500">Total Staff</div>
-                  </div>
-                </Card>
-              </div>
-              
-              <div>
-                <h3 className="font-medium mb-3">Departments Overview</h3>
-                <div className="space-y-2">
-                  {departments.map((dept) =>
-                <div key={dept.id} className="flex items-center justify-between p-3 bg-gray-50 rounded">
-                      <div className="flex-1">
-                        <div className="font-medium">{dept.name}</div>
-                        <div className="text-sm text-gray-500">
-                          {dept.subjects.length} subjects • {dept.staff.length} staff
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-medium">{formatCurrency(dept.budget)}</div>
-                        <Badge variant={dept.isActive ? 'success' : 'secondary'}>
-                          {dept.isActive ? 'Active' : 'Inactive'}
-                        </Badge>
-                      </div>
-                    </div>
-                )}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <Card>
-                  <div className="text-center">
-                    <TrendingUp className="w-8 h-8 mx-auto mb-2 text-green-600" />
-                    <div className="text-2xl font-bold">{stats.avgSubjectsPerDept}</div>
-                    <div className="text-sm text-gray-500">Avg Subjects per Dept</div>
-                  </div>
-                </Card>
-                <Card>
-                  <div className="text-center">
-                    <Users className="w-8 h-8 mx-auto mb-2 text-blue-600" />
-                    <div className="text-2xl font-bold">{stats.avgStaffPerDept}</div>
-                    <div className="text-sm text-gray-500">Avg Staff per Dept</div>
-                  </div>
-                </Card>
-              </div>
-            </div>
-            <div className="p-6 border-t flex justify-end">
-              <Button onClick={() => setShowStatsModal(false)}>Close</Button>
-            </div>
-          </div>
-        </div>
-      }
-
-      {/* Import Modal */}
-      {showImportModal &&
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-md w-full">
-            <div className="p-6 border-b flex justify-between items-center">
-              <h3 className="text-lg font-bold">Import Departments</h3>
-              <button onClick={() => setShowImportModal(false)}>
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-6">
-              <p className="text-gray-700 mb-4">
-                Upload a JSON file containing department data.
-              </p>
-              <Input
-              type="file"
-              accept=".json"
-              onChange={handleImport} />
-
-            </div>
-            <div className="p-6 border-t flex gap-2 justify-end">
-              <Button variant="outline" onClick={() => setShowImportModal(false)}>
-                Cancel
-              </Button>
-            </div>
-          </div>
-        </div>
-      }
-    </div>);
-
+      )}
+    </div>
+  );
 }

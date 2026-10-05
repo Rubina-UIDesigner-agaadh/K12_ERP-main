@@ -8,11 +8,13 @@ interface TableProps {
   columns: Column[];
   data: any[];
   emptyMessage?: string;
+  expandedContent?: (row: any) => React.ReactNode;
 }
 export function Table({
   columns = [],
   data = [],
-  emptyMessage = 'No data available'
+  emptyMessage = 'No data available',
+  expandedContent
 }: TableProps) {
   if (!data || data.length === 0) {
     return <div className="text-center py-12 text-gray-500">{emptyMessage}</div>;
@@ -33,18 +35,27 @@ export function Table({
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
-          {data.map((row, rowIndex) =>
-            <tr
-              key={row.id || rowIndex}
-              className="hover:bg-gray-50 transition-colors">
-
-              {columns.map((column) =>
-                <td key={column.key} className="px-4 py-3 text-sm">
-                  {column.render ? column.render(row) : row[column.key]}
-                </td>
-              )}
-            </tr>
-          )}
+          {data.map((row, rowIndex) => {
+            const content = expandedContent?.(row);
+            return (
+              <React.Fragment key={row.id ?? rowIndex}>
+                <tr className="hover:bg-gray-50 transition-colors">
+                  {columns.map((column) =>
+                    <td key={column.key} className="px-4 py-3 text-sm">
+                      {column.render ? column.render(row) : row[column.key]}
+                    </td>
+                  )}
+                </tr>
+                {content != null && (
+                  <tr className="bg-gray-50">
+                    <td colSpan={columns.length} className="p-0">
+                      {content}
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
+            );
+          })}
         </tbody>
       </table>
     </div>);

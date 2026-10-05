@@ -27,12 +27,7 @@ import {
   Unlock,
   Archive,
   Clock,
-  Users,
-  BookOpen,
   FileText,
-  Settings,
-  BarChart,
-  TrendingUp,
   Activity,
   AlertTriangle,
   History } from
@@ -86,54 +81,76 @@ interface Notification {
 }
 
 // ==================== MOCK DATA ====================
-const generateMockTerms = (yearPrefix: string, count: number = 2): Term[] => {
-  const terms: Term[] = [];
-  const termNames = ['First Term', 'Second Term', 'Third Term', 'Fourth Term'];
+const getAcademicYearRange = (yearLabel: string) => {
+  const match = yearLabel.trim().match(/^(\d{4})\s*[-–/]\s*(\d{2}|\d{4})$/);
+  if (!match) return null;
 
-  for (let i = 0; i < count; i++) {
-    const startMonth = i * (12 / count);
-    const endMonth = (i + 1) * (12 / count) - 1;
+  const startYear = Number(match[1]);
+  const endLabel = match[2];
+  let endYear = endLabel.length === 2
+    ? Math.floor(startYear / 100) * 100 + Number(endLabel)
+    : Number(endLabel);
 
-    terms.push({
-      id: `${yearPrefix}-term-${i + 1}`,
-      name: termNames[i],
-      startDate: `2024-${String(startMonth + 4).padStart(2, '0')}-01`,
-      endDate: `2024-${String(endMonth + 4).padStart(2, '0')}-${endMonth % 2 === 0 ? '30' : '31'}`,
-      isActive: i === 0,
-      holidays: [
-      {
-        id: `${yearPrefix}-holiday-${i}-1`,
-        name: i === 0 ? 'Independence Day' : 'Republic Day',
-        date: i === 0 ? '2024-08-15' : '2025-01-26',
-        type: 'public'
-      },
-      {
-        id: `${yearPrefix}-holiday-${i}-2`,
-        name: 'Mid-term Break',
-        date: i === 0 ? '2024-07-15' : '2024-12-15',
-        type: 'school'
-      }],
+  if (endLabel.length === 2 && endYear <= startYear) endYear += 100;
+  if (endYear !== startYear + 1) return null;
 
-      examSchedules: [
-      {
-        id: `${yearPrefix}-exam-${i}-1`,
-        name: 'Mid-term Examination',
-        startDate: i === 0 ? '2024-07-01' : '2024-11-01',
-        endDate: i === 0 ? '2024-07-10' : '2024-11-10',
-        type: 'midterm'
-      },
-      {
-        id: `${yearPrefix}-exam-${i}-2`,
-        name: 'Final Examination',
-        startDate: i === 0 ? '2024-09-15' : '2025-02-15',
-        endDate: i === 0 ? '2024-09-25' : '2025-02-25',
-        type: 'final'
-      }]
+  return {
+    year: `${startYear}-${endYear}`,
+    startDate: `${startYear}-04-01`,
+    endDate: `${endYear}-03-31`
+  };
+};
 
-    });
-  }
+const generateMockTerms = (
+  yearPrefix: string,
+  count: number = 2,
+  sessionStartDate?: string,
+  sessionEndDate?: string,
+  includeSampleEvents: boolean = true
+): Term[] => {
+  const yearRange = getAcademicYearRange(yearPrefix);
+  const startDate = sessionStartDate || yearRange?.startDate || '2024-04-01';
+  const endDate = sessionEndDate || yearRange?.endDate || '2025-03-31';
+  const academicStart = new Date(`${startDate}T00:00:00Z`);
+  const academicEnd = new Date(`${endDate}T00:00:00Z`);
+  const startMonthIndex = academicStart.getUTCFullYear() * 12 + academicStart.getUTCMonth();
+  const totalMonths = academicEnd.getUTCFullYear() * 12 + academicEnd.getUTCMonth() - startMonthIndex + 1;
+  const yearStart = Number(yearPrefix.slice(0, 4)) || 2024;
+  const yearEnd = yearStart + 1;
 
-  return terms;
+  return Array.from({ length: count }, (_, index) => {
+    const termStartOffset = Math.floor(totalMonths * index / count);
+    const termEndOffset = Math.floor(totalMonths * (index + 1) / count);
+    const termStart = new Date(Date.UTC(academicStart.getUTCFullYear(), academicStart.getUTCMonth() + termStartOffset, 1));
+    const termEnd = index === count - 1
+      ? academicEnd
+      : new Date(Date.UTC(academicStart.getUTCFullYear(), academicStart.getUTCMonth() + termEndOffset, 1) - 86400000);
+    const isoDate = (date: Date) => date.toISOString().slice(0, 10);
+    const sampleHolidays = index === 0 ? [
+      { id: `${yearPrefix}-holiday-${index}-1`, name: 'Independence Day', date: `${yearStart}-08-15`, type: 'public' as const },
+      { id: `${yearPrefix}-holiday-${index}-2`, name: 'Mid-term Break', date: `${yearStart}-07-15`, type: 'school' as const }
+    ] : [
+      { id: `${yearPrefix}-holiday-${index}-1`, name: 'Republic Day', date: `${yearEnd}-01-26`, type: 'public' as const },
+      { id: `${yearPrefix}-holiday-${index}-2`, name: 'Mid-term Break', date: `${yearEnd}-12-15`, type: 'school' as const }
+    ];
+    const sampleExams = index === 0 ? [
+      { id: `${yearPrefix}-exam-${index}-1`, name: 'Mid-term Examination', startDate: `${yearStart}-07-01`, endDate: `${yearStart}-07-10`, type: 'midterm' as const },
+      { id: `${yearPrefix}-exam-${index}-2`, name: 'Final Examination', startDate: `${yearStart}-09-15`, endDate: `${yearStart}-09-25`, type: 'final' as const }
+    ] : [
+      { id: `${yearPrefix}-exam-${index}-1`, name: 'Mid-term Examination', startDate: `${yearEnd}-11-01`, endDate: `${yearEnd}-11-10`, type: 'midterm' as const },
+      { id: `${yearPrefix}-exam-${index}-2`, name: 'Final Examination', startDate: `${yearEnd}-02-15`, endDate: `${yearEnd}-02-25`, type: 'final' as const }
+    ];
+
+    return {
+      id: `${yearPrefix}-term-${index + 1}`,
+      name: `Term ${index + 1}`,
+      startDate: isoDate(termStart),
+      endDate: isoDate(termEnd),
+      isActive: index === 0,
+      holidays: includeSampleEvents ? sampleHolidays : [],
+      examSchedules: includeSampleEvents ? sampleExams : []
+    };
+  });
 };
 
 const initialSessions: AcademicSession[] = [
@@ -228,10 +245,7 @@ export function AcademicSessionTermSetup() {
   const [notification, setNotification] = useState<Notification | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [selectedSessions, setSelectedSessions] = useState<Set<string>>(new Set());
-  const [showBulkActions, setShowBulkActions] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
-  const [showStatsModal, setShowStatsModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
 
   // Form States
@@ -287,9 +301,25 @@ export function AcademicSessionTermSetup() {
   }, [sessions, searchTerm, statusFilter]);
 
   // Session Management Functions
+  const handleAcademicYearChange = (year: string) => {
+    const yearRange = getAcademicYearRange(year);
+    setFormData((prev) => ({
+      ...prev,
+      year,
+      startDate: yearRange?.startDate || '',
+      endDate: yearRange?.endDate || ''
+    }));
+  };
+
   const handleAddSession = () => {
-    if (!formData.year || !formData.startDate || !formData.endDate) {
-      showNotification('error', 'Please fill all required fields');
+    const yearRange = getAcademicYearRange(formData.year);
+    const termCount = Number(formData.numberOfTerms);
+    if (!yearRange) {
+      showNotification('error', 'Enter a valid academic year, such as 2027-2028');
+      return;
+    }
+    if (!Number.isInteger(termCount) || termCount < 1 || termCount > 12) {
+      showNotification('error', 'Enter a number of terms from 1 to 12');
       return;
     }
 
@@ -311,15 +341,16 @@ export function AcademicSessionTermSetup() {
 
     if (hasOverlap) {
       showNotification('warning', 'Date range overlaps with existing session');
+      return;
     }
 
     const newSession: AcademicSession = {
       id: `session-${Date.now()}`,
-      year: formData.year,
-      startDate: formData.startDate,
-      endDate: formData.endDate,
+      year: yearRange.year,
+      startDate: yearRange.startDate,
+      endDate: yearRange.endDate,
       status: formData.status,
-      terms: generateMockTerms(formData.year, parseInt(formData.numberOfTerms)),
+      terms: generateMockTerms(yearRange.year, termCount, yearRange.startDate, yearRange.endDate, false),
       isLocked: false,
       createdAt: new Date().toISOString(),
       modifiedAt: new Date().toISOString(),
@@ -332,7 +363,7 @@ export function AcademicSessionTermSetup() {
     setSessions((prev) => [...prev, newSession]);
     setShowAddModal(false);
     resetForm();
-    showNotification('success', `Academic year ${formData.year} created successfully`);
+    showNotification('success', `Academic year ${yearRange.year} created successfully`);
   };
 
   const handleEditSession = () => {
@@ -745,56 +776,6 @@ export function AcademicSessionTermSetup() {
     showNotification('success', 'Exam schedule deleted successfully');
   };
 
-  // Bulk Actions
-  const handleBulkDelete = () => {
-    const canDelete = Array.from(selectedSessions).every((id) => {
-      const session = sessions.find((s) => s.id === id);
-      return session && !session.isLocked && session.status !== 'current';
-    });
-
-    if (!canDelete) {
-      showNotification('error', 'Cannot delete locked or current sessions');
-      return;
-    }
-
-    setSessions((prev) => prev.filter((s) => !selectedSessions.has(s.id)));
-    setSelectedSessions(new Set());
-    showNotification('success', `${selectedSessions.size} sessions deleted`);
-  };
-
-  const handleBulkArchive = () => {
-    const canArchive = Array.from(selectedSessions).every((id) => {
-      const session = sessions.find((s) => s.id === id);
-      return session && session.status !== 'current';
-    });
-
-    if (!canArchive) {
-      showNotification('error', 'Cannot archive current session');
-      return;
-    }
-
-    setSessions((prev) => prev.map((s) =>
-    selectedSessions.has(s.id) ?
-    { ...s, status: 'past' as const, isLocked: true } :
-    s
-    ));
-
-    setSelectedSessions(new Set());
-    showNotification('success', `${selectedSessions.size} sessions archived`);
-  };
-
-  const handleBulkExport = () => {
-    const selectedSessionsData = sessions.filter((s) => selectedSessions.has(s.id));
-    const dataStr = JSON.stringify(selectedSessionsData, null, 2);
-    const dataBlob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(dataBlob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `academic-sessions-${new Date().toISOString().split('T')[0]}.json`;
-    link.click();
-    showNotification('success', 'Sessions exported successfully');
-  };
-
   // Import/Export Functions
   const handleExportAll = () => {
     const dataStr = JSON.stringify(sessions, null, 2);
@@ -840,26 +821,6 @@ export function AcademicSessionTermSetup() {
       }
       return newSet;
     });
-  };
-
-  const toggleSessionSelection = (sessionId: string) => {
-    setSelectedSessions((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(sessionId)) {
-        newSet.delete(sessionId);
-      } else {
-        newSet.add(sessionId);
-      }
-      return newSet;
-    });
-  };
-
-  const selectAllSessions = () => {
-    if (selectedSessions.size === filteredSessions.length) {
-      setSelectedSessions(new Set());
-    } else {
-      setSelectedSessions(new Set(filteredSessions.map((s) => s.id)));
-    }
   };
 
   // Form Reset Functions
@@ -944,21 +905,6 @@ export function AcademicSessionTermSetup() {
     });
   };
 
-  // Statistics Calculation
-  const stats = useMemo(() => {
-    return {
-      total: sessions.length,
-      current: sessions.filter((s) => s.status === 'current').length,
-      past: sessions.filter((s) => s.status === 'past').length,
-      future: sessions.filter((s) => s.status === 'future').length,
-      draft: sessions.filter((s) => s.status === 'draft').length,
-      locked: sessions.filter((s) => s.isLocked).length,
-      totalStudents: sessions.reduce((sum, s) => sum + (s.totalStudents || 0), 0),
-      totalClasses: sessions.reduce((sum, s) => sum + (s.totalClasses || 0), 0),
-      totalTerms: sessions.reduce((sum, s) => sum + s.terms.length, 0)
-    };
-  }, [sessions]);
-
   // Format date for display
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-GB', {
@@ -981,25 +927,6 @@ export function AcademicSessionTermSetup() {
 
   // Table Columns
   const columns = [
-  {
-    key: 'select',
-    header: showBulkActions ?
-    <input
-      type="checkbox"
-      checked={selectedSessions.size === filteredSessions.length && filteredSessions.length > 0}
-      onChange={selectAllSessions}
-      className="rounded" /> :
-
-    null,
-    render: (row: AcademicSession) => showBulkActions ?
-    <input
-      type="checkbox"
-      checked={selectedSessions.has(row.id)}
-      onChange={() => toggleSessionSelection(row.id)}
-      className="rounded" /> :
-
-    null
-  },
   {
     key: 'expand',
     header: '',
@@ -1048,15 +975,6 @@ export function AcademicSessionTermSetup() {
           <div className="text-xs text-gray-500">
             {row.terms.filter((t) => t.isActive).length} active
           </div>
-        </div>
-
-  },
-  {
-    key: 'students',
-    header: 'Students',
-    render: (row: AcademicSession) =>
-    <div className="text-center">
-          {row.totalStudents || 0}
         </div>
 
   },
@@ -1164,26 +1082,11 @@ export function AcademicSessionTermSetup() {
         <div className="flex gap-2">
           <Button
             variant="outline"
-            onClick={() => setShowStatsModal(true)}
-            title="View Statistics">
-
-            <BarChart className="w-4 h-4 mr-2" />
-            Stats
-          </Button>
-          <Button
-            variant="outline"
             onClick={() => setShowHistoryModal(true)}
             title="View History">
 
             <History className="w-4 h-4 mr-2" />
             History
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => setShowBulkActions(!showBulkActions)}>
-
-            <Settings className="w-4 h-4 mr-2" />
-            Bulk Actions
           </Button>
           <Button
             variant="outline"
@@ -1204,46 +1107,6 @@ export function AcademicSessionTermSetup() {
             New Academic Year
           </Button>
         </div>
-      </div>
-
-      {/* Quick Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-        <Card>
-          <div className="text-center">
-            <div className="text-2xl font-bold">{stats.total}</div>
-            <div className="text-sm text-gray-500">Total Sessions</div>
-          </div>
-        </Card>
-        <Card>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-green-600">{stats.current}</div>
-            <div className="text-sm text-gray-500">Current</div>
-          </div>
-        </Card>
-        <Card>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-blue-600">{stats.future}</div>
-            <div className="text-sm text-gray-500">Future</div>
-          </div>
-        </Card>
-        <Card>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-gray-600">{stats.past}</div>
-            <div className="text-sm text-gray-500">Past</div>
-          </div>
-        </Card>
-        <Card>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-purple-600">{stats.totalTerms}</div>
-            <div className="text-sm text-gray-500">Total Terms</div>
-          </div>
-        </Card>
-        <Card>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-orange-600">{stats.locked}</div>
-            <div className="text-sm text-gray-500">Locked</div>
-          </div>
-        </Card>
       </div>
 
       {/* Filters and Search */}
@@ -1284,40 +1147,6 @@ export function AcademicSessionTermSetup() {
         </div>
       </Card>
 
-      {/* Bulk Actions Bar */}
-      {showBulkActions && selectedSessions.size > 0 &&
-      <Card>
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-600">
-              {selectedSessions.size} session(s) selected
-            </div>
-            <div className="flex gap-2">
-              <Button
-              variant="outline"
-              onClick={handleBulkExport}>
-
-                <Download className="w-4 h-4 mr-2" />
-                Export Selected
-              </Button>
-              <Button
-              variant="outline"
-              onClick={handleBulkArchive}>
-
-                <Archive className="w-4 h-4 mr-2" />
-                Archive Selected
-              </Button>
-              <Button
-              variant="outline"
-              onClick={handleBulkDelete}>
-
-                <Trash2 className="w-4 h-4 mr-2" />
-                Delete Selected
-              </Button>
-            </div>
-          </div>
-        </Card>
-      }
-
       {/* Main Table */}
       <Card>
         <Table
@@ -1346,10 +1175,6 @@ export function AcademicSessionTermSetup() {
                 <div>
                   <div className="text-sm font-medium text-gray-500 mb-2">Statistics</div>
                   <div className="space-y-1 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Students:</span>
-                      <span className="font-medium">{row.totalStudents || 0}</span>
-                    </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Classes:</span>
                       <span className="font-medium">{row.totalClasses || 0}</span>
@@ -1510,7 +1335,7 @@ export function AcademicSessionTermSetup() {
                 <Input
                 placeholder="e.g., 2027-2028"
                 value={formData.year}
-                onChange={(e) => setFormData({ ...formData, year: e.target.value })} />
+                onChange={(e) => handleAcademicYearChange(e.target.value)} />
 
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -1521,7 +1346,8 @@ export function AcademicSessionTermSetup() {
                   <Input
                   type="date"
                   value={formData.startDate}
-                  onChange={(e) => setFormData({ ...formData, startDate: e.target.value })} />
+                  readOnly
+                  />
 
                 </div>
                 <div>
@@ -1531,24 +1357,28 @@ export function AcademicSessionTermSetup() {
                   <Input
                   type="date"
                   value={formData.endDate}
-                  onChange={(e) => setFormData({ ...formData, endDate: e.target.value })} />
+                  readOnly
+                  />
 
                 </div>
               </div>
+              <p className="-mt-2 text-xs text-gray-500">
+                Dates are generated automatically from April 1 through March 31 for the selected academic year.
+              </p>
               <div>
                 <label className="block text-sm font-medium mb-1">
                   Number of Terms
                 </label>
-                <Select
-                value={formData.numberOfTerms}
-                onChange={(e) => setFormData({ ...formData, numberOfTerms: e.target.value })}
-                options={[
-                { value: '1', label: '1 Term' },
-                { value: '2', label: '2 Terms' },
-                { value: '3', label: '3 Terms' },
-                { value: '4', label: '4 Terms' }]
-                } />
-
+                <Input
+                  type="number"
+                  min="1"
+                  max="12"
+                  step="1"
+                  placeholder="Enter number of terms"
+                  value={formData.numberOfTerms}
+                  onChange={(e) => setFormData({ ...formData, numberOfTerms: e.target.value })}
+                />
+                <p className="mt-1 text-xs text-gray-500">Choose between 1 and 12 terms.</p>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">
@@ -2068,86 +1898,6 @@ export function AcademicSessionTermSetup() {
               <Button variant="outline" onClick={() => setShowImportModal(false)}>
                 Cancel
               </Button>
-            </div>
-          </div>
-        </div>
-      }
-
-      {/* Statistics Modal */}
-      {showStatsModal &&
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b flex justify-between items-center">
-              <h3 className="text-lg font-bold">Academic Session Statistics</h3>
-              <button onClick={() => setShowStatsModal(false)}>
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-6">
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
-                <Card>
-                  <div className="text-center">
-                    <div className="text-3xl font-bold">{stats.total}</div>
-                    <div className="text-sm text-gray-500">Total Sessions</div>
-                  </div>
-                </Card>
-                <Card>
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-green-600">{stats.current}</div>
-                    <div className="text-sm text-gray-500">Current</div>
-                  </div>
-                </Card>
-                <Card>
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-blue-600">{stats.future}</div>
-                    <div className="text-sm text-gray-500">Future</div>
-                  </div>
-                </Card>
-                <Card>
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-gray-600">{stats.past}</div>
-                    <div className="text-sm text-gray-500">Past</div>
-                  </div>
-                </Card>
-                <Card>
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-yellow-600">{stats.draft}</div>
-                    <div className="text-sm text-gray-500">Draft</div>
-                  </div>
-                </Card>
-                <Card>
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-orange-600">{stats.locked}</div>
-                    <div className="text-sm text-gray-500">Locked</div>
-                  </div>
-                </Card>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card>
-                  <div className="text-center">
-                    <Users className="w-8 h-8 mx-auto mb-2 text-blue-600" />
-                    <div className="text-2xl font-bold">{stats.totalStudents}</div>
-                    <div className="text-sm text-gray-500">Total Students</div>
-                  </div>
-                </Card>
-                <Card>
-                  <div className="text-center">
-                    <BookOpen className="w-8 h-8 mx-auto mb-2 text-green-600" />
-                    <div className="text-2xl font-bold">{stats.totalClasses}</div>
-                    <div className="text-sm text-gray-500">Total Classes</div>
-                  </div>
-                </Card>
-                <Card>
-                  <div className="text-center">
-                    <Calendar className="w-8 h-8 mx-auto mb-2 text-purple-600" />
-                    <div className="text-2xl font-bold">{stats.totalTerms}</div>
-                    <div className="text-sm text-gray-500">Total Terms</div>
-                  </div>
-                </Card>
-              </div>
-            </div>
-            <div className="p-6 border-t flex justify-end">
-              <Button onClick={() => setShowStatsModal(false)}>Close</Button>
             </div>
           </div>
         </div>
