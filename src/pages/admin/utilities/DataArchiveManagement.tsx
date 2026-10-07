@@ -44,6 +44,9 @@ interface ArchiveRecord {
   size: string;
   admin: string;
   status: string;
+  academicYear?: string;
+  branch?: string;
+  scope?: string;
 }
 // --- Mock Data ---
 const MOCK_ARCHIVE_HISTORY: ArchiveRecord[] = [
@@ -303,10 +306,26 @@ export function DataArchiveManagement() {
   );
   const [progress, setProgress] = useState<Record<string, number>>({});
   const [isArchiving, setIsArchiving] = useState(false);
+  const [archiveHistory, setArchiveHistory] = useState(MOCK_ARCHIVE_HISTORY);
+  const [selectedArchiveDetail, setSelectedArchiveDetail] = useState<ArchiveRecord | null>(null);
+  const [academicSession, setAcademicSession] = useState('2023-2024');
+  const [branchScope, setBranchScope] = useState('all');
+  const [ageScope, setAgeScope] = useState('3');
+  const [viewModule, setViewModule] = useState('all');
+  const [viewYear, setViewYear] = useState('all');
+  const [viewBranch, setViewBranch] = useState('all');
+  const [viewDate, setViewDate] = useState('');
   const [autoRuleToggles, setAutoRuleToggles] = useState(
     AUTO_RULES.map((r) => r.enabled)
   );
+  const [autoRuleDurations, setAutoRuleDurations] = useState(AUTO_RULES.map((rule) => rule.options[rule.defaultIdx]));
   const [schedule, setSchedule] = useState('yearly');
+  const [toast, setToast] = useState<string | null>(null);
+
+  const showToast = (message: string) => {
+    setToast(message);
+    window.setTimeout(() => setToast(null), 3200);
+  };
   const handleItemToggle = (itemId: string) => {
     setSelectedItems((prev) => {
       const next = new Set(prev);
@@ -375,6 +394,20 @@ export function DataArchiveManagement() {
               setTimeout(() => {
                 setIsArchiving(false);
                 setSelectedItems(new Set());
+                const recordCount = previewData.reduce((sum, entry) => sum + entry.records, 0);
+                const archiveId = `ARC-${String(Date.now()).slice(-6)}`;
+                setArchiveHistory((history) => [{
+                  id: archiveId,
+                  date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+                  module: previewData.length === 1 ? previewData[0].label : `${previewData.length} selected categories`,
+                  records: recordCount.toLocaleString('en-IN'),
+                  size: `${Math.max(1, Math.round(recordCount / 4500))} MB`,
+                  admin: 'Super Admin',
+                  status: 'Completed',
+                  academicYear: academicSession,
+                  branch: branchScope === 'all' ? 'All Branches' : branchScope === 'main' ? 'Main Branch' : branchScope === 'branch-a' ? 'Branch A' : 'Branch B',
+                  scope: `${academicSession} · ${branchScope === 'all' ? 'All Branches' : branchScope === 'main' ? 'Main Branch' : branchScope === 'branch-a' ? 'Branch A' : 'Branch B'} · older than ${ageScope} year(s)`
+                }, ...history]);
               }, 1000);
             }
             return next;
@@ -389,8 +422,18 @@ export function DataArchiveManagement() {
     setIsRestoreModalOpen(true);
   };
   const confirmRestore = () => {
+    if (selectedRestoreId) {
+      setArchiveHistory((history) => history.map((item) => item.id === selectedRestoreId ? { ...item, status: 'Restored' } : item));
+      showToast(`${selectedRestoreId} restored to the active data tier.`);
+    }
     setIsRestoreModalOpen(false);
     setSelectedRestoreId(null);
+  };
+  const saveArchiveSettings = () => {
+    try {
+      window.localStorage.setItem('k12-data-archive-settings-v1', JSON.stringify({ autoRuleToggles, autoRuleDurations, schedule }));
+    } catch { /* in-memory settings remain active if browser storage is unavailable */ }
+    showToast('Auto-archive settings saved in this browser.');
   };
   const previewData = getSelectedPreview();
   const totalSelectedRecords = previewData.reduce(
@@ -451,6 +494,8 @@ export function DataArchiveManagement() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <Select
               label="Academic Session"
+              value={academicSession}
+              onChange={(e) => setAcademicSession(e.target.value)}
               options={[
               {
                 value: '2020-2021',
@@ -472,6 +517,8 @@ export function DataArchiveManagement() {
 
               <Select
               label="Branch Selection"
+              value={branchScope}
+              onChange={(e) => setBranchScope(e.target.value)}
               options={[
               {
                 value: 'all',
@@ -493,6 +540,8 @@ export function DataArchiveManagement() {
 
               <Select
               label="Data Age Filter"
+              value={ageScope}
+              onChange={(e) => setAgeScope(e.target.value)}
               options={[
               {
                 value: '1',
@@ -602,6 +651,9 @@ export function DataArchiveManagement() {
                     </div>
               )}
                 </div>
+                <div className="text-[11px] text-gray-500 rounded-md bg-gray-50 border border-gray-100 p-2">
+                  Scope: {academicSession} · {branchScope === 'all' ? 'All Branches' : branchScope === 'main' ? 'Main Branch' : branchScope === 'branch-a' ? 'Branch A' : 'Branch B'} · older than {ageScope} year(s)
+                </div>
                 <div className="pt-4 border-t border-gray-200">
                   <Button
                 variant="primary"
@@ -631,6 +683,16 @@ export function DataArchiveManagement() {
 
   // --- Tab: View ---
   const renderViewTab = () => {
+    const filteredArchiveHistory = archiveHistory.filter((record) => {
+      if (viewModule !== 'all' && record.module !== viewModule) return false;
+      if (viewYear !== 'all' && (record.academicYear || '2025-26') !== viewYear) return false;
+      if (viewBranch !== 'all' && record.branch && record.branch !== 'All Branches' && record.branch !== viewBranch) return false;
+      if (viewDate) {
+        const timestamp = new Date(record.date).getTime();
+        if (!Number.isNaN(timestamp) && timestamp < new Date(`${viewDate}T00:00:00`).getTime()) return false;
+      }
+      return true;
+    });
     const columns = [
     {
       key: 'id',
@@ -673,8 +735,8 @@ export function DataArchiveManagement() {
     {
       key: 'actions',
       header: 'Actions',
-      render: () =>
-      <Button variant="ghost" size="xs" title="View Details">
+      render: (row: ArchiveRecord) =>
+      <Button variant="ghost" size="xs" title="View Details" onClick={() => setSelectedArchiveDetail(row)}>
             <Eye className="w-4 h-4" />
           </Button>
 
@@ -686,60 +748,45 @@ export function DataArchiveManagement() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Select
               label="Module"
+              value={viewModule}
+              onChange={(e) => setViewModule(e.target.value)}
               options={[
-              {
-                value: 'all',
-                label: 'All Modules'
-              },
-              {
-                value: 'att',
-                label: 'Attendance'
-              },
-              {
-                value: 'fee',
-                label: 'Fee Transactions'
-              },
-              {
-                value: 'sms',
-                label: 'SMS Logs'
-              }]
-              } />
+              { value: 'all', label: 'All Modules' },
+              { value: 'Attendance', label: 'Attendance' },
+              { value: 'Exam Results', label: 'Exam Results' },
+              { value: 'Fee Transactions', label: 'Fee Transactions' },
+              { value: 'SMS Logs', label: 'SMS Logs' },
+              { value: 'System Logs', label: 'System Logs' },
+              { value: 'Alumni Records', label: 'Alumni Records' }
+              ]} />
 
             <Select
               label="Academic Year"
+              value={viewYear}
+              onChange={(e) => setViewYear(e.target.value)}
               options={[
-              {
-                value: 'all',
-                label: 'All Years'
-              },
-              {
-                value: '21',
-                label: '2021-2022'
-              },
-              {
-                value: '22',
-                label: '2022-2023'
-              }]
-              } />
+              { value: 'all', label: 'All Years' },
+              { value: '2025-26', label: '2025-26' },
+              { value: '2024-25', label: '2024-25' },
+              { value: '2023-24', label: '2023-24' }
+              ]} />
 
             <Select
               label="Branch"
+              value={viewBranch}
+              onChange={(e) => setViewBranch(e.target.value)}
               options={[
-              {
-                value: 'all',
-                label: 'All Branches'
-              },
-              {
-                value: 'main',
-                label: 'Main Branch'
-              }]
-              } />
+              { value: 'all', label: 'All Branches' },
+              { value: 'Main Branch', label: 'Main Branch' },
+              { value: 'Branch A', label: 'Branch A' },
+              { value: 'Branch B', label: 'Branch B' }
+              ]} />
 
-            <Input label="Date Range" type="date" />
+            <Input label="Date From" type="date" value={viewDate} onChange={(e) => setViewDate(e.target.value)} />
           </div>
         </Card>
         <Card title="Archived Records Log">
-          <Table columns={columns} data={MOCK_ARCHIVE_HISTORY} />
+          <Table columns={columns} data={filteredArchiveHistory} />
         </Card>
       </div>);
 
@@ -805,7 +852,7 @@ export function DataArchiveManagement() {
         <Card title="Available Archives for Restoration">
           <Table
             columns={columns}
-            data={MOCK_ARCHIVE_HISTORY.filter((h) => h.status === 'Completed')} />
+            data={archiveHistory.filter((h) => h.status === 'Completed')} />
 
         </Card>
       </div>);
@@ -829,7 +876,8 @@ export function DataArchiveManagement() {
                 <div className="flex items-center gap-4">
                   <select
                 className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm"
-                defaultValue={rule.options[rule.defaultIdx]}>
+                value={autoRuleDurations[idx]}
+                onChange={(event) => setAutoRuleDurations((previous) => previous.map((value, index) => index === idx ? event.target.value : value))}>
 
                     {rule.options.map((opt) =>
                 <option key={opt} value={opt}>
@@ -892,7 +940,7 @@ export function DataArchiveManagement() {
           </div>
 
           <div className="mt-6 flex justify-end">
-            <Button variant="primary">Save Settings</Button>
+            <Button variant="primary" onClick={saveArchiveSettings}>Save Settings</Button>
           </div>
         </Card>
       </div>
@@ -990,6 +1038,25 @@ export function DataArchiveManagement() {
         {activeTab === 'restore' && renderRestoreTab()}
         {activeTab === 'settings' && renderSettingsTab()}
       </div>
+
+      {selectedArchiveDetail && (
+        <Modal isOpen onClose={() => setSelectedArchiveDetail(null)} title={`Archive Details — ${selectedArchiveDetail.id}`} size="md">
+          <div className="space-y-3 text-sm">
+            <div className="rounded-lg border border-indigo-100 bg-indigo-50 p-4">
+              <p className="font-semibold text-indigo-900">{selectedArchiveDetail.module}</p>
+              <p className="mt-1 text-xs text-indigo-800">{selectedArchiveDetail.records} records · {selectedArchiveDetail.size} · {selectedArchiveDetail.status}</p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-700">
+              <p>Archive date: <strong>{selectedArchiveDetail.date}</strong></p>
+              <p>Performed by: <strong>{selectedArchiveDetail.admin}</strong></p>
+              <p>Academic year: <strong>{selectedArchiveDetail.academicYear || 'Historical archive'}</strong></p>
+              <p>Branch: <strong>{selectedArchiveDetail.branch || 'Main Branch'}</strong></p>
+              <p className="sm:col-span-2">Scope: <strong>{selectedArchiveDetail.scope || 'Archive scope recorded in the historical job log.'}</strong></p>
+            </div>
+            <div className="flex justify-end"><Button variant="outline" onClick={() => setSelectedArchiveDetail(null)}>Close</Button></div>
+          </div>
+        </Modal>
+      )}
 
       {/* Confirm Archive Modal */}
       <Modal
@@ -1109,6 +1176,7 @@ export function DataArchiveManagement() {
           </div>
         </div>
       </Modal>
+      {toast && <div role="status" className="fixed bottom-5 right-5 z-50 bg-gray-900 text-white px-5 py-3 rounded-xl shadow-2xl text-sm">{toast}</div>}
     </div>);
 
 }

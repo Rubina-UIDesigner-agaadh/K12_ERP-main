@@ -199,12 +199,27 @@ export function ArchiveAuditTrail() {
   const [status, setStatus] = useState('All Status');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
+  const [appliedFilters, setAppliedFilters] = useState({ query: '', actionType: 'All Actions', module: 'All Modules', user: 'All Users', status: 'All Status', fromDate: '', toDate: '' });
   const [detail, setDetail] = useState<AuditEvent | null>(null);
+  const [lastRefreshed, setLastRefreshed] = useState('Local sample log loaded');
   const [toast, setToast] = useState<string | null>(null);
 
   const showToast = (m: string) => {
     setToast(m);
     window.setTimeout(() => setToast(null), 3200);
+  };
+  const commitFilters = () => {
+    setAppliedFilters({ query, actionType, module, user, status, fromDate, toDate });
+    showToast('Current audit filters applied to the event list.');
+  };
+  const resetFilters = () => {
+    setQuery(''); setActionType('All Actions'); setModule('All Modules'); setUser('All Users'); setStatus('All Status'); setFromDate(''); setToDate('');
+    setAppliedFilters({ query: '', actionType: 'All Actions', module: 'All Modules', user: 'All Users', status: 'All Status', fromDate: '', toDate: '' });
+    showToast('Audit filters cleared; the full local sample log is displayed.');
+  };
+  const refreshAuditLog = () => {
+    setLastRefreshed(new Date().toLocaleString('en-IN'));
+    showToast('Local audit sample refreshed; current filters were retained.');
   };
 
   const exportFilteredEvents = () => {
@@ -234,20 +249,20 @@ export function ArchiveAuditTrail() {
   };
 
   const events = EVENTS.filter((e) => {
-    if (actionType === 'Archive' && e.actionType !== 'ARCHIVE') return false;
-    if (actionType === 'Cold Push' && e.actionType !== 'COLD') return false;
-    if (actionType === 'Cleanup' && e.actionType !== 'CLEANUP') return false;
-    if (actionType === 'Retrieve' && e.actionType !== 'RETRIEVE') return false;
-    if (actionType === 'Settings Change' && e.actionType !== 'SETTINGS') return false;
-    if (actionType === 'Backup' && e.actionType !== 'BACKUP') return false;
-    if (actionType === 'Delete' && e.actionType !== 'DELETE') return false;
-    if (module !== 'All Modules' && !e.module.includes(module)) return false;
-    if (user !== 'All Users' && !(e.user.includes(user) || e.role === user)) return false;
-    if (status !== 'All Status' && e.status !== status) return false;
+    if (appliedFilters.actionType === 'Archive' && e.actionType !== 'ARCHIVE') return false;
+    if (appliedFilters.actionType === 'Cold Push' && e.actionType !== 'COLD') return false;
+    if (appliedFilters.actionType === 'Cleanup' && e.actionType !== 'CLEANUP') return false;
+    if (appliedFilters.actionType === 'Retrieve' && e.actionType !== 'RETRIEVE') return false;
+    if (appliedFilters.actionType === 'Settings Change' && e.actionType !== 'SETTINGS') return false;
+    if (appliedFilters.actionType === 'Backup' && e.actionType !== 'BACKUP') return false;
+    if (appliedFilters.actionType === 'Delete' && e.actionType !== 'DELETE') return false;
+    if (appliedFilters.module !== 'All Modules' && !e.module.includes(appliedFilters.module)) return false;
+    if (appliedFilters.user !== 'All Users' && !(e.user.includes(appliedFilters.user) || e.role === appliedFilters.user)) return false;
+    if (appliedFilters.status !== 'All Status' && e.status !== appliedFilters.status) return false;
     const timestamp = parseAuditTimestamp(e.when);
-    if (fromDate && timestamp < new Date(`${fromDate}T00:00:00`).getTime()) return false;
-    if (toDate && timestamp > new Date(`${toDate}T23:59:59.999`).getTime()) return false;
-    if (query && !`${e.id} ${e.action} ${e.details} ${e.user}`.toLowerCase().includes(query.toLowerCase())) return false;
+    if (appliedFilters.fromDate && timestamp < new Date(`${appliedFilters.fromDate}T00:00:00`).getTime()) return false;
+    if (appliedFilters.toDate && timestamp > new Date(`${appliedFilters.toDate}T23:59:59.999`).getTime()) return false;
+    if (appliedFilters.query && !`${e.id} ${e.action} ${e.details} ${e.user}`.toLowerCase().includes(appliedFilters.query.toLowerCase())) return false;
     return true;
   });
 
@@ -260,7 +275,7 @@ export function ArchiveAuditTrail() {
         restricted="System-generated and immutable — Super Admin, Principal and Auditor can read, nobody can edit"
         actions={
           <>
-            <Button variant="outline" size="sm" className="text-xs" onClick={() => showToast('Audit log reloaded.')}>
+            <Button variant="outline" size="sm" className="text-xs" onClick={refreshAuditLog}>
               <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> Refresh
             </Button>
             <Button variant="outline" size="sm" className="text-xs" onClick={exportFilteredEvents}>
@@ -319,7 +334,7 @@ export function ArchiveAuditTrail() {
         </span>
       </div>
 
-      <Panel icon={Filter} title="Filter Events" subtitle="Search by event id, action text, operator or date">
+      <Panel icon={Filter} title="Filter Events" subtitle={`Search by event id, action text, operator or date · local sample refreshed ${lastRefreshed}`}>
         <div className="p-5 space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="relative md:col-span-1">
@@ -366,22 +381,14 @@ export function ArchiveAuditTrail() {
             <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="p-1.5 border border-gray-300 rounded-md text-xs" />
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white" onClick={() => showToast('Filters applied.')}>
+            <Button size="sm" className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white" onClick={commitFilters}>
               <Search className="w-3.5 h-3.5 mr-1.5" /> Apply Filters
             </Button>
             <Button
               variant="outline"
               size="sm"
               className="text-xs"
-              onClick={() => {
-                setQuery('');
-                setActionType('All Actions');
-                setModule('All Modules');
-                setUser('All Users');
-                setStatus('All Status');
-                setFromDate('');
-                setToDate('');
-              }}
+              onClick={resetFilters}
             >
               <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> Reset
             </Button>
@@ -517,7 +524,7 @@ export function ArchiveAuditTrail() {
                 <Printer className="w-3.5 h-3.5 mr-1.5" /> Print
               </Button>
               <Button variant="outline" size="sm" className="text-xs" onClick={() => downloadEventDetail(detail)}>
-                <FileDown className="w-3.5 h-3.5 mr-1.5" /> Download JSON
+                <FileDown className="w-3.5 h-3.5 mr-1.5" /> Download
               </Button>
               <Button variant="ghost" size="sm" className="text-xs" onClick={() => setDetail(null)}>
                 Close

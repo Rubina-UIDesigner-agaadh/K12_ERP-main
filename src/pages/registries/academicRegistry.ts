@@ -44,36 +44,6 @@ export const academicRegistry: Record<string, () => any> = {
     'SchoolDiary'
   ),
 
-  // Curriculum
-  'curriculum-setup': rp(
-    () => import('../academic/academics/curriculum/CurriculumSetup'),
-    'CurriculumSetup'
-  ),
-  'learning-outcomes-mapping': rp(
-    () => import('../academic/academics/curriculum/LearningOutcomesMapping'),
-    'LearningOutcomesMapping'
-  ),
-  'subject-management': rp(
-    () => import('../academic/academics/curriculum/SubjectManagement'),
-    'SubjectManagement'
-  ),
-  'syllabus-planner': rp(
-    () => import('../academic/academics/curriculum/SyllabusPlanner'),
-    'SyllabusPlanner'
-  ),
-  'academic-calendar': rp(
-    () => import('../academic/academics/curriculum/AcademicCalendar'),
-    'AcademicCalendar'
-  ),
-  'lesson-planning': rp(
-    () => import('../academic/academics/curriculum/LessonPlanning'),
-    'LessonPlanning'
-  ),
-  'planning-classroom-operations': rp(
-    () => import('../academic/academics/curriculum/PlanningClassroomOperations'),
-    'PlanningClassroomOperations'
-  ),
-
   // Timetable
   'timetable-setup': rp(
     () => import('../more/timetable/TimetableSetup'),

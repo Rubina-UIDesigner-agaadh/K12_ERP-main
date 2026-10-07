@@ -15,28 +15,14 @@ import {
   Save,
   X,
   Search,
-  ChevronDown,
-  ChevronRight,
-  ChevronUp,
-  Users,
-  BookOpen,
   GraduationCap,
   Copy,
   Download,
-  Upload,
-  Settings,
   CheckCircle,
   AlertCircle,
-  Eye,
-  UserPlus,
-  DoorOpen,
-  Calendar,
-  MoreVertical,
   ArrowUp,
   ArrowDown,
-  RefreshCw,
-  FileText,
-  Grid3X3 } from
+ } from
 'lucide-react';
 
 // Type definitions
@@ -792,19 +778,6 @@ export function ClassSectionStructureSetup() {
     return matchesSearch && matchesStream && matchesStatus && matchesYear;
   }).sort((a, b) => a.order - b.order);
 
-  // Calculate statistics
-  const stats = {
-    totalClasses: filteredClasses.length,
-    totalSections: filteredClasses.reduce((acc, c) => acc + c.sections.length, 0),
-    totalCapacity: filteredClasses.reduce((acc, c) =>
-    acc + c.sections.reduce((acc2, s) => acc2 + s.capacity, 0), 0),
-    totalStrength: filteredClasses.reduce((acc, c) =>
-    acc + c.sections.reduce((acc2, s) => acc2 + s.currentStrength, 0), 0),
-    activeClasses: filteredClasses.filter((c) => c.status === 'Active').length,
-    activeSections: filteredClasses.reduce((acc, c) =>
-    acc + c.sections.filter((s) => s.status === 'Active').length, 0)
-  };
-
   // Reset form data
   const resetClassForm = () => {
     setClassFormData({
@@ -1351,7 +1324,7 @@ export function ClassSectionStructureSetup() {
     <div className="space-y-6 p-6">
       {/* Toast Notification */}
       {toast.isVisible &&
-      <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg ${
+      <div className={`fixed top-4 right-4 z-[90] flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg ${
       toast.type === 'success' ? 'bg-green-500 text-white' :
       toast.type === 'error' ? 'bg-red-500 text-white' :
       'bg-blue-500 text-white'}`
@@ -1367,7 +1340,7 @@ export function ClassSectionStructureSetup() {
 
       {/* Confirmation Modal */}
       {confirmModal.isOpen &&
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[80]">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <h3 className="text-lg font-semibold mb-2">Confirm Action</h3>
             <p className="text-gray-600 mb-4">{confirmModal.message}</p>
@@ -1516,7 +1489,7 @@ export function ClassSectionStructureSetup() {
 
       {/* Section Modal */}
       {showSectionModal &&
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
           <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-start mb-4">
               <h3 className="text-lg font-semibold">
@@ -1626,7 +1599,7 @@ export function ClassSectionStructureSetup() {
 
       {/* Bulk Section Modal */}
       {showBulkSectionModal &&
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[70]">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <div className="flex justify-between items-start mb-4">
               <h3 className="text-lg font-semibold">Bulk Add Sections</h3>
@@ -1859,52 +1832,6 @@ export function ClassSectionStructureSetup() {
             Add Class
           </Button>
         </div>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <Card className="p-4">
-          <div className="text-center">
-            <GraduationCap className="w-6 h-6 mx-auto mb-1 text-blue-500" />
-            <p className="text-2xl font-bold">{stats.totalClasses}</p>
-            <p className="text-xs text-gray-500">Total Classes</p>
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-center">
-            <Layers className="w-6 h-6 mx-auto mb-1 text-purple-500" />
-            <p className="text-2xl font-bold">{stats.totalSections}</p>
-            <p className="text-xs text-gray-500">Total Sections</p>
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-center">
-            <Users className="w-6 h-6 mx-auto mb-1 text-green-500" />
-            <p className="text-2xl font-bold">{stats.totalStrength.toLocaleString()}</p>
-            <p className="text-xs text-gray-500">Total Students</p>
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-center">
-            <DoorOpen className="w-6 h-6 mx-auto mb-1 text-orange-500" />
-            <p className="text-2xl font-bold">{stats.totalCapacity.toLocaleString()}</p>
-            <p className="text-xs text-gray-500">Total Capacity</p>
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-center">
-            <CheckCircle className="w-6 h-6 mx-auto mb-1 text-green-500" />
-            <p className="text-2xl font-bold">{stats.activeClasses}</p>
-            <p className="text-xs text-gray-500">Active Classes</p>
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-center">
-            <BookOpen className="w-6 h-6 mx-auto mb-1 text-indigo-500" />
-            <p className="text-2xl font-bold">{stats.activeSections}</p>
-            <p className="text-xs text-gray-500">Active Sections</p>
-          </div>
-        </Card>
       </div>
 
       {/* Filters */}

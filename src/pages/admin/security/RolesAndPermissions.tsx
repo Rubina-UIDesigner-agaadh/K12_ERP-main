@@ -71,10 +71,9 @@ interface ClassSubjectScopeAssignment {
   role: string;
   branchKey: string;
   className: string;
+  division: string;
   subject: string;
-  accessMode: 'Whole Class' | 'Selected Subjects';
-  classScope: string;
-  subjectScope: string;
+  accessMode: 'Whole Class' | 'Specific Subjects';
   updatedAt: string;
 }
 
@@ -247,24 +246,17 @@ const BRANCHES = [
   code: 'SB'
 }];
 
-const MASTER_FRANCHISES = [
-{ value: 'sunrise-hq', label: 'Sunrise Group — Head Office' },
-{ value: 'north-franchise', label: 'North Zone Franchise' },
-{ value: 'west-franchise', label: 'West Zone Franchise' },
-{ value: 'south-franchise', label: 'South Zone Franchise' }];
-
 const CLASS_OPTIONS = [
 'Nursery', 'LKG', 'UKG',
 'Class 1', 'Class 2', 'Class 3', 'Class 4', 'Class 5', 'Class 6',
 'Class 7', 'Class 8', 'Class 9', 'Class 10', 'Class 11', 'Class 12'].
 map((c) => ({ value: c, label: c }));
 
-const DIVISION_OPTIONS = ['A', 'B', 'C', 'D', 'E'].map((d) => ({ value: d, label: `Division ${d}` }));
-
+const DIVISION_OPTIONS = ['A', 'B', 'C', 'D', 'E'].map((division) => ({ value: division, label: `Division ${division}` }));
 const BATCH_OPTIONS = [
 '2023-24', '2024-25', '2025-26', '2026-27',
 'Morning Shift', 'Afternoon Shift',
-'Science', 'Commerce', 'Arts'].map((b) => ({ value: b, label: b }));
+'Science', 'Commerce', 'Arts'].map((batch) => ({ value: batch, label: batch }));
 
 const DEPARTMENT_OPTIONS = [
   'Early Years',
@@ -311,8 +303,6 @@ const getSubjectOptions = (classes: string[], departments: string[] = []) => {
     .sort((a, b) => a.localeCompare(b))
     .map((subject) => ({ value: subject, label: subject }));
 };
-
-const ALL_CLASS_VALUES = CLASS_OPTIONS.map((option) => option.value);
 
 const ROLE_NAMES = [
 'Super Admin',
@@ -617,19 +607,6 @@ const DATA_SCOPE_OPTIONS: {value: string; label: string;}[] = [
 { value: 'Own Records Only', label: 'Own Records Only' },
 { value: 'No Access', label: 'No Access' }];
 
-// Institutional scopes defined in Admin Tools ▸ Security ▸ Data Scope Management —
-// they can be picked per page as well, so a page can inherit a named scope.
-const NAMED_SCOPE_OPTIONS: string[] = [
-'Fee Collection Officer',
-'Exam Coordinator',
-'HOD Department',
-'Accounts Read-Only',
-'Transport Coordinator',
-'Library Manager',
-'Hostel Warden',
-'Sports Department',
-'Parent View (Own Child)'];
-
 const DEFAULT_PAGE_SCOPE = 'All Data';
 const MIXED_SCOPE = 'Mixed';
 const scopeTone = (scope: string) =>
@@ -638,6 +615,14 @@ scope === 'No Access' ?
 scope === 'All Data' ?
 'border-slate-300 text-slate-700 bg-white' :
 'border-emerald-300 text-emerald-700 bg-emerald-50';
+const SCOPE_HINT: Record<string, string> = {
+  'All Data': 'No restriction — user sees all records',
+  'Own Branch Only': 'User sees only records from their assigned branch',
+  'Own Department': 'User sees only records from their department',
+  'Own Class+Subject': 'User sees only their assigned classes and subjects',
+  'Own Records Only': 'User sees only records they personally created',
+  'No Access': 'User cannot see any data on this page'
+};
 const initScopes = (): Record<
   string,
   Record<string, Record<string, string>>> =>
@@ -698,25 +683,26 @@ export function RolesAndPermissions() {
   const [selectedRole, setSelectedRole] = useState('Teacher');
   // Assignment scope — multi-select where more than one value is valid
   const [selectedBranches, setSelectedBranches] = useState<string[]>(['main']);
-  const [masterFranchise, setMasterFranchise] = useState('sunrise-hq');
+  // Existing search filters — retain independently from the access-assignment controls below.
   const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
   const [selectedDivisions, setSelectedDivisions] = useState<string[]>([]);
   const [selectedBatches, setSelectedBatches] = useState<string[]>([]);
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
-  const [scopeClasses, setScopeClasses] = useState<string[]>(ALL_CLASS_VALUES);
-  const [scopeSubjects, setScopeSubjects] = useState<string[]>([]);
-  const [classAccessMode, setClassAccessMode] = useState<'Whole Class' | 'Selected Subjects'>('Whole Class');
-  const [classScopeMode, setClassScopeMode] = useState('Own Class');
-  const [subjectScopeMode, setSubjectScopeMode] = useState('Own Subject');
+  // Class & Subject Access assignment controls.
+  const [classAccessMode, setClassAccessMode] = useState<'Whole Class' | 'Specific Subjects'>('Whole Class');
+  const [wholeClassAccessClasses, setWholeClassAccessClasses] = useState<string[]>([]);
+  const [subjectAccessClasses, setSubjectAccessClasses] = useState<string[]>([]);
+  const [subjectAccessDivisions, setSubjectAccessDivisions] = useState<string[]>([]);
+  const [accessSubjects, setAccessSubjects] = useState<string[]>([]);
   const [classSubjectScopeAssignments, setClassSubjectScopeAssignments] = useState<ClassSubjectScopeAssignment[]>([]);
   const subjectOptions = useMemo(
     () => getSubjectOptions(selectedClasses, selectedDepartments),
     [selectedClasses, selectedDepartments]
   );
-  const scopeSubjectOptions = useMemo(
-    () => scopeClasses.length ? getSubjectOptions(scopeClasses, selectedDepartments) : [],
-    [scopeClasses, selectedDepartments]
+  const subjectAccessOptions = useMemo(
+    () => subjectAccessClasses.length ? getSubjectOptions(subjectAccessClasses) : [],
+    [subjectAccessClasses]
   );
   const visibleClassSubjectScopes = useMemo(() => {
     const branchKey = selectedBranches.slice().sort().join(',');
@@ -724,6 +710,27 @@ export function RolesAndPermissions() {
       assignment.role === selectedRole && assignment.branchKey === branchKey
     );
   }, [classSubjectScopeAssignments, selectedBranches, selectedRole]);
+  const classSubjectDescription = useMemo(() => {
+    if (!visibleClassSubjectScopes.length) {
+      return `No class or subject access is configured for the ${selectedRole} role in the selected branch scope.`;
+    }
+    const wholeClasses = Array.from(new Set(visibleClassSubjectScopes
+      .filter((assignment) => assignment.accessMode === 'Whole Class')
+      .map((assignment) => assignment.className)));
+    const selectedByClassDivision = new Map<string, string[]>();
+    visibleClassSubjectScopes.filter((assignment) => assignment.accessMode === 'Specific Subjects').forEach((assignment) => {
+      const key = `${assignment.className} — Division ${assignment.division}`;
+      const subjects = selectedByClassDivision.get(key) || [];
+      if (!subjects.includes(assignment.subject)) subjects.push(assignment.subject);
+      selectedByClassDivision.set(key, subjects);
+    });
+    const parts: string[] = [];
+    if (wholeClasses.length) parts.push(`full-class access for ${wholeClasses.join(', ')} across all divisions`);
+    if (selectedByClassDivision.size) {
+      parts.push(`specific-subject access for ${Array.from(selectedByClassDivision.entries()).map(([classDivision, subjects]) => `${classDivision} (${subjects.join(', ')})`).join('; ')}`);
+    }
+    return `${selectedRole} users have ${parts.join(' and ')}.`;
+  }, [visibleClassSubjectScopes, selectedRole]);
   const selectedBranch = selectedBranches[0] || 'main';   // first branch in scope drives the view
   const [permissions, setPermissions] = useState(initPermissions);
   const [scopes, setScopes] = useState(initScopes);
@@ -746,73 +753,87 @@ export function RolesAndPermissions() {
 
   const handleClassFilterChange = (classes: string[]) => {
     setSelectedClasses(classes);
-    setScopeClasses(classes.length ? classes : ALL_CLASS_VALUES);
     const nextSubjectValues = getSubjectOptions(classes, selectedDepartments).map((option) => option.value);
     setSelectedSubjects((current) => current.filter((subject) => nextSubjectValues.includes(subject)));
-    setScopeSubjects((current) => current.filter((subject) => nextSubjectValues.includes(subject)));
   };
 
   const handleDepartmentFilterChange = (departments: string[]) => {
     setSelectedDepartments(departments);
     const nextSubjectValues = getSubjectOptions(selectedClasses, departments).map((option) => option.value);
     setSelectedSubjects((current) => current.filter((subject) => nextSubjectValues.includes(subject)));
-    setScopeSubjects((current) => current.filter((subject) => nextSubjectValues.includes(subject)));
   };
 
   const handleSubjectFilterChange = (subjects: string[]) => {
     setSelectedSubjects(subjects);
-    setScopeSubjects(subjects);
+  };
+
+  const handleSubjectAccessClassChange = (classes: string[]) => {
+    setSubjectAccessClasses(classes);
+    const availableSubjects = getSubjectOptions(classes).map((option) => option.value);
+    setAccessSubjects((current) => current.filter((subject) => availableSubjects.includes(subject)));
   };
 
   const applyClassSubjectScopes = () => {
-    if (!scopeClasses.length) {
-      alert('Select at least one class before assigning access.');
+    const targetClasses = classAccessMode === 'Whole Class' ? wholeClassAccessClasses : subjectAccessClasses;
+    if (!targetClasses.length) {
+      alert(classAccessMode === 'Whole Class'
+        ? 'Select at least one class to grant full class access.'
+        : 'Select at least one class for specific-subject access.');
       return;
     }
-    if (classAccessMode === 'Selected Subjects' && !scopeSubjects.length) {
-      alert('Select at least one subject, or choose Whole Class access.');
+    if (classAccessMode === 'Specific Subjects' && (!subjectAccessDivisions.length || !accessSubjects.length)) {
+      alert('Select at least one division and one subject for specific-subject access.');
       return;
     }
+
     const branchKey = selectedBranches.slice().sort().join(',');
     const updatedAt = new Date().toLocaleString();
     const nextAssignments: ClassSubjectScopeAssignment[] = classAccessMode === 'Whole Class'
-      ? scopeClasses.map((className) => ({
-          id: `${selectedRole}-${branchKey}-${className}-all-subjects`,
+      ? targetClasses.map((className) => ({
+          id: `${selectedRole}-${branchKey}-${className}-all-divisions-all-subjects`,
           role: selectedRole,
           branchKey,
           className,
+          division: 'All divisions',
           subject: 'All subjects',
           accessMode: 'Whole Class' as const,
-          classScope: classScopeMode,
-          subjectScope: 'All subjects in class',
           updatedAt
         }))
-      : scopeClasses.flatMap((className) =>
-          scopeSubjects
-            .filter((subject) => getSubjectOptions([className], selectedDepartments).some((option) => option.value === subject))
-            .map((subject) => ({
-              id: `${selectedRole}-${branchKey}-${className}-${subject}`,
-              role: selectedRole,
-              branchKey,
-              className,
-              subject,
-              accessMode: 'Selected Subjects' as const,
-              classScope: classScopeMode,
-              subjectScope: subjectScopeMode,
-              updatedAt
-            }))
+      : targetClasses.flatMap((className) =>
+          subjectAccessDivisions.flatMap((division) =>
+            accessSubjects
+              .filter((subject) => getSubjectOptions([className]).some((option) => option.value === subject))
+              .map((subject) => ({
+                id: `${selectedRole}-${branchKey}-${className}-${division}-${subject}`,
+                role: selectedRole,
+                branchKey,
+                className,
+                division,
+                subject,
+                accessMode: 'Specific Subjects' as const,
+                updatedAt
+              }))
+          )
         );
+
     if (!nextAssignments.length) {
-      alert('None of the selected subjects belong to the selected classes and departments.');
+      alert('The selected subjects are not available in the selected classes.');
       return;
     }
-    const selectedClassSet = new Set(scopeClasses);
+
+    const selectedClassSet = new Set(targetClasses);
+    const assignedSpecificClasses = new Set(nextAssignments.map((assignment) => assignment.className));
+    const assignedClassDivisionKeys = new Set(nextAssignments
+      .filter((assignment) => assignment.accessMode === 'Specific Subjects')
+      .map((assignment) => `${assignment.className}|${assignment.division}`));
     setClassSubjectScopeAssignments((current) => [
-      ...current.filter((assignment) =>
-        assignment.role !== selectedRole ||
-        assignment.branchKey !== branchKey ||
-        !selectedClassSet.has(assignment.className)
-      ),
+      ...current.filter((assignment) => {
+        if (assignment.role !== selectedRole || assignment.branchKey !== branchKey) return true;
+        if (!selectedClassSet.has(assignment.className)) return true;
+        if (classAccessMode === 'Whole Class') return false;
+        if (assignment.accessMode === 'Whole Class') return !assignedSpecificClasses.has(assignment.className);
+        return !assignedClassDivisionKeys.has(`${assignment.className}|${assignment.division}`);
+      }),
       ...nextAssignments
     ]);
   };
@@ -1263,10 +1284,11 @@ export function RolesAndPermissions() {
           Permission Assignment
         </h2>
         <p className="text-sm text-slate-500 -mt-2">
-          Each page row carries its own permission toggles and Data Scope. Use the class, department, and dependent subject filters to define the assignment context, then choose Whole Class access or Selected Subjects only in the panel below. Per-page scopes and class/subject access are tracked independently for the selected role and branch.
+          Choose the role and branches, set the class, department, subject, division, and batch search criteria in Step 1, and manage whole-class or specific-subject access in its separate panel. Per-page scopes and class/subject access are tracked independently for the selected role and branch.
         </p>
 
         <Card className="p-5">
+          <h3 className="mb-4 text-sm font-semibold text-slate-800">Step 1 — Who are you configuring permissions for?</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -1284,22 +1306,6 @@ export function RolesAndPermissions() {
                 )}
               </select>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Master Franchise
-              </label>
-              <select
-                value={masterFranchise}
-                onChange={(e) => setMasterFranchise(e.target.value)}
-                className="w-full border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-
-                {MASTER_FRANCHISES.map((f) =>
-                <option key={f.value} value={f.value}>
-                    {f.label}
-                  </option>
-                )}
-              </select>
-            </div>
             <MultiSelect
               label="Branch (multi-select)"
               options={BRANCHES.map((b) => ({ value: b.id, label: b.name }))}
@@ -1309,7 +1315,7 @@ export function RolesAndPermissions() {
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                Search
+                Search modules
               </label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -1323,68 +1329,43 @@ export function RolesAndPermissions() {
               </div>
             </div>
 
-            <MultiSelect
-              label="Class (multi-select)"
-              options={CLASS_OPTIONS}
-              value={selectedClasses}
-              onChange={handleClassFilterChange}
-              placeholder="All classes" />
-
-            <MultiSelect
-              label="Department (multi-select)"
-              options={DEPARTMENT_OPTIONS}
-              value={selectedDepartments}
-              onChange={handleDepartmentFilterChange}
-              placeholder="All departments" />
-
-            <MultiSelect
-              label="Subject (depends on class)"
-              options={subjectOptions}
-              value={selectedSubjects}
-              onChange={handleSubjectFilterChange}
-              placeholder={selectedClasses.length ? 'All subjects in selected classes' : 'All subjects'} />
-
-            <MultiSelect
-              label="Division (multi-select)"
-              options={DIVISION_OPTIONS}
-              value={selectedDivisions}
-              onChange={setSelectedDivisions}
-              placeholder="All divisions" />
-
-            <MultiSelect
-              label="Batch (multi-select)"
-              options={BATCH_OPTIONS}
-              value={selectedBatches}
-              onChange={setSelectedBatches}
-              placeholder="All batches" />
-
             <div className="flex flex-col justify-end">
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 Quick Actions
               </label>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Button
                   variant="outline"
                   size="sm"
-                  className="flex-1"
+                  className="flex-1 whitespace-nowrap"
                   onClick={() => setAllPerms(true)}>
-
-                  <Unlock className="w-3 h-3 mr-1" />
-                  All
+                  <Unlock className="w-3 h-3 mr-1" /> Grant All
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
-                  className="flex-1"
+                  className="flex-1 whitespace-nowrap"
                   onClick={() => setAllPerms(false)}>
-
-                  <Lock className="w-3 h-3 mr-1" />
-                  None
+                  <Lock className="w-3 h-3 mr-1" /> Revoke All
                 </Button>
-                <Button variant="outline" size="sm" onClick={copyToAllBranches}>
-                  <Copy className="w-3 h-3" />
+                <Button variant="outline" size="sm" className="flex-1 whitespace-nowrap" onClick={copyToAllBranches}>
+                  <Copy className="w-3 h-3 mr-1" /> Copy to All Branches
                 </Button>
               </div>
+            </div>
+          </div>
+
+          <div className="mt-5 border-t border-slate-100 pt-4">
+            <div className="mb-3">
+              <h4 className="text-sm font-semibold text-slate-800">Search filters</h4>
+              <p className="mt-1 text-xs text-slate-500">Set search criteria for class, department, subject, division, and batch here.</p>
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <MultiSelect label="Class (multi-select)" options={CLASS_OPTIONS} value={selectedClasses} onChange={handleClassFilterChange} placeholder="All classes" />
+              <MultiSelect label="Department (multi-select)" options={DEPARTMENT_OPTIONS} value={selectedDepartments} onChange={handleDepartmentFilterChange} placeholder="All departments" />
+              <MultiSelect label="Subject (depends on class)" options={subjectOptions} value={selectedSubjects} onChange={handleSubjectFilterChange} placeholder={selectedClasses.length ? 'All subjects in selected classes' : 'All subjects'} />
+              <MultiSelect label="Division (multi-select)" options={DIVISION_OPTIONS} value={selectedDivisions} onChange={setSelectedDivisions} placeholder="All divisions" />
+              <MultiSelect label="Batch (multi-select)" options={BATCH_OPTIONS} value={selectedBatches} onChange={setSelectedBatches} placeholder="All batches" />
             </div>
           </div>
 
@@ -1490,6 +1471,7 @@ export function RolesAndPermissions() {
                         <div className="bg-blue-50/70 px-4 py-2 flex items-center justify-between border-b">
                           <span className="font-medium text-slate-800 text-sm">
                             {sub.name}
+                            {subModuleScope(module.id, sub.id) === MIXED_SCOPE && <span className="text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 text-[10px] font-semibold ml-2">⚠️ Mixed scopes</span>}
                           </span>
                           <div className="flex items-center gap-1">
                             <span className="hidden lg:inline text-[10px] font-semibold uppercase tracking-wider text-slate-400 mr-1">
@@ -1501,6 +1483,7 @@ export function RolesAndPermissions() {
                           setSubModuleScope(module.id, sub.id, e.target.value)
                           }
                           aria-label={`Data scope for all pages in ${sub.name}`}
+                          title={subModuleScope(module.id, sub.id) === MIXED_SCOPE ? 'Pages below have different scopes. Select one here to override all pages in this section.' : 'Apply a data scope to all pages in this section.'}
                           className={`p-1.5 border rounded-lg text-xs ${scopeTone(subModuleScope(module.id, sub.id))}`}>
                           
                               {subModuleScope(module.id, sub.id) === MIXED_SCOPE &&
@@ -1512,13 +1495,6 @@ export function RolesAndPermissions() {
                                 {DATA_SCOPE_OPTIONS.map((o) =>
                               <option key={o.value} value={o.value}>
                                     {o.label}
-                                  </option>
-                              )}
-                              </optgroup>
-                              <optgroup label="Institutional scopes (Data Scope Management)">
-                                {NAMED_SCOPE_OPTIONS.map((n) =>
-                              <option key={n} value={n}>
-                                    {n}
                                   </option>
                               )}
                               </optgroup>
@@ -1543,64 +1519,58 @@ export function RolesAndPermissions() {
                             </Button>
                           </div>
                         </div>
+                        {subModuleScope(module.id, sub.id) === MIXED_SCOPE && (
+                          <div className="flex items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">
+                            <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+                            <span>Pages in this section have different data scopes. Select a scope above to apply the same scope to all pages.</span>
+                          </div>
+                        )}
                         <div className="divide-y divide-gray-100">
                           {sub.pages.map((page) => {
                         const perms = currentPerms[page.id] || defaultPerm();
+                        const pageScope = currentScopes[page.id] || DEFAULT_PAGE_SCOPE;
+                        const scopeBorder = pageScope === 'No Access' ? 'border-rose-400' : pageScope === 'All Data' ? 'border-slate-300' : 'border-emerald-400';
+                        const scopeDot = pageScope === 'No Access' ? 'bg-rose-500' : pageScope === 'All Data' ? 'bg-slate-400' : 'bg-emerald-500';
+                        const scopeHint = SCOPE_HINT[pageScope] || '';
                         return (
-                          <div
-                            key={page.id}
-                            className="px-4 py-2 hover:bg-gray-50 flex items-center justify-between gap-4">
-                            
-                                <span className="text-sm text-slate-700 min-w-[200px]">
-                                  {page.name}
-                                </span>
-                                <div className="flex flex-wrap gap-1">
-                                  {PERMISSION_ACTIONS.map((a) => {
-                                const enabled = perms[a.key] || false;
-                                return (
-                                  <button
-                                    key={a.key}
-                                    onClick={() =>
-                                    togglePerm(page.id, a.key)
-                                    }
-                                    className={`flex items-center gap-1 px-2 py-1 rounded transition text-xs border ${enabled ? 'bg-blue-100 text-blue-700 border-blue-300' : 'bg-gray-100 text-gray-400 border-transparent hover:bg-gray-200'}`}>
-                                    
-                                        <a.icon className="w-3 h-3" />
-                                        <span className="hidden sm:inline">
-                                          {a.label}
-                                        </span>
-                                      </button>);
-
-                              })}
-                                </div>
-                                <div className="flex items-center gap-2 shrink-0">
-                                  <span className="hidden lg:inline text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                                    Data Scope
-                                  </span>
-                                  <select
-                                  value={currentScopes[page.id] || DEFAULT_PAGE_SCOPE}
+                          <div key={page.id} className={`px-4 py-2 hover:bg-gray-50 border-l-4 ${scopeBorder}`}>
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <div className="flex min-w-[200px] items-center gap-2">
+                                <span className="text-sm text-slate-700">{page.name}</span>
+                                <span className={`w-2 h-2 rounded-full inline-block shrink-0 ${scopeDot}`} title={pageScope} />
+                              </div>
+                              <div className="flex flex-wrap gap-1">
+                                {PERMISSION_ACTIONS.map((a) => {
+                                  const enabled = perms[a.key] || false;
+                                  return (
+                                    <button
+                                      key={a.key}
+                                      onClick={() => togglePerm(page.id, a.key)}
+                                      className={`flex items-center gap-1 px-2 py-1 rounded transition text-xs border ${enabled ? 'bg-blue-100 text-blue-700 border-blue-300' : 'bg-gray-100 text-gray-400 border-transparent hover:bg-gray-200'}`}>
+                                      <a.icon className="w-3 h-3" />
+                                      <span className="hidden sm:inline">{a.label}</span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                            <div className="mt-2 flex flex-col gap-1.5 border-t border-gray-100 pt-2 sm:flex-row sm:items-center sm:gap-3">
+                              <div className="flex items-center gap-2 shrink-0">
+                                <span className="text-xs text-slate-500">Data Scope:</span>
+                                <select
+                                  value={pageScope}
                                   onChange={(e) => setPageScope(page.id, e.target.value)}
                                   aria-label={`Data scope for ${page.name}`}
                                   title="Data scope applied to this page for the selected role"
-                                  className={`p-1.5 border rounded-lg text-xs ${scopeTone(currentScopes[page.id] || DEFAULT_PAGE_SCOPE)}`}>
-                                  
-                                    <optgroup label="Standard scopes">
-                                      {DATA_SCOPE_OPTIONS.map((o) =>
-                                    <option key={o.value} value={o.value}>
-                                          {o.label}
-                                        </option>
-                                    )}
-                                    </optgroup>
-                                    <optgroup label="Institutional scopes (Data Scope Management)">
-                                      {NAMED_SCOPE_OPTIONS.map((n) =>
-                                    <option key={n} value={n}>
-                                          {n}
-                                        </option>
-                                    )}
-                                    </optgroup>
-                                  </select>
-                                </div>
-                              </div>);
+                                  className={`p-1.5 border rounded-lg text-xs ${scopeTone(pageScope)}`}>
+                                  <optgroup label="Standard scopes">
+                                    {DATA_SCOPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                                  </optgroup>
+                                </select>
+                              </div>
+                              {scopeHint && <span className="text-xs italic text-slate-500">{scopeHint}</span>}
+                            </div>
+                          </div>);
 
                       })}
                         </div>
@@ -1618,99 +1588,83 @@ export function RolesAndPermissions() {
             <div>
               <h3 className="font-semibold text-slate-900 flex items-center gap-2">
                 <GraduationCap className="w-5 h-5 text-blue-600" />
-                Class & Subject Data Scopes
+                Class & Subject Access — for {selectedRole} role
               </h3>
               <p className="mt-1 text-sm text-slate-500">
-                Choose whether this role can access the whole class or only selected subjects within the chosen classes.
+                Define the class and subject data that users assigned to this role can access.
               </p>
             </div>
             <Badge variant="info">{visibleClassSubjectScopes.length} assigned combination{visibleClassSubjectScopes.length === 1 ? '' : 's'}</Badge>
           </div>
 
           <div className="p-5 space-y-5">
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <MultiSelect
-                label="Classes receiving access"
-                options={CLASS_OPTIONS}
-                value={scopeClasses}
-                onChange={(classes) => {
-                  setScopeClasses(classes);
-                  const available = getSubjectOptions(classes, selectedDepartments).map((option) => option.value);
-                  setScopeSubjects((current) => current.filter((subject) => available.includes(subject)));
-                }}
-                placeholder="Select classes" />
-
-              <div className="md:col-span-2 xl:col-span-3">
-                <label className="mb-1 block text-sm font-medium text-slate-700">Access coverage</label>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  <label className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition ${classAccessMode === 'Whole Class' ? 'border-blue-400 bg-blue-50 ring-1 ring-blue-100' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
-                    <input type="radio" name="class-access-mode" checked={classAccessMode === 'Whole Class'} onChange={() => setClassAccessMode('Whole Class')} className="mt-1" />
-                    <span><strong className="block text-sm text-slate-800">Whole class</strong><span className="mt-1 block text-xs text-slate-500">Grant access to the entire selected class, including all its subjects.</span></span>
-                  </label>
-                  <label className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition ${classAccessMode === 'Selected Subjects' ? 'border-blue-400 bg-blue-50 ring-1 ring-blue-100' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
-                    <input type="radio" name="class-access-mode" checked={classAccessMode === 'Selected Subjects'} onChange={() => setClassAccessMode('Selected Subjects')} className="mt-1" />
-                    <span><strong className="block text-sm text-slate-800">Selected subjects only</strong><span className="mt-1 block text-xs text-slate-500">Grant access only to the chosen subjects within each selected class.</span></span>
-                  </label>
+            <div className="space-y-4 border-t border-slate-100 pt-4">
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700">Can they see the whole class or only specific subjects?</label>
+                <div className="flex flex-wrap gap-2">
+                  {(['Whole Class', 'Specific Subjects'] as const).map((mode) => (
+                    <label key={mode} className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm transition ${classAccessMode === mode ? 'border-blue-400 bg-blue-50 text-blue-800' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}`}>
+                      <input type="radio" name="class-access-mode" checked={classAccessMode === mode} onChange={() => setClassAccessMode(mode)} />
+                      <span className="font-medium">{mode}</span>
+                    </label>
+                  ))}
                 </div>
               </div>
 
-              {classAccessMode === 'Selected Subjects' ? (
-                <MultiSelect
-                  label="Subjects to allow"
-                  options={scopeSubjectOptions}
-                  value={scopeSubjects}
-                  onChange={setScopeSubjects}
-                  placeholder="Select subject(s)" />
+              {classAccessMode === 'Whole Class' ? (
+                <div className="max-w-2xl">
+                  <MultiSelect
+                    label="Select class(es) for full class access"
+                    options={CLASS_OPTIONS}
+                    value={wholeClassAccessClasses}
+                    onChange={setWholeClassAccessClasses}
+                    placeholder="Choose the class(es) that receive full access"
+                  />
+                  <p className="mt-1 text-xs text-slate-500">Full access includes every subject and division in each selected class.</p>
+                </div>
               ) : (
-                <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
-                  <strong className="flex items-center gap-2"><Check className="h-4 w-4" /> Whole-class access selected</strong>
-                  <span className="mt-1 block text-xs text-emerald-700">All subjects in each selected class will be included.</span>
+                <div className="grid grid-cols-1 gap-4 border-t border-slate-100 pt-4 md:grid-cols-2 xl:grid-cols-3">
+                  <MultiSelect
+                    label="Class for subject access"
+                    options={CLASS_OPTIONS}
+                    value={subjectAccessClasses}
+                    onChange={handleSubjectAccessClassChange}
+                    placeholder="Choose class(es)"
+                  />
+                  <MultiSelect
+                    label="Division"
+                    options={DIVISION_OPTIONS}
+                    value={subjectAccessDivisions}
+                    onChange={setSubjectAccessDivisions}
+                    placeholder="Choose division(s)"
+                  />
+                  <MultiSelect
+                    label="Subject"
+                    options={subjectAccessOptions}
+                    value={accessSubjects}
+                    onChange={setAccessSubjects}
+                    placeholder={subjectAccessClasses.length ? 'Choose subject(s)' : 'Select class(es) first'}
+                  />
                 </div>
               )}
 
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">Class data scope</label>
-                <select
-                  value={classScopeMode}
-                  onChange={(event) => setClassScopeMode(event.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="Own Class">Own Class</option>
-                  <option value="Selected Classes">Selected Classes</option>
-                </select>
-                <p className="mt-1 text-xs text-slate-500">Own Class limits records to the user's assigned class.</p>
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+                <p className="text-xs text-slate-500">Apply adds the selected full-class or class/division/subject access for this role and branch.</p>
+                <Button onClick={applyClassSubjectScopes}>
+                  <Save className="w-4 h-4 mr-2" /> Apply class / subject access
+                </Button>
               </div>
-
-              {classAccessMode === 'Selected Subjects' && <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">Subject data scope</label>
-                <select
-                  value={subjectScopeMode}
-                  onChange={(event) => setSubjectScopeMode(event.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="Own Subject">Own Subject</option>
-                  <option value="Selected Subjects">Selected Subjects</option>
-                </select>
-                <p className="mt-1 text-xs text-slate-500">Own Subject limits records to the user's assigned subject.</p>
-              </div>}
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
-              <p className="text-xs text-slate-500">
-                Applying access replaces the existing class/subject coverage for the selected classes, role, and branch. Per-page Data Scopes remain separate.
-              </p>
-              <Button onClick={applyClassSubjectScopes}>
-                <Save className="w-4 h-4 mr-2" /> Apply access to selected classes
-              </Button>
-            </div>
-
+            <p className="text-xs text-slate-500">These assignments define which classes, divisions, and subjects each {selectedRole} user can access across academic pages.</p>
             <div className="overflow-x-auto border border-slate-200 rounded-lg">
               <table className="min-w-full divide-y divide-slate-200 text-sm">
                 <thead className="bg-slate-50">
                   <tr>
                     <th className="px-4 py-3 text-left font-semibold text-slate-600">Class</th>
-                    <th className="px-4 py-3 text-left font-semibold text-slate-600">Access coverage</th>
-                    <th className="px-4 py-3 text-left font-semibold text-slate-600">Subject access</th>
-                    <th className="px-4 py-3 text-left font-semibold text-slate-600">Class data scope</th>
-                    <th className="px-4 py-3 text-left font-semibold text-slate-600">Subject data scope</th>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-600">Division</th>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-600">Access</th>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-600">Subject</th>
                     <th className="px-4 py-3 text-left font-semibold text-slate-600">Updated</th>
                     <th className="px-4 py-3 text-right font-semibold text-slate-600">Action</th>
                   </tr>
@@ -1719,26 +1673,26 @@ export function RolesAndPermissions() {
                   {visibleClassSubjectScopes.length ? visibleClassSubjectScopes.map((assignment) => (
                     <tr key={assignment.id}>
                       <td className="px-4 py-3 font-medium text-slate-800">{assignment.className}</td>
-                      <td className="px-4 py-3"><Badge variant={assignment.accessMode === 'Whole Class' ? 'success' : 'warning'}>{assignment.accessMode === 'Whole Class' ? 'Whole class' : 'Selected subjects'}</Badge></td>
+                      <td className="px-4 py-3 text-slate-700">{assignment.division}</td>
+                      <td className="px-4 py-3"><Badge variant={assignment.accessMode === 'Whole Class' ? 'success' : 'warning'}>{assignment.accessMode === 'Whole Class' ? 'Full class access' : 'Specific subjects'}</Badge></td>
                       <td className="px-4 py-3 text-slate-700">{assignment.subject}</td>
-                      <td className="px-4 py-3"><Badge variant={assignment.classScope === 'Own Class' ? 'success' : 'info'}>{assignment.classScope}</Badge></td>
-                      <td className="px-4 py-3"><Badge variant={assignment.accessMode === 'Whole Class' ? 'outline' : assignment.subjectScope === 'Own Subject' ? 'success' : 'info'}>{assignment.subjectScope}</Badge></td>
                       <td className="px-4 py-3 text-xs text-slate-500">{assignment.updatedAt}</td>
                       <td className="px-4 py-3 text-right">
-                        <Button variant="ghost" size="xs" onClick={() => removeClassSubjectScope(assignment.id)} aria-label={`Remove ${assignment.className} ${assignment.subject} access`}>
+                        <Button variant="ghost" size="xs" onClick={() => removeClassSubjectScope(assignment.id)} aria-label={`Remove ${assignment.className}, ${assignment.division}, ${assignment.subject} access`}>
                           <Trash2 className="w-3.5 h-3.5 text-red-500" />
                         </Button>
                       </td>
                     </tr>
                   )) : (
-                    <tr>
-                      <td colSpan={7} className="px-4 py-8 text-center text-sm text-slate-500">
-                        No class access has been assigned for {selectedRole} in the selected branch scope yet.
-                      </td>
-                    </tr>
+                    <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-slate-500">No class access has been assigned for {selectedRole} in the selected branch scope yet.</td></tr>
                   )}
                 </tbody>
               </table>
+            </div>
+
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+              <h4 className="text-sm font-semibold text-blue-900">Description Preview</h4>
+              <p className="mt-1 text-xs leading-relaxed text-blue-800">{classSubjectDescription}</p>
             </div>
           </div>
         </Card>
@@ -1746,8 +1700,8 @@ export function RolesAndPermissions() {
         {/* Save — bottom of the Permission Assignment panel */}
         <div className="flex flex-wrap items-center justify-between gap-3 bg-white rounded-xl border border-slate-200 px-5 py-4">
           <p className="text-sm text-slate-500">
-            Permissions apply to <strong className="text-slate-700">{selectedRole}</strong> ·{' '}
-            {selectedBranches.length} branch{selectedBranches.length === 1 ? '' : 'es'} in scope ·{' '}
+            Editing <strong className="text-slate-700">{selectedRole}</strong> ·{' '}
+            {selectedBranches.length} branch{selectedBranches.length === 1 ? '' : 'es'} in scope · Search filters: {' '}
             {selectedClasses.length || 'all'} class{selectedClasses.length === 1 ? '' : 'es'} ·{' '}
             {selectedDivisions.length || 'all'} division{selectedDivisions.length === 1 ? '' : 's'} ·{' '}
             {selectedBatches.length || 'all'} batch{selectedBatches.length === 1 ? '' : 'es'} ·{' '}

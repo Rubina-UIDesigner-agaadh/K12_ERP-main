@@ -238,6 +238,7 @@ const ledgersSidebar: SidebarSection[] = [
 const feesSidebar: SidebarSection[] = [
   { title: 'List Screens', items: [{ label: 'Fee Summary Dashboard', id: 'fee-summary-dashboard' }, { label: 'Fee Pending List', id: 'fee-pending-list' }, { label: 'Fee Collection Register', id: 'fee-collection-register' }] },
   { title: 'Transactions', items: [{ label: 'Fee Collection', id: 'fee-receipt' }, { label: 'Student Fee Process', id: 'student-fee-process' }, { label: 'Fee Receipt – Bulk', id: 'fee-receipt-bulk' }, { label: 'Fee Refund', id: 'fee-refund' }, { label: 'Assign Exemption Type', id: 'assign-exemption-type' }, { label: 'Branch Transfer', id: 'branch-transfer' }, { label: 'Fee Structure', id: 'fee-structure' }, { label: 'Royalty Collection', id: 'royalty-collection' }, { label: 'Fee Receipt Template', id: 'fee-receipt-template' }] },
+  { title: 'Master & Rules', items: [{ label: 'Fee Category, Installment Pattern & Schedule Master', id: 'fee-category-installment-due-rules-master' }] },
   { title: 'Report Criteria', items: [{ label: 'Fee Reports', id: 'fee-collection-reports' }] }
 ];
 
@@ -256,6 +257,7 @@ const scholarshipSidebar: SidebarSection[] = [
 const expensesSidebar: SidebarSection[] = [
   { title: 'List Screen', items: [{ label: 'Expense Summary Dashboard', id: 'expense-summary-dashboard' }] },
   { title: 'Transaction', items: [{ label: 'Expense Request, Approval & Recurring Rules', id: 'expense-request' }, { label: 'Expense Voucher Entry', id: 'expense-voucher-entry' }, { label: 'Bill / Invoice Management, Approval & Payment', id: 'bill-invoice-management' }, { label: 'Petty Cash Issue', id: 'petty-cash-issue' }, { label: 'Bulk Expense Import', id: 'bulk-expense-import' }] },
+  { title: 'Budget & Controls', items: [{ label: 'Expense Budget & Utilization', id: 'expense-budget-master' }] },
   { title: 'Report Criteria', items: [{ label: 'Expense Reports — All Reports (Unified)', id: 'expense-report' }] }
 ];
 
@@ -305,7 +307,7 @@ const incomeTaxSidebar: SidebarSection[] = [
 ];
 
 const generalAssessmentSidebar: SidebarSection[] = [
-  { title: 'Setup & Masters', items: [{ label: 'Exam Master', id: 'exam-master' }, { label: 'Grade Setup', id: 'mark-entry-single-subject' }, { label: 'Assessment Pattern Builder', id: 'mark-entry-all-subject' }, { label: 'Internal Marking Setup', id: 'mark-entry-status-verify' }, { label: 'Student Optional Subject', id: 'student-optional-subject' }, { label: 'Practical Marking Setup', id: 'student-result-remark' }, { label: 'Re-Exam Setup', id: 'result-sheet-report' }, { label: 'Generate Result', id: 'generate-result' }] },
+  { title: 'Setup & Masters', items: [{ label: 'Exam Master', id: 'exam-master' }, { label: 'Grade Setup', id: 'mark-entry-single-subject' }, { label: 'Assessment Pattern Builder', id: 'mark-entry-all-subject' }, { label: 'Internal Marking Setup', id: 'mark-entry-status-verify' }, { label: 'Student Optional Subject', id: 'student-optional-subject' }, { label: 'Practical Marking Setup', id: 'student-result-remark' }, { label: 'Re-Exam Setup', id: 'result-sheet-report' }, { label: 'Generate Result', id: 'generate-result' }, { label: 'Report Card & Progress Report Templates', id: 'report-card-progress-templates' }, { label: 'Ranking & Merit List Rules', id: 'ranking-merit-list-rules' }] },
   { title: 'Result Processing', items: [{ label: 'Progress Card Report', id: 'progress-card-report' }, { label: 'Alert', id: 'assessment-alert' }] },
   { title: 'Exam Management', items: [{ label: 'Exam Hall Management', id: 'exam-hall-management' }, { label: 'Invigilation Schedule', id: 'invigilation-schedule' }, { label: 'Report Card Designer', id: 'report-card-designer' }, { label: 'Grace Mark Management', id: 'grace-mark-management' }, { label: 'Hall Ticket Generator', id: 'hall-ticket-generator' }, { label: 'Re-Exam Student Management', id: 're-exam-student-management' }, { label: 'Exam Timetable Generation', id: 'exam-timetable-generation' }] }
 ];
@@ -369,36 +371,21 @@ const utilitiesSidebar: SidebarSection[] = [
 ];
 const mastersSidebar: SidebarSection[] = [
   { title: 'Academic', items: [
-    { label: 'Stream & Subject Group Master', id: 'stream-subject-group-master' },
-    { label: 'Subject Master', id: 'subject-master' },
-    { label: 'Co‑Scholastic Area & Skill Master', id: 'co-scholastic-area-skill-master' }
-  ] },
-  { title: 'Finance', items: [
-    { label: 'Fee Category, Installment Pattern & Schedule Master', id: 'fee-category-installment-due-rules-master' }
+    { label: 'Stream & Subject Group Master', id: 'stream-subject-group-master' }
   ] },
   { title: 'Charge', items: [{ label: 'Charge Master', id: 'charge-master' }] },
   { title: 'Expense', items: [
     { label: 'Expense Head Master', id: 'expense-head-master' },
     { label: 'Vendor / Payee Master', id: 'vendor-payee-master' },
-    { label: 'Expense Budget Master', id: 'expense-budget-master' },
     { label: 'Petty Cash Location Master', id: 'petty-cash-location-master' }
   ] },
-  { title: 'Scholarship', items: [{ label: 'Scholarship Agency / Donor Master', id: 'scholarship-agency-donor-master' }] },
-  { title: 'Payment', items: [{ label: 'Payment Gateway Master', id: 'payment-gateway-master' }] },
+  { title: 'Scholarship', items: [{ label: 'Scholarship Master', id: 'scholarship-concession-rules' }] },
   { title: 'Global', items: [{ label: 'Custom Fields & Dynamic Forms', id: 'custom-fields-dynamic-forms' }] },
-  { title: 'Academic Rules', items: [
-    { label: 'Report Card & Progress Report Templates', id: 'report-card-progress-templates' },
-    { label: 'Ranking & Merit List Rules', id: 'ranking-merit-list-rules' }
-  ] },
   { title: 'Finance Rules', items: [
-    { label: 'Fee Behaviour & Late Fee Rules', id: 'fee-behaviour-late-fee-rules' },
-    { label: 'Scholarship & Concession Rules', id: 'scholarship-concession-rules' },
-    { label: 'Online Payment & Convenience Fee Settings', id: 'online-payment-convenience-fee' }
+    { label: 'Fee Behaviour & Late Fee Rules', id: 'fee-behaviour-late-fee-rules' }
   ] },
   { title: 'Governance & Workflows', items: [
-    { label: 'Discipline & Counselling Policy', id: 'discipline-counselling-policy' },
-    { label: 'Expense Setup', id: 'expense-setup' },
-    { label: 'Online Payment Setup', id: 'online-payment-setup' }
+    { label: 'Discipline & Counselling Policy', id: 'discipline-counselling-policy' }
   ] }
 ];
 const instituteSetupSidebar: SidebarSection[] = [{ title: 'Institute Setup', items: [{ label: 'Institute Profile & Branch Management', id: 'institute-profile-branch-management' }, { label: 'Campus, Building & Room Layout', id: 'campus-building-room-layout' }, { label: 'Academic Session & Term Setup', id: 'academic-session-term-setup' }, { label: 'Class & Section Structure Setup', id: 'class-section-structure-setup' }, { label: 'Department & Subject Grouping Setup', id: 'department-subject-grouping-setup' }, { label: 'Institute Calendar & Working Days', id: 'institute-calendar-working-days' }, { label: 'Timetable Framework & Shift Setup', id: 'timetable-framework-shift-setup' }, { label: 'House, Club & Co-curricular Group Setup', id: 'house-club-co-curricular-group-setup' }, { label: 'Batch Master', id: 'batch-master' }] }];
@@ -445,13 +432,22 @@ const administrationSidebar: SidebarSection[] = [
     { label: 'Workflow Setup Desk', id: 'workflow-setup-desk' }
   ] },
   { title: 'Governance & Audit', items: [
-    { label: 'Central Control & Audit Vault', id: 'central-control-audit-vault' },
     { label: 'Administrative Control Reports', id: 'administrative-control-reports' },
     { label: 'Consent Log', id: 'consent-log' },
     { label: 'Data Governance & Lock Manager', id: 'data-governance-lock-manager' }
   ] }
 ];
-const academicsSidebar: SidebarSection[] = [{ title: 'Planning & Tracking', items: [{ label: 'Academic Planning & Execution', id: 'academic-planning-execution' }, { label: 'Curriculum Progress Tracker', id: 'curriculum-progress-tracker' }, { label: 'Skill Development Assessment', id: 'skill-development-assessment' }] }, { title: 'Operations', items: [{ label: 'Classroom Operations', id: 'classroom-operations' }, { label: 'Teacher Progress Dashboard', id: 'teacher-progress-dashboard' }, { label: 'Homework & Assignments', id: 'homework-assignments' }, { label: 'Study Material', id: 'study-material' }, { label: 'Classwork', id: 'classwork' }, { label: 'School Diary', id: 'school-diary' }] }];
+const academicsSidebar: SidebarSection[] = [
+  { title: 'Planning & Tracking', items: [{ label: 'Academic Planning & Execution', id: 'academic-planning-execution' }] },
+  { title: 'Operations', items: [{ label: 'Academic Attendance', id: 'academic-attendance' }, { label: 'Classroom Operations', id: 'classroom-operations' }, { label: 'Teacher Progress Dashboard', id: 'teacher-progress-dashboard' }, { label: 'School Diary', id: 'school-diary' }] }
+];
+const curriculumSidebar: SidebarSection[] = [{ title: 'Curriculum', items: [
+  { label: 'Curriculum Progress Tracker', id: 'curriculum-progress-tracker' },
+  { label: 'Skill Development Assessment', id: 'skill-development-assessment' },
+  { label: 'Classwork', id: 'classwork' },
+  { label: 'Homework & Assignments', id: 'homework-assignments' },
+  { label: 'Study Material', id: 'study-material' }
+] }];
 const healthSidebar: SidebarSection[] = [{ title: 'Health', items: [{ label: 'Health Records', id: 'health-records' }, { label: 'Health Checkups', id: 'health-checkups' }, { label: 'Incident Management', id: 'incident-management' }, { label: 'Vaccination Tracking', id: 'vaccination-tracking' }] }];
 const misSidebar: SidebarSection[] = [{ title: 'Dashboards', items: [{ label: 'Executive Dashboards', id: 'executive-dashboards' }, { label: 'Academic Analytics', id: 'academic-analytics' }, { label: 'Attendance Analytics', id: 'attendance-analytics' }, { label: 'Financial Overview', id: 'financial-overview' }] }, { title: 'Reports', items: [{ label: 'Compliance & Government Data', id: 'compliance-government-data' }, { label: 'Custom Report Builder', id: 'custom-report-builder-mis' }] }];
 const projectManagementSidebar: SidebarSection[] = [{ title: 'Project Management', items: [{ label: 'Project Setup', id: 'project-setup' }, { label: 'Task Management', id: 'task-management' }, { label: 'Resource Management', id: 'resource-management' }, { label: 'Milestone Tracking', id: 'milestone-tracking' }, { label: 'Project Reports', id: 'project-reports' }] }];
@@ -474,7 +470,7 @@ const gpsTrackingSidebar: SidebarSection[] = [{ title: 'GPS Tracking (Transport)
 const mobileAppSidebar: SidebarSection[] = [{ title: 'Mobile App Integration', items: [{ label: 'App Configuration & Feature Control', id: 'app-configuration' }, { label: 'Role-Based Access Setup', id: 'role-based-access-setup' }, { label: 'Push Notification Management', id: 'push-notification-management' }, { label: 'Content & Announcement Control', id: 'content-announcement-control' }, { label: 'Authentication (OTP / SSO)', id: 'app-authentication' }, { label: 'App Usage Analytics', id: 'app-usage-analytics' }, { label: 'App Logs & Monitoring', id: 'app-logs-monitoring' }] }];
 const whatsappSidebar: SidebarSection[] = [{ title: 'WhatsApp Integration', items: [{ label: 'API Configuration', id: 'whatsapp-api-configuration' }, { label: 'Template Management', id: 'whatsapp-template-management' }, { label: 'Automated Notification Rules', id: 'automated-notification-rules' }, { label: 'Bulk Messaging Panel', id: 'bulk-messaging-panel' }, { label: 'Two-Way Communication', id: 'two-way-communication' }, { label: 'Delivery Tracking', id: 'whatsapp-delivery-tracking' }, { label: 'Logs & Analytics', id: 'whatsapp-logs-analytics' }] }];
 const tallySidebar: SidebarSection[] = [{ title: 'Tally Integration', items: [{ label: 'Company & Ledger Mapping', id: 'company-ledger-mapping' }, { label: 'Voucher & Fee Sync', id: 'voucher-fee-sync' }, { label: 'GST & Tax Mapping', id: 'gst-tax-mapping' }, { label: 'Auto Posting Rules', id: 'auto-posting-rules' }, { label: 'Export / Import Controls', id: 'export-import-controls' }, { label: 'Sync Monitoring', id: 'tally-sync-monitoring' }, { label: 'Audit Logs & Reports', id: 'tally-audit-logs-reports' }] }];
-const paymentGatewaySidebar: SidebarSection[] = [{ title: 'Payment Gateway', items: [{ label: 'Gateway Configuration', id: 'gateway-configuration' }, { label: 'Fee Head Mapping', id: 'fee-head-mapping' }, { label: 'Online Payment Management', id: 'online-payment-management' }, { label: 'Auto Reconciliation', id: 'auto-reconciliation' }, { label: 'Refund & Adjustment Panel', id: 'refund-adjustment-panel' }, { label: 'Transaction Monitoring', id: 'transaction-monitoring' }, { label: 'Payment Analytics', id: 'payment-analytics' }] },
+const paymentGatewaySidebar: SidebarSection[] = [{ title: 'Payment Gateway', items: [{ label: 'Payment Gateway Master', id: 'payment-gateway-master' }, { label: 'Online Payment & Convenience Fee Settings', id: 'online-payment-convenience-fee' }, { label: 'Gateway Configuration', id: 'gateway-configuration' }, { label: 'Online Payment Setup', id: 'online-payment-setup' }, { label: 'Fee Head Mapping', id: 'fee-head-mapping' }, { label: 'Online Payment Management', id: 'online-payment-management' }, { label: 'Auto Reconciliation', id: 'auto-reconciliation' }, { label: 'Refund & Adjustment Panel', id: 'refund-adjustment-panel' }, { label: 'Transaction Monitoring', id: 'transaction-monitoring' }, { label: 'Payment Analytics', id: 'payment-analytics' }] },
   { title: 'List Screen', items: [{ label: 'Online Payment Dashboard', id: 'online-payment-dashboard' }, { label: 'Online Transaction List', id: 'online-transaction-list' }, { label: 'Failed / Disputed Transactions', id: 'failed-disputed-transactions' }] },
   { title: 'Transaction', items: [{ label: 'Initiate Online Payment', id: 'initiate-online-payment' }, { label: 'Online Payment Re-try / Status Sync', id: 'online-payment-retry-status' }, { label: 'Online Refund Processing', id: 'online-refund-processing' }, { label: 'Gateway Settlement Import', id: 'gateway-settlement-import' }, { label: 'Online Payment Reconciliation', id: 'online-payment-reconciliation' }] },
   { title: 'Report Criteria', items: [{ label: 'Online Payment Report', id: 'online-payment-report' }, { label: 'Gateway-wise Collection Summary', id: 'gateway-wise-collection-summary' }, { label: 'Settlement Mismatch Report', id: 'settlement-mismatch-report'}] }
@@ -489,7 +485,7 @@ const alertPluginSidebar: SidebarSection[] = [{ title: 'Alert', items: [{ label:
 export const modules: Module[] = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, subModules: createSubModules(['User Dashboard', 'EIS Consolidate Dashboard', 'MIS Consolidate Dashboard', 'SMS Predefine Alert']) },
   { id: 'student', label: 'Student', icon: Users, subModules: [{ id: 'student-management', label: 'Student Management', sidebarConfig: studentManagementSidebar }, { id: 'student-settings', label: 'Student Settings', sidebarConfig: studentSettingsSidebar }, { id: 'admissions', label: 'Admissions', sidebarConfig: admissionSidebar }, { id: 'attendance', label: 'Attendance', sidebarConfig: attendanceSidebar }, { id: 'certificates', label: 'Certificates', sidebarConfig: certificateSidebar }] },
-  { id: 'academic', label: 'Academic', icon: GraduationCap, subModules: [{ id: 'academics', label: 'Academics', sidebarConfig: academicsSidebar }, { id: 'timetable', label: 'Timetable', sidebarConfig: timetableSidebar }, { id: 'event-activities', label: 'Event/Activities', sidebarConfig: eventActivitiesSidebar }] },
+  { id: 'academic', label: 'Academic', icon: GraduationCap, subModules: [{ id: 'academics', label: 'Academics', sidebarConfig: academicsSidebar }, { id: 'curriculum', label: 'Curriculum', sidebarConfig: curriculumSidebar }, { id: 'timetable', label: 'Timetable', sidebarConfig: timetableSidebar }, { id: 'event-activities', label: 'Event/Activities', sidebarConfig: eventActivitiesSidebar }] },
   { id: 'finance', label: 'Finance', icon: Wallet, subModules: [{ id: 'ledgers', label: 'Ledgers', sidebarConfig: ledgersSidebar }, { id: 'fees', label: 'Fees', sidebarConfig: feesSidebar }, { id: 'charge', label: 'Charge', sidebarConfig: chargeSidebar }, { id: 'scholarship', label: 'Scholarship', sidebarConfig: scholarshipSidebar }, { id: 'expenses', label: 'Expenses', sidebarConfig: expensesSidebar }] },
   { id: 'hr', label: 'HR', icon: Briefcase, subModules: [{ id: 'employee', label: 'Employee', sidebarConfig: employeeSidebar }, { id: 'attendance', label: 'Attendance', sidebarConfig: hrAttendanceSidebar }, { id: 'payroll', label: 'Payroll', sidebarConfig: payrollSidebar }, { id: 'master', label: 'Master', sidebarConfig: hrMasterSidebar }, { id: 'appraisal', label: 'Appraisal', sidebarConfig: appraisalSidebar }, { id: 'recruitment', label: 'Recruitment', sidebarConfig: recruitmentSidebar }, { id: 'income-tax', label: 'Income Tax', sidebarConfig: incomeTaxSidebar }] },
   { id: 'assessment', label: 'Assessment', icon: ClipboardList, subModules: [{ id: 'general', label: 'Assessment Setup', sidebarConfig: generalAssessmentSidebar }, { id: 'preschool-assessment', label: 'Preschool Assessment', sidebarConfig: preschoolAssessmentSidebar }, { id: 'cce-management', label: 'CCE Management', sidebarConfig: ccemanagementSidebar }, { id: 'result-card-management', label: 'Result Card Management', sidebarConfig: resultCardManagementSidebar }, { id: 'gseb', label: 'GSEB', sidebarConfig: gsebSidebar }, { id: 'cbse', label: 'CBSE', sidebarConfig: cbseSidebar }, { id: 'cisce', label: 'CISCE', sidebarConfig: cisceSidebar }] },

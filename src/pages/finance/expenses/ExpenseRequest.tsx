@@ -1,11 +1,16 @@
 // ExpenseRequest.tsx - Department Expense Requests Management Page
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Badge } from '../../../components/ui/Badge';
 import { Modal } from '../../../components/ui/Modal';
 import { Select } from '../../../components/ui/Select';
+import { ExpenseVoucherEntry } from './ExpenseVoucherEntry';
+import { EXPENSE_MASTER_UPDATED_EVENT, getExpenseMasterData } from './expenseMasterData';
+import type { ExpenseMasterData } from './expenseMasterData';
+import { getVendorPayeeData, VENDOR_PAYEE_UPDATED_EVENT } from './vendorPayeeData';
+import type { VendorPayeeRecord } from './vendorPayeeData';
 import {
   FileText,
   Plus,
@@ -65,6 +70,13 @@ export interface ExpenseRequestRecord {
   priority: ExpensePriority;
   requiredByDate: string;
   preferredVendor?: string;
+  billNo?: string;
+  billDate?: string;
+  paymentTerms?: string;
+  dueDate?: string;
+  referenceNo?: string;
+  costCenter?: string;
+  isOneTimePayee?: boolean;
   supportingDoc?: string;
   status: ExpenseRequestStatus;
   rejectionReason?: string;
@@ -212,6 +224,22 @@ const RECURRING_FREQUENCIES = ['Monthly', 'Quarterly', 'Half-Yearly', 'Yearly', 
 const RECURRING_ACTIONS = ['Auto-Voucher', 'Reminder Only', 'Auto-Payment'] as const;
 const RECURRING_DEPARTMENTS = ['Admin', 'Science Lab', 'IT', 'Library', 'Transport', 'Hostel', 'Sports', 'Accounts'];
 const RECURRING_COST_CENTERS = ['CC-ADM-01', 'CC-LAB-01', 'CC-IT-01', 'CC-LIB-01', 'CC-TRN-01', 'CC-ACC-01'];
+const EXPENSE_REQUEST_DEPARTMENTS = ['Admin', 'Academic', 'Science', 'Science Lab', 'IT', 'Computer Lab', 'Library', 'Transport', 'Hostel', 'Sports', 'Accounts'];
+const REQUEST_PAYMENT_TERMS = [
+  { value: 'immediate', label: 'Immediate' },
+  { value: 'net_7', label: 'Net 7 Days' },
+  { value: 'net_15', label: 'Net 15 Days' },
+  { value: 'net_30', label: 'Net 30 Days' },
+  { value: 'net_45', label: 'Net 45 Days' },
+  { value: 'net_60', label: 'Net 60 Days' }
+];
+const calculateExpenseRequestDueDate = (date: string, terms: string) => {
+  if (!date) return '';
+  const daysByTerms: Record<string, number> = { immediate: 0, net_7: 7, net_15: 15, net_30: 30, net_45: 45, net_60: 60 };
+  const result = new Date(`${date}T12:00:00`);
+  result.setDate(result.getDate() + (daysByTerms[terms] ?? 30));
+  return result.toISOString().slice(0, 10);
+};
 const RECURRING_VENDORS = [
   'ABC Stationers',
   'City Power Corp',
@@ -398,6 +426,8 @@ const advanceDate = (iso: string, frequency: RecurringRule['frequency'], customD
 
 export function ExpenseRequest() {
   const [requests, setRequests] = useState<ExpenseRequestRecord[]>(INITIAL_REQUESTS);
+  const [expenseMasterData, setExpenseMasterData] = useState<ExpenseMasterData>(() => getExpenseMasterData());
+  const [vendorPayees, setVendorPayees] = useState<VendorPayeeRecord[]>(() => getVendorPayeeData());
   const [searchQuery, setSearchQuery] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
@@ -409,10 +439,21 @@ export function ExpenseRequest() {
   const [rejectModalReq, setRejectModalReq] = useState<ExpenseRequestRecord | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  // Unified page tabs: requests · approval workflow · recurring rules
-  const [activeTab, setActiveTab] = useState<'requests' | 'approval' | 'recurring'>('requests');
+  // Unified page tabs: requests · approval workflow · recurring rules · purchasing
+  const [activeTab, setActiveTab] = useState<'requests' | 'approval' | 'recurring' | 'po' | 'grn'>('requests');
   const [rules, setRules] = useState<RecurringRule[]>(INITIAL_RECURRING_RULES);
   const [stageMap, setStageMap] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    const refreshExpenseMaster = () => setExpenseMasterData(getExpenseMasterData());
+    const refreshVendorPayees = () => setVendorPayees(getVendorPayeeData());
+    window.addEventListener(EXPENSE_MASTER_UPDATED_EVENT, refreshExpenseMaster);
+    window.addEventListener(VENDOR_PAYEE_UPDATED_EVENT, refreshVendorPayees);
+    return () => {
+      window.removeEventListener(EXPENSE_MASTER_UPDATED_EVENT, refreshExpenseMaster);
+      window.removeEventListener(VENDOR_PAYEE_UPDATED_EVENT, refreshVendorPayees);
+    };
+  }, []);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -702,7 +743,9 @@ export function ExpenseRequest() {
         {[
           { id: 'requests', label: 'One-Time Expenses', icon: FileText, hint: 'Single purchase requests' },
           { id: 'recurring', label: 'Recurring Expenses', icon: Repeat, hint: `${rules.length} active rules` },
-          { id: 'approval', label: 'Approval Queue', icon: ShieldCheck, hint: 'HOD → Finance → Management' }
+          { id: 'approval', label: 'Approval Queue', icon: ShieldCheck, hint: 'HOD → Finance → Management' },
+          { id: 'po', label: 'Purchase Orders (PO)', icon: Building2, hint: 'Procurement' },
+          { id: 'grn', label: 'Goods Received Note (GRN)', icon: FileCheck, hint: 'Receiving' }
         ].map((tab) => {
           const Icon = tab.icon;
           const on = activeTab === tab.id;
@@ -1047,10 +1090,16 @@ export function ExpenseRequest() {
         />
       )}
 
+      <div className={activeTab === 'po' || activeTab === 'grn' ? 'block' : 'hidden'}>
+        <ExpenseVoucherEntry embeddedSection={activeTab === 'grn' ? 'grn' : 'po'} />
+      </div>
+
       {/* ➕ NEW EXPENSE REQUEST MODAL */}
       {showNewModal && (
         <NewExpenseRequestModal
           existingRuleCount={rules.length}
+          expenseMasterData={expenseMasterData}
+          vendorPayees={vendorPayees}
           onClose={() => setShowNewModal(false)}
           onSubmit={(newRecord) => {
             setRequests((prev) => [newRecord, ...prev]);
@@ -1091,6 +1140,16 @@ export function ExpenseRequest() {
                 <span className="text-gray-400 block text-[11px]">Priority:</span>
                 <span className="font-semibold text-gray-800">{viewRequest.priority}</span>
               </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 bg-white border border-gray-200 rounded-lg">
+              <div><span className="block text-[10px] text-gray-400">Vendor / Payee</span><span className="font-semibold text-gray-800">{viewRequest.preferredVendor || '—'}</span>{viewRequest.isOneTimePayee && <Badge variant="warning" className="ml-1">One-time</Badge>}</div>
+              <div><span className="block text-[10px] text-gray-400">Bill / Invoice No.</span><span className="font-semibold text-gray-800">{viewRequest.billNo || '—'}</span></div>
+              <div><span className="block text-[10px] text-gray-400">Bill Date</span><span className="font-semibold text-gray-800">{viewRequest.billDate || '—'}</span></div>
+              <div><span className="block text-[10px] text-gray-400">Payment Terms</span><span className="font-semibold text-gray-800">{REQUEST_PAYMENT_TERMS.find((term) => term.value === viewRequest.paymentTerms)?.label || '—'}</span></div>
+              <div><span className="block text-[10px] text-gray-400">Due Date</span><span className="font-semibold text-gray-800">{viewRequest.dueDate || '—'}</span></div>
+              <div><span className="block text-[10px] text-gray-400">Reference No.</span><span className="font-semibold text-gray-800">{viewRequest.referenceNo || '—'}</span></div>
+              <div><span className="block text-[10px] text-gray-400">Cost Center</span><span className="font-semibold text-gray-800">{viewRequest.costCenter || '—'}</span></div>
             </div>
 
             <div className="p-3 bg-white border border-gray-200 rounded-lg space-y-1">
@@ -1196,12 +1255,16 @@ function NewExpenseRequestModal({
   onClose,
   onSubmit,
   onCreateRule,
-  existingRuleCount = 0
+  existingRuleCount = 0,
+  expenseMasterData,
+  vendorPayees
 }: {
   onClose: () => void;
   onSubmit: (rec: ExpenseRequestRecord) => void;
   onCreateRule: (rule: RecurringRule) => void;
   existingRuleCount?: number;
+  expenseMasterData: ExpenseMasterData;
+  vendorPayees: VendorPayeeRecord[];
 }) {
   /** One-Time = normal purchase request · Recurring = also schedules a repeating rule */
   const [requestType, setRequestType] = useState<'One-Time' | 'Recurring'>('One-Time');
@@ -1216,17 +1279,52 @@ function NewExpenseRequestModal({
   const [department, setDepartment] = useState('Admin');
   const [requestedBy, setRequestedBy] = useState('Mr. Verma');
   const [designation, setDesignation] = useState('HOD / Department Head');
-  const [category, setCategory] = useState('Stationery');
-  const [expenseHead, setExpenseHead] = useState('EXP-OFF-002 — Office Stationery');
+  const defaultExpenseHead = expenseMasterData.heads.find((head) => head.isActive && head.name === 'Office Stationery')
+    || expenseMasterData.heads.find((head) => head.isActive);
+  const [category, setCategory] = useState(defaultExpenseHead?.category || expenseMasterData.categories[0] || '');
+  const [expenseHead, setExpenseHead] = useState(defaultExpenseHead ? `${defaultExpenseHead.code} — ${defaultExpenseHead.name}` : '');
   const [description, setDescription] = useState('Quarterly supplies for administration block.');
   const [priority, setPriority] = useState<ExpensePriority>('Medium');
   const [requiredByDate, setRequiredByDate] = useState('2025-10-15');
-  const [preferredVendor, setPreferredVendor] = useState('');
+  const [isOneTimePayee, setIsOneTimePayee] = useState(false);
+  const [vendorPayee, setVendorPayee] = useState('');
+  const [oneTimePayeeName, setOneTimePayeeName] = useState('');
+  const [billNo, setBillNo] = useState('');
+  const [billDate, setBillDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [paymentTerms, setPaymentTerms] = useState('net_30');
+  const [dueDate, setDueDate] = useState(() => calculateExpenseRequestDueDate(new Date().toISOString().slice(0, 10), 'net_30'));
+  const [referenceNo, setReferenceNo] = useState('');
+  const activeVendorPayees = vendorPayees.filter((vendor) => vendor.status === 'Active');
+  const selectedPayee = isOneTimePayee ? oneTimePayeeName.trim() : vendorPayee;
+
+  useEffect(() => {
+    if (vendorPayee && !vendorPayees.some((vendor) => vendor.status === 'Active' && vendor.name === vendorPayee)) setVendorPayee('');
+  }, [vendorPayees, vendorPayee]);
 
   const [items, setItems] = useState<ExpenseRequestItem[]>([
     { id: '1', name: 'A4 Paper Reams', quantity: 50, unit: 'Reams', estRate: 250, estAmount: 12500 },
     { id: '2', name: 'Whiteboard Marker', quantity: 100, unit: 'Nos.', estRate: 30, estAmount: 3000 }
   ]);
+
+  useEffect(() => {
+    const activeHeads = expenseMasterData.heads.filter((head) => head.isActive);
+    const selectedStillExists = activeHeads.some((head) => `${head.code} — ${head.name}` === expenseHead);
+    if (selectedStillExists || !expenseHead) return;
+    const fallback = activeHeads.find((head) => head.category === category) || activeHeads[0];
+    setCategory(fallback?.category || expenseMasterData.categories[0] || '');
+    setExpenseHead(fallback ? `${fallback.code} — ${fallback.name}` : '');
+  }, [expenseMasterData, expenseHead, category]);
+
+  const categoryHeads = expenseMasterData.heads.filter((head) => head.isActive && head.category === category);
+  const expenseCategories = Array.from(new Set([...expenseMasterData.categories, ...expenseMasterData.heads.map((head) => head.category)])).sort();
+  const handleBillDateChange = (date: string) => {
+    setBillDate(date);
+    setDueDate(calculateExpenseRequestDueDate(date, paymentTerms));
+  };
+  const handlePaymentTermsChange = (terms: string) => {
+    setPaymentTerms(terms);
+    setDueDate(calculateExpenseRequestDueDate(billDate, terms));
+  };
 
   const totalAmount = useMemo(() => {
     return items.reduce((acc, it) => acc + (it.estAmount || 0), 0);
@@ -1263,6 +1361,15 @@ function NewExpenseRequestModal({
   };
 
   const handleSubmit = (isDraft: boolean) => {
+    const selectedHeadIsActive = expenseMasterData.heads.some((head) => head.isActive && `${head.code} — ${head.name}` === expenseHead);
+    if (!selectedHeadIsActive) {
+      alert('Select an active expense head. Create or activate the head in Expense Head & Category Master if it is missing.');
+      return;
+    }
+    if (isOneTimePayee && !oneTimePayeeName.trim()) {
+      alert('Enter a name for the one-time payee, or select an existing vendor / payee.');
+      return;
+    }
     const reqNum = `EXP-REQ-${String(Math.floor(100 + Math.random() * 899))}`;
     const newRecord: ExpenseRequestRecord = {
       id: `REQ-${Date.now()}`,
@@ -1279,7 +1386,14 @@ function NewExpenseRequestModal({
       totalAmount,
       priority,
       requiredByDate,
-      preferredVendor,
+      preferredVendor: selectedPayee || undefined,
+      billNo: billNo.trim() || undefined,
+      billDate: billDate || undefined,
+      paymentTerms,
+      dueDate: dueDate || undefined,
+      referenceNo: referenceNo.trim() || undefined,
+      costCenter,
+      isOneTimePayee,
       status: isDraft ? 'Pending' : 'Pending'
     };
 
@@ -1287,7 +1401,7 @@ function NewExpenseRequestModal({
       // A recurring expense request also schedules the repeating rule, so the
       // same data is captured once and the rule shows up under “Recurring Expenses”.
       const ruleNo = `REC-2025-${String(existingRuleCount + 1).padStart(3, '0')}`;
-      const vendorName = preferredVendor || 'ABC Stationers';
+      const vendorName = selectedPayee || 'ABC Stationers';
       const rule: RecurringRule = {
         id: `RULE-${Date.now()}`,
         ruleNo,
@@ -1474,35 +1588,88 @@ function NewExpenseRequestModal({
           )}
         </div>
 
-        {/* Requested By Section */}
+        {/* Vendor and bill fields are part of the expense request, not a separate voucher-only step. */}
         <div className="p-3 bg-white border border-gray-200 rounded-lg space-y-3">
-          <div className="font-semibold text-gray-800 uppercase tracking-wider text-[11px]">
-            REQUESTED BY:
-          </div>
+          <div className="font-semibold text-gray-800 uppercase tracking-wider text-[11px]">VENDOR &amp; BILL INFORMATION:</div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div>
-              <label className="block text-gray-600 mb-1 font-medium">Department</label>
-              <select
-                value={department}
-                onChange={(e) => setDepartment(e.target.value)}
-                className="w-full p-1.5 border border-gray-300 rounded-md bg-white text-xs"
-              >
-                <option value="Admin">Admin</option>
-                <option value="Academic">Academic</option>
-                <option value="Library">Library</option>
-                <option value="Sports">Sports</option>
-                <option value="Hostel">Hostel</option>
-                <option value="Transport">Transport</option>
-                <option value="Lab">Lab</option>
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <label className="block text-gray-600 font-medium">Vendor / Payee</label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsOneTimePayee((current) => !current);
+                    setVendorPayee('');
+                    setOneTimePayeeName('');
+                  }}
+                  className="text-[11px] text-indigo-600 hover:text-indigo-800 font-medium"
+                >
+                  {isOneTimePayee ? 'Select Existing' : '＋ Add One-time Payee'}
+                </button>
+              </div>
+              {isOneTimePayee ? (
+                <input
+                  type="text"
+                  value={oneTimePayeeName}
+                  onChange={(event) => setOneTimePayeeName(event.target.value)}
+                  placeholder="Enter one-time payee name"
+                  className="w-full p-1.5 border border-gray-300 rounded-md text-xs"
+                />
+              ) : (
+                <select
+                  value={vendorPayee}
+                  onChange={(event) => setVendorPayee(event.target.value)}
+                  className="w-full p-1.5 border border-gray-300 rounded-md bg-white text-xs"
+                >
+                  <option value="">Select vendor / payee...</option>
+                  {activeVendorPayees.map((vendor) => <option key={vendor.id} value={vendor.name}>{vendor.name} · {vendor.code}</option>)}
+                </select>
+              )}
+            </div>
+            <div>
+              <label className="block text-gray-600 mb-1 font-medium">Bill / Invoice Number</label>
+              <input type="text" value={billNo} onChange={(event) => setBillNo(event.target.value)} placeholder="e.g. INV-2025-001" className="w-full p-1.5 border border-gray-300 rounded-md text-xs" />
+            </div>
+            <div>
+              <label className="block text-gray-600 mb-1 font-medium">Bill Date</label>
+              <input type="date" value={billDate} onChange={(event) => handleBillDateChange(event.target.value)} className="w-full p-1.5 border border-gray-300 rounded-md text-xs" />
+            </div>
+            <div>
+              <label className="block text-gray-600 mb-1 font-medium">Payment Terms</label>
+              <select value={paymentTerms} onChange={(event) => handlePaymentTermsChange(event.target.value)} className="w-full p-1.5 border border-gray-300 rounded-md bg-white text-xs">
+                {REQUEST_PAYMENT_TERMS.map((term) => <option key={term.value} value={term.value}>{term.label}</option>)}
               </select>
             </div>
             <div>
+              <label className="block text-gray-600 mb-1 font-medium">Due Date</label>
+              <input type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} className="w-full p-1.5 border border-gray-300 rounded-md text-xs" />
+            </div>
+            <div>
+              <label className="block text-gray-600 mb-1 font-medium">Reference No.</label>
+              <input type="text" value={referenceNo} onChange={(event) => setReferenceNo(event.target.value)} placeholder="PO / quotation / reference" className="w-full p-1.5 border border-gray-300 rounded-md text-xs" />
+            </div>
+            <div>
+              <label className="block text-gray-600 mb-1 font-medium">Department</label>
+              <select value={department} onChange={(event) => setDepartment(event.target.value)} className="w-full p-1.5 border border-gray-300 rounded-md bg-white text-xs">
+                {EXPENSE_REQUEST_DEPARTMENTS.map((item) => <option key={item} value={item}>{item}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-gray-600 mb-1 font-medium">Cost Center</label>
+              <select value={costCenter} onChange={(event) => setCostCenter(event.target.value)} className="w-full p-1.5 border border-gray-300 rounded-md bg-white text-xs">
+                {RECURRING_COST_CENTERS.map((item) => <option key={item} value={item}>{item}</option>)}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Requested By Section */}
+        <div className="p-3 bg-white border border-gray-200 rounded-lg space-y-3">
+          <div className="font-semibold text-gray-800 uppercase tracking-wider text-[11px]">REQUESTED BY:</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
               <label className="block text-gray-600 mb-1 font-medium">Requested By</label>
-              <select
-                value={requestedBy}
-                onChange={(e) => setRequestedBy(e.target.value)}
-                className="w-full p-1.5 border border-gray-300 rounded-md bg-white text-xs"
-              >
+              <select value={requestedBy} onChange={(event) => setRequestedBy(event.target.value)} className="w-full p-1.5 border border-gray-300 rounded-md bg-white text-xs">
                 <option value="Mr. Verma">Mr. Verma</option>
                 <option value="Ms. Joshi">Ms. Joshi</option>
                 <option value="Mr. Singh">Mr. Singh</option>
@@ -1512,11 +1679,7 @@ function NewExpenseRequestModal({
             </div>
             <div>
               <label className="block text-gray-600 mb-1 font-medium">Designation</label>
-              <select
-                value={designation}
-                onChange={(e) => setDesignation(e.target.value)}
-                className="w-full p-1.5 border border-gray-300 rounded-md bg-white text-xs"
-              >
+              <select value={designation} onChange={(event) => setDesignation(event.target.value)} className="w-full p-1.5 border border-gray-300 rounded-md bg-white text-xs">
                 <option value="HOD / Department Head">HOD / Department Head</option>
                 <option value="Estate Officer">Estate Officer</option>
                 <option value="Senior Coordinator">Senior Coordinator</option>
@@ -1535,42 +1698,32 @@ function NewExpenseRequestModal({
               <label className="block text-gray-600 mb-1 font-medium">Expense Category</label>
               <select
                 value={category}
-                onChange={(e) => setCategory(e.target.value)}
+                onChange={(event) => {
+                  const nextCategory = event.target.value;
+                  const firstHead = expenseMasterData.heads.find((head) => head.isActive && head.category === nextCategory);
+                  setCategory(nextCategory);
+                  setExpenseHead(firstHead ? `${firstHead.code} — ${firstHead.name}` : '');
+                }}
                 className="w-full p-1.5 border border-gray-300 rounded-md bg-white text-xs"
               >
-                <option value="Stationery">Stationery</option>
-                <option value="Lab Equipment">Lab Equipment</option>
-                <option value="Furniture">Furniture</option>
-                <option value="Maintenance">Maintenance</option>
-                <option value="IT Equipment">IT Equipment</option>
-                <option value="Books">Books</option>
-                <option value="Sports Equipment">Sports Equipment</option>
-                <option value="Staff Welfare">Staff Welfare</option>
-                <option value="Utility">Utility</option>
-                <option value="Transport">Transport</option>
-                <option value="Events">Events</option>
-                <option value="Other">Other</option>
+                <option value="">Select category...</option>
+                {expenseCategories.map((item) => <option key={item} value={item}>{item}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-gray-600 mb-1 font-medium">Expense Head (Links to GL)</label>
+              <label className="block text-gray-600 mb-1 font-medium">Expense Head</label>
               <select
                 value={expenseHead}
-                onChange={(e) => setExpenseHead(e.target.value)}
+                onChange={(event) => setExpenseHead(event.target.value)}
                 className="w-full p-1.5 border border-gray-300 rounded-md bg-white text-xs"
               >
-                <option value="EXP-OFF-002 — Office Stationery">EXP-OFF-002 — Office Stationery</option>
-                <option value="EXP-LAB-001 — Lab Chemicals & Instruments">
-                  EXP-LAB-001 — Lab Chemicals & Instruments
-                </option>
-                <option value="EXP-IT-005 — IT Equipment & Hardware">
-                  EXP-IT-005 — IT Equipment & Hardware
-                </option>
-                <option value="EXP-BLD-008 — Building Maintenance">
-                  EXP-BLD-008 — Building Maintenance
-                </option>
-                <option value="EXP-SPT-001 — Sports Equipment">EXP-SPT-001 — Sports Equipment</option>
+                <option value="">Select expense head...</option>
+                {categoryHeads.map((head) => {
+                  const value = `${head.code} — ${head.name}`;
+                  return <option key={head.id} value={value}>{value}</option>;
+                })}
               </select>
+              {category && categoryHeads.length === 0 && <p className="mt-1 text-[10px] text-amber-700">No active expense head is set for this category yet. Add one in Expense Head &amp; Category Master.</p>}
             </div>
           </div>
           <div>
@@ -1666,7 +1819,7 @@ function NewExpenseRequestModal({
         </div>
 
         {/* Priority & Delivery */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
             <label className="block text-gray-600 mb-1 font-medium">Priority</label>
             <div className="flex gap-2">
@@ -1694,16 +1847,6 @@ function NewExpenseRequestModal({
             />
           </div>
 
-          <div>
-            <label className="block text-gray-600 mb-1 font-medium">Preferred Vendor (Optional)</label>
-            <input
-              type="text"
-              value={preferredVendor}
-              onChange={(e) => setPreferredVendor(e.target.value)}
-              placeholder="e.g. XYZ Stationers"
-              className="w-full p-1.5 border border-gray-300 rounded-md text-xs"
-            />
-          </div>
         </div>
 
         {/* Supporting Docs */}

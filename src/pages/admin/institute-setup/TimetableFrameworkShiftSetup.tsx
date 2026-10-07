@@ -112,6 +112,78 @@ interface WorkingDay {
   order: number;
 }
 
+interface AcademicTerm {
+  id: number;
+  name: string;
+  startDate: string;
+  endDate: string;
+  examAtEnd: string;
+  reportCard: string;
+  feeDueDate: string;
+}
+
+interface AcademicYearSettings {
+  academicYear: string;
+  board: string;
+  startDate: string;
+  endDate: string;
+  firstStudentDay: string;
+  staffReporting: string;
+  lastStudentDay: string;
+  termCount: string;
+  displayFormat: string;
+  gateOpening: string;
+  assemblyStart: string;
+  schoolStart: string;
+  schoolEnd: string;
+  firstRecess: string;
+  lunchStart: string;
+  lunchEnd: string;
+  periodCount: string;
+  periodMinutes: string;
+  breakMinutes: string;
+}
+
+interface SavedAcademicStructure extends Partial<AcademicYearSettings> {
+  workingDays?: { day: string; working: boolean }[];
+  saturdayPattern?: string;
+  terms?: AcademicTerm[];
+}
+
+const ACADEMIC_STRUCTURE_STORAGE_KEY = 'k12-academic-structure';
+const DEFAULT_ACADEMIC_SETTINGS: AcademicYearSettings = {
+  academicYear: '2025-26',
+  board: 'CBSE',
+  startDate: '2025-04-01',
+  endDate: '2026-03-31',
+  firstStudentDay: '2025-04-14',
+  staffReporting: '2025-04-07',
+  lastStudentDay: '2026-03-20',
+  termCount: '2 Terms',
+  displayFormat: '2025-26',
+  gateOpening: '07:00',
+  assemblyStart: '07:30',
+  schoolStart: '07:45',
+  schoolEnd: '14:30',
+  firstRecess: '10:30',
+  lunchStart: '12:30',
+  lunchEnd: '13:00',
+  periodCount: '8',
+  periodMinutes: '45',
+  breakMinutes: '30'
+};
+
+const readSavedAcademicStructure = (): SavedAcademicStructure => {
+  try {
+    if (typeof window === 'undefined') return {};
+    const saved = window.localStorage.getItem(ACADEMIC_STRUCTURE_STORAGE_KEY);
+    if (!saved) return {};
+    const parsed = JSON.parse(saved);
+    return parsed && typeof parsed === 'object' ? parsed as SavedAcademicStructure : {};
+  } catch {
+    return {};
+  }
+};
 const PERIOD_TYPES: PeriodType[] = [
 'Regular', 'Assembly', 'Recess', 'Lunch', 'Short Break',
 'PT/Sports', 'Lab', 'Library', 'Activity', 'Zero Period', 'Remedial'];
@@ -333,6 +405,25 @@ export function TimetableFrameworkShiftSetup() {
   const [shifts, setShifts] = useState<Shift[]>(initialShifts);
   const [templates, setTemplates] = useState<TimetableTemplate[]>(initialTemplates);
   const [activeTab, setActiveTab] = useState<'shifts' | 'periods' | 'templates'>('shifts');
+  const [savedAcademicStructure] = useState(readSavedAcademicStructure);
+  const savedSettings = (Object.keys(DEFAULT_ACADEMIC_SETTINGS) as (keyof AcademicYearSettings)[]).reduce<Partial<AcademicYearSettings>>((settings, key) => {
+    const value = savedAcademicStructure[key];
+    if (typeof value === 'string') settings[key] = value;
+    return settings;
+  }, {});
+  const savedWorkingDays = new Map<string, boolean>((savedAcademicStructure.workingDays || []).map((item) => [item.day, item.working] as [string, boolean]));
+  const [academicSettings, setAcademicSettings] = useState<AcademicYearSettings>(() => ({ ...DEFAULT_ACADEMIC_SETTINGS, ...savedSettings }));
+  const [academicWorkingDays, setAcademicWorkingDays] = useState(() => WORKING_DAYS.map((item, index) => ({
+    day: item.day,
+    working: savedWorkingDays.has(item.day) ? Boolean(savedWorkingDays.get(item.day)) : item.isWorking,
+    start: index === 5 ? '07:30' : '07:45',
+    end: index === 5 ? '12:30' : '14:30'
+  })));
+  const [saturdayPattern, setSaturdayPattern] = useState(savedAcademicStructure.saturdayPattern || 'Alternate Saturdays — 2nd & 4th Saturday off');
+  const [academicTerms, setAcademicTerms] = useState<AcademicTerm[]>(Array.isArray(savedAcademicStructure.terms) ? savedAcademicStructure.terms : []);
+  const [termForm, setTermForm] = useState({
+    name: '', startDate: '', endDate: '', examAtEnd: 'Yes — Half-Yearly Exam', reportCard: 'Yes', feeDueDate: ''
+  });
   const [selectedShift, setSelectedShift] = useState<Shift | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
@@ -423,6 +514,35 @@ export function TimetableFrameworkShiftSetup() {
     setToast({ isVisible: true, message, type });
     setTimeout(() => setToast((prev) => ({ ...prev, isVisible: false })), 4000);
   }, []);
+
+  const addAcademicTerm = () => {
+    if (!termForm.name.trim() || !termForm.startDate || !termForm.endDate) {
+      showToast('Enter a term name and both dates before adding it.', 'error');
+      return;
+    }
+    if (termForm.startDate > termForm.endDate) {
+      showToast('The term end date must be on or after its start date.', 'error');
+      return;
+    }
+    setAcademicTerms((previous) => [...previous, { ...termForm, id: Date.now(), name: termForm.name.trim() }]);
+    setTermForm({ name: '', startDate: '', endDate: '', examAtEnd: 'Yes — Half-Yearly Exam', reportCard: 'Yes', feeDueDate: '' });
+    showToast('Term / semester added.', 'success');
+  };
+
+  const saveAcademicStructure = () => {
+    const payload = {
+      ...academicSettings,
+      workingDays: academicWorkingDays.map(({ day, working }) => ({ day, working })),
+      saturdayPattern,
+      terms: academicTerms
+    };
+    try {
+      if (typeof window !== 'undefined') window.localStorage.setItem(ACADEMIC_STRUCTURE_STORAGE_KEY, JSON.stringify(payload));
+      showToast(`Academic structure for ${academicSettings.academicYear} saved.`, 'success');
+    } catch {
+      showToast('Could not save academic structure in this browser.', 'error');
+    }
+  };
 
   // Filter shifts
   const filteredShifts = shifts.filter((shift) => {
@@ -1994,7 +2114,7 @@ export function TimetableFrameworkShiftSetup() {
             Configure school timings, shifts, and period structures
           </p>
         </div>
-        <div className="flex gap-2">
+        {activeTab !== 'periods' && <div className="flex gap-2">
           <Button variant="outline" onClick={handleExportData}>
             <Download className="w-4 h-4 mr-2" />
             Export
@@ -2007,7 +2127,7 @@ export function TimetableFrameworkShiftSetup() {
             <Plus className="w-4 h-4 mr-2" />
             Add Shift
           </Button>
-        </div>
+        </div>}
       </div>
 
       {/* Stats Cards */}
@@ -2059,6 +2179,12 @@ export function TimetableFrameworkShiftSetup() {
           Shifts
         </Button>
         <Button
+          variant={activeTab === 'periods' ? 'primary' : 'ghost'}
+          onClick={() => setActiveTab('periods')}>
+          <Calendar className="w-4 h-4 mr-2" />
+          Academic Structure
+        </Button>
+        <Button
           variant={activeTab === 'templates' ? 'primary' : 'ghost'}
           onClick={() => setActiveTab('templates')}>
 
@@ -2068,7 +2194,7 @@ export function TimetableFrameworkShiftSetup() {
       </div>
 
       {/* Filters */}
-      <Card className="p-4">
+      {activeTab !== 'periods' && <Card className="p-4">
         <div className="flex flex-wrap gap-4 items-center">
           <div className="flex-1 min-w-[200px]">
             <div className="relative">
@@ -2092,9 +2218,87 @@ export function TimetableFrameworkShiftSetup() {
             <option value="Inactive">Inactive</option>
           </select>
         </div>
-      </Card>
+      </Card>}
 
       {/* Content based on active tab */}
+      {activeTab === 'periods' && <div className="space-y-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">Academic Structure</h2>
+            <p className="mt-1 text-sm text-gray-500">Set the academic year, terms, school timing, period structure, and working-day pattern. Saved working days are reflected in Institute Calendar.</p>
+          </div>
+          <Badge variant="info">AY {academicSettings.academicYear}</Badge>
+        </div>
+
+        <Card title="Academic Year Setup">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <Input label="Academic Year Name *" value={academicSettings.academicYear} onChange={(event) => setAcademicSettings((previous) => ({ ...previous, academicYear: event.target.value }))} placeholder="2025-26" />
+            <Select label="Display Format" options={['2025-26', '2025-2026', 'AY 2025-26'].map((value) => ({ value, label: value }))} value={academicSettings.displayFormat} onChange={(event) => setAcademicSettings((previous) => ({ ...previous, displayFormat: event.target.value }))} />
+            <Select label="Board" options={['CBSE', 'Gujarat State Board', 'ICSE', 'Other'].map((value) => ({ value, label: value }))} value={academicSettings.board} onChange={(event) => setAcademicSettings((previous) => ({ ...previous, board: event.target.value }))} />
+            <Input label="Academic Year Start" type="date" value={academicSettings.startDate} onChange={(event) => setAcademicSettings((previous) => ({ ...previous, startDate: event.target.value }))} />
+            <Input label="Academic Year End" type="date" value={academicSettings.endDate} onChange={(event) => setAcademicSettings((previous) => ({ ...previous, endDate: event.target.value }))} />
+            <Input label="First Day for Students" type="date" value={academicSettings.firstStudentDay} onChange={(event) => setAcademicSettings((previous) => ({ ...previous, firstStudentDay: event.target.value }))} />
+            <Input label="Staff Reporting Date" type="date" value={academicSettings.staffReporting} onChange={(event) => setAcademicSettings((previous) => ({ ...previous, staffReporting: event.target.value }))} />
+            <Input label="Last Day for Students" type="date" value={academicSettings.lastStudentDay} onChange={(event) => setAcademicSettings((previous) => ({ ...previous, lastStudentDay: event.target.value }))} />
+            <Select label="Number of Terms" options={['2 Terms', '3 Terms', '2 Semesters', 'Annual'].map((value) => ({ value, label: value }))} value={academicSettings.termCount} onChange={(event) => setAcademicSettings((previous) => ({ ...previous, termCount: event.target.value }))} />
+          </div>
+          <div className="mt-5 border-t pt-4">
+            <p className="mb-2 text-sm font-medium text-gray-700">Working Days Pattern</p>
+            <div className="flex flex-wrap gap-2">
+              {academicWorkingDays.map((day, index) => <label key={day.day} className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs ${day.working ? 'border-blue-200 bg-blue-50 text-blue-800' : 'border-gray-200 bg-gray-50 text-gray-500'}`}>
+                <input type="checkbox" checked={day.working} onChange={(event) => setAcademicWorkingDays((previous) => previous.map((item, itemIndex) => itemIndex === index ? { ...item, working: event.target.checked } : item))} />
+                {day.day}
+              </label>)}
+            </div>
+            <div className="mt-4 max-w-md">
+              <Select label="Saturday Pattern" options={['All Saturdays working', 'Alternate Saturdays — 2nd & 4th Saturday off', 'All Saturdays off'].map((value) => ({ value, label: value }))} value={saturdayPattern} onChange={(event) => setSaturdayPattern(event.target.value)} />
+            </div>
+          </div>
+        </Card>
+
+        <Card title="School Timing & Period Structure">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <Input label="Gate Opening" type="time" value={academicSettings.gateOpening} onChange={(event) => setAcademicSettings((previous) => ({ ...previous, gateOpening: event.target.value }))} />
+            <Input label="Assembly Start" type="time" value={academicSettings.assemblyStart} onChange={(event) => setAcademicSettings((previous) => ({ ...previous, assemblyStart: event.target.value }))} />
+            <Input label="Classes Start" type="time" value={academicSettings.schoolStart} onChange={(event) => setAcademicSettings((previous) => ({ ...previous, schoolStart: event.target.value }))} />
+            <Input label="First Recess" type="time" value={academicSettings.firstRecess} onChange={(event) => setAcademicSettings((previous) => ({ ...previous, firstRecess: event.target.value }))} />
+            <Input label="Lunch Start" type="time" value={academicSettings.lunchStart} onChange={(event) => setAcademicSettings((previous) => ({ ...previous, lunchStart: event.target.value }))} />
+            <Input label="Lunch End" type="time" value={academicSettings.lunchEnd} onChange={(event) => setAcademicSettings((previous) => ({ ...previous, lunchEnd: event.target.value }))} />
+            <Input label="Classes End" type="time" value={academicSettings.schoolEnd} onChange={(event) => setAcademicSettings((previous) => ({ ...previous, schoolEnd: event.target.value }))} />
+            <Input label="Periods per Day" type="number" min={1} value={academicSettings.periodCount} onChange={(event) => setAcademicSettings((previous) => ({ ...previous, periodCount: event.target.value }))} />
+            <Input label="Period Duration (minutes)" type="number" min={1} value={academicSettings.periodMinutes} onChange={(event) => setAcademicSettings((previous) => ({ ...previous, periodMinutes: event.target.value }))} />
+            <Input label="Lunch / Break Duration (minutes)" type="number" min={0} value={academicSettings.breakMinutes} onChange={(event) => setAcademicSettings((previous) => ({ ...previous, breakMinutes: event.target.value }))} />
+          </div>
+        </Card>
+
+        <Card title="Terms / Semesters">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <Input label="Term / Semester Name" value={termForm.name} onChange={(event) => setTermForm((previous) => ({ ...previous, name: event.target.value }))} placeholder="e.g. Term 1" />
+            <Input label="Term Start Date" type="date" value={termForm.startDate} onChange={(event) => setTermForm((previous) => ({ ...previous, startDate: event.target.value }))} />
+            <Input label="Term End Date" type="date" value={termForm.endDate} onChange={(event) => setTermForm((previous) => ({ ...previous, endDate: event.target.value }))} />
+            <Select label="Exam at End of Term?" options={['Yes — Half-Yearly Exam', 'No'].map((value) => ({ value, label: value }))} value={termForm.examAtEnd} onChange={(event) => setTermForm((previous) => ({ ...previous, examAtEnd: event.target.value }))} />
+            <Select label="Report Card?" options={['Yes', 'No'].map((value) => ({ value, label: value }))} value={termForm.reportCard} onChange={(event) => setTermForm((previous) => ({ ...previous, reportCard: event.target.value }))} />
+            <Input label="Fee Due Date" type="date" value={termForm.feeDueDate} onChange={(event) => setTermForm((previous) => ({ ...previous, feeDueDate: event.target.value }))} />
+            <div className="flex items-end sm:col-span-2 xl:col-span-3">
+              <Button onClick={addAcademicTerm}><Plus className="w-4 h-4 mr-2" /> Add Term / Semester</Button>
+            </div>
+          </div>
+          <div className="mt-4 space-y-2">
+            {academicTerms.length ? academicTerms.map((term) => <div key={term.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+              <div>
+                <p className="font-semibold text-gray-800">{term.name}</p>
+                <p className="text-xs text-gray-500">{term.startDate} – {term.endDate} · Exam: {term.examAtEnd} · Report card: {term.reportCard}{term.feeDueDate ? ` · Fee due: ${term.feeDueDate}` : ''}</p>
+              </div>
+              <Button variant="ghost" size="xs" title={`Remove ${term.name}`} onClick={() => setAcademicTerms((previous) => previous.filter((item) => item.id !== term.id))}><Trash2 className="w-4 h-4 text-red-500" /></Button>
+            </div>) : <p className="rounded-lg border border-dashed border-gray-300 p-4 text-sm text-gray-500">No terms are configured yet. Add a term or semester above.</p>}
+          </div>
+        </Card>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+          <p className="text-xs text-gray-500">These settings are shared with Institute Calendar. Changes are stored in this browser.</p>
+          <Button onClick={saveAcademicStructure}><Save className="w-4 h-4 mr-2" /> Save Academic Structure</Button>
+        </div>
+      </div>}
       {activeTab === 'shifts' &&
       <Card>
           {filteredShifts.length === 0 ?

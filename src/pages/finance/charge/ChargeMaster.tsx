@@ -24,7 +24,6 @@ import {
   Filter,
   MoreVertical,
   Copy,
-  History,
   AlertCircle,
   CheckCircle,
   XCircle,
@@ -124,13 +123,6 @@ interface InfoPanelData {
   }[];
 }
 
-// Charge Categories
-const chargeCategories = [
-{ value: 'income', label: 'Income', description: 'Revenue generating charges' },
-{ value: 'liability', label: 'Liability', description: 'Refundable deposits' },
-{ value: 'expense', label: 'Expense', description: 'Cost recovery charges' }];
-
-
 // Charge Types
 const chargeTypes = [
 { value: 'library', label: 'Library Related', icon: BookX },
@@ -166,11 +158,11 @@ const infoPanelData: Record<string, InfoPanelData> = {
   chargeMaster: {
     id: 'chargeMaster',
     title: 'Charge Master Overview',
-    description: 'The Charge Master is the central repository for defining all types of ad-hoc charges, penalties, fees, and deposits that can be applied to student or staff accounts. Each charge head defines the rules for amount, taxation, refundability, and accounting treatment.',
+    description: 'The Charge Master is the central repository for ad-hoc fees, penalties, and deposits. Each charge head records its name, free-text type, applicability, refundability, tax settings, and status.',
     dataSource: {
       title: 'Data Source',
-      description: 'Charge definitions are stored in the charge master table and linked to GL accounts for proper financial tracking.',
-      tables: ['charge_master', 'gl_accounts', 'tax_configuration', 'approval_matrix']
+      description: 'Charge definitions are maintained in the charge master and used when applying charges to student or staff accounts.',
+      tables: ['charge_master', 'tax_configuration']
     },
     whyItMatters: {
       title: 'Why It Matters',
@@ -178,7 +170,6 @@ const infoPanelData: Record<string, InfoPanelData> = {
       benefits: [
       'Standardized charge application',
       'Accurate tax calculation',
-      'Proper GL posting',
       'Consistent reporting',
       'Audit compliance']
 
@@ -186,58 +177,10 @@ const infoPanelData: Record<string, InfoPanelData> = {
     recommendedActions: [
     { label: 'Review Active Charges', description: 'Audit charge heads periodically' },
     { label: 'Update Tax Rates', description: 'Keep tax percentages current' },
-    { label: 'Map GL Accounts', description: 'Ensure proper account mapping' },
-    { label: 'Set Approval Limits', description: 'Configure authorization rules' }]
+    { label: 'Review Applicability', description: 'Confirm student and staff charge rules' }]
 
   },
-  incomeCategory: {
-    id: 'incomeCategory',
-    title: 'Income Category Charges',
-    description: 'Income category charges are those that generate revenue for the institution. These include fines, certificate fees, duplicate document charges, and other service fees. They are credited to income accounts in the general ledger.',
-    dataSource: {
-      title: 'Data Source',
-      description: 'Mapped to revenue accounts in the Chart of Accounts.',
-      tables: ['charge_master', 'revenue_accounts', 'income_reports']
-    },
-    whyItMatters: {
-      title: 'Why It Matters',
-      description: 'Proper categorization ensures accurate revenue recognition and financial reporting.',
-      benefits: [
-      'Accurate revenue tracking',
-      'Proper tax treatment',
-      'Financial statement accuracy',
-      'Budget vs actual analysis']
 
-    },
-    recommendedActions: [
-    { label: 'Review Revenue Mapping', description: 'Verify GL account assignments' },
-    { label: 'Generate Income Report', description: 'View income by charge type' }]
-
-  },
-  liabilityCategory: {
-    id: 'liabilityCategory',
-    title: 'Liability Category Charges',
-    description: 'Liability charges are refundable deposits collected from students/staff. Examples include caution money, library deposit, and lab deposit. These are tracked as payable liabilities and must be refunded when applicable.',
-    dataSource: {
-      title: 'Data Source',
-      description: 'Mapped to liability accounts and refund tracking system.',
-      tables: ['charge_master', 'liability_accounts', 'refund_tracking']
-    },
-    whyItMatters: {
-      title: 'Why It Matters',
-      description: 'Proper liability tracking ensures accurate balance sheet reporting and timely refund processing.',
-      benefits: [
-      'Accurate liability tracking',
-      'Refund accountability',
-      'Proper balance sheet treatment',
-      'Student/staff trust']
-
-    },
-    recommendedActions: [
-    { label: 'Review Pending Refunds', description: 'Track refundable deposits' },
-    { label: 'Generate Liability Report', description: 'View outstanding deposits' }]
-
-  }
 };
 
 // Mock Charge Master Data
@@ -714,9 +657,6 @@ export function ChargeMaster() {
   const [isSaving, setIsSaving] = useState(false);
   const [charges, setCharges] = useState<ChargeHead[]>(() => getChargeHeads());
   const [formError, setFormError] = useState('');
-  const [historyFor, setHistoryFor] = useState<ChargeHead | null>(null);
-  const [usageFor, setUsageFor] = useState<ChargeHead | null>(null);
-  const [historyLog, setHistoryLog] = useState<Record<string, {on: string;by: string;action: string;}[]>>({});
   const importInputRef = useRef<HTMLInputElement>(null);
 
   // Keep the shared store in sync so Charge Receipt ("Add New Charge") sees the latest heads
@@ -730,7 +670,7 @@ export function ChargeMaster() {
     code: '',
     description: '',
     category: 'income',
-    chargeType: 'misc',
+    chargeType: 'General',
     defaultAmount: '',
     isVariable: false,
     minAmount: '',
@@ -783,7 +723,7 @@ export function ChargeMaster() {
       code: charge.code,
       description: charge.description,
       category: charge.category.toLowerCase(),
-      chargeType: charge.chargeType,
+      chargeType: chargeTypes.find((t) => t.value === charge.chargeType)?.label || charge.chargeType,
       defaultAmount: String(charge.defaultAmount),
       isVariable: charge.isVariable,
       minAmount: charge.minAmount ? String(charge.minAmount) : '',
@@ -831,13 +771,7 @@ export function ChargeMaster() {
     if (expandedRow === charge.id) setExpandedRow(null);
   };
 
-  const logHistory = (ids: string[], action: string) =>
-  setHistoryLog((prev) => {
-    const next = { ...prev };
-    const entry = { on: new Date().toLocaleString('en-IN'), by: CURRENT_USER, action };
-    ids.forEach((id) => {next[id] = [...(next[id] || []), entry];});
-    return next;
-  });
+
 
   // Export the filtered charge heads (same columns Import accepts)
   const handleExport = () => {
@@ -899,7 +833,7 @@ export function ChargeMaster() {
         usageCount: 0, totalCollected: 0, icon: FileWarning
       };
       const typeText = get(row, 'Type').toLowerCase();
-      const type = chargeTypes.find((t) => t.value === typeText || t.label.toLowerCase() === typeText)?.value || base.chargeType;
+      const type = chargeTypes.find((t) => t.value === typeText || t.label.toLowerCase() === typeText)?.value || get(row, 'Type') || base.chargeType;
       const taxText = get(row, 'Tax Type').toLowerCase();
       const classText = get(row, 'Classes');
       const head: ChargeHead = {
@@ -938,8 +872,6 @@ export function ChargeMaster() {
       }
     });
     setCharges(next);
-    if (addedIds.length) logHistory(addedIds, 'Created via CSV import');
-    if (updatedIds.length) logHistory(updatedIds, 'Updated via CSV import');
     alert(
       `Import complete: ${addedIds.length} added, ${updatedIds.length} updated` + (
       skipped.length ? `, ${skipped.length} skipped (row ${skipped.join(', ')}: Code and Name are required)` : '') +
@@ -947,32 +879,20 @@ export function ChargeMaster() {
     );
   };
 
-  // Usage report for one charge head (CSV)
-  const downloadUsage = (c: ChargeHead) => {
-    downloadFile(`usage-report-${c.code}.csv`, toCsv([
-    ['Code', 'Charge Head', 'Category', 'Times Applied', 'Total Collected', 'Average per Application', 'Frequency', 'Applicable To', 'GL Account'],
-    [c.code, c.name, c.category, c.usageCount, c.totalCollected, c.usageCount ? Math.round(c.totalCollected / c.usageCount) : 0,
-    c.frequency, c.applicableTo, `${c.glAccountCode} ${c.glAccountName}`]]
-    ));
-  };
+
 
   // Handle save — validates, then creates or updates the charge head in the list
   const handleSave = () => {
     const f = formData;
     const code = f.code.trim().toUpperCase();
-    const amount = Number(f.defaultAmount);
-    const min = Number(f.minAmount);
-    const max = Number(f.maxAmount);
     const tax = Number(f.taxPercent);
     let error = '';
     if (!f.name.trim()) error = 'Charge name is required.';else
     if (!code) error = 'Short code is required.';else
     if (charges.some((c) => c.code === code && c.id !== editingCharge?.id)) error = `Short code ${code} is already used by another charge head.`;else
-    if (!f.isVariable && !(amount > 0)) error = 'Default amount must be greater than 0.';else
-    if (f.isVariable && !(min > 0 && max >= min)) error = 'Enter a minimum amount above 0 and a maximum amount not below the minimum.';else
+    if (!f.chargeType.trim()) error = 'Charge type is required.';else
     if (f.isTaxable && !(tax > 0 && tax <= 100)) error = 'Tax percentage must be between 0 and 100.';else
-    if (!f.glAccountCode.trim() || !f.glAccountName.trim()) error = 'GL account code and name are required.';else
-    if (f.requiresApproval && !(Number(f.approvalLimit) > 0)) error = 'Approval limit must be greater than 0.';
+    
     setFormError(error);
     if (error) return;
 
@@ -985,12 +905,12 @@ export function ChargeMaster() {
         name: f.name.trim(),
         code,
         description: f.description.trim(),
-        category: CATEGORY_LABEL[f.category] || 'Income',
-        chargeType: f.chargeType,
-        defaultAmount: f.isVariable ? 0 : amount,
-        isVariable: f.isVariable,
-        minAmount: f.isVariable ? min : undefined,
-        maxAmount: f.isVariable ? max : undefined,
+        category: wasEditing ? wasEditing.category : 'Income',
+        chargeType: f.chargeType.trim(),
+        defaultAmount: wasEditing ? wasEditing.defaultAmount : 0,
+        isVariable: wasEditing ? wasEditing.isVariable : false,
+        minAmount: wasEditing ? wasEditing.minAmount : undefined,
+        maxAmount: wasEditing ? wasEditing.maxAmount : undefined,
         isRefundable: f.isRefundable,
         isTaxable: f.isTaxable,
         taxPercent: f.isTaxable ? tax : 0,
@@ -998,21 +918,20 @@ export function ChargeMaster() {
         applicableTo: APPLICABLE_LABEL[f.applicableTo] || 'Both',
         applicableClasses: f.applicableTo === 'staff' ? [] : f.applicableClasses.length ? f.applicableClasses : [...classes],
         frequency: FREQUENCY_LABEL[f.frequency] || 'As Required',
-        glAccountCode: f.glAccountCode.trim(),
-        glAccountName: f.glAccountName.trim(),
+        glAccountCode: wasEditing ? wasEditing.glAccountCode : '',
+        glAccountName: wasEditing ? wasEditing.glAccountName : '',
         isActive: f.isActive,
-        requiresApproval: f.requiresApproval,
-        approvalLimit: f.requiresApproval ? Number(f.approvalLimit) : undefined,
+        requiresApproval: wasEditing ? wasEditing.requiresApproval : false,
+        approvalLimit: wasEditing ? wasEditing.approvalLimit : undefined,
         createdBy: wasEditing ? wasEditing.createdBy : CURRENT_USER,
         createdOn: wasEditing ? wasEditing.createdOn : now,
         modifiedBy: wasEditing ? CURRENT_USER : undefined,
         modifiedOn: wasEditing ? now : undefined,
         usageCount: wasEditing ? wasEditing.usageCount : 0,
         totalCollected: wasEditing ? wasEditing.totalCollected : 0,
-        icon: chargeTypes.find((t) => t.value === f.chargeType)?.icon || FileWarning
+        icon: chargeTypes.find((t) => t.value === f.chargeType || t.label.toLowerCase() === f.chargeType.trim().toLowerCase())?.icon || FileWarning
       };
       setCharges((prev) => wasEditing ? prev.map((c) => c.id === head.id ? head : c) : [head, ...prev]);
-      if (wasEditing) logHistory([head.id], 'Charge details updated');
       setIsSaving(false);
       setShowModal(false);
       setEditingCharge(null);
@@ -1029,7 +948,7 @@ export function ChargeMaster() {
       code: '',
       description: '',
       category: 'income',
-      chargeType: 'misc',
+      chargeType: 'General',
       defaultAmount: '',
       isVariable: false,
       minAmount: '',
@@ -1161,7 +1080,7 @@ export function ChargeMaster() {
               onChange={(e) => setTypeFilter(e.target.value)}
               options={[
               { value: 'all', label: 'All Types' },
-              ...chargeTypes.map((t) => ({ value: t.value, label: t.label }))]
+              ...Array.from(new Set(charges.map((c) => c.chargeType))).map((value) => ({ value, label: chargeTypes.find((t) => t.value === value)?.label || value }))]
               } />
 
             <Select
@@ -1187,11 +1106,9 @@ export function ChargeMaster() {
                 <th className="text-left px-6 py-3 text-xs font-semibold text-gray-600 uppercase">Charge Head</th>
                 <th className="text-left px-6 py-3 text-xs font-semibold text-gray-600 uppercase">Category</th>
                 <th className="text-left px-6 py-3 text-xs font-semibold text-gray-600 uppercase">Type</th>
-                <th className="text-right px-6 py-3 text-xs font-semibold text-gray-600 uppercase">Amount</th>
                 <th className="text-center px-6 py-3 text-xs font-semibold text-gray-600 uppercase">Refundable</th>
                 <th className="text-center px-6 py-3 text-xs font-semibold text-gray-600 uppercase">Tax</th>
                 <th className="text-center px-6 py-3 text-xs font-semibold text-gray-600 uppercase">Status</th>
-                <th className="text-center px-6 py-3 text-xs font-semibold text-gray-600 uppercase">Usage</th>
                 <th className="text-center px-6 py-3 text-xs font-semibold text-gray-600 uppercase">Actions</th>
               </tr>
             </thead>
@@ -1223,18 +1140,7 @@ export function ChargeMaster() {
                         {chargeTypes.find((t) => t.value === charge.chargeType)?.label || charge.chargeType}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-right">
-                      {charge.isVariable ?
-                    <div>
-                          <span className="text-sm text-gray-500">Variable</span>
-                          <p className="text-xs text-gray-400">
-                            ₹{charge.minAmount?.toLocaleString()} - ₹{charge.maxAmount?.toLocaleString()}
-                          </p>
-                        </div> :
-
-                    <span className="font-medium text-gray-900">₹{charge.defaultAmount.toLocaleString()}</span>
-                    }
-                    </td>
+                    
                     <td className="px-6 py-4 text-center">
                       {charge.isRefundable ?
                     <CheckCircle className="w-5 h-5 text-green-500 mx-auto" /> :
@@ -1255,12 +1161,6 @@ export function ChargeMaster() {
 
                     <Badge variant="danger">Inactive</Badge>
                     }
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">{charge.usageCount}</p>
-                        <p className="text-xs text-gray-500">₹{(charge.totalCollected / 1000).toFixed(0)}K</p>
-                      </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
@@ -1291,55 +1191,23 @@ export function ChargeMaster() {
                   {/* Expanded Row */}
                   {expandedRow === charge.id &&
                 <tr className="bg-gray-50">
-                      <td colSpan={9} className="px-6 py-4">
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <td colSpan={7} className="px-6 py-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div className="bg-white p-4 rounded-lg border border-gray-200">
                             <p className="text-xs text-gray-500 uppercase mb-1">Description</p>
-                            <p className="text-sm text-gray-700">{charge.description}</p>
+                            <p className="text-sm text-gray-700">{charge.description || '—'}</p>
                           </div>
                           <div className="bg-white p-4 rounded-lg border border-gray-200">
                             <p className="text-xs text-gray-500 uppercase mb-1">Applicable To</p>
                             <p className="text-sm text-gray-700">{charge.applicableTo}</p>
                             <p className="text-xs text-gray-500 mt-1">
-                              {charge.applicableClasses.length === classes.length ?
-                          'All Classes' :
-                          `${charge.applicableClasses.length} Classes`}
+                              {charge.applicableClasses.length === classes.length ? 'All Classes' : `${charge.applicableClasses.length} Classes`}
                             </p>
                           </div>
-                          <div className="bg-white p-4 rounded-lg border border-gray-200">
-                            <p className="text-xs text-gray-500 uppercase mb-1">GL Account</p>
-                            <p className="text-sm text-gray-700">{charge.glAccountCode}</p>
-                            <p className="text-xs text-gray-500">{charge.glAccountName}</p>
-                          </div>
-                          <div className="bg-white p-4 rounded-lg border border-gray-200">
-                            <p className="text-xs text-gray-500 uppercase mb-1">Approval</p>
-                            {charge.requiresApproval ?
-                        <>
-                                <p className="text-sm text-amber-600 flex items-center gap-1">
-                                  <ShieldCheck className="w-4 h-4" /> Required
-                                </p>
-                                <p className="text-xs text-gray-500">Above ₹{charge.approvalLimit?.toLocaleString()}</p>
-                              </> :
-
-                        <p className="text-sm text-gray-400">Not Required</p>
-                        }
-                          </div>
                         </div>
-                        <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200">
-                          <div className="text-xs text-gray-500">
-                            Created by {charge.createdBy} on {charge.createdOn}
-                            {charge.modifiedBy && ` • Last modified by ${charge.modifiedBy} on ${charge.modifiedOn}`}
-                          </div>
-                          <div className="flex gap-2">
-                            <Button variant="outline" size="sm" onClick={() => setHistoryFor(charge)}>
-                              <History className="w-4 h-4 mr-2" />
-                              View History
-                            </Button>
-                            <Button variant="outline" size="sm" onClick={() => setUsageFor(charge)}>
-                              <BarChart3 className="w-4 h-4 mr-2" />
-                              Usage Report
-                            </Button>
-                          </div>
+                        <div className="mt-4 pt-4 border-t border-gray-200 text-xs text-gray-500">
+                          Created by {charge.createdBy} on {charge.createdOn}
+                          {charge.modifiedBy && ` • Last modified by ${charge.modifiedBy} on ${charge.modifiedOn}`}
                         </div>
                       </td>
                     </tr>
@@ -1362,74 +1230,6 @@ export function ChargeMaster() {
         }
       </Card>
 
-      {/* Change History Modal */}
-      <Modal
-        isOpen={!!historyFor}
-        onClose={() => setHistoryFor(null)}
-        title={historyFor ? `Change History — ${historyFor.name}` : ''}
-        footer={
-        <div className="flex justify-end">
-            <Button variant="outline" onClick={() => setHistoryFor(null)}>Close</Button>
-          </div>
-        }>
-
-        {historyFor &&
-        <ol className="space-y-3">
-            {[
-          { on: historyFor.createdOn, by: historyFor.createdBy, action: 'Charge head created' },
-          ...(historyFor.modifiedBy && historyFor.modifiedOn && !(historyLog[historyFor.id] || []).length ?
-          [{ on: historyFor.modifiedOn, by: historyFor.modifiedBy, action: 'Last modified' }] :
-          []),
-          ...(historyLog[historyFor.id] || [])].
-          map((h, i) =>
-          <li key={i} className="flex items-start gap-3">
-                <div className="mt-1.5 w-2 h-2 rounded-full bg-purple-500 shrink-0" />
-                <div>
-                  <p className="text-sm font-medium text-gray-900">{h.action}</p>
-                  <p className="text-xs text-gray-500">{h.on} • by {h.by}</p>
-                </div>
-              </li>
-          )}
-          </ol>
-        }
-      </Modal>
-
-      {/* Usage Report Modal */}
-      <Modal
-        isOpen={!!usageFor}
-        onClose={() => setUsageFor(null)}
-        title={usageFor ? `Usage Report — ${usageFor.name}` : ''}
-        footer={
-        <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => usageFor && downloadUsage(usageFor)}>
-              <Download className="w-4 h-4 mr-2" />
-              Download CSV
-            </Button>
-            <Button variant="primary" onClick={() => setUsageFor(null)}>Close</Button>
-          </div>
-        }>
-
-        {usageFor &&
-        <div className="grid grid-cols-2 gap-3 text-sm">
-            {[
-          ['Charge Code', usageFor.code],
-          ['Category', usageFor.category],
-          ['Times Applied', usageFor.usageCount.toLocaleString('en-IN')],
-          ['Total Collected', `₹${usageFor.totalCollected.toLocaleString('en-IN')}`],
-          ['Average per Application', usageFor.usageCount ? `₹${Math.round(usageFor.totalCollected / usageFor.usageCount).toLocaleString('en-IN')}` : '—'],
-          ['Frequency', usageFor.frequency],
-          ['Applicable To', usageFor.applicableTo],
-          ['GL Account', `${usageFor.glAccountCode} – ${usageFor.glAccountName}`]].
-          map(([k, v]) =>
-          <div key={k} className="bg-gray-50 rounded-lg p-3">
-                <p className="text-xs text-gray-500 uppercase">{k}</p>
-                <p className="font-medium text-gray-900">{v}</p>
-              </div>
-          )}
-          </div>
-        }
-      </Modal>
-
       {/* Add/Edit Modal */}
       {showModal &&
       <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto">
@@ -1440,7 +1240,7 @@ export function ChargeMaster() {
                   {editingCharge ? 'Edit Charge Head' : 'Create New Charge Head'}
                 </h3>
                 <p className="text-sm text-gray-500 mt-1">
-                  Define charge properties, taxation, and accounting rules
+                  Define the charge type, tax, applicability, and status
                 </p>
               </div>
               <button
@@ -1484,94 +1284,14 @@ export function ChargeMaster() {
                 </div>
               </div>
 
-              {/* Category & Type */}
+              {/* Charge Type */}
               <div>
-                <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
-                  <Layers className="w-4 h-4" />
-                  Category & Type
-                </h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <Select
-                  label="Category *"
-                  value={formData.category}
-                  onChange={(e) => setFormData({
-                    ...formData,
-                    category: e.target.value,
-                    isRefundable: e.target.value === 'liability'
-                  })}
-                  options={chargeCategories.map((c) => ({ value: c.value, label: c.label }))} />
-
-                  <Select
+                <Input
                   label="Charge Type *"
+                  placeholder="e.g., Library Fee, Penalty, Deposit"
                   value={formData.chargeType}
                   onChange={(e) => setFormData({ ...formData, chargeType: e.target.value })}
-                  options={chargeTypes.map((t) => ({ value: t.value, label: t.label }))} />
-
-                </div>
-                <div className="mt-2 p-3 bg-gray-50 rounded-lg">
-                  <p className="text-xs text-gray-600">
-                    {chargeCategories.find((c) => c.value === formData.category)?.description}
-                  </p>
-                </div>
-              </div>
-
-              {/* Amount Configuration */}
-              <div>
-                <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
-                  <DollarSign className="w-4 h-4" />
-                  Amount Configuration
-                </h4>
-                <div className="space-y-4">
-                  <div className="flex items-center gap-4">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                      type="radio"
-                      name="amountType"
-                      checked={!formData.isVariable}
-                      onChange={() => setFormData({ ...formData, isVariable: false })}
-                      className="text-purple-600 focus:ring-purple-500" />
-
-                      <span className="text-sm text-gray-700">Fixed Amount</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                      type="radio"
-                      name="amountType"
-                      checked={formData.isVariable}
-                      onChange={() => setFormData({ ...formData, isVariable: true })}
-                      className="text-purple-600 focus:ring-purple-500" />
-
-                      <span className="text-sm text-gray-700">Variable Amount</span>
-                    </label>
-                  </div>
-
-                  {formData.isVariable ?
-                <div className="grid grid-cols-2 gap-4">
-                      <Input
-                    label="Minimum Amount (₹)"
-                    type="number"
-                    placeholder="100"
-                    value={formData.minAmount}
-                    onChange={(e) => setFormData({ ...formData, minAmount: e.target.value })} />
-
-                      <Input
-                    label="Maximum Amount (₹)"
-                    type="number"
-                    placeholder="10000"
-                    value={formData.maxAmount}
-                    onChange={(e) => setFormData({ ...formData, maxAmount: e.target.value })} />
-
-                    </div> :
-
-                <Input
-                  label="Default Amount (₹) *"
-                  type="number"
-                  placeholder="0.00"
-                  value={formData.defaultAmount}
-                  onChange={(e) => setFormData({ ...formData, defaultAmount: e.target.value })} />
-
-                }
-                </div>
+                />
               </div>
 
               {/* Tax & Refund Settings */}
@@ -1704,64 +1424,6 @@ export function ChargeMaster() {
               }
               </div>
 
-              {/* GL Account Mapping */}
-              <div>
-                <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
-                  <Calculator className="w-4 h-4" />
-                  GL Account Mapping
-                </h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <Input
-                  label="GL Account Code *"
-                  placeholder="e.g., 4001"
-                  value={formData.glAccountCode}
-                  onChange={(e) => setFormData({ ...formData, glAccountCode: e.target.value })} />
-
-                  <Input
-                  label="GL Account Name *"
-                  placeholder="e.g., Library Income"
-                  value={formData.glAccountName}
-                  onChange={(e) => setFormData({ ...formData, glAccountName: e.target.value })} />
-
-                </div>
-              </div>
-
-              {/* Approval Settings */}
-              <div className="bg-amber-50 rounded-xl p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <ShieldCheck className="w-5 h-5 text-amber-600" />
-                    <div>
-                      <p className="font-medium text-gray-900">Requires Approval</p>
-                      <p className="text-xs text-gray-500">Charges above limit need authorization</p>
-                    </div>
-                  </div>
-                  <button
-                  onClick={() => setFormData({ ...formData, requiresApproval: !formData.requiresApproval })}
-                  className={`w-12 h-6 rounded-full transition-colors ${
-                  formData.requiresApproval ? 'bg-amber-500' : 'bg-gray-300'}`
-                  }>
-
-                    <div
-                    className={`w-5 h-5 bg-white rounded-full shadow transform transition-transform ${
-                    formData.requiresApproval ? 'translate-x-6' : 'translate-x-0.5'}`
-                    } />
-
-                  </button>
-                </div>
-                {formData.requiresApproval &&
-              <div className="mt-4">
-                    <Input
-                  label="Approval Limit (₹)"
-                  type="number"
-                  placeholder="Charges above this amount need approval"
-                  value={formData.approvalLimit}
-                  onChange={(e) => setFormData({ ...formData, approvalLimit: e.target.value })} />
-
-                  </div>
-              }
-              </div>
-
               {/* Status */}
               <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
                 <div className="flex items-center gap-3">
@@ -1785,14 +1447,6 @@ export function ChargeMaster() {
                 </button>
               </div>
 
-              {/* Info Note */}
-              <div className="bg-blue-50 p-4 rounded-lg flex items-start gap-3">
-                <Info className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
-                <p className="text-sm text-blue-700">
-                  <strong>Income</strong> category heads will reflect in revenue reports.{' '}
-                  <strong>Liability</strong> heads (like Caution Money) will be tracked as payable deposits and can be refunded.
-                </p>
-              </div>
             </div>
 
             <div className="p-6 border-t bg-gray-50 flex justify-end items-center gap-3 rounded-b-xl">

@@ -10,9 +10,6 @@ import {
   Edit2,
   Trash2,
   Search,
-  Download,
-  Eye,
-  Copy,
   CheckCircle,
   XCircle,
   Layers,
@@ -397,13 +394,6 @@ export function BatchMaster() {
 
   const selectedBatch = batches.find((b) => b.id === selectedBatchId)
 
-  const stats = {
-    total: batches.length,
-    active: batches.filter((b) => b.status === 'Active').length,
-    totalCapacity: batches.reduce((s, b) => s + b.capacity, 0),
-    totalEnrolled: batches.reduce((s, b) => s + b.enrolled, 0),
-  }
-
   return (
     <div className="space-y-6 p-6">
       {/* Header */}
@@ -432,39 +422,6 @@ export function BatchMaster() {
             Create Batch
           </Button>
         </div>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {[
-          {
-            label: 'Total Batches',
-            value: stats.total,
-            color: 'bg-blue-50 text-blue-700',
-          },
-          {
-            label: 'Active',
-            value: stats.active,
-            color: 'bg-green-50 text-green-700',
-          },
-          {
-            label: 'Total Capacity',
-            value: stats.totalCapacity,
-            color: 'bg-purple-50 text-purple-700',
-          },
-          {
-            label: 'Total Enrolled',
-            value: stats.totalEnrolled,
-            color: 'bg-amber-50 text-amber-700',
-          },
-        ].map((s) => (
-          <Card key={s.label} className="p-4">
-            <p className="text-xs text-gray-500 uppercase tracking-wider">
-              {s.label}
-            </p>
-            <p className="text-2xl font-bold text-gray-900 mt-1">{s.value}</p>
-          </Card>
-        ))}
       </div>
 
       {/* Filters */}

@@ -61,6 +61,7 @@ interface DataScopeRecord {
   status: ScopeStatus;
   applicableFor: string[];
   logic: 'AND' | 'OR';
+  logicMode?: 'Simple' | 'Advanced';
   filters: FilterConfig[];
 }
 
@@ -112,6 +113,23 @@ const FILTER_SOURCES = [
   'Session Data'
 ];
 
+const SOURCES_BY_ENTITY: Record<string, string[]> = {
+  'Branch': ["User's Assigned Branch", 'Static Value', 'Parent Scope'],
+  'Class': ["User's Assigned Class", 'Static Value', 'Parent Scope'],
+  'Subject': ["User's Assigned Subject", 'Static Value', 'Parent Scope'],
+  'Division': ["User's Assigned Division", 'Static Value'],
+  'Section': ["User's Assigned Section", 'Static Value'],
+  'Department': ["User's Assigned Department", 'Static Value', 'Parent Scope'],
+  'Academic Year': ['Current Academic Year', 'Static Value', 'Session Data'],
+  'Created By (Own Records)': ['Logged-in User ID']
+};
+
+const getSourcesForEntity = (entity: string): string[] =>
+  SOURCES_BY_ENTITY[entity] ?? FILTER_SOURCES;
+
+const getDefaultSourceForEntity = (entity: string): string =>
+  getSourcesForEntity(entity)[0] || FILTER_SOURCES[0];
+
 /* ----------------------------- Rule Builder ------------------------------ */
 
 const ENTITY_FIELDS: Record<string, string[]> = {
@@ -152,6 +170,18 @@ const RULE_VALUE_SOURCES = [
   "User's Branch",
   "User's Department"
 ];
+
+// Maps a filter entity name → its best matching Rule Value Source
+const ENTITY_TO_VALUE_SOURCE: Record<string, string> = {
+  'Branch': "User's Assigned Branch",
+  'Class': "User's Assigned Classes",
+  'Subject': "User's Assigned Subjects",
+  'Division': "User's Assigned Division",
+  'Section': "User's Assigned Section",
+  'Department': "User's Assigned Department",
+  'Academic Year': 'Current Academic Year',
+  'Created By (Own Records)': 'Logged-in User ID'
+};
 
 const SQL_VALUE_SOURCE: Record<string, string> = {
   "User's Assigned Branch": ':user_branch',
@@ -388,6 +418,7 @@ const emptyScopeForm = (id: string): DataScopeRecord => ({
   status: 'Active',
   applicableFor: ['Teachers'],
   logic: 'AND',
+  logicMode: 'Simple',
   rulesCount: 0,
   usedByRoles: [],
   filters: buildFilters([], (e) => `User's Assigned ${e}`)
@@ -429,38 +460,6 @@ const buildSql = (groups: RuleGroup[]) =>
     .filter((g) => g.rules.length > 0)
     .map((g) => `(${g.rules.map(sqlForRule).join(` ${g.mode} `)})`)
     .join('\n   OR ');
-
-const FILTER_PHRASE: Record<string, string> = {
-  Branch: 'assigned Branch',
-  Class: 'assigned Classes',
-  Subject: 'assigned Subjects',
-  Division: 'assigned Division',
-  Section: 'assigned Section',
-  'Academic Year': 'current academic year',
-  'Created By (Own Records)': 'own records',
-  Department: 'assigned Department'
-};
-
-const previewSentence = (filters: FilterConfig[], logic: 'AND' | 'OR') => {
-  const enabled = filters.filter((f) => f.enabled);
-  if (enabled.length === 0) {
-    return 'Select at least one filter above — the preview will describe exactly what data the user will be able to see.';
-  }
-  const parts = enabled.map((f) => {
-    const isSession = f.source === 'Session Data';
-    const isStatic = f.source === 'Static Value';
-    if (isStatic) return `${f.entity} matching the fixed value`;
-    if (isSession) return FILTER_PHRASE[f.entity] || f.entity.toLowerCase();
-    return FILTER_PHRASE[f.entity] || `assigned ${f.entity}`;
-  });
-  const joined =
-    parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(' + ')} + ${parts[parts.length - 1]}`;
-  const closing =
-    logic === 'AND'
-      ? 'All filters are applied together (AND logic).'
-      : 'Records matching any one of the filters are shown (OR logic).';
-  return `This scope will filter data so that the user can only see records belonging to their ${joined}. ${closing}`;
-};
 
 const newRule = (index: number): Rule => ({
   id: `rule-${Date.now()}-${index}`,
@@ -810,6 +809,7 @@ function DataScopeEditor({
     status: draft.status,
     applicableFor: [...draft.applicableFor],
     logic: draft.logic,
+    logicMode: draft.logicMode || 'Simple',
     filters: draft.filters.map((f) => ({ ...f }))
   }));
   const [error, setError] = useState<string | null>(null);
@@ -820,7 +820,13 @@ function DataScopeEditor({
     setForm((f) => ({
       ...f,
       filters: f.filters.map((flt) =>
-        flt.entity === entity ? { ...flt, enabled: !flt.enabled } : flt
+        flt.entity === entity
+          ? {
+              ...flt,
+              enabled: !flt.enabled,
+              source: !flt.enabled ? getDefaultSourceForEntity(entity) : flt.source
+            }
+          : flt
       )
     }));
 
@@ -838,17 +844,17 @@ function DataScopeEditor({
         : [...f.applicableFor, role]
     }));
 
-  const save = (status: ScopeStatus) => {
+  const buildScope = (status: ScopeStatus): DataScopeRecord | null => {
     if (!form.name.trim()) {
       setError('Scope Name is required.');
-      return;
+      return null;
     }
     if (enabledFilters.length === 0) {
       setError('Select at least one filter — a scope must restrict at least one entity.');
-      return;
+      return null;
     }
     const name = form.name.trim();
-    const scope: DataScopeRecord = {
+    return {
       ...draft,
       name,
       code: form.code.trim() || slugify(name),
@@ -857,10 +863,47 @@ function DataScopeEditor({
       status,
       applicableFor: form.applicableFor,
       logic: form.logic,
+      logicMode: form.logicMode,
       filters: form.filters,
       rulesCount: enabledFilters.length
     };
+  };
+
+  const save = (status: ScopeStatus) => {
+    const scope = buildScope(status);
+    if (!scope) return;
     onSave(scope, status);
+  };
+
+  const openAdvancedRuleBuilder = () => {
+    const advancedForm = { ...form, logicMode: 'Advanced' as const };
+    setForm(advancedForm);
+    // Build against the advanced choice immediately so the rule builder opens
+    // with the requested mode and the saved scope draft.
+    const name = advancedForm.name.trim();
+    if (!name) {
+      setError('Scope Name is required before opening the Rule Builder.');
+      return;
+    }
+    if (!advancedForm.filters.some((filter) => filter.enabled)) {
+      setError('Select at least one filter before opening the Rule Builder.');
+      return;
+    }
+    const scope: DataScopeRecord = {
+      ...draft,
+      name,
+      code: advancedForm.code.trim() || slugify(name),
+      description: advancedForm.description.trim() || name,
+      type: advancedForm.type,
+      status: 'Draft',
+      applicableFor: advancedForm.applicableFor,
+      logic: advancedForm.logic,
+      logicMode: 'Advanced',
+      filters: advancedForm.filters,
+      rulesCount: advancedForm.filters.filter((filter) => filter.enabled).length
+    };
+    onSave(scope, 'Draft');
+    onOpenRules(scope);
   };
 
   return (
@@ -882,38 +925,7 @@ function DataScopeEditor({
             Define the scope metadata, the entities it restricts and how the filters combine
           </p>
         </div>
-        {!isNew && draft.type === 'Custom' && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="text-xs text-purple-700 border-purple-200 hover:bg-purple-50"
-            onClick={() => {
-              onSave(
-                {
-                  ...draft,
-                  name: form.name.trim() || draft.name,
-                  code: form.code.trim() || slugify(form.name || draft.name),
-                  description: form.description.trim() || draft.description,
-                  type: form.type,
-                  status: form.status,
-                  applicableFor: form.applicableFor,
-                  logic: form.logic,
-                  filters: form.filters
-                },
-                form.status
-              );
-              onOpenRules({
-                ...draft,
-                name: form.name.trim() || draft.name,
-                code: form.code.trim() || slugify(form.name || draft.name),
-                logic: form.logic,
-                filters: form.filters
-              });
-            }}
-          >
-            <Code2 className="w-4 h-4 mr-1.5" /> Open Rule Builder
-          </Button>
-        )}
+
       </div>
 
       {/* SECTION 1 — Basic information */}
@@ -1079,7 +1091,7 @@ function DataScopeEditor({
                       onChange={(e) => setFilterSource(flt.entity, e.target.value)}
                       className="w-full p-1.5 border border-gray-300 rounded-md text-xs bg-white focus:outline-none"
                     >
-                      {FILTER_SOURCES.map((s) => (
+                      {getSourcesForEntity(flt.entity).map((s) => (
                         <option key={s} value={s}>
                           {s}
                         </option>
@@ -1088,9 +1100,13 @@ function DataScopeEditor({
                   </div>
                 )}
                 {flt.enabled && flt.entity === 'Created By (Own Records)' && (
-                  <span className="text-[11px] text-indigo-700 bg-white border border-indigo-200 rounded-md px-2 py-1">
-                    Source: Logged-in user (records created by the user themselves)
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-gray-500">Source:</span>
+                    <span className="text-[11px] text-indigo-700 bg-white border border-indigo-200 rounded-md px-2 py-1 font-medium">
+                      Logged-in User ID
+                    </span>
+                    <span className="text-[10px] text-gray-400">(auto — only valid source for this entity)</span>
+                  </div>
                 )}
               </div>
             </div>
@@ -1103,65 +1119,59 @@ function DataScopeEditor({
 
       {/* SECTION 3 — Combination logic */}
       <Card className="overflow-hidden border border-gray-200 shadow-sm">
-        <SectionHeading index={3} title="Filter Combination Logic" hint="How should multiple filters combine?" />
-        <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-3">
-          {(
-            [
-              {
-                value: 'AND' as const,
-                title: 'AND (All conditions must match)',
-                hint: '→ User sees data where Branch matches AND Class matches AND Subject matches'
-              },
-              {
-                value: 'OR' as const,
-                title: 'OR (Any condition can match)',
-                hint: '→ User sees data where Branch matches OR Class matches'
-              }
-            ]
-          ).map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => setForm((f) => ({ ...f, logic: opt.value }))}
-              className={`rounded-lg border p-3 text-left transition-colors ${
-                form.logic === opt.value
-                  ? 'border-indigo-500 bg-indigo-50'
-                  : 'border-gray-200 bg-white hover:bg-gray-50'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <span
-                  className={`w-3.5 h-3.5 rounded-full border-2 ${
-                    form.logic === opt.value ? 'border-indigo-600 bg-indigo-600' : 'border-gray-300'
-                  }`}
-                />
-                <span className="text-xs font-semibold text-gray-900">{opt.title}</span>
-              </div>
-              <p className="text-[11px] text-gray-500 mt-1.5">{opt.hint}</p>
-            </button>
-          ))}
-        </div>
-      </Card>
-
-      {/* SECTION 4 — Description preview */}
-      <Card className="overflow-hidden border border-gray-200 shadow-sm">
-        <SectionHeading index={4} title="Description Preview" hint="Auto-generated, human-readable summary" />
-        <div className="p-5">
-          <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4">
-            <span className="text-lg leading-none">📋</span>
-            <p className="text-xs text-blue-900 leading-relaxed">
-              “{previewSentence(form.filters, form.logic)}”
-            </p>
+        <SectionHeading index={3} title="Filter Combination Logic" hint="Choose simple AND/OR logic or advanced rule groups." />
+        <div className="p-5 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {([
+              { value: 'Simple' as const, title: 'Simple logic', hint: 'Combine enabled filters with one AND or OR rule.' },
+              { value: 'Advanced' as const, title: 'Advanced logic', hint: 'Build multiple rule groups with their own conditions.' }
+            ]).map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => { setError(null); setForm((current) => ({ ...current, logicMode: option.value })); }}
+                className={`rounded-lg border p-3 text-left transition-colors ${form.logicMode === option.value ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 bg-white hover:bg-gray-50'}`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className={`w-3.5 h-3.5 rounded-full border-2 ${form.logicMode === option.value ? 'border-indigo-600 bg-indigo-600' : 'border-gray-300'}`} />
+                  <span className="text-xs font-semibold text-gray-900">{option.title}</span>
+                </div>
+                <p className="mt-1.5 text-[11px] text-gray-500">{option.hint}</p>
+              </button>
+            ))}
           </div>
-          {error && (
-            <div className="mt-3 flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[11px] text-rose-700">
-              <AlertTriangle className="w-4 h-4" /> {error}
+
+          {form.logicMode === 'Simple' ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 border-t border-gray-100 pt-4">
+              {([
+                { value: 'AND' as const, title: 'AND (All conditions must match)', hint: 'Every enabled filter must match.' },
+                { value: 'OR' as const, title: 'OR (Any condition can match)', hint: 'A record can match any enabled filter.' }
+              ]).map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setForm((current) => ({ ...current, logic: option.value }))}
+                  className={`rounded-lg border p-3 text-left transition-colors ${form.logic === option.value ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 bg-white hover:bg-gray-50'}`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className={`w-3.5 h-3.5 rounded-full border-2 ${form.logic === option.value ? 'border-indigo-600 bg-indigo-600' : 'border-gray-300'}`} />
+                    <span className="text-xs font-semibold text-gray-900">{option.title}</span>
+                  </div>
+                  <p className="mt-1.5 text-[11px] text-gray-500">{option.hint}</p>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-t border-gray-100 pt-4">
+              <p className="text-xs text-gray-600">Advanced mode uses the rule builder for nested conditions and groups. The scope will be saved as a draft before opening it.</p>
+              <Button variant="outline" size="sm" className="shrink-0 text-xs text-purple-700 border-purple-200 hover:bg-purple-50" onClick={openAdvancedRuleBuilder}>
+                <Code2 className="w-4 h-4 mr-1.5" /> Open Rule Builder
+              </Button>
             </div>
           )}
-          <p className="text-[11px] text-gray-500 mt-3">
-            {enabledFilters.length} filter(s) selected · logic <strong>{form.logic}</strong> · applicable for{' '}
-            <strong>{form.applicableFor.join(', ') || '—'}</strong>
-          </p>
+
+          {error && <div className="flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[11px] text-rose-700"><AlertTriangle className="w-4 h-4" />{error}</div>}
+          <p className="text-[11px] text-gray-500">{enabledFilters.length} filter(s) selected · {form.logicMode === 'Advanced' ? 'advanced rule groups' : `${form.logic} logic`} · applicable for <strong>{form.applicableFor.join(', ') || '—'}</strong></p>
         </div>
       </Card>
 
@@ -1194,55 +1204,62 @@ function DataScopeEditor({
    PAGE 3 — SCOPE RULE BUILDER
    ========================================================================== */
 
+const initializeRulesFromFilters = (scope: DataScopeRecord): RuleGroup[] => {
+  const enabledFilters = scope.filters.filter((f) => f.enabled);
+
+  if (enabledFilters.length === 0) {
+    return [{
+      id: 'g1',
+      mode: 'AND',
+      rules: [{
+        id: 'r1',
+        entity: 'Class',
+        field: 'class_id',
+        operator: 'IN',
+        valueSource: "User's Assigned Classes",
+        staticValue: ''
+      }]
+    }];
+  }
+
+  return [{
+    id: 'g1',
+    mode: scope.logic,
+    rules: enabledFilters.map((filter, i) => {
+      const entity = filter.entity === 'Created By (Own Records)' ? 'Teacher' : filter.entity;
+      const fields = ENTITY_FIELDS[entity] || ['id'];
+      const valueSource = ENTITY_TO_VALUE_SOURCE[filter.entity] ?? filter.source ?? "User's Assigned Branch";
+      return {
+        id: `r${i + 1}`,
+        entity,
+        field: fields[0] || 'id',
+        operator: 'IN',
+        valueSource,
+        staticValue: ''
+      };
+    })
+  }];
+};
+
 function RuleBuilder({
   scope,
   onBack,
   onCancel,
-  onSave
+  onSave,
+  savedRules
 }: {
   scope: DataScopeRecord;
   onBack: () => void;
   onCancel: () => void;
   onSave: (groups: RuleGroup[]) => void;
+  savedRules?: RuleGroup[];
 }) {
-  const [groups, setGroups] = useState<RuleGroup[]>(() => [
-    {
-      id: 'g1',
-      mode: 'AND',
-      rules: [
-        {
-          id: 'r1',
-          entity: 'Class',
-          field: 'class_id',
-          operator: 'IN',
-          valueSource: "User's Assigned Classes",
-          staticValue: 'Class 8'
-        },
-        {
-          id: 'r2',
-          entity: 'Department',
-          field: 'dept_id',
-          operator: 'Equals',
-          valueSource: "User's Assigned Department",
-          staticValue: 'Science Dept.'
-        }
-      ]
-    },
-    {
-      id: 'g2',
-      mode: 'OR',
-      rules: [
-        {
-          id: 'r3',
-          entity: 'Branch',
-          field: 'branch_id',
-          operator: 'Equals',
-          valueSource: 'Static Value',
-          staticValue: 'Branch A'
-        }
-      ]
-    }
-  ]);
+  const [groups, setGroups] = useState<RuleGroup[]>(() =>
+    savedRules && savedRules.length > 0
+      ? savedRules
+      : initializeRulesFromFilters(scope)
+  );
+  const [showSql, setShowSql] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const updateRule = (groupId: string, ruleId: string, patch: Partial<Rule>) =>
@@ -1302,6 +1319,34 @@ function RuleBuilder({
 
   const sql = buildSql(groups);
 
+  const buildPlainEnglish = (groups: RuleGroup[]): string[] =>
+    groups
+      .filter((g) => g.rules.length > 0)
+      .map((g) => {
+        const parts = g.rules.map((rule) => {
+          const isStatic = rule.valueSource === 'Static Value';
+          const val = isStatic ? `"${rule.staticValue || 'value'}"` : rule.valueSource;
+          const opMap: Record<string, string> = {
+            IN: 'is one of',
+            'NOT IN': 'is NOT one of',
+            Equals: 'equals',
+            'Not Equals': 'does not equal',
+            Like: 'contains',
+            Between: 'is between',
+            'Is Null': 'is empty',
+            'Is Not Null': 'is not empty'
+          };
+          const opText = opMap[rule.operator] || rule.operator;
+          if (rule.operator === 'Is Null' || rule.operator === 'Is Not Null') {
+            return `${rule.entity} ${opText}`;
+          }
+          return `${rule.entity} ${opText} ${val}`;
+        });
+        return parts.join(` ${g.mode} `);
+      });
+
+  const plainEnglishGroups = buildPlainEnglish(groups);
+
   const save = () => {
     const flat = groups.flatMap((g) => g.rules);
     if (flat.length === 0) {
@@ -1338,9 +1383,38 @@ function RuleBuilder({
         </Badge>
       </div>
 
+      {/* Context Banner — shows what was set in the Editor */}
+      {scope.filters.filter((f) => f.enabled).length > 0 && (
+        <div className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
+          <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+          <div className="text-xs text-blue-900">
+            <p className="font-semibold mb-1">📋 This scope was configured with these filters in the Editor:</p>
+            <div className="flex flex-wrap gap-1.5">
+              {scope.filters.filter((f) => f.enabled).map((f) => (
+                <span key={f.id} className="inline-flex items-center gap-1 rounded-full border border-blue-300 bg-white px-2 py-0.5 text-[11px] font-medium text-blue-800">
+                  {f.entity}<span className="text-blue-500">→ {f.source}</span>
+                </span>
+              ))}
+            </div>
+            <p className="mt-2 text-[11px] text-blue-700">The rules below should match these filters. Add more Rule Groups (OR) below to create more complex logic.</p>
+          </div>
+        </div>
+      )}
+
       {/* Rule groups */}
       {groups.map((group, gIndex) => (
-        <Card key={group.id} className="overflow-hidden border border-gray-200 shadow-sm">
+        <React.Fragment key={group.id}>
+          {gIndex > 0 && (
+            <div className="flex items-center gap-3 py-1">
+              <div className="h-px flex-1 bg-amber-300" />
+              <div className="flex flex-col items-center gap-1">
+                <span className="px-5 py-1.5 bg-amber-100 text-amber-800 font-bold text-sm rounded-full border-2 border-amber-300 shadow-sm">OR</span>
+                <p className="text-[10px] text-amber-600 font-medium">if either group matches, the record is shown</p>
+              </div>
+              <div className="h-px flex-1 bg-amber-300" />
+            </div>
+          )}
+          <Card className="overflow-hidden border border-gray-200 shadow-sm">
           <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 bg-gray-50">
             <div className="flex items-center gap-3">
               <h3 className="text-sm font-semibold text-gray-900">Rule Group {gIndex + 1}</h3>
@@ -1373,7 +1447,17 @@ function RuleBuilder({
 
           <div className="p-5 space-y-3">
             {group.rules.map((rule, rIndex) => (
-              <div key={rule.id} className="rounded-lg border border-gray-200 bg-white p-3">
+              <React.Fragment key={rule.id}>
+                {rIndex > 0 && (
+                  <div className="flex items-center gap-2 py-0.5 px-1">
+                    <div className="h-px flex-1 bg-indigo-100" />
+                    <span className="text-[10px] font-bold text-indigo-400 px-2 py-0.5 bg-indigo-50 rounded border border-indigo-200">
+                      {group.mode}
+                    </span>
+                    <div className="h-px flex-1 bg-indigo-100" />
+                  </div>
+                )}
+                <div className="rounded-lg border border-gray-200 bg-white p-3">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
                     Rule {rIndex + 1}
@@ -1451,8 +1535,9 @@ function RuleBuilder({
                     </div>
                   )}
 
-                <p className="mt-2 text-[10px] text-gray-400 font-mono">{sqlForRule(rule)}</p>
-              </div>
+                  <p className="mt-2 text-[10px] text-gray-400 font-mono">{sqlForRule(rule)}</p>
+                </div>
+              </React.Fragment>
             ))}
 
             <button
@@ -1462,7 +1547,8 @@ function RuleBuilder({
               <Plus className="w-3.5 h-3.5 inline mr-1" /> Add Rule to this Group
             </button>
           </div>
-        </Card>
+          </Card>
+        </React.Fragment>
       ))}
 
       <div className="flex items-center gap-2">
@@ -1484,17 +1570,61 @@ function RuleBuilder({
         </Button>
       </div>
 
-      {/* Generated SQL preview */}
+      {/* Plain English Preview — always visible */}
       <Card className="overflow-hidden border border-gray-200 shadow-sm">
-        <div className="flex items-center gap-2 px-5 py-3 border-b border-gray-100 bg-gradient-to-r from-slate-50 to-white">
-          <Code2 className="w-4 h-4 text-slate-600" />
-          <h3 className="font-semibold text-gray-900 text-sm">Generated SQL Preview</h3>
+        <div className="flex items-center gap-2 px-5 py-3 border-b border-gray-100 bg-blue-50">
+          <Eye className="w-4 h-4 text-blue-600" />
+          <h3 className="font-semibold text-gray-900 text-sm">What this scope does</h3>
+          <span className="ml-auto text-[10px] text-blue-500 font-medium">Plain English — for everyone</span>
         </div>
-        <div className="p-5">
-          <pre className="rounded-lg bg-slate-900 text-emerald-200 text-[11px] leading-relaxed p-4 overflow-x-auto font-mono">
-{sql ? `WHERE ${sql}` : '-- add at least one rule to generate the WHERE clause'}
-          </pre>
+        <div className="p-5 space-y-3">
+          {plainEnglishGroups.length === 0 ? (
+            <p className="text-xs text-gray-400 italic">Add at least one rule above to see a description here.</p>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-gray-700 mb-3">👁️ A user with this scope will ONLY see records where:</p>
+              {plainEnglishGroups.map((groupText, i) => (
+                <React.Fragment key={i}>
+                  {i > 0 && (
+                    <div className="flex items-center gap-2 my-1">
+                      <div className="h-px flex-1 bg-amber-200" />
+                      <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">OR alternatively:</span>
+                      <div className="h-px flex-1 bg-amber-200" />
+                    </div>
+                  )}
+                  <div className="flex items-start gap-2 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 mt-0.5 shrink-0" />
+                    <p className="text-xs text-emerald-900 leading-relaxed">{groupText}</p>
+                  </div>
+                </React.Fragment>
+              ))}
+            </div>
+          )}
         </div>
+      </Card>
+
+      {/* SQL Preview — collapsible, hidden by default */}
+      <Card className="overflow-hidden border border-gray-200 shadow-sm">
+        <button
+          onClick={() => setShowSql((v) => !v)}
+          aria-expanded={showSql}
+          className="w-full flex items-center justify-between px-5 py-3 border-b border-gray-100 bg-slate-50 hover:bg-slate-100 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <Code2 className="w-4 h-4 text-slate-600" />
+            <h3 className="font-semibold text-gray-900 text-sm">Technical SQL Preview</h3>
+            <span className="text-[10px] text-slate-400 font-medium">for developers only</span>
+          </div>
+          <span className="text-[10px] text-indigo-600 font-semibold">{showSql ? '▲ Hide' : '▼ Show'}</span>
+        </button>
+        {showSql && (
+          <div className="p-5">
+            <pre className="rounded-lg bg-slate-900 text-emerald-200 text-[11px] leading-relaxed p-4 overflow-x-auto font-mono">
+              {sql ? `WHERE ${sql}` : '-- add at least one rule to generate the WHERE clause'}
+            </pre>
+            <p className="text-[10px] text-gray-400 mt-2">This WHERE clause is automatically applied to every database query when a user with this scope loads a page.</p>
+          </div>
+        )}
       </Card>
 
       {error && (
@@ -1590,6 +1720,7 @@ export function DataScopeManagement() {
     setRuleTarget(scope);
     setDraft(null);
     setScreen('rules');
+    // scopeRules[scope.id] will be passed to RuleBuilder so it can restore previously saved rules
   };
 
   const handleSaveRules = (groups: RuleGroup[]) => {
@@ -1663,6 +1794,7 @@ export function DataScopeManagement() {
             setScreen('list');
           }}
           onSave={handleSaveRules}
+          savedRules={scopeRules[ruleTarget.id]}
         />
       )}
 
@@ -1732,6 +1864,32 @@ export function DataScopeManagement() {
               )}
             </div>
 
+            {/* Impact Summary Panel */}
+            <div className="border border-indigo-200 rounded-lg p-3 bg-indigo-50 space-y-2">
+              <div className="font-bold text-indigo-800 text-[11px] border-b border-indigo-200 pb-1">📊 IMPACT SUMMARY</div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-white rounded-lg border border-indigo-100 p-2.5 text-center">
+                  <div className="text-xl font-bold text-indigo-700">{viewScope.usedByRoles.length}</div>
+                  <div className="text-[10px] text-gray-500 mt-0.5">Roles using this scope</div>
+                </div>
+                <div className="bg-white rounded-lg border border-indigo-100 p-2.5 text-center">
+                  <div className="text-xl font-bold text-indigo-700">{viewScope.rulesCount}</div>
+                  <div className="text-[10px] text-gray-500 mt-0.5">Active filter rules</div>
+                </div>
+              </div>
+              {viewScope.usedByRoles.length > 0 ? (
+                <div className="flex items-start gap-2 rounded-md border border-indigo-200 bg-white px-2.5 py-2 text-[11px] text-indigo-800">
+                  <Info className="w-3.5 h-3.5 shrink-0 mt-0.5 text-indigo-500" />
+                  <span>Editing or deleting this scope will immediately affect all <strong>{viewScope.usedByRoles.length}</strong> roles listed below and every user assigned to those roles.</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-[11px] text-gray-500 italic">
+                  <Info className="w-3.5 h-3.5 shrink-0 text-gray-400" />
+                  This scope is not yet assigned to any role. Assign it from Roles &amp; Permissions.
+                </div>
+              )}
+            </div>
+
             <div className="border border-gray-200 rounded-lg p-3 bg-white space-y-2">
               <div className="font-bold text-gray-800 text-[11px] border-b pb-1">
                 USED BY ROLES ({viewScope.usedByRoles.length})
@@ -1780,17 +1938,50 @@ export function DataScopeManagement() {
       {/* Delete confirmation */}
       {deleteTarget && (
         <Modal isOpen onClose={() => setDeleteTarget(null)} title="Delete Data Scope">
-          <p className="text-sm text-gray-600 mb-4">
-            Are you sure you want to delete the custom scope <strong>{deleteTarget.name}</strong>? Roles using it
-            will fall back to “All Data”. This action cannot be undone.
-          </p>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
-              Cancel
-            </Button>
-            <Button variant="danger" onClick={handleDeleteConfirm}>
-              Delete
-            </Button>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              You are about to permanently delete the <strong className="text-gray-900">{deleteTarget.name}</strong> scope. This action cannot be undone.
+            </p>
+
+            {deleteTarget.usedByRoles.length > 0 ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <p className="text-xs font-semibold text-amber-800">⚠️ This scope is currently used by {deleteTarget.usedByRoles.length} {deleteTarget.usedByRoles.length === 1 ? 'role' : 'roles'}</p>
+                </div>
+                <div className="max-h-40 overflow-y-auto rounded border border-amber-200 bg-white">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="bg-amber-50 border-b border-amber-200">
+                        <th className="px-3 py-2 text-left font-semibold text-amber-800">Role</th>
+                        <th className="px-3 py-2 text-left font-semibold text-amber-800">What happens</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-amber-100">
+                      {deleteTarget.usedByRoles.map((role) => (
+                        <tr key={role} className="hover:bg-amber-50/50">
+                          <td className="px-3 py-2 font-medium text-gray-800">{role}</td>
+                          <td className="px-3 py-2 text-gray-500">Will fall back to <span className="font-semibold text-rose-600">All Data</span> (no restriction)</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="text-[11px] text-amber-700">After deletion, all roles above will have unrestricted access to data on pages that used this scope. Reassign a scope to those roles before deleting, or proceed carefully.</p>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                <p className="text-xs text-emerald-800">This scope is not currently assigned to any role. Safe to delete.</p>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
+              <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+              <Button variant="danger" onClick={handleDeleteConfirm}>
+                {deleteTarget.usedByRoles.length > 0 ? `Delete Anyway (${deleteTarget.usedByRoles.length} roles affected)` : 'Delete Scope'}
+              </Button>
+            </div>
           </div>
         </Modal>
       )}

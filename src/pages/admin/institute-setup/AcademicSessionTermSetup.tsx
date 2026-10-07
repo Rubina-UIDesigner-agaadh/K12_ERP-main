@@ -231,6 +231,43 @@ const initialSessions: AcademicSession[] = [
 }];
 
 
+const isImportedAcademicSession = (value: unknown): value is AcademicSession => {
+  if (!value || typeof value !== 'object') return false;
+  const session = value as Record<string, unknown>;
+  if (
+    typeof session.id !== 'string' || typeof session.year !== 'string' ||
+    typeof session.startDate !== 'string' || typeof session.endDate !== 'string' ||
+    typeof session.createdAt !== 'string' || typeof session.modifiedAt !== 'string' || typeof session.createdBy !== 'string' ||
+    !['current', 'past', 'future', 'draft'].includes(String(session.status)) ||
+    typeof session.isLocked !== 'boolean' || !Array.isArray(session.terms)
+  ) return false;
+
+  return session.terms.every((value) => {
+    if (!value || typeof value !== 'object') return false;
+    const term = value as Record<string, unknown>;
+    if (
+      typeof term.id !== 'string' || typeof term.name !== 'string' ||
+      typeof term.startDate !== 'string' || typeof term.endDate !== 'string' ||
+      typeof term.isActive !== 'boolean' || !Array.isArray(term.holidays) ||
+      !Array.isArray(term.examSchedules)
+    ) return false;
+    const validHoliday = (holiday: unknown) => {
+      if (!holiday || typeof holiday !== 'object') return false;
+      const item = holiday as Record<string, unknown>;
+      return typeof item.id === 'string' && typeof item.name === 'string' &&
+        typeof item.date === 'string' && ['public', 'school', 'optional'].includes(String(item.type));
+    };
+    const validExam = (exam: unknown) => {
+      if (!exam || typeof exam !== 'object') return false;
+      const item = exam as Record<string, unknown>;
+      return typeof item.id === 'string' && typeof item.name === 'string' &&
+        typeof item.startDate === 'string' && typeof item.endDate === 'string' &&
+        ['midterm', 'final', 'unit_test', 'practical'].includes(String(item.type));
+    };
+    return term.holidays.every(validHoliday) && term.examSchedules.every(validExam);
+  });
+};
+
 // ==================== MAIN COMPONENT ====================
 export function AcademicSessionTermSetup() {
   // State Management
@@ -247,6 +284,7 @@ export function AcademicSessionTermSetup() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [showImportModal, setShowImportModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [duplicateYear, setDuplicateYear] = useState('');
 
   // Form States
   const [formData, setFormData] = useState({
@@ -367,7 +405,7 @@ export function AcademicSessionTermSetup() {
   };
 
   const handleEditSession = () => {
-    if (!selectedSession || !formData.year || !formData.startDate || !formData.endDate) {
+    if (!selectedSession || !formData.year.trim() || !formData.startDate || !formData.endDate) {
       showNotification('error', 'Please fill all required fields');
       return;
     }
@@ -377,18 +415,55 @@ export function AcademicSessionTermSetup() {
       return;
     }
 
-    setSessions((prev) => prev.map((session) =>
-    session.id === selectedSession.id ?
-    {
-      ...session,
-      year: formData.year,
-      startDate: formData.startDate,
-      endDate: formData.endDate,
-      status: formData.status,
-      modifiedAt: new Date().toISOString()
-    } :
-    session
-    ));
+    const yearRange = getAcademicYearRange(formData.year);
+    if (!yearRange) {
+      showNotification('error', 'Enter a valid academic year, such as 2027-2028');
+      return;
+    }
+    if (sessions.some((session) => session.id !== selectedSession.id && getAcademicYearRange(session.year)?.year === yearRange.year)) {
+      showNotification('warning', `Academic year ${yearRange.year} already exists`);
+      return;
+    }
+
+    const start = new Date(`${formData.startDate}T00:00:00`);
+    const end = new Date(`${formData.endDate}T00:00:00`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start >= end) {
+      showNotification('error', 'End date must be after start date');
+      return;
+    }
+    if (selectedSession.terms.some((term) => term.startDate < formData.startDate || term.endDate > formData.endDate)) {
+      showNotification('error', 'The session dates must contain all existing terms. Update term dates first.');
+      return;
+    }
+
+    const hasOverlap = sessions.some((session) => {
+      if (session.id === selectedSession.id) return false;
+      const existingStart = new Date(`${session.startDate}T00:00:00`);
+      const existingEnd = new Date(`${session.endDate}T00:00:00`);
+      return start <= existingEnd && end >= existingStart;
+    });
+    if (hasOverlap) {
+      showNotification('warning', 'Date range overlaps with another academic session');
+      return;
+    }
+
+    const modifiedAt = new Date().toISOString();
+    setSessions((prev) => prev.map((session) => {
+      if (session.id === selectedSession.id) {
+        return {
+          ...session,
+          year: yearRange.year,
+          startDate: formData.startDate,
+          endDate: formData.endDate,
+          status: formData.status,
+          modifiedAt
+        };
+      }
+      if (formData.status === 'current' && session.status === 'current') {
+        return { ...session, status: 'past', modifiedAt };
+      }
+      return session;
+    }));
 
     setShowEditModal(false);
     setSelectedSession(null);
@@ -417,38 +492,71 @@ export function AcademicSessionTermSetup() {
 
   const handleDuplicateSession = () => {
     if (!selectedSession) return;
-
-    const newYear = prompt('Enter new academic year (e.g., 2027-2028):');
-    if (!newYear) return;
-
-    const yearRegex = /^\d{4}-\d{4}$/;
-    if (!yearRegex.test(newYear)) {
-      showNotification('error', 'Invalid year format. Use YYYY-YYYY format');
+    const yearRange = getAcademicYearRange(duplicateYear);
+    if (!yearRange) {
+      showNotification('error', 'Enter a valid academic year, such as 2027-2028');
+      return;
+    }
+    if (sessions.some((session) => session.year === yearRange.year)) {
+      showNotification('warning', `Academic year ${yearRange.year} already exists`);
       return;
     }
 
+    const newStart = new Date(`${yearRange.startDate}T00:00:00`);
+    const newEnd = new Date(`${yearRange.endDate}T00:00:00`);
+    const overlaps = sessions.some((session) => newStart <= new Date(`${session.endDate}T00:00:00`) && newEnd >= new Date(`${session.startDate}T00:00:00`));
+    if (overlaps) {
+      showNotification('warning', 'The selected year overlaps with an existing academic session');
+      return;
+    }
+
+    const sourceStartYear = Number(selectedSession.startDate.slice(0, 4));
+    const yearOffset = Number(yearRange.startDate.slice(0, 4)) - sourceStartYear;
+    const shiftDate = (value: string) => {
+      const date = new Date(`${value}T00:00:00`);
+      date.setFullYear(date.getFullYear() + yearOffset);
+      return date.toISOString().slice(0, 10);
+    };
+    const now = new Date().toISOString();
     const duplicatedSession: AcademicSession = {
       ...selectedSession,
       id: `session-${Date.now()}`,
-      year: newYear,
+      year: yearRange.year,
+      startDate: yearRange.startDate,
+      endDate: yearRange.endDate,
       status: 'draft',
       isLocked: false,
-      createdAt: new Date().toISOString(),
-      modifiedAt: new Date().toISOString(),
+      createdAt: now,
+      modifiedAt: now,
+      createdBy: 'Current User',
       totalStudents: 0,
       totalClasses: 0,
       totalSubjects: 0,
       terms: selectedSession.terms.map((term, index) => ({
         ...term,
-        id: `${newYear}-term-${index + 1}`,
-        isActive: index === 0
+        id: `${yearRange.year}-term-${index + 1}`,
+        startDate: shiftDate(term.startDate),
+        endDate: shiftDate(term.endDate),
+        isActive: index === 0,
+        holidays: term.holidays.map((holiday, holidayIndex) => ({
+          ...holiday,
+          id: `${yearRange.year}-term-${index + 1}-holiday-${holidayIndex + 1}`,
+          date: shiftDate(holiday.date)
+        })),
+        examSchedules: term.examSchedules.map((exam, examIndex) => ({
+          ...exam,
+          id: `${yearRange.year}-term-${index + 1}-exam-${examIndex + 1}`,
+          startDate: shiftDate(exam.startDate),
+          endDate: shiftDate(exam.endDate)
+        }))
       }))
     };
 
     setSessions((prev) => [...prev, duplicatedSession]);
     setShowDuplicateModal(false);
     setSelectedSession(null);
-    showNotification('success', `Academic year duplicated as ${newYear}`);
+    setDuplicateYear('');
+    showNotification('success', `Academic year duplicated as ${yearRange.year}`);
   };
 
   const handleToggleLock = (session: AcademicSession) => {
@@ -467,6 +575,11 @@ export function AcademicSessionTermSetup() {
   };
 
   const handleSetAsCurrent = (session: AcademicSession) => {
+    if (session.isLocked) {
+      showNotification('error', 'Unlock the academic year before setting it as current');
+      return;
+    }
+
     if (session.status === 'past') {
       showNotification('error', 'Cannot set past academic year as current');
       return;
@@ -505,274 +618,276 @@ export function AcademicSessionTermSetup() {
 
   // Term Management Functions
   const handleAddTerm = () => {
-    if (!selectedSession || !termFormData.name || !termFormData.startDate || !termFormData.endDate) {
+    if (!selectedSession || !termFormData.name.trim() || !termFormData.startDate || !termFormData.endDate) {
       showNotification('error', 'Please fill all required fields');
       return;
     }
 
-    if (new Date(termFormData.startDate) >= new Date(termFormData.endDate)) {
+    const start = new Date(`${termFormData.startDate}T00:00:00`);
+    const end = new Date(`${termFormData.endDate}T00:00:00`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start >= end) {
       showNotification('error', 'End date must be after start date');
       return;
     }
-
+    if (termFormData.startDate < selectedSession.startDate || termFormData.endDate > selectedSession.endDate) {
+      showNotification('error', 'Term dates must fall within the academic session');
+      return;
+    }
     if (selectedSession.isLocked) {
       showNotification('error', 'Cannot add term to locked session');
+      return;
+    }
+    if (selectedSession.terms.some((term) => termFormData.startDate <= term.endDate && termFormData.endDate >= term.startDate)) {
+      showNotification('error', 'Term dates cannot overlap another term');
       return;
     }
 
     const newTerm: Term = {
       id: `${selectedSession.id}-term-${Date.now()}`,
-      name: termFormData.name,
+      name: termFormData.name.trim(),
       startDate: termFormData.startDate,
       endDate: termFormData.endDate,
       isActive: termFormData.isActive,
       holidays: [],
       examSchedules: []
     };
+    const modifiedAt = new Date().toISOString();
 
-    setSessions((prev) => prev.map((session) =>
-    session.id === selectedSession.id ?
-    {
-      ...session,
-      terms: [...session.terms, newTerm],
-      modifiedAt: new Date().toISOString()
-    } :
-    session
-    ));
-
-    setSelectedSession((prev) => prev ? { ...prev, terms: [...prev.terms, newTerm] } : null);
+    const appendTerm = (terms: Term[]) => [
+      ...(newTerm.isActive ? terms.map((term) => ({ ...term, isActive: false })) : terms),
+      newTerm
+    ];
+    setSessions((prev) => prev.map((session) => session.id === selectedSession.id
+      ? { ...session, terms: appendTerm(session.terms), modifiedAt }
+      : session));
+    setSelectedSession((prev) => prev?.id === selectedSession.id
+      ? { ...prev, terms: appendTerm(prev.terms), modifiedAt }
+      : prev);
     resetTermForm();
     showNotification('success', 'Term added successfully');
   };
 
   const handleEditTerm = () => {
-    if (!selectedSession || !selectedTerm || !termFormData.name || !termFormData.startDate || !termFormData.endDate) {
+    if (!selectedSession || !selectedTerm || !termFormData.name.trim() || !termFormData.startDate || !termFormData.endDate) {
       showNotification('error', 'Please fill all required fields');
       return;
     }
 
+    const start = new Date(`${termFormData.startDate}T00:00:00`);
+    const end = new Date(`${termFormData.endDate}T00:00:00`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start >= end) {
+      showNotification('error', 'End date must be after start date');
+      return;
+    }
+    if (termFormData.startDate < selectedSession.startDate || termFormData.endDate > selectedSession.endDate) {
+      showNotification('error', 'Term dates must fall within the academic session');
+      return;
+    }
     if (selectedSession.isLocked) {
       showNotification('error', 'Cannot edit term in locked session');
       return;
     }
-
-    setSessions((prev) => prev.map((session) =>
-    session.id === selectedSession.id ?
-    {
-      ...session,
-      terms: session.terms.map((term) =>
-      term.id === selectedTerm.id ?
-      {
-        ...term,
-        name: termFormData.name,
-        startDate: termFormData.startDate,
-        endDate: termFormData.endDate,
-        isActive: termFormData.isActive
-      } :
-      term
-      ),
-      modifiedAt: new Date().toISOString()
-    } :
-    session
-    ));
-
-    setSelectedTerm(null);
-    resetTermForm();
-    showNotification('success', 'Term updated successfully');
-  };
-
-  const handleDeleteTerm = (term: Term) => {
-    if (!selectedSession) return;
-
-    if (selectedSession.isLocked) {
-      showNotification('error', 'Cannot delete term from locked session');
+    if (selectedSession.terms.some((term) => term.id !== selectedTerm.id && termFormData.startDate <= term.endDate && termFormData.endDate >= term.startDate)) {
+      showNotification('error', 'Term dates cannot overlap another term');
       return;
     }
 
-    if (selectedSession.terms.length <= 1) {
+    const updatedTerm: Term = {
+      ...selectedTerm,
+      name: termFormData.name.trim(),
+      startDate: termFormData.startDate,
+      endDate: termFormData.endDate,
+      isActive: termFormData.isActive
+    };
+    const modifiedAt = new Date().toISOString();
+    const updateTerms = (terms: Term[]) => terms.map((term) => {
+      if (term.id === updatedTerm.id) return updatedTerm;
+      return updatedTerm.isActive ? { ...term, isActive: false } : term;
+    });
+    setSessions((prev) => prev.map((session) => session.id === selectedSession.id
+      ? { ...session, terms: updateTerms(session.terms), modifiedAt }
+      : session));
+    setSelectedSession((prev) => prev?.id === selectedSession.id
+      ? { ...prev, terms: updateTerms(prev.terms), modifiedAt }
+      : prev);
+    setSelectedTerm(updatedTerm);
+    showNotification('success', 'Term updated successfully');
+  };
+
+  const handleDeleteTerm = (session: AcademicSession, term: Term) => {
+    if (session.isLocked) {
+      showNotification('error', 'Cannot delete term from locked session');
+      return;
+    }
+    if (session.terms.length <= 1) {
       showNotification('error', 'Cannot delete the last term');
       return;
     }
 
-    setSessions((prev) => prev.map((session) =>
-    session.id === selectedSession.id ?
-    {
-      ...session,
-      terms: session.terms.filter((t) => t.id !== term.id),
-      modifiedAt: new Date().toISOString()
-    } :
-    session
-    ));
-
-    setSelectedSession((prev) => prev ? {
-      ...prev,
-      terms: prev.terms.filter((t) => t.id !== term.id)
-    } : null);
-
+    const modifiedAt = new Date().toISOString();
+    setSessions((prev) => prev.map((item) => item.id === session.id
+      ? { ...item, terms: item.terms.filter((existing) => existing.id !== term.id), modifiedAt }
+      : item));
+    setSelectedSession((prev) => prev?.id === session.id
+      ? { ...prev, terms: prev.terms.filter((existing) => existing.id !== term.id), modifiedAt }
+      : prev);
+    setSelectedTerm((prev) => prev?.id === term.id ? null : prev);
+    setShowAddHolidayForm(false);
+    setShowAddExamForm(false);
+    resetTermForm();
     showNotification('success', 'Term deleted successfully');
   };
 
-  const handleToggleTermActive = (term: Term) => {
-    if (!selectedSession) return;
-
-    if (selectedSession.isLocked) {
+  const handleToggleTermActive = (session: AcademicSession, term: Term) => {
+    if (session.isLocked) {
       showNotification('error', 'Cannot modify term in locked session');
       return;
     }
 
-    setSessions((prev) => prev.map((session) =>
-    session.id === selectedSession.id ?
-    {
-      ...session,
-      terms: session.terms.map((t) =>
-      t.id === term.id ?
-      { ...t, isActive: !t.isActive } :
-      t
-      ),
-      modifiedAt: new Date().toISOString()
-    } :
-    session
-    ));
-
-    setSelectedSession((prev) => prev ? {
-      ...prev,
-      terms: prev.terms.map((t) =>
-      t.id === term.id ? { ...t, isActive: !t.isActive } : t
-      )
-    } : null);
-
-    showNotification('info', `Term ${term.isActive ? 'deactivated' : 'activated'}`);
+    const nextActive = !term.isActive;
+    const toggleTerms = (terms: Term[]) => terms.map((item) => ({
+      ...item,
+      isActive: item.id === term.id ? nextActive : nextActive ? false : item.isActive
+    }));
+    const modifiedAt = new Date().toISOString();
+    setSessions((prev) => prev.map((item) => item.id === session.id
+      ? { ...item, terms: toggleTerms(item.terms), modifiedAt }
+      : item));
+    setSelectedSession((prev) => prev?.id === session.id
+      ? { ...prev, terms: toggleTerms(prev.terms), modifiedAt }
+      : prev);
+    showNotification('info', `Term ${nextActive ? 'activated' : 'deactivated'}`);
   };
 
   // Holiday Management Functions
   const handleAddHoliday = () => {
-    if (!selectedTerm || !holidayFormData.name || !holidayFormData.date) {
+    if (!selectedSession || !selectedTerm || !holidayFormData.name.trim() || !holidayFormData.date) {
       showNotification('error', 'Please fill all required fields');
+      return;
+    }
+    if (selectedSession.isLocked) {
+      showNotification('error', 'Cannot add a holiday to a locked session');
+      return;
+    }
+    if (holidayFormData.date < selectedTerm.startDate || holidayFormData.date > selectedTerm.endDate) {
+      showNotification('error', 'Holiday date must fall within the selected term');
       return;
     }
 
     const newHoliday: Holiday = {
       id: `holiday-${Date.now()}`,
-      name: holidayFormData.name,
+      name: holidayFormData.name.trim(),
       date: holidayFormData.date,
       type: holidayFormData.type
     };
+    const modifiedAt = new Date().toISOString();
+    const updateTerm = (term: Term) => term.id === selectedTerm.id
+      ? { ...term, holidays: [...term.holidays, newHoliday] }
+      : term;
 
-    setSessions((prev) => prev.map((session) =>
-    session.id === selectedSession?.id ?
-    {
-      ...session,
-      terms: session.terms.map((term) =>
-      term.id === selectedTerm.id ?
-      { ...term, holidays: [...term.holidays, newHoliday] } :
-      term
-      ),
-      modifiedAt: new Date().toISOString()
-    } :
-    session
-    ));
-
-    setSelectedTerm((prev) => prev ? {
-      ...prev,
-      holidays: [...prev.holidays, newHoliday]
-    } : null);
-
+    setSessions((prev) => prev.map((session) => session.id === selectedSession.id
+      ? { ...session, terms: session.terms.map(updateTerm), modifiedAt }
+      : session));
+    setSelectedSession((prev) => prev?.id === selectedSession.id
+      ? { ...prev, terms: prev.terms.map(updateTerm), modifiedAt }
+      : prev);
+    setSelectedTerm((prev) => prev?.id === selectedTerm.id
+      ? { ...prev, holidays: [...prev.holidays, newHoliday] }
+      : prev);
     resetHolidayForm();
     setShowAddHolidayForm(false);
     showNotification('success', 'Holiday added successfully');
   };
 
-  const handleDeleteHoliday = (holidayId: string) => {
-    if (!selectedTerm) return;
+  const handleDeleteHoliday = (session: AcademicSession, term: Term, holidayId: string) => {
+    if (session.isLocked) {
+      showNotification('error', 'Cannot delete a holiday from a locked session');
+      return;
+    }
+    const modifiedAt = new Date().toISOString();
+    const updateTerm = (item: Term) => item.id === term.id
+      ? { ...item, holidays: item.holidays.filter((holiday) => holiday.id !== holidayId) }
+      : item;
 
-    setSessions((prev) => prev.map((session) =>
-    session.id === selectedSession?.id ?
-    {
-      ...session,
-      terms: session.terms.map((term) =>
-      term.id === selectedTerm.id ?
-      { ...term, holidays: term.holidays.filter((h) => h.id !== holidayId) } :
-      term
-      ),
-      modifiedAt: new Date().toISOString()
-    } :
-    session
-    ));
-
-    setSelectedTerm((prev) => prev ? {
-      ...prev,
-      holidays: prev.holidays.filter((h) => h.id !== holidayId)
-    } : null);
-
+    setSessions((prev) => prev.map((item) => item.id === session.id
+      ? { ...item, terms: item.terms.map(updateTerm), modifiedAt }
+      : item));
+    setSelectedSession((prev) => prev?.id === session.id
+      ? { ...prev, terms: prev.terms.map(updateTerm), modifiedAt }
+      : prev);
+    setSelectedTerm((prev) => prev?.id === term.id
+      ? { ...prev, holidays: prev.holidays.filter((holiday) => holiday.id !== holidayId) }
+      : prev);
     showNotification('success', 'Holiday deleted successfully');
   };
 
   // Exam Schedule Management Functions
   const handleAddExam = () => {
-    if (!selectedTerm || !examFormData.name || !examFormData.startDate || !examFormData.endDate) {
+    if (!selectedSession || !selectedTerm || !examFormData.name.trim() || !examFormData.startDate || !examFormData.endDate) {
       showNotification('error', 'Please fill all required fields');
       return;
     }
+    if (selectedSession.isLocked) {
+      showNotification('error', 'Cannot add an exam to a locked session');
+      return;
+    }
 
-    if (new Date(examFormData.startDate) >= new Date(examFormData.endDate)) {
-      showNotification('error', 'Exam end date must be after start date');
+    const start = new Date(`${examFormData.startDate}T00:00:00`);
+    const end = new Date(`${examFormData.endDate}T00:00:00`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) {
+      showNotification('error', 'Exam end date cannot be before its start date');
+      return;
+    }
+    if (examFormData.startDate < selectedTerm.startDate || examFormData.endDate > selectedTerm.endDate) {
+      showNotification('error', 'Exam dates must fall within the selected term');
       return;
     }
 
     const newExam: ExamSchedule = {
       id: `exam-${Date.now()}`,
-      name: examFormData.name,
+      name: examFormData.name.trim(),
       startDate: examFormData.startDate,
       endDate: examFormData.endDate,
       type: examFormData.type
     };
+    const modifiedAt = new Date().toISOString();
+    const updateTerm = (term: Term) => term.id === selectedTerm.id
+      ? { ...term, examSchedules: [...term.examSchedules, newExam] }
+      : term;
 
-    setSessions((prev) => prev.map((session) =>
-    session.id === selectedSession?.id ?
-    {
-      ...session,
-      terms: session.terms.map((term) =>
-      term.id === selectedTerm.id ?
-      { ...term, examSchedules: [...term.examSchedules, newExam] } :
-      term
-      ),
-      modifiedAt: new Date().toISOString()
-    } :
-    session
-    ));
-
-    setSelectedTerm((prev) => prev ? {
-      ...prev,
-      examSchedules: [...prev.examSchedules, newExam]
-    } : null);
-
+    setSessions((prev) => prev.map((session) => session.id === selectedSession.id
+      ? { ...session, terms: session.terms.map(updateTerm), modifiedAt }
+      : session));
+    setSelectedSession((prev) => prev?.id === selectedSession.id
+      ? { ...prev, terms: prev.terms.map(updateTerm), modifiedAt }
+      : prev);
+    setSelectedTerm((prev) => prev?.id === selectedTerm.id
+      ? { ...prev, examSchedules: [...prev.examSchedules, newExam] }
+      : prev);
     resetExamForm();
     setShowAddExamForm(false);
     showNotification('success', 'Exam schedule added successfully');
   };
 
-  const handleDeleteExam = (examId: string) => {
-    if (!selectedTerm) return;
+  const handleDeleteExam = (session: AcademicSession, term: Term, examId: string) => {
+    if (session.isLocked) {
+      showNotification('error', 'Cannot delete an exam from a locked session');
+      return;
+    }
+    const modifiedAt = new Date().toISOString();
+    const updateTerm = (item: Term) => item.id === term.id
+      ? { ...item, examSchedules: item.examSchedules.filter((exam) => exam.id !== examId) }
+      : item;
 
-    setSessions((prev) => prev.map((session) =>
-    session.id === selectedSession?.id ?
-    {
-      ...session,
-      terms: session.terms.map((term) =>
-      term.id === selectedTerm.id ?
-      { ...term, examSchedules: term.examSchedules.filter((e) => e.id !== examId) } :
-      term
-      ),
-      modifiedAt: new Date().toISOString()
-    } :
-    session
-    ));
-
-    setSelectedTerm((prev) => prev ? {
-      ...prev,
-      examSchedules: prev.examSchedules.filter((e) => e.id !== examId)
-    } : null);
-
+    setSessions((prev) => prev.map((item) => item.id === session.id
+      ? { ...item, terms: item.terms.map(updateTerm), modifiedAt }
+      : item));
+    setSelectedSession((prev) => prev?.id === session.id
+      ? { ...prev, terms: prev.terms.map(updateTerm), modifiedAt }
+      : prev);
+    setSelectedTerm((prev) => prev?.id === term.id
+      ? { ...prev, examSchedules: prev.examSchedules.filter((exam) => exam.id !== examId) }
+      : prev);
     showNotification('success', 'Exam schedule deleted successfully');
   };
 
@@ -791,22 +906,31 @@ export function AcademicSessionTermSetup() {
   const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    event.target.value = '';
 
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = (loadEvent) => {
       try {
-        const importedData = JSON.parse(e.target?.result as string);
-        if (Array.isArray(importedData)) {
-          setSessions((prev) => [...prev, ...importedData]);
-          showNotification('success', `${importedData.length} sessions imported successfully`);
-          setShowImportModal(false);
-        } else {
-          showNotification('error', 'Invalid file format');
+        const importedData: unknown = JSON.parse(String(loadEvent.target?.result || ''));
+        if (!Array.isArray(importedData) || !importedData.every(isImportedAcademicSession)) {
+          showNotification('error', 'Invalid file format. Upload an exported academic sessions JSON file.');
+          return;
         }
-      } catch (error) {
-        showNotification('error', 'Failed to parse file');
+        const newSessions = importedData.filter((session) => !sessions.some((existing) =>
+          existing.id === session.id || existing.year === session.year
+        ));
+        if (!newSessions.length) {
+          showNotification('warning', 'No new sessions to import. Existing academic years were skipped.');
+          return;
+        }
+        setSessions((prev) => [...prev, ...newSessions]);
+        showNotification('success', `${newSessions.length} session(s) imported; existing academic years were skipped.`);
+        setShowImportModal(false);
+      } catch {
+        showNotification('error', 'Failed to parse the selected JSON file');
       }
     };
+    reader.onerror = () => showNotification('error', 'Unable to read the selected file');
     reader.readAsText(file);
   };
 
@@ -882,7 +1006,11 @@ export function AcademicSessionTermSetup() {
     setSelectedSession(session);
     setShowTermModal(true);
     setSelectedTerm(null);
+    setShowAddHolidayForm(false);
+    setShowAddExamForm(false);
     resetTermForm();
+    resetHolidayForm();
+    resetExamForm();
   };
 
   const openDeleteConfirm = (session: AcademicSession) => {
@@ -892,6 +1020,9 @@ export function AcademicSessionTermSetup() {
 
   const openDuplicateModal = (session: AcademicSession) => {
     setSelectedSession(session);
+    const yearRange = getAcademicYearRange(session.year);
+    const nextStart = yearRange ? Number(yearRange.year.slice(5)) : Number(session.year.slice(0, 4)) + 1;
+    setDuplicateYear(`${nextStart}-${nextStart + 1}`);
     setShowDuplicateModal(true);
   };
 
@@ -1154,8 +1285,8 @@ export function AcademicSessionTermSetup() {
           data={filteredSessions}
           expandedContent={(row: AcademicSession) => expandedRows.has(row.id) ?
           <div className="p-4 bg-gray-50 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,0.9fr)_minmax(0,0.65fr)_minmax(0,1fr)]">
+                <div className="min-w-0">
                   <div className="text-sm font-medium text-gray-500 mb-2">Session Info</div>
                   <div className="space-y-1 text-sm">
                     <div className="flex justify-between">
@@ -1172,7 +1303,7 @@ export function AcademicSessionTermSetup() {
                     </div>
                   </div>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <div className="text-sm font-medium text-gray-500 mb-2">Statistics</div>
                   <div className="space-y-1 text-sm">
                     <div className="flex justify-between">
@@ -1185,7 +1316,7 @@ export function AcademicSessionTermSetup() {
                     </div>
                   </div>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <div className="text-sm font-medium text-gray-500 mb-2">Quick Actions</div>
                   <div className="space-y-2">
                     {row.status !== 'current' &&
@@ -1194,7 +1325,7 @@ export function AcademicSessionTermSetup() {
                     size="sm"
                     className="w-full justify-start"
                     onClick={() => handleSetAsCurrent(row)}
-                    disabled={row.status === 'draft' || row.status === 'past'}>
+                    disabled={row.status === 'draft' || row.status === 'past' || row.isLocked}>
 
                         <Activity className="w-4 h-4 mr-2" />
                         Set as Current
@@ -1231,11 +1362,7 @@ export function AcademicSessionTermSetup() {
                   {!row.isLocked &&
                 <Button
                   size="sm"
-                  onClick={() => {
-                    setSelectedSession(row);
-                    resetTermForm();
-                    setSelectedTerm(null);
-                  }}>
+                  onClick={() => openTermModal(row)}>
 
                       <Plus className="w-4 h-4 mr-1" />
                       Add Term
@@ -1261,7 +1388,7 @@ export function AcademicSessionTermSetup() {
                     <div className="flex gap-1">
                             <button
                         onClick={() => {
-                          setSelectedSession(row);
+                          openTermModal(row);
                           openEditTermForm(term);
                         }}
                         className="p-1 hover:bg-gray-100 rounded"
@@ -1270,7 +1397,7 @@ export function AcademicSessionTermSetup() {
                               <Edit2 className="w-3 h-3" />
                             </button>
                             <button
-                        onClick={() => handleToggleTermActive(term)}
+                        onClick={() => handleToggleTermActive(row, term)}
                         className="p-1 hover:bg-gray-100 rounded"
                         title={term.isActive ? 'Deactivate' : 'Activate'}>
 
@@ -1281,10 +1408,7 @@ export function AcademicSessionTermSetup() {
                         }
                             </button>
                             <button
-                        onClick={() => {
-                          setSelectedSession(row);
-                          handleDeleteTerm(term);
-                        }}
+                        onClick={() => handleDeleteTerm(row, term)}
                         className="p-1 hover:bg-gray-100 rounded"
                         title="Delete Term">
 
@@ -1490,6 +1614,8 @@ export function AcademicSessionTermSetup() {
               </div>
               <button onClick={() => {
               setShowTermModal(false);
+              setShowAddHolidayForm(false);
+              setShowAddExamForm(false);
               setSelectedTerm(null);
               setSelectedSession(null);
             }}>
@@ -1584,7 +1710,7 @@ export function AcademicSessionTermSetup() {
                           <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleDeleteTerm(term)}>
+                      onClick={() => handleDeleteTerm(selectedSession, term)}>
 
                             <Trash2 className="w-4 h-4" />
                           </Button>
@@ -1663,10 +1789,7 @@ export function AcademicSessionTermSetup() {
                             </div>
                             {!selectedSession.isLocked &&
                       <button
-                        onClick={() => {
-                          setSelectedTerm(term);
-                          handleDeleteHoliday(holiday.id);
-                        }}
+                        onClick={() => handleDeleteHoliday(selectedSession, term, holiday.id)}
                         className="text-red-600 hover:text-red-800">
 
                                 <Trash2 className="w-3 h-3" />
@@ -1762,10 +1885,7 @@ export function AcademicSessionTermSetup() {
                             </div>
                             {!selectedSession.isLocked &&
                       <button
-                        onClick={() => {
-                          setSelectedTerm(term);
-                          handleDeleteExam(exam.id);
-                        }}
+                        onClick={() => handleDeleteExam(selectedSession, term, exam.id)}
                         className="text-red-600 hover:text-red-800">
 
                                 <Trash2 className="w-3 h-3" />
@@ -1788,6 +1908,8 @@ export function AcademicSessionTermSetup() {
             <div className="p-6 border-t flex justify-end">
               <Button onClick={() => {
               setShowTermModal(false);
+              setShowAddHolidayForm(false);
+              setShowAddExamForm(false);
               setSelectedSession(null);
               setSelectedTerm(null);
             }}>
@@ -1845,23 +1967,28 @@ export function AcademicSessionTermSetup() {
               <button onClick={() => {
               setShowDuplicateModal(false);
               setSelectedSession(null);
+              setDuplicateYear('');
             }}>
                 <X className="w-5 h-5" />
               </button>
             </div>
             <div className="p-6">
               <p className="text-gray-700 mb-4">
-                This will create a copy of <strong>{selectedSession.year}</strong> with all its terms,
-                holidays, and exam schedules.
+                Create a new draft based on <strong>{selectedSession.year}</strong>, including its terms, holidays, and exam schedules.
               </p>
-              <p className="text-sm text-gray-500">
-                You will be prompted to enter the new academic year name.
-              </p>
+              <Input
+                label="New Academic Year *"
+                placeholder="e.g., 2027-2028"
+                value={duplicateYear}
+                onChange={(event) => setDuplicateYear(event.target.value)}
+              />
+              <p className="mt-2 text-xs text-gray-500">The copied dates shift to the new academic year. You can edit the session after creating it.</p>
             </div>
             <div className="p-6 border-t flex gap-2 justify-end">
               <Button variant="outline" onClick={() => {
               setShowDuplicateModal(false);
               setSelectedSession(null);
+              setDuplicateYear('');
             }}>
                 Cancel
               </Button>

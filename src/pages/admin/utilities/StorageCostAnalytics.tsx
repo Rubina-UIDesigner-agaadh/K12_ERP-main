@@ -3,6 +3,7 @@
 // recommendations and monthly invoice history.
 import React, { useState } from 'react';
 import { Button } from '../../../components/ui/Button';
+import { Modal } from '../../../components/ui/Modal';
 import {
   IndianRupee,
   TrendingDown,
@@ -15,8 +16,7 @@ import {
   Printer
 } from 'lucide-react';
 import { ArchiveHeader, KpiCard, Panel, Pill, TH, Donut, TrendChart, inr } from './archiveUi';
-
-const MONTHS = ['Oct 24', 'Nov', 'Dec', 'Jan 25', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep'];
+import { downloadCsv } from './archiveWorkflowState';
 
 // Monthly storage spend (₹) — primary, archive, cold
 const COST_TREND = [
@@ -92,7 +92,11 @@ const INVOICES = [
 ];
 
 export function StorageCostAnalytics() {
-  const [applied, setApplied] = useState(false);
+  const [appliedRecommendations, setAppliedRecommendations] = useState<Set<string>>(new Set());
+  const [range, setRange] = useState('Last 12 Months');
+  const [activeRecommendation, setActiveRecommendation] = useState<(typeof RECOMMENDATIONS)[number] | null>(null);
+  const [invoiceDetail, setInvoiceDetail] = useState<(typeof INVOICES)[number] | null>(null);
+  const [lastRefresh, setLastRefresh] = useState('Sample data');
   const [toast, setToast] = useState<string | null>(null);
 
   const showToast = (m: string) => {
@@ -100,7 +104,33 @@ export function StorageCostAnalytics() {
     window.setTimeout(() => setToast(null), 3200);
   };
 
+  const trendEntries = range === 'Last 6 Months' ? COST_TREND.slice(-6) : range === 'Fiscal Year To Date' ? COST_TREND.slice(6) : COST_TREND;
+  const trendLabels = trendEntries.map((entry) => entry.label);
+  const exportTrend = () => downloadCsv('archive-cost-trend.csv', ['Month', 'Primary DB INR', 'Archive DB INR', 'Cold Storage INR'], trendEntries.map((entry) => [entry.label, ...entry.values]));
+  const exportInvoices = () => downloadCsv('archive-monthly-invoices.csv', ['Invoice', 'Month', 'Storage INR', 'Retrieval INR', 'Total INR', 'Status'], INVOICES.map((invoice) => [invoice.id, invoice.month, invoice.storage, invoice.retrieval, invoice.total, invoice.status]));
+  const exportReport = () => downloadCsv('archive-storage-cost-report.csv', ['Component', 'Cost INR', 'Description'], BREAKDOWN.map((item) => [item.item, item.cost, item.note]));
+  const downloadInvoicePdf = (invoice: (typeof INVOICES)[number]) => {
+    const escape = (text: string) => text.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+    const lines = ['K12 ERP - Archive Storage Invoice', `Invoice: ${invoice.id}`, `Billing month: ${invoice.month}`, `Storage: INR ${invoice.storage.toLocaleString('en-IN')}`, `Retrieval: INR ${invoice.retrieval.toLocaleString('en-IN')}`, `Total: INR ${invoice.total.toLocaleString('en-IN')}`, `Status: ${invoice.status}`, 'Frontend sample invoice - not a provider-issued billing document.'];
+    const content = lines.map((line, index) => `BT /F1 ${index === 0 ? 18 : 12} Tf 50 ${760 - index * 34} Td (${escape(line)}) Tj ET`).join('\n');
+    const objects = [
+      '<< /Type /Catalog /Pages 2 0 R >>',
+      '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+      '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+      '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+      `<< /Length ${new TextEncoder().encode(content).length} >>\nstream\n${content}\nendstream`
+    ];
+    let pdf = '%PDF-1.4\n';
+    const offsets = [0];
+    objects.forEach((object, index) => { offsets.push(new TextEncoder().encode(pdf).length); pdf += `${index + 1} 0 obj\n${object}\nendobj\n`; });
+    const xrefOffset = new TextEncoder().encode(pdf).length;
+    pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets.slice(1).map((offset) => `${String(offset).padStart(10, '0')} 00000 n \n`).join('')}trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+    const url = URL.createObjectURL(new Blob([pdf], { type: 'application/pdf' }));
+    const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${invoice.id}.pdf`; anchor.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
   const totalStorage = BREAKDOWN.reduce((s, b) => s + b.cost, 0);
+  const appliedSavings = RECOMMENDATIONS.filter((item) => appliedRecommendations.has(item.title)).reduce((sum, item) => sum + item.saving, 0);
 
   return (
     <div className="space-y-6 py-6">
@@ -110,44 +140,45 @@ export function StorageCostAnalytics() {
         screen="Storage Cost Analytics"
         actions={
           <>
-            <Button variant="outline" size="sm" className="text-xs" onClick={() => showToast('Cost data refreshed from the provider billing API.')}>
+            <Button variant="outline" size="sm" className="text-xs" onClick={() => { setLastRefresh(new Date().toLocaleString('en-IN')); showToast('Local sample cost data refreshed.'); }}>
               <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> Refresh Costs
             </Button>
-            <Button variant="outline" size="sm" className="text-xs" onClick={() => showToast('Cost report exported (fiscal year to date).')}>
-              <FileDown className="w-3.5 h-3.5 mr-1.5" /> Export Report
+            <Button variant="outline" size="sm" className="text-xs" onClick={exportReport}>
+              <FileDown className="w-3.5 h-3.5 mr-1.5" /> Export Report CSV
             </Button>
           </>
         }
       />
+      <p className="-mt-4 text-[10px] text-gray-500">Frontend cost sample · last refreshed: {lastRefresh} · no billing provider is connected in this preview.</p>
 
       {/* SECTION 1 — KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
-        <KpiCard icon={IndianRupee} label="This Month Storage Cost" value={inr(2450)} sub="Sep 2025" />
-        <KpiCard icon={BarChart3} label="Without Archiving (Estimated)" value={inr(9800)} tone="text-rose-700" sub="Hypothetical" />
+        <KpiCard icon={IndianRupee} label="Projected Monthly Cost" value={inr(Math.max(0, 2450 - appliedSavings))} sub={appliedSavings ? `${inr(appliedSavings)} monthly savings modeled locally` : 'Sep 2025 sample baseline'} />
+        <KpiCard icon={BarChart3} label="Without Archiving (Estimated)" value={inr(9800)} tone="text-rose-700" sub="Hypothetical sample" />
         <KpiCard
           icon={TrendingDown}
-          label="Saving From Archiving"
-          value={inr(7350)}
+          label="Saving From Archiving & Optimizations"
+          value={inr(7350 + appliedSavings)}
           tone="text-emerald-700"
-          sub={<span>75% Saved <Pill tone="green">🟢</Pill></span>}
+          sub={<span>{inr(appliedSavings)} extra modeled monthly savings <Pill tone="green">Local model</Pill></span>}
         />
-        <KpiCard icon={TrendingDown} label="Cost Trend (vs last month)" value="− ₹150" tone="text-emerald-700" sub={`Last month: ${inr(2600)}`} />
-        <KpiCard icon={CalendarDays} label="Annual Projection" value={inr(29400)} sub="₹2,450 × 12" />
+        <KpiCard icon={TrendingDown} label="Cost Trend (vs last month)" value="− ₹150" tone="text-emerald-700" sub={`Last month sample: ${inr(2600)}`} />
+        <KpiCard icon={CalendarDays} label="Annual Projection (Modeled)" value={inr(Math.max(0, 2450 - appliedSavings) * 12)} sub="Projected monthly cost × 12" />
       </div>
 
       {/* SECTION 2 — trend chart */}
       <Panel
         icon={BarChart3}
-        title="Cost Trend — Last 12 Months"
+        title={`Cost Trend — ${range}`}
         subtitle="Primary DB, Archive DB and Cold Storage spend per month"
         actions={
           <>
-            <select className="py-1.5 px-2 border border-gray-300 rounded-md text-xs bg-white">
+            <select value={range} onChange={(event) => setRange(event.target.value)} className="py-1.5 px-2 border border-gray-300 rounded-md text-xs bg-white">
               <option>Last 12 Months</option>
               <option>Last 6 Months</option>
               <option>Fiscal Year To Date</option>
             </select>
-            <Button variant="outline" size="sm" className="text-xs" onClick={() => showToast('Cost trend downloaded as CSV.')}>
+            <Button variant="outline" size="sm" className="text-xs" onClick={exportTrend}>
               <FileDown className="w-3.5 h-3.5 mr-1.5" /> Download CSV
             </Button>
           </>
@@ -155,11 +186,11 @@ export function StorageCostAnalytics() {
       >
         <div className="p-5 space-y-4">
           <TrendChart
-            labels={MONTHS}
+            labels={trendLabels}
             series={[
-              { name: 'Primary DB', color: '#6366f1', values: COST_TREND.map((c) => c.values[0]) },
-              { name: 'Archive DB', color: '#f59e0b', values: COST_TREND.map((c) => c.values[1]), dashed: true },
-              { name: 'Cold Storage', color: '#0ea5e9', values: COST_TREND.map((c) => c.values[2]) }
+              { name: 'Primary DB', color: '#6366f1', values: trendEntries.map((entry) => entry.values[0]) },
+              { name: 'Archive DB', color: '#f59e0b', values: trendEntries.map((entry) => entry.values[1]), dashed: true },
+              { name: 'Cold Storage', color: '#0ea5e9', values: trendEntries.map((entry) => entry.values[2]) }
             ]}
             height={230}
           />
@@ -254,17 +285,17 @@ export function StorageCostAnalytics() {
       <Panel
         icon={Lightbulb}
         title="Cost Optimization Recommendations"
-        subtitle="Potential saving of ₹167 per month (₹2,004 per year) if all four are applied"
+        subtitle="Applying recommendations updates the projected savings in this local model only; it does not change archive jobs or provider settings."
         actions={
           <Button
             size="sm"
             className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white"
             onClick={() => {
-              setApplied(true);
-              showToast('All 4 optimizations queued — estimated saving ₹167/month.');
+              setAppliedRecommendations(new Set(RECOMMENDATIONS.map((item) => item.title)));
+              showToast('All four recommendations applied to the local cost model; no real storage settings were changed.');
             }}
           >
-            ⚡ Apply All Recommendations
+            ⚡ Apply All to Local Model
           </Button>
         }
       >
@@ -274,7 +305,7 @@ export function StorageCostAnalytics() {
               <p className="text-xs font-bold text-gray-900">{r.title}</p>
               <p className="text-[11px] text-gray-600">{r.detail}</p>
               <div className="flex flex-wrap items-center gap-2">
-                <Pill tone={r.tone === 'amber' ? 'amber' : r.tone === 'emerald' ? 'green' : r.tone === 'sky' ? 'sky' : 'rose'}>
+                <Pill tone={r.tone === 'amber' ? 'amber' : r.tone === 'emerald' ? 'green' : r.tone === 'sky' ? 'blue' : 'rose'}>
                   Save {inr(r.saving)} / month
                 </Pill>
                 <Pill tone="gray">{r.effort}</Pill>
@@ -283,11 +314,19 @@ export function StorageCostAnalytics() {
                 <Button
                   size="sm"
                   className="h-7 text-[11px] bg-indigo-600 hover:bg-indigo-700 text-white"
-                  onClick={() => showToast(`Applied: ${r.title}`)}
+                  onClick={() => {
+                    setAppliedRecommendations((current) => {
+                      const next = new Set(current);
+                      if (next.has(r.title)) next.delete(r.title); else next.add(r.title);
+                      return next;
+                    });
+                    showToast(`${appliedRecommendations.has(r.title) ? 'Removed from' : 'Applied to'} the local cost model: ${r.title}`);
+                  }}
                 >
-                  Apply Now
+                  {appliedRecommendations.has(r.title) ? 'Undo' : 'Apply Locally'}
                 </Button>
-                <Button variant="outline" size="sm" className="h-7 text-[11px]" onClick={() => showToast(`Details for "${r.title}" opened.`)}>
+                {appliedRecommendations.has(r.title) && <Pill tone="green">Applied Locally</Pill>}
+                <Button variant="outline" size="sm" className="h-7 text-[11px]" onClick={() => setActiveRecommendation(r)}>
                   Details
                 </Button>
               </div>
@@ -296,9 +335,9 @@ export function StorageCostAnalytics() {
         </div>
         <div className="px-5 py-3 border-t border-gray-100 flex flex-wrap items-center gap-3 text-[11px] text-gray-700">
           <span>
-            Total potential saving: <strong>₹167 / month</strong> · <strong>₹2,004 / year</strong>
+            Potential saving: <strong>₹167 / month</strong> · <strong>₹2,004 / year</strong> · currently modeled: <strong>{inr(appliedSavings)} / month</strong>
           </span>
-          {applied && <Pill tone="green">✅ All recommendations queued</Pill>}
+          {appliedRecommendations.size > 0 && <Pill tone="green">{appliedRecommendations.size} of {RECOMMENDATIONS.length} applied to local model</Pill>}
         </div>
       </Panel>
 
@@ -308,8 +347,8 @@ export function StorageCostAnalytics() {
         title="Monthly Invoice History"
         subtitle="Provider billing statements for the last 6 months"
         actions={
-          <Button variant="outline" size="sm" className="text-xs" onClick={() => showToast('Invoices exported as ZIP.')}>
-            <FileDown className="w-3.5 h-3.5 mr-1.5" /> Export Invoices
+          <Button variant="outline" size="sm" className="text-xs" onClick={exportInvoices}>
+            <FileDown className="w-3.5 h-3.5 mr-1.5" /> Export Invoices CSV
           </Button>
         }
       >
@@ -339,13 +378,13 @@ export function StorageCostAnalytics() {
                   </td>
                   <td className="p-3 text-right">
                     <div className="flex justify-end gap-1.5">
-                      <Button variant="outline" size="sm" className="h-7 text-[10px]" onClick={() => showToast(`${inv.id} opened.`)}>
+                      <Button variant="outline" size="sm" className="h-7 text-[10px]" onClick={() => setInvoiceDetail(inv)}>
                         View
                       </Button>
-                      <Button variant="outline" size="sm" className="h-7 text-[10px]" onClick={() => showToast(`${inv.id} downloaded as PDF.`)}>
+                      <Button variant="outline" size="sm" className="h-7 text-[10px]" onClick={() => downloadInvoicePdf(inv)}>
                         <FileDown className="w-3 h-3 mr-1" /> PDF
                       </Button>
-                      <Button variant="outline" size="sm" className="h-7 text-[10px]" onClick={() => showToast(`${inv.id} sent to printer.`)}>
+                      <Button variant="outline" size="sm" className="h-7 text-[10px]" onClick={() => { setInvoiceDetail(inv); window.setTimeout(() => window.print(), 150); }}>
                         <Printer className="w-3 h-3 mr-1" /> Print
                       </Button>
                     </div>
@@ -356,6 +395,28 @@ export function StorageCostAnalytics() {
           </table>
         </div>
       </Panel>
+
+      {activeRecommendation && (
+        <Modal isOpen onClose={() => setActiveRecommendation(null)} title="Recommendation Details" size="md">
+          <div className="space-y-4 text-xs">
+            <h3 className="font-semibold text-gray-900">{activeRecommendation.title}</h3>
+            <p className="text-gray-600">{activeRecommendation.detail}</p>
+            <div className="grid grid-cols-2 gap-3 rounded-lg bg-gray-50 p-3"><p>Estimated saving / month: <strong>{inr(activeRecommendation.saving)}</strong></p><p>Estimated saving / year: <strong>{inr(activeRecommendation.saving * 12)}</strong></p><p className="col-span-2">Effort: <strong>{activeRecommendation.effort}</strong></p></div>
+            <p className="text-[11px] text-amber-700">Applying this item updates the modeled savings in the page only. It does not modify jobs, storage tiers, or billing settings.</p>
+            <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setActiveRecommendation(null)}>Close</Button><Button onClick={() => { setAppliedRecommendations((current) => new Set(current).add(activeRecommendation.title)); showToast('Recommendation applied to the local cost model.'); setActiveRecommendation(null); }}>Apply Locally</Button></div>
+          </div>
+        </Modal>
+      )}
+      {invoiceDetail && (
+        <Modal isOpen onClose={() => setInvoiceDetail(null)} title={`Invoice — ${invoiceDetail.id}`} size="md">
+          <div className="space-y-4 text-xs">
+            <div className="rounded-lg border border-indigo-100 bg-indigo-50 p-4"><p className="font-bold text-indigo-900">{invoiceDetail.id}</p><p className="mt-1 text-indigo-800">Billing month: {invoiceDetail.month} · Status: {invoiceDetail.status}</p></div>
+            <div className="space-y-2"><div className="flex justify-between border-b py-2"><span>Storage charges</span><strong>{inr(invoiceDetail.storage)}</strong></div><div className="flex justify-between border-b py-2"><span>Retrieval charges</span><strong>{inr(invoiceDetail.retrieval)}</strong></div><div className="flex justify-between py-2 text-sm"><span>Total</span><strong>{inr(invoiceDetail.total)}</strong></div></div>
+            <p className="text-[11px] text-gray-500">Frontend sample invoice; not a provider-issued statement.</p>
+            <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => downloadInvoicePdf(invoiceDetail)}><FileDown className="w-3.5 h-3.5 mr-1.5" />Download PDF</Button><Button onClick={() => setInvoiceDetail(null)}>Close</Button></div>
+          </div>
+        </Modal>
+      )}
 
       {toast && (
         <div className="fixed bottom-5 right-5 z-50 bg-gray-900 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 border border-gray-700">

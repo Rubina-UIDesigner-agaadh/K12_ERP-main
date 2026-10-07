@@ -182,6 +182,10 @@ export const financeRegistry: Record<string, () => any> = {
     () => import('../finance/expenses/ExpenseRequest'),
     'ExpenseRequest'
   ),
+  'expense-budget-master': rp(
+    () => import('../finance/expenses/ExpenseBudgetMaster'),
+    'ExpenseBudgetMaster'
+  ),
   'expense-voucher-entry': rp(
     () => import('../finance/expenses/ExpenseVoucherEntry'),
     'ExpenseVoucherEntry'

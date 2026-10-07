@@ -25,10 +25,6 @@ export const adminRegistry: Record<string, () => any> = {
     () => import('../admin/institute-setup/InstitutePoliciesRuleOverrides'),
     'InstitutePoliciesRuleOverrides'
   ),
-  'expense-setup': rp(
-    () => import('../admin/configuration/ExpenseSetup'),
-    'ExpenseSetup'
-  ),
   'scholarship-setup': rp(
     () => import('../admin/configuration/ScholarshipSetup'),
     'ScholarshipSetup'
@@ -56,10 +52,6 @@ export const adminRegistry: Record<string, () => any> = {
   'scholarship-concession-rules': rp(
     () => import('../admin/configuration/ScholarshipSetup'),
     'ScholarshipSetup'
-  ),
-  'online-payment-convenience-fee': rp(
-    () => import('../admin/configuration/OnlinePaymentConvenienceFee'),
-    'OnlinePaymentConvenienceFee'
   ),
   'discipline-counselling-policy': rp(
     () => import('../admin/configuration/DisciplineCounsellingPolicy'),
@@ -122,19 +114,10 @@ export const adminRegistry: Record<string, () => any> = {
     () => import('../admin/masters/StreamSubjectGroupMaster'),
     'StreamSubjectGroupMaster'
   ),
-  'subject-master': rp(
-    () => import('../admin/masters/SubjectMaster'),
-    'SubjectMaster'
-  ),
   'academic-term-exam-type-master': rp(
     () => import('../admin/masters/AcademicTermExamTypeMaster'),
     'AcademicTermExamTypeMaster'
   ),
-  'co-scholastic-area-skill-master': rp(
-    () => import('../admin/masters/CoScholasticAreaSkillMaster'),
-    'CoScholasticAreaSkillMaster'
-  ),
-
   // Masters - Finance
   'fee-head-master-admin': rp(
     () => import('../admin/masters/FeeHeadMasterAdmin'),
@@ -158,10 +141,6 @@ export const adminRegistry: Record<string, () => any> = {
     () => import('../admin/masters/VendorPayeeMaster'),
     'VendorPayeeMaster'
   ),
-  'expense-budget-master': rp(
-    () => import('../admin/masters/ExpenseBudgetMaster'),
-    'ExpenseBudgetMaster'
-  ),
   'petty-cash-location-master': rp(
     () => import('../admin/masters/PettyCashLocationMaster'),
     'PettyCashLocationMaster'
@@ -172,10 +151,6 @@ export const adminRegistry: Record<string, () => any> = {
   ),
 
   // Masters - Scholarship
-  'scholarship-agency-donor-master': rp(
-    () => import('../admin/masters/ScholarshipAgencyDonorMaster'),
-    'ScholarshipAgencyDonorMaster'
-  ),
   'scholarship-account-mapping': rp(
     () => import('../admin/configuration/ScholarshipSetup'),
     'ScholarshipSetup'

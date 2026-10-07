@@ -420,7 +420,7 @@ const INITIAL_GRN_PENDING_BILLS: GrnPendingBill[] = [
   }
 ];
 
-export function ExpenseVoucherEntry() {
+export function ExpenseVoucherEntry({ embeddedSection }: { embeddedSection?: 'po' | 'grn' } = {}) {
   // --- State ---
   // Header
   const [vendorId, setVendorId] = useState('');
@@ -447,7 +447,8 @@ export function ExpenseVoucherEntry() {
   // UI State
   const [showVendorDetails, setShowVendorDetails] = useState(false);
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
-  const [mainSection, setMainSection] = useState<'voucher' | 'po' | 'grn'>('voucher');
+  const [mainSection, setMainSection] = useState<'voucher' | 'po' | 'grn'>(embeddedSection || 'voucher');
+  const visibleSection = embeddedSection || mainSection;
   const [activeTab, setActiveTab] = useState<'items' | 'attachments' | 'notes'>('items');
 
   // Purchase Order State
@@ -751,96 +752,46 @@ export function ExpenseVoucherEntry() {
   return (
     <div className="bg-gray-50">
       <div className="space-y-6">
-        {/* Header */}
-        
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-gray-200">
-          <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 rounded-lg bg-indigo-600 flex items-center justify-center text-white shadow-sm">
+        {/* The standalone voucher page no longer owns the PO / GRN navigation. */}
+        {!embeddedSection && (
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-gray-200">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-lg bg-indigo-600 flex items-center justify-center text-white shadow-sm">
                 <Receipt className="w-5 h-5" />
               </div>
-            <div>
-                              <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                Expense Voucher Entry
-                <Badge variant="secondary" className="text-xs bg-indigo-50 text-indigo-700 border border-indigo-200">
-                  FY: 2025-26
-                </Badge>
-              </h1>
-              <p className="text-xs text-gray-500">
-                Record vendor invoices and initiate the payment approval workflow
-              </p>
+              <div>
+                <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                  Expense Voucher Entry
+                  <Badge variant="secondary" className="text-xs bg-indigo-50 text-indigo-700 border border-indigo-200">
+                    FY: 2025-26
+                  </Badge>
+                </h1>
+                <p className="text-xs text-gray-500">Record vendor invoices and initiate the payment approval workflow</p>
+              </div>
             </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            {mainSection === 'voucher' && (
+            <div className="flex items-center gap-3">
               <div className="text-right hidden lg:block">
                 <p className="text-xs text-gray-500">Voucher Number (Auto)</p>
                 <p className="font-mono text-sm font-medium text-gray-700">{voucherPreview}</p>
               </div>
-            )}
-            {mainSection === 'voucher' && <div className="h-10 w-px bg-gray-200 hidden lg:block" />}
-            {mainSection === 'voucher' && (
+              <div className="h-10 w-px bg-gray-200 hidden lg:block" />
               <Button variant="outline" onClick={handleClear}>
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Clear
+                <RefreshCw className="w-4 h-4 mr-2" /> Clear
               </Button>
-            )}
-            <Button variant="outline" onClick={handlePrintVoucher}>
-              <Printer className="w-4 h-4 mr-2" />
-              Print
-            </Button>
+              <Button variant="outline" onClick={handlePrintVoucher}>
+                <Printer className="w-4 h-4 mr-2" /> Print
+              </Button>
+            </div>
           </div>
-        </div>
-
-        {/* Module Navigation Tabs */}
-        <div className="flex items-center gap-2 mt-6 pt-4 border-t border-gray-100 overflow-x-auto">
-          <button
-            onClick={() => setMainSection('voucher')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-              mainSection === 'voucher'
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
-          >
-            <Receipt className="w-4 h-4" />
-            <span>Expense Voucher Entry</span>
-          </button>
-          <button
-            onClick={() => setMainSection('po')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-              mainSection === 'po'
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
-          >
-            <ShoppingCart className="w-4 h-4" />
-            <span>Purchase Orders (PO)</span>
-            <span className="px-1.5 py-0.2 bg-blue-100 text-blue-700 rounded-full text-xs font-bold">
-              {purchaseOrders.length}
-            </span>
-          </button>
-          <button
-            onClick={() => setMainSection('grn')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-              mainSection === 'grn'
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
-          >
-            <Package className="w-4 h-4" />
-            <span>Goods Received Note (GRN)</span>
-            <span className="px-1.5 py-0.2 bg-blue-100 text-blue-700 rounded-full text-xs font-bold">
-              {grnList.length}
-            </span>
-          </button>
-        </div>
-      
+        )}
 
         {/* Conditional Sections */}
-        {mainSection === 'po' && (
+        {visibleSection === 'po' && (
           <PurchaseOrderSection
             orders={purchaseOrders}
+            showAddBill={!embeddedSection}
             onViewPo={(po) => setViewPo(po)}
+            onCreatePo={() => setShowPoModal(true)}
             onCreateGrnForPo={(po) => {
               setSelectedPoForGrn(`${po.poNo} — ${po.vendorName}`);
               setShowGrnModal(true);
@@ -854,7 +805,7 @@ export function ExpenseVoucherEntry() {
           />
         )}
 
-        {mainSection === 'grn' && (
+        {visibleSection === 'grn' && (
           <GoodsReceivedNoteSection
             grns={grnList}
             bills={grnBills}
@@ -880,7 +831,7 @@ export function ExpenseVoucherEntry() {
         )}
 
         {/* Main Content Grid (Original Voucher Section) */}
-        {mainSection === 'voucher' && (
+        {visibleSection === 'voucher' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column - Main Form */}
           <div className="lg:col-span-2 space-y-6">
@@ -1558,7 +1509,7 @@ export function ExpenseVoucherEntry() {
         )}
 
         {/* Bill Summary — moved to the bottom of the page, no longer sticky */}
-        {mainSection === 'voucher' && (
+        {visibleSection === 'voucher' && (
           <div className="space-y-6">
               {/* Bill Summary Card */}
               <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -1859,12 +1810,16 @@ export function ExpenseVoucherEntry() {
 
 function PurchaseOrderSection({
   orders,
+  showAddBill = true,
   onViewPo,
+  onCreatePo,
   onCreateGrnForPo,
   onAddBillForPo
 }: {
   orders: PurchaseOrderRecord[];
+  showAddBill?: boolean;
   onViewPo: (po: PurchaseOrderRecord) => void;
+  onCreatePo: () => void;
   onCreateGrnForPo: (po: PurchaseOrderRecord) => void;
   onAddBillForPo: (po: PurchaseOrderRecord) => void;
 }) {
@@ -1880,6 +1835,9 @@ function PurchaseOrderSection({
             Create and track formal Purchase Orders dispatched to approved vendors
           </p>
         </div>
+        <Button variant="primary" onClick={onCreatePo}>
+          <Plus className="w-4 h-4 mr-2" /> Create Purchase Order
+        </Button>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -1955,15 +1913,17 @@ function PurchaseOrderSection({
                         >
                           <Package className="w-3.5 h-3.5 mr-1" /> Create GRN
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => onAddBillForPo(po)}
-                          className="h-7 px-2 text-xs text-emerald-700 border-emerald-200 hover:bg-emerald-50"
-                          title="Record Invoice / Voucher"
-                        >
-                          <Receipt className="w-3.5 h-3.5 mr-1" /> Add Bill
-                        </Button>
+                        {showAddBill && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => onAddBillForPo(po)}
+                            className="h-7 px-2 text-xs text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+                            title="Record Invoice / Voucher"
+                          >
+                            <Receipt className="w-3.5 h-3.5 mr-1" /> Add Bill
+                          </Button>
+                        )}
                       </div>
                     </td>
                   </tr>

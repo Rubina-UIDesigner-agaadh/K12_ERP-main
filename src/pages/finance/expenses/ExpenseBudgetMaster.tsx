@@ -1,183 +1,223 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
-import { Select } from '../../../components/ui/Select';
 import { Input } from '../../../components/ui/Input';
+import { Select } from '../../../components/ui/Select';
+import { Table } from '../../../components/ui/Table';
 import { Badge } from '../../../components/ui/Badge';
-import {
-  Target,
-  Bell,
-  Save,
-  Search,
-  Plus,
-  Info,
-  Layers,
-  TrendingUp,
-  History,
-  AlertTriangle,
-  ChevronRight } from
-'lucide-react';
+import { AlertTriangle, Edit, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react';
+import { EXPENSE_MASTER_UPDATED_EVENT, getExpenseMasterData } from './expenseMasterData';
 
-// Mock Data for Expense Heads
-const INITIAL_BUDGETS = [
-{ id: 1, head: 'Library Books & Journals', category: 'Academic', amount: 150000, threshold: 90 },
-{ id: 2, head: 'Sports Equipment', category: 'Student Life', amount: 80000, threshold: 85 },
-{ id: 3, head: 'Laboratory Chemicals', category: 'Academic', amount: 60000, threshold: 80 },
-{ id: 4, head: 'Staff Training & Dev', category: 'HR', amount: 100000, threshold: 95 },
-{ id: 5, head: 'Campus Maintenance', category: 'Infrastructure', amount: 250000, threshold: 90 },
-{ id: 6, head: 'Marketing & Admission', category: 'Admin', amount: 500000, threshold: 80 }];
+interface BudgetRecord {
+  id: string;
+  year: string;
+  category: string;
+  head: string;
+  allocated: number;
+  used: number;
+  committed: number;
+  status: 'Active' | 'Exceeded';
+}
 
+const INITIAL_BUDGETS: BudgetRecord[] = [
+  { id: 'BDG001', year: '2025-26', category: 'Personnel', head: 'Staff Salary', allocated: 5000000, used: 3200000, committed: 400000, status: 'Active' },
+  { id: 'BDG002', year: '2025-26', category: 'Infrastructure', head: 'Utilities (Electricity, Water)', allocated: 200000, used: 178000, committed: 15000, status: 'Active' },
+  { id: 'BDG003', year: '2025-26', category: 'Infrastructure', head: 'Building Maintenance', allocated: 300000, used: 285000, committed: 20000, status: 'Exceeded' },
+  { id: 'BDG004', year: '2025-26', category: 'Academic', head: 'Stationery & Supplies', allocated: 100000, used: 45000, committed: 10000, status: 'Active' },
+  { id: 'BDG005', year: '2025-26', category: 'Administrative', head: 'Marketing & Advertising', allocated: 150000, used: 30000, committed: 0, status: 'Active' },
+  { id: 'BDG006', year: '2025-26', category: 'IT Equipment', head: 'IT Equipment & Hardware', allocated: 250000, used: 260000, committed: 0, status: 'Exceeded' }
+];
+
+const EMPTY_FORM = { year: '2025-26', category: '', head: '', allocated: '', used: '', committed: '' };
 
 export function ExpenseBudgetMaster() {
-  const [budgets, setBudgets] = useState(INITIAL_BUDGETS);
-  const [selectedFY, setSelectedFY] = useState('2024-2025');
+  const [budgets, setBudgets] = useState<BudgetRecord[]>(INITIAL_BUDGETS);
+  const [masterData, setMasterData] = useState(() => getExpenseMasterData());
+  const [search, setSearch] = useState('');
+  const [yearFilter, setYearFilter] = useState('2025-26');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [showModal, setShowModal] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [form, setForm] = useState(EMPTY_FORM);
 
-  const handleUpdate = (id: number, field: string, value: string | number) => {
-    setBudgets((prev) => prev.map((item) =>
-    item.id === id ? { ...item, [field]: value } : item
-    ));
+  useEffect(() => {
+    const refreshExpenseMaster = () => setMasterData(getExpenseMasterData());
+    window.addEventListener(EXPENSE_MASTER_UPDATED_EVENT, refreshExpenseMaster);
+    return () => window.removeEventListener(EXPENSE_MASTER_UPDATED_EVENT, refreshExpenseMaster);
+  }, []);
+
+  const categories = Array.from(new Set([...masterData.categories, ...budgets.map((budget) => budget.category)])).sort();
+  const heads = masterData.heads.filter((head) => head.isActive);
+  const formHeadOptions = masterData.heads.filter((head) =>
+    (head.isActive || head.name === form.head) && (!form.category || head.category === form.category)
+  );
+  const filtered = useMemo(() => budgets.filter((budget) => {
+    const query = search.trim().toLowerCase();
+    const matchesSearch = !query || budget.head.toLowerCase().includes(query) || budget.category.toLowerCase().includes(query);
+    const matchesYear = yearFilter === 'all' || budget.year === yearFilter;
+    const matchesCategory = categoryFilter === 'all' || budget.category === categoryFilter;
+    return matchesSearch && matchesYear && matchesCategory;
+  }), [budgets, search, yearFilter, categoryFilter]);
+
+  const sum = (field: 'allocated' | 'used' | 'committed') => filtered.reduce((total, budget) => total + budget[field], 0);
+  const totalAllocated = sum('allocated');
+  const totalUsed = sum('used');
+  const totalCommitted = sum('committed');
+  const totalRemaining = totalAllocated - totalUsed - totalCommitted;
+
+  const closeModal = () => {
+    setShowModal(false);
+    setEditId(null);
+    setForm(EMPTY_FORM);
   };
 
-  const totalAllocated = budgets.reduce((sum, b) => sum + (parseFloat(b.amount.toString()) || 0), 0);
+  const openAdd = () => {
+    const initialCategory = categories[0] || '';
+    const firstHead = heads.find((head) => head.category === initialCategory)?.name || '';
+    setEditId(null);
+    setForm({ ...EMPTY_FORM, category: initialCategory, head: firstHead });
+    setShowModal(true);
+  };
+
+  const openEdit = (budget: BudgetRecord) => {
+    setEditId(budget.id);
+    setForm({
+      year: budget.year,
+      category: budget.category,
+      head: budget.head,
+      allocated: String(budget.allocated),
+      used: String(budget.used),
+      committed: String(budget.committed)
+    });
+    setShowModal(true);
+  };
+
+  const handleSave = () => {
+    const allocated = Number(form.allocated);
+    const used = Number(form.used || 0);
+    const committed = Number(form.committed || 0);
+    if (!form.year || !form.category || !form.head || !(allocated > 0)) {
+      alert('Financial year, category, expense head, and a budget amount above zero are required.');
+      return;
+    }
+    if (used < 0 || committed < 0) {
+      alert('Used and committed amounts cannot be negative.');
+      return;
+    }
+    const record: BudgetRecord = {
+      id: editId || `BDG-${Date.now()}`,
+      year: form.year,
+      category: form.category,
+      head: form.head,
+      allocated,
+      used,
+      committed,
+      status: used + committed > allocated ? 'Exceeded' : 'Active'
+    };
+    setBudgets((current) => editId
+      ? current.map((budget) => budget.id === editId ? record : budget)
+      : [record, ...current]);
+    closeModal();
+  };
+
+  const handleDelete = (budget: BudgetRecord) => {
+    if (!confirm(`Delete the budget for “${budget.head}” (${budget.year})?`)) return;
+    setBudgets((current) => current.filter((item) => item.id !== budget.id));
+  };
+
+  const utilization = (budget: BudgetRecord) => budget.allocated > 0 ? Math.round((budget.used + budget.committed) / budget.allocated * 100) : 0;
+  const columns = [
+    { key: 'category', header: 'Expense Category', render: (row: BudgetRecord) => <Badge variant="info">{row.category}</Badge> },
+    { key: 'head', header: 'Expense Head', render: (row: BudgetRecord) => <div><p className="font-medium text-gray-900">{row.head}</p><p className="text-xs text-gray-500">FY {row.year}</p></div> },
+    { key: 'allocated', header: 'Budget Amount', render: (row: BudgetRecord) => <span className="font-semibold">₹{row.allocated.toLocaleString('en-IN')}</span> },
+    { key: 'used', header: 'Amount Used', render: (row: BudgetRecord) => <span className="font-medium text-red-600">₹{row.used.toLocaleString('en-IN')}</span> },
+    { key: 'committed', header: 'Committed', render: (row: BudgetRecord) => <span className="text-amber-700">₹{row.committed.toLocaleString('en-IN')}</span> },
+    {
+      key: 'remaining', header: 'Amount Remaining', render: (row: BudgetRecord) => {
+        const remaining = row.allocated - row.used - row.committed;
+        return <span className={`font-semibold ${remaining < 0 ? 'text-red-600' : 'text-green-700'}`}>{remaining < 0 ? '−' : ''}₹{Math.abs(remaining).toLocaleString('en-IN')}</span>;
+      }
+    },
+    {
+      key: 'utilization', header: 'Utilization', render: (row: BudgetRecord) => {
+        const percent = utilization(row);
+        const color = percent >= 100 ? 'bg-red-500' : percent >= 80 ? 'bg-amber-500' : 'bg-green-500';
+        return <div className="min-w-24"><p className="mb-1 text-xs text-gray-600">{percent}%</p><div className="h-2 rounded-full bg-gray-100"><div className={`h-2 rounded-full ${color}`} style={{ width: `${Math.min(percent, 100)}%` }} /></div></div>;
+      }
+    },
+    { key: 'status', header: 'Status', render: (row: BudgetRecord) => <Badge variant={row.status === 'Exceeded' ? 'danger' : 'success'}>{row.status}</Badge> },
+    {
+      key: 'actions', header: 'Actions', render: (row: BudgetRecord) => <div className="flex gap-1">
+        <Button variant="ghost" size="xs" onClick={() => openEdit(row)} aria-label={`Edit ${row.head} budget`}><Edit className="w-4 h-4" /></Button>
+        <Button variant="ghost" size="xs" onClick={() => handleDelete(row)} aria-label={`Delete ${row.head} budget`}><Trash2 className="w-4 h-4 text-red-500" /></Button>
+      </div>
+    }
+  ];
+
+  const exceededCount = filtered.filter((budget) => budget.used + budget.committed > budget.allocated).length;
 
   return (
-    <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
-      {/* Header & Main Controls */}
+    <div className="space-y-6 p-6 bg-gray-50 min-h-screen">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Target className="w-6 h-6 text-indigo-600" />
-            Budget Allocation Master
-          </h1>
-          <p className="text-gray-500 text-sm">Set spending limits and alert thresholds for the financial year.</p>
+          <h1 className="text-2xl font-bold text-gray-900">Expense Budget & Utilization</h1>
+          <p className="text-sm text-gray-500 mt-1">Set category and expense-head budgets, then review actual use, commitments and remaining funds.</p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex flex-col">
-            <label className="text-[10px] font-bold text-gray-400 uppercase ml-1 mb-1">Financial Year</label>
-            <Select
-              value={selectedFY}
-              options={[{ label: 'FY 2024-2025', value: '2024-2025' }, { label: 'FY 2023-2024', value: '2023-2024' }]}
-              className="w-48 bg-white border-none shadow-sm font-bold text-indigo-600" />
-
-          </div>
-          <Button className="h-11 px-6 bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-100 flex items-center gap-2 mt-4">
-            <Save className="w-4 h-4" /> Save Budget Plan
-          </Button>
-        </div>
+        <Button variant="primary" onClick={openAdd}><Plus className="w-4 h-4 mr-2" />Set Budget</Button>
       </div>
 
-      {/* Summary Stat & Search */}
-      <div className="flex flex-col md:flex-row gap-4">
-        <Card className="flex-1 p-4 border-none shadow-sm bg-gradient-to-r from-indigo-600 to-blue-600 text-white flex items-center justify-between">
-          <div>
-            <p className="text-xs font-bold opacity-80 uppercase tracking-widest">Total Planned Budget ({selectedFY})</p>
-            <h2 className="text-3xl font-black mt-1">₹{totalAllocated.toLocaleString()}</h2>
-          </div>
-          <TrendingUp className="w-12 h-12 opacity-20" />
-        </Card>
-        <Card className="flex-1 p-4 border-none shadow-sm flex items-center gap-4">
-            <div className="relative flex-1">
-                <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
-                <Input placeholder="Search expense heads..." className="pl-9 bg-gray-50 border-none" />
-            </div>
-            <Button variant="outline" className="flex items-center gap-2">
-                <Plus className="w-4 h-4" /> Add Head
-            </Button>
-        </Card>
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+        {[
+          { label: 'Budget Amount', value: `₹${totalAllocated.toLocaleString('en-IN')}`, tone: 'text-blue-700' },
+          { label: 'Amount Used', value: `₹${totalUsed.toLocaleString('en-IN')}`, tone: 'text-red-600' },
+          { label: 'Committed', value: `₹${totalCommitted.toLocaleString('en-IN')}`, tone: 'text-amber-700' },
+          { label: 'Amount Remaining', value: `₹${totalRemaining.toLocaleString('en-IN')}`, tone: totalRemaining < 0 ? 'text-red-600' : 'text-green-700' }
+        ].map((stat) => <Card key={stat.label} className="p-4"><p className={`text-xl font-bold ${stat.tone}`}>{stat.value}</p><p className="text-sm text-gray-500">{stat.label}</p></Card>)}
       </div>
 
-      {/* Editable Budget Grid */}
-      <Card className="border-none shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="bg-gray-50 border-b border-gray-100">
-              <tr>
-                <th className="p-4 text-[10px] font-bold text-gray-500 uppercase">Expense Head & Category</th>
-                <th className="p-4 text-[10px] font-bold text-gray-500 uppercase w-64">Budget Amount (₹)</th>
-                <th className="p-4 text-[10px] font-bold text-gray-500 uppercase w-48">Warning Threshold (%)</th>
-                <th className="p-4 text-[10px] font-bold text-gray-500 uppercase">Alert Triggered At</th>
-                <th className="p-4 w-10"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 bg-white">
-              {budgets.map((row) =>
-              <tr key={row.id} className="hover:bg-indigo-50/30 transition-colors group">
-                  <td className="p-4">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-gray-100 rounded-lg group-hover:bg-white transition-colors">
-                            <Layers className="w-4 h-4 text-gray-400 group-hover:text-indigo-600" />
-                        </div>
-                        <div>
-                            <p className="text-sm font-bold text-gray-900">{row.head}</p>
-                            <p className="text-[10px] text-gray-400 font-bold uppercase">{row.category}</p>
-                        </div>
-                    </div>
-                  </td>
-                  <td className="p-4">
-                    <div className="relative">
-                        <span className="absolute left-3 top-2.5 text-gray-400 text-xs">₹</span>
-                        <input
-                      type="number"
-                      className="w-full pl-7 pr-3 py-2 text-sm font-bold bg-white border border-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
-                      value={row.amount}
-                      onChange={(e) => handleUpdate(row.id, 'amount', e.target.value)} />
+      {exceededCount > 0 && <div className="flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 p-4"><AlertTriangle className="w-5 h-5 text-red-600" /><p className="text-sm text-red-900">{exceededCount} category/head budget{exceededCount === 1 ? '' : 's'} has spending and commitments above its allocation.</p></div>}
 
-                    </div>
-                  </td>
-                  <td className="p-4">
-                    <div className="relative">
-                        <Bell className="absolute left-3 top-2.5 w-3.5 h-3.5 text-amber-500" />
-                        <input
-                      type="number"
-                      max="100"
-                      className="w-full pl-9 pr-3 py-2 text-sm font-bold bg-white border border-gray-100 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none transition-all"
-                      value={row.threshold}
-                      onChange={(e) => handleUpdate(row.id, 'threshold', e.target.value)} />
-
-                        <span className="absolute right-3 top-2 text-[10px] font-bold text-gray-400">%</span>
-                    </div>
-                  </td>
-                  <td className="p-4">
-                    <div className="flex flex-col">
-                        <p className="text-xs font-black text-indigo-700">
-                            ₹{(row.amount * row.threshold / 100).toLocaleString()}
-                        </p>
-                        <p className="text-[9px] text-gray-400 uppercase font-bold tracking-tighter">Automatic System Alert</p>
-                    </div>
-                  </td>
-                  <td className="p-4">
-                    <button className="text-gray-300 hover:text-indigo-600 transition-colors">
-                        <ChevronRight className="w-5 h-5" />
-                    </button>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+      <Card className="p-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <Input placeholder="Search category or expense head..." value={search} onChange={(event) => setSearch(event.target.value)} leftIcon={<Search className="w-4 h-4 text-gray-400" />} />
+          <Select value={yearFilter} onChange={setYearFilter} options={[{ value: 'all', label: 'All Financial Years' }, ...Array.from(new Set(budgets.map((budget) => budget.year))).map((year) => ({ value: year, label: `FY ${year}` }))]} />
+          <Select value={categoryFilter} onChange={setCategoryFilter} options={[{ value: 'all', label: 'All Categories' }, ...categories.map((category) => ({ value: category, label: category }))]} />
+          <Button variant="outline" onClick={() => { setSearch(''); setYearFilter('2025-26'); setCategoryFilter('all'); }}><RefreshCw className="w-4 h-4 mr-2" />Reset Filters</Button>
         </div>
       </Card>
 
-      {/* Logic Documentation Box */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl flex items-start gap-3">
-            <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5" />
-            <div className="space-y-1">
-                <p className="text-xs font-bold text-amber-800 uppercase">Warning Logic</p>
-                <p className="text-xs text-amber-700 leading-relaxed italic">
-                    The system will send a notification to the Principal and Accountant when actual spending reaches the threshold. Example: If budget is ₹1,00,000 and threshold is 90%, alerts trigger at ₹90,000.
-                </p>
-            </div>
-          </div>
-          <div className="p-4 bg-indigo-50 border border-indigo-100 rounded-xl flex items-start gap-3">
-            <History className="w-5 h-5 text-indigo-600 mt-0.5" />
-            <div className="space-y-1">
-                <p className="text-xs font-bold text-indigo-800 uppercase">Audit Lock</p>
-                <p className="text-xs text-indigo-700 leading-relaxed italic">
-                    Once the budget is "Approved", any increases to the amount must be recorded as a "Budget Revision" with a formal justification for audit transparency.
-                </p>
-            </div>
-          </div>
-      </div>
-    </div>);
+      <Card className="p-0 overflow-hidden">
+        <div className="p-4 border-b border-gray-100"><p className="text-sm text-gray-600">Showing {filtered.length} category/head budgets for {yearFilter === 'all' ? 'all financial years' : `FY ${yearFilter}`}</p></div>
+        <Table columns={columns} data={filtered} />
+        {filtered.length === 0 && <div className="p-10 text-center text-gray-500">No budgets match the selected filters.</div>}
+      </Card>
 
+      {showModal && <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-black/50" onClick={closeModal} />
+        <Card className="relative z-10 w-full max-w-xl p-6">
+          <div className="flex items-center justify-between border-b border-gray-100 pb-4">
+            <div><h2 className="text-lg font-semibold">{editId ? 'Edit Expense Budget' : 'Set Expense Budget'}</h2><p className="text-xs text-gray-500 mt-1">Choose a category and expense head, then enter the allocation.</p></div>
+            <Button variant="ghost" size="xs" onClick={closeModal} aria-label="Close budget form"><X className="w-5 h-5" /></Button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-5">
+            <Select label="Financial Year *" value={form.year} onChange={(value) => setForm({ ...form, year: value })} options={['2025-26', '2026-27', '2024-25'].map((year) => ({ value: year, label: `FY ${year}` }))} />
+            <Select label="Expense Category *" value={form.category} onChange={(value) => {
+              const firstHead = heads.find((head) => head.category === value)?.name || '';
+              setForm({ ...form, category: value, head: firstHead });
+            }} options={categories.map((category) => ({ value: category, label: category }))} />
+            <div className="md:col-span-2"><Select label="Expense Head *" value={form.head} onChange={(value) => {
+              const selected = heads.find((head) => head.name === value);
+              setForm({ ...form, head: value, category: selected?.category || form.category });
+            }} options={formHeadOptions.map((head) => ({ value: head.name, label: `${head.code} — ${head.name}${head.isActive ? '' : ' (inactive / existing)'}` }))} /></div>
+            <Input label="Budget Amount (₹) *" type="number" min="0" value={form.allocated} onChange={(event) => setForm({ ...form, allocated: event.target.value })} />
+            <Input label="Amount Used (₹)" type="number" min="0" value={form.used} onChange={(event) => setForm({ ...form, used: event.target.value })} />
+            <Input label="Committed Amount (₹)" type="number" min="0" value={form.committed} onChange={(event) => setForm({ ...form, committed: event.target.value })} />
+          </div>
+          <div className="flex justify-end gap-2 border-t border-gray-100 pt-4"><Button variant="outline" onClick={closeModal}>Cancel</Button><Button variant="primary" onClick={handleSave}>{editId ? 'Update Budget' : 'Save Budget'}</Button></div>
+        </Card>
+      </div>}
+    </div>
+  );
 }
+
+export default ExpenseBudgetMaster;

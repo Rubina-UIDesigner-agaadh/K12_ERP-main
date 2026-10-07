@@ -7,17 +7,16 @@ import { Input } from '../../../components/ui/Input';
 import { Select } from '../../../components/ui/Select';
 import {
   Plus, Edit2, Trash2, X, Save, Search, Filter, Download, Upload,
-  Users, BookOpen, ChevronDown, ChevronRight, Mail, Phone,
-  Calendar, Activity, AlertCircle, CheckCircle, Info, FileText,
-  Building2, GraduationCap, Clock, Target
+  BookOpen, ChevronDown, ChevronRight, Mail, Phone,
+  Calendar, AlertCircle, CheckCircle, Info,
+  Building2, Clock
 } from 'lucide-react';
 
 // ==================== TYPES ====================
 type DepartmentType = 'Academic' | 'Administrative' | 'Support' | 'Co-curricular';
 type SubjectCategory = 'Main / Core' | 'Optional / Elective' | 'Language' | 'Activity / Skill';
-type SubjectGroup = 'Core' | 'Optional' | 'Language' | 'Activity' | 'Not grouped';
 type LeaveApproval = 'HOD' | 'Principal';
-type SetupTab = 'Departments' | 'Subjects' | 'Subject Grouping' | 'Teacher Mapping';
+type SetupTab = 'Departments' | 'Subjects';
 
 interface Subject {
   id: string; name: string; code: string; description: string;
@@ -505,14 +504,6 @@ const initialDepartments: Department[] = [
 const CLASS_OPTIONS = Array.from({ length: 12 }, (_, index) => `Class ${index + 1}`);
 const DEPARTMENT_TYPES: DepartmentType[] = ['Academic', 'Administrative', 'Support', 'Co-curricular'];
 const SUBJECT_CATEGORIES: SubjectCategory[] = ['Main / Core', 'Optional / Elective', 'Language', 'Activity / Skill'];
-const SUBJECT_GROUPS: { value: SubjectGroup; label: string; description: string }[] = [
-  { value: 'Core', label: 'Core / Compulsory', description: 'Required subjects for the selected class.' },
-  { value: 'Optional', label: 'Optional / Elective', description: 'Student-choice subjects and electives.' },
-  { value: 'Language', label: 'Languages', description: 'First, second, and additional languages.' },
-  { value: 'Activity', label: 'Activity / Skill', description: 'Practical, activity, and skill subjects.' },
-  { value: 'Not grouped', label: 'Not yet grouped', description: 'Subjects awaiting a class-group assignment.' }
-];
-const assignmentKey = (className: string, subjectId: string) => `${className}::${subjectId}`;
 const inferSubjectCategory = (subject: Subject): SubjectCategory => {
   const name = subject.name.toLowerCase();
   if (/english|hindi|sanskrit|gujarati|language/.test(name)) return 'Language';
@@ -544,8 +535,6 @@ const toDepartmentSubject = (subject: SubjectRecord): Subject => ({
   type: subject.type, credits: subject.credits, hoursPerWeek: subject.hoursPerWeek,
   isElective: subject.isElective, isActive: subject.isActive
 });
-const getDefaultGroup = (subject: SubjectRecord): SubjectGroup =>
-  subject.category === 'Language' ? 'Language' : subject.category === 'Activity / Skill' ? 'Activity' : subject.category === 'Optional / Elective' ? 'Optional' : 'Core';
 const emptyDepartmentForm = (): DepartmentFormState => ({
   name: '', code: '', description: '', departmentType: 'Academic',
   applicableClasses: ['Class 9', 'Class 10'], establishedDate: new Date().toISOString().slice(0, 10),
@@ -585,32 +574,12 @@ export function DepartmentSubjectGroupingSetup() {
   const [subjectCategoryFilter, setSubjectCategoryFilter] = useState('all');
   const [subjectStatusFilter, setSubjectStatusFilter] = useState('all');
 
-  const [selectedClass, setSelectedClass] = useState('Class 10');
-  const [selectedTeacherClass, setSelectedTeacherClass] = useState('Class 10');
-  const [teacherView, setTeacherView] = useState<'subject' | 'teacher' | 'matrix'>('subject');
-  const [groupingAssignments, setGroupingAssignments] = useState<Record<string, SubjectGroup>>(() => {
-    const seed: [string, SubjectGroup][] = ['Class 9', 'Class 10'].flatMap((className) =>
-      initialSubjectCatalog.slice(0, 12).map((subject): [string, SubjectGroup] => [assignmentKey(className, subject.id), getDefaultGroup(subject)])
-    );
-    return Object.fromEntries(seed);
-  });
-  const [teacherAssignments, setTeacherAssignments] = useState<Record<string, string>>(() => {
-    const entries: [string, string][] = [];
-    ['Class 9', 'Class 10'].forEach((className) => initialSubjectCatalog.forEach((subject) => {
-      const teacher = mockStaff.find((staff) => staff.subjects.includes(subject.code));
-      if (teacher) entries.push([assignmentKey(className, subject.id), teacher.id]);
-    }));
-    return Object.fromEntries(entries);
-  });
-
   const showNotification = useCallback((type: Notification['type'], message: string) => {
     setNotification({ type, message });
     window.setTimeout(() => setNotification(null), 3500);
   }, []);
   const departmentSubjectCount = (id: string) => subjectCatalog.filter((subject) => subject.departmentId === id).length;
   const getDepartmentName = (id: string) => departments.find((department) => department.id === id)?.name || 'Unassigned';
-  const getGroupFor = (subject: SubjectRecord, className = selectedClass): SubjectGroup => groupingAssignments[assignmentKey(className, subject.id)] || 'Not grouped';
-  const getTeacherFor = (subject: SubjectRecord, className = selectedTeacherClass) => teacherAssignments[assignmentKey(className, subject.id)] || '';
 
   const filteredDepartments = useMemo(() => departments.filter((department) => {
     const query = departmentSearch.trim().toLowerCase();
@@ -628,20 +597,13 @@ export function DepartmentSubjectGroupingSetup() {
     const matchesStatus = subjectStatusFilter === 'all' || (subjectStatusFilter === 'active' ? subject.isActive : !subject.isActive);
     return matchesSearch && matchesDepartment && matchesClass && matchesCategory && matchesStatus;
   }), [subjectCatalog, subjectSearch, subjectDepartmentFilter, subjectClassFilter, subjectCategoryFilter, subjectStatusFilter]);
-  const selectedClassSubjects = useMemo(() => subjectCatalog.filter((subject) => subject.isActive && (subject.classLevels.length === 0 || subject.classLevels.includes(selectedClass))), [subjectCatalog, selectedClass]);
-  const selectedTeacherSubjects = useMemo(() => subjectCatalog.filter((subject) => subject.isActive && (subject.classLevels.length === 0 || subject.classLevels.includes(selectedTeacherClass))), [subjectCatalog, selectedTeacherClass]);
 
-  const ungroupedCount = subjectCatalog.filter((subject) => subject.isActive && getGroupFor(subject, selectedClass) === 'Not grouped').length;
-  const compulsoryCount = subjectCatalog.filter((subject) => subject.isCompulsory).length;
-  const optionalCount = subjectCatalog.filter((subject) => subject.isElective).length;
   const latestUpdate = departments.length ? new Date(Math.max(...departments.map((department) => new Date(department.modifiedAt).getTime()))).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
   const classSelectOptions = CLASS_OPTIONS.map((value) => ({ value, label: value }));
   const departmentSelectOptions = [{ value: 'all', label: 'All departments' }, ...departments.map((department) => ({ value: department.id, label: `${department.name} (${department.code})` }))];
   const categorySelectOptions = [{ value: 'all', label: 'All categories' }, ...SUBJECT_CATEGORIES.map((value) => ({ value, label: value }))];
   const statusSelectOptions = [{ value: 'all', label: 'All statuses' }, { value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }];
-  const groupSelectOptions = SUBJECT_GROUPS.map((group) => ({ value: group.value, label: group.label }));
-  const teacherSelectOptions = [{ value: '', label: 'Unassigned' }, ...mockStaff.map((staff) => ({ value: staff.id, label: `${staff.name} · ${staff.designation}` }))];
 
   const updateSubjectCatalog = (next: SubjectRecord[]) => {
     setSubjectCatalog(next);
@@ -753,8 +715,6 @@ export function DepartmentSubjectGroupingSetup() {
     if (!subjectPendingDelete) return;
     const subjectId = subjectPendingDelete.id;
     updateSubjectCatalog(subjectCatalog.filter((subject) => subject.id !== subjectId));
-    setGroupingAssignments((previous) => Object.fromEntries(Object.entries(previous).filter(([key]) => !key.endsWith(`::${subjectId}`))));
-    setTeacherAssignments((previous) => Object.fromEntries(Object.entries(previous).filter(([key]) => !key.endsWith(`::${subjectId}`))));
     setSubjectPendingDelete(null); showNotification('success', 'Subject deleted from the catalogue.');
   };
   const toggleSubjectStatus = (subject: SubjectRecord) => updateSubjectCatalog(subjectCatalog.map((item) => item.id === subject.id ? { ...item, isActive: !item.isActive } : item));
@@ -767,19 +727,8 @@ export function DepartmentSubjectGroupingSetup() {
     }
   };
   const toggleDepartmentStaff = (staffId: string) => setDepartmentForm((previous) => ({ ...previous, staffIds: previous.staffIds.includes(staffId) ? previous.staffIds.filter((value) => value !== staffId) : [...previous.staffIds, staffId] }));
-  const changeGrouping = (subjectId: string, group: SubjectGroup) => setGroupingAssignments((previous) => ({ ...previous, [assignmentKey(selectedClass, subjectId)]: group }));
-  const copyGroupingFromLastYear = () => {
-    const sourceClass = selectedClass === 'Class 10' ? 'Class 9' : 'Class 10';
-    setGroupingAssignments((previous) => {
-      const next = { ...previous };
-      subjectCatalog.forEach((subject) => { next[assignmentKey(selectedClass, subject.id)] = previous[assignmentKey(sourceClass, subject.id)] || getDefaultGroup(subject); });
-      return next;
-    });
-    showNotification('success', `Previous-year grouping copied to ${selectedClass}.`);
-  };
-  const changeTeacherAssignment = (subjectId: string, teacherId: string, className = selectedTeacherClass) => setTeacherAssignments((previous) => ({ ...previous, [assignmentKey(className, subjectId)]: teacherId }));
   const handleExport = () => {
-    const blob = new Blob([JSON.stringify({ departments, subjects: subjectCatalog, groupingAssignments, teacherAssignments }, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify({ departments, subjects: subjectCatalog }, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a'); link.href = url;
     link.download = `department-subject-setup-${new Date().toISOString().slice(0, 10)}.json`;
@@ -796,8 +745,6 @@ export function DepartmentSubjectGroupingSetup() {
         if (!Array.isArray(data.departments) || !Array.isArray(data.subjects)) throw new Error('Invalid setup file');
         setDepartments(data.departments as Department[]);
         setSubjectCatalog(data.subjects as SubjectRecord[]);
-        if (data.groupingAssignments) setGroupingAssignments(data.groupingAssignments as Record<string, SubjectGroup>);
-        if (data.teacherAssignments) setTeacherAssignments(data.teacherAssignments as Record<string, string>);
         showNotification('success', 'Setup imported.');
       } catch {
         showNotification('error', 'Could not import this setup file. Choose a valid exported JSON file.');
@@ -835,19 +782,11 @@ export function DepartmentSubjectGroupingSetup() {
     { key: 'department', header: 'Department', render: (subject: SubjectRecord) => getDepartmentName(subject.departmentId) },
     { key: 'classes', header: 'Applicable Classes', render: (subject: SubjectRecord) => <div className="max-w-[150px] text-xs text-gray-600">{subject.classLevels.length ? subject.classLevels.join(', ') : 'All classes'}</div> },
     { key: 'category', header: 'Category', render: (subject: SubjectRecord) => <Badge variant={subject.category === 'Optional / Elective' ? 'info' : subject.category === 'Activity / Skill' ? 'warning' : 'secondary'}>{subject.category}</Badge> },
-    { key: 'periods', header: 'Periods / Week', render: (subject: SubjectRecord) => <span>{subject.hoursPerWeek}</span> },
-    { key: 'practical', header: 'Practical', render: (subject: SubjectRecord) => subject.hasPractical ? <Badge variant="warning">{subject.practicalType}</Badge> : <span className="text-gray-400">—</span> },
     { key: 'status', header: 'Status', render: (subject: SubjectRecord) => <button onClick={() => toggleSubjectStatus(subject)} title="Toggle subject status"><Badge variant={subject.isActive ? 'success' : 'secondary'}>{subject.isActive ? 'Active' : 'Inactive'}</Badge></button> },
     { key: 'actions', header: 'Actions', render: (subject: SubjectRecord) => <div className="flex items-center gap-1"><Button variant="ghost" size="xs" title="Edit subject" onClick={() => openSubjectForm(subject)}><Edit2 className="h-4 w-4" /></Button><Button variant="ghost" size="xs" title="Delete subject" onClick={() => setSubjectPendingDelete(subject)}><Trash2 className="h-4 w-4 text-red-500" /></Button></div> }
   ];
 
-  const teacherColumns = [
-    { key: 'subject', header: 'Subject', render: (subject: SubjectRecord) => <div><div className="font-medium">{subject.name}</div><div className="text-xs text-gray-500">{subject.code} · {subject.hoursPerWeek} periods / week</div></div> },
-    { key: 'department', header: 'Department', render: (subject: SubjectRecord) => getDepartmentName(subject.departmentId) },
-    { key: 'category', header: 'Grouping', render: (subject: SubjectRecord) => <Badge variant="secondary">{getGroupFor(subject, selectedTeacherClass)}</Badge> },
-    { key: 'teacher', header: 'Mapped Teacher', render: (subject: SubjectRecord) => <Select options={teacherSelectOptions} value={getTeacherFor(subject, selectedTeacherClass)} onChange={(event) => changeTeacherAssignment(subject.id, event.target.value)} className="min-w-[230px]" /> },
-    { key: 'workload', header: 'Workload', render: (subject: SubjectRecord) => { const teacher = mockStaff.find((staff) => staff.id === getTeacherFor(subject, selectedTeacherClass)); return teacher ? <span>{teacher.workload} periods / week</span> : <span className="text-gray-400">—</span>; } }
-  ];
+
 
   return (
     <div className="space-y-6 p-6">
@@ -862,7 +801,7 @@ export function DepartmentSubjectGroupingSetup() {
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-100 text-blue-700"><Building2 className="h-6 w-6" /></div>
-          <div><h1 className="text-2xl font-bold text-gray-900">Department &amp; Subject Grouping Setup</h1><p className="mt-1 text-sm text-gray-500">Organize academic departments, subject structures, class groups, and teacher assignments.</p></div>
+          <div><h1 className="text-2xl font-bold text-gray-900">Department &amp; Subject Setup</h1><p className="mt-1 text-sm text-gray-500">Manage academic departments and subject catalogue details.</p></div>
         </div>
         <div className="flex flex-wrap gap-2"><input id="department-setup-import" type="file" accept=".json,application/json" className="hidden" onChange={handleImport} /><Button variant="outline" onClick={() => document.getElementById('department-setup-import')?.click()}><Upload className="h-4 w-4" />Import Setup</Button><Button variant="outline" onClick={handleExport}><Download className="h-4 w-4" />Export Setup</Button><Button onClick={() => openDepartmentForm()}><Plus className="h-4 w-4" />Add Department</Button></div>
       </header>
@@ -875,19 +814,10 @@ export function DepartmentSubjectGroupingSetup() {
         </div>
       </Card>
 
-      <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900"><Info className="mt-0.5 h-5 w-5 shrink-0" /><p><span className="font-semibold">Setup note:</span> Define departments and subject details first, then group subjects by class and map teachers. A department can only be deleted after its associated subjects have been moved or removed.</p></div>
-
-      <section aria-label="Setup overview" className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-        <Card className="p-4"><div className="flex items-center gap-3"><Building2 className="h-8 w-8 text-blue-600" /><div><div className="text-2xl font-bold">{departments.length}</div><div className="text-xs text-gray-500">Total Departments</div></div></div></Card>
-        <Card className="p-4"><div className="flex items-center gap-3"><Activity className="h-8 w-8 text-emerald-600" /><div><div className="text-2xl font-bold">{departments.filter((department) => department.isActive).length}</div><div className="text-xs text-gray-500">Active Departments</div></div></div></Card>
-        <Card className="p-4"><div className="flex items-center gap-3"><BookOpen className="h-8 w-8 text-indigo-600" /><div><div className="text-2xl font-bold">{subjectCatalog.length}</div><div className="text-xs text-gray-500">Total Subjects</div></div></div></Card>
-        <Card className="p-4"><div className="flex items-center gap-3"><GraduationCap className="h-8 w-8 text-sky-600" /><div><div className="text-2xl font-bold">{compulsoryCount}</div><div className="text-xs text-gray-500">Compulsory Subjects</div></div></div></Card>
-        <Card className="p-4"><div className="flex items-center gap-3"><Users className="h-8 w-8 text-purple-600" /><div><div className="text-2xl font-bold">{optionalCount}</div><div className="text-xs text-gray-500">Optional Subjects</div></div></div></Card>
-        <Card className="p-4"><div className="flex items-center gap-3"><Target className="h-8 w-8 text-amber-600" /><div><div className="text-2xl font-bold">{ungroupedCount}</div><div className="text-xs text-gray-500">Not Yet Grouped</div></div></div></Card>
-      </section>
+      <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900"><Info className="mt-0.5 h-5 w-5 shrink-0" /><p><span className="font-semibold">Setup note:</span> Define departments and subject details first. A department can only be deleted after its associated subjects have been moved or removed.</p></div>
 
       <nav className="flex flex-wrap gap-1 border-b border-gray-200" role="tablist" aria-label="Department and subject setup">
-        {(['Departments', 'Subjects', 'Subject Grouping', 'Teacher Mapping'] as SetupTab[]).map((tab) => <button key={tab} role="tab" aria-selected={activeTab === tab} onClick={() => setActiveTab(tab)} className={`border-b-2 px-4 py-3 text-sm font-medium transition-colors ${activeTab === tab ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}`}>{tab}</button>)}
+        {(['Departments', 'Subjects'] as SetupTab[]).map((tab) => <button key={tab} role="tab" aria-selected={activeTab === tab} onClick={() => setActiveTab(tab)} className={`border-b-2 px-4 py-3 text-sm font-medium transition-colors ${activeTab === tab ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}`}>{tab}</button>)}
       </nav>
 
       {activeTab === 'Departments' && (
@@ -920,58 +850,6 @@ export function DepartmentSubjectGroupingSetup() {
           <div className="mb-3 flex items-center gap-2 text-xs text-gray-500"><Filter className="h-3.5 w-3.5" />{filteredSubjects.length} subjects shown · filter by department, class, category, and status.</div>
           <Table columns={subjectColumns} data={filteredSubjects} emptyMessage="No subjects match the selected filters." />
         </Card>
-      )}
-
-      {activeTab === 'Subject Grouping' && (
-        <div className="space-y-4">
-          <Card>
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div><h2 className="text-lg font-semibold">Class Subject Grouping</h2><p className="text-sm text-gray-500">Assign each active subject to a group for the selected class.</p></div>
-              <div className="flex flex-wrap items-center gap-2"><Select label="Class" options={classSelectOptions} value={selectedClass} onChange={(event) => setSelectedClass(event.target.value)} className="w-36" /><Button variant="outline" onClick={copyGroupingFromLastYear}><Calendar className="h-4 w-4" />Copy from Last Year</Button></div>
-            </div>
-          </Card>
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-            {SUBJECT_GROUPS.map((group) => {
-              const groupSubjects = selectedClassSubjects.filter((subject) => getGroupFor(subject) === group.value);
-              return <Card key={group.value}>
-                <div className="mb-3 flex items-start justify-between gap-3"><div><h3 className="font-semibold text-gray-900">{group.label}</h3><p className="mt-1 text-xs text-gray-500">{group.description}</p></div><Badge variant={group.value === 'Not grouped' ? 'warning' : 'info'}>{groupSubjects.length}</Badge></div>
-                <div className="space-y-2">
-                  {!groupSubjects.length && <div className="rounded-lg border border-dashed p-4 text-center text-sm text-gray-400">No subjects in this group.</div>}
-                  {groupSubjects.map((subject) => <div key={subject.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-100 bg-gray-50 p-3"><div className="min-w-[150px] flex-1"><div className="font-medium text-gray-900">{subject.name}</div><div className="text-xs text-gray-500">{subject.code} · {subject.hoursPerWeek} periods / week</div></div><Select options={groupSelectOptions} value={getGroupFor(subject)} onChange={(event) => changeGrouping(subject.id, event.target.value as SubjectGroup)} className="w-48" /></div>)}
-                </div>
-              </Card>;
-            })}
-          </div>
-          <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><Info className="mt-0.5 h-4 w-4 shrink-0" /><span>Grouping is saved per class. Newly added subjects begin as “Not yet grouped” until assigned.</span></div>
-        </div>
-      )}
-
-      {activeTab === 'Teacher Mapping' && (
-        <div className="space-y-4">
-          <Card>
-            <div className="flex flex-wrap items-end justify-between gap-4">
-              <div><h2 className="text-lg font-semibold">Teacher Mapping</h2><p className="text-sm text-gray-500">Assign qualified teachers to subjects and classes.</p></div>
-              <div className="flex flex-wrap items-end gap-3">
-                <Select label="Class" options={classSelectOptions} value={selectedTeacherClass} onChange={(event) => setSelectedTeacherClass(event.target.value)} className="w-36" />
-                <div className="flex rounded-lg border bg-gray-50 p-1">
-                  {([['subject', 'By Subject'], ['teacher', 'By Teacher'], ['matrix', 'Matrix']] as const).map(([value, label]) => <button key={value} onClick={() => setTeacherView(value)} className={`rounded-md px-3 py-1.5 text-sm ${teacherView === value ? 'bg-white font-medium text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}>{label}</button>)}
-                </div>
-              </div>
-            </div>
-          </Card>
-
-          {teacherView === 'subject' && <Card title={`Subject Assignments · ${selectedTeacherClass}`}><div className="mb-3 flex items-center gap-2 text-xs text-gray-500"><Users className="h-4 w-4" />Choose a teacher for each subject. Leaving a subject unassigned is allowed until mapping is complete.</div><Table columns={teacherColumns} data={selectedTeacherSubjects} emptyMessage="No active subjects are assigned to this class." /></Card>}
-
-          {teacherView === 'teacher' && <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">{mockStaff.map((staff) => {
-            const assigned = selectedTeacherSubjects.filter((subject) => getTeacherFor(subject, selectedTeacherClass) === staff.id);
-            return <Card key={staff.id}><div className="flex items-start justify-between gap-3"><div><h3 className="font-semibold">{staff.name}</h3><p className="text-sm text-gray-500">{staff.designation} · {staff.qualification}</p><p className="mt-1 flex items-center gap-1 text-xs text-gray-500"><Mail className="h-3 w-3" />{staff.email}</p></div><Badge variant="info">{assigned.length} mapped</Badge></div><div className="mt-4 flex flex-wrap gap-2">{assigned.length ? assigned.map((subject) => <Badge key={subject.id} variant="secondary">{subject.shortName}</Badge>) : <span className="text-sm text-gray-400">No subjects mapped for {selectedTeacherClass}.</span>}</div><div className="mt-3 flex items-center gap-2 text-xs text-gray-500"><Clock className="h-3.5 w-3.5" />Current workload: {staff.workload} periods / week</div></Card>;
-          })}</div>}
-
-          {teacherView === 'matrix' && <Card title={`Teacher / Subject Matrix · ${selectedTeacherClass}`}><div className="mb-3 text-xs text-gray-500">Select one teacher per subject. Scroll horizontally to view all staff columns.</div><div className="overflow-x-auto rounded-lg border"><table className="min-w-full border-collapse text-sm"><thead className="bg-gray-50"><tr><th className="sticky left-0 min-w-[180px] border-b px-3 py-2 text-left">Subject</th>{mockStaff.map((staff) => <th key={staff.id} className="min-w-[130px] border-b px-3 py-2 text-center font-medium">{staff.name}</th>)}<th className="min-w-[100px] border-b px-3 py-2 text-center">Unassigned</th></tr></thead><tbody>{selectedTeacherSubjects.map((subject) => {
-            const assignedId = getTeacherFor(subject, selectedTeacherClass);
-            return <tr key={subject.id} className="border-b last:border-0"><td className="sticky left-0 bg-white px-3 py-2"><div className="font-medium">{subject.name}</div><div className="text-xs text-gray-500">{subject.code}</div></td>{mockStaff.map((staff) => <td key={staff.id} className="px-3 py-2 text-center"><input aria-label={`${subject.name} assigned to ${staff.name}`} type="radio" name={`matrix-${subject.id}`} checked={assignedId === staff.id} onChange={() => changeTeacherAssignment(subject.id, staff.id)} /></td>)}<td className="px-3 py-2 text-center"><input aria-label={`${subject.name} unassigned`} type="radio" name={`matrix-${subject.id}`} checked={!assignedId} onChange={() => changeTeacherAssignment(subject.id, '')} /></td></tr>;
-          })}</tbody></table></div></Card>}
-        </div>
       )}
 
             {showDepartmentModal && (
@@ -1031,7 +909,7 @@ export function DepartmentSubjectGroupingSetup() {
       {showSubjectModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-xl bg-white shadow-xl">
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-6 py-4"><div><h2 className="text-xl font-bold">{editingSubjectId ? 'Edit Subject' : 'Add Subject'}</h2><p className="text-sm text-gray-500">Set subject identity, class applicability, category, periods, and practical details.</p></div><button onClick={() => setShowSubjectModal(false)} aria-label="Close"><X className="h-5 w-5" /></button></div>
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-6 py-4"><div><h2 className="text-xl font-bold">{editingSubjectId ? 'Edit Subject' : 'Add Subject'}</h2><p className="text-sm text-gray-500">Set subject identity, class applicability, and category.</p></div><button onClick={() => setShowSubjectModal(false)} aria-label="Close"><X className="h-5 w-5" /></button></div>
             <div className="grid grid-cols-1 gap-4 p-6 xl:grid-cols-2">
               <Card title="1. Subject Details">
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -1051,21 +929,9 @@ export function DepartmentSubjectGroupingSetup() {
                 <label className="mt-4 flex items-center gap-2 text-sm"><input type="checkbox" checked={subjectForm.isActive} onChange={(event) => setSubjectForm((previous) => ({ ...previous, isActive: event.target.checked }))} />Subject is active</label>
               </Card>
 
-              <Card title="3. Periods & Practical Work">
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <Select label="Delivery Type" options={[{ value: 'theory', label: 'Theory' }, { value: 'practical', label: 'Practical' }, { value: 'both', label: 'Theory + Practical' }]} value={subjectForm.type} onChange={(event) => setSubjectForm((previous) => ({ ...previous, type: event.target.value as Subject['type'], hasPractical: event.target.value !== 'theory', practicalType: event.target.value === 'theory' ? 'Not applicable' : previous.practicalType === 'Not applicable' ? 'Practical' : previous.practicalType }))} />
-                  <Input label="Credits" type="number" min="0" value={subjectForm.credits} onChange={(event) => setSubjectForm((previous) => ({ ...previous, credits: event.target.value }))} />
-                  <Input label="Total Periods / Week" type="number" min="0" value={subjectForm.hoursPerWeek} onChange={(event) => setSubjectForm((previous) => ({ ...previous, hoursPerWeek: event.target.value }))} />
-                  <Input label="Theory Periods / Week" type="number" min="0" value={subjectForm.theoryPeriods} onChange={(event) => setSubjectForm((previous) => ({ ...previous, theoryPeriods: event.target.value }))} />
-                  <label className="flex items-center gap-2 text-sm md:col-span-2"><input type="checkbox" checked={subjectForm.hasPractical} onChange={(event) => setSubjectForm((previous) => ({ ...previous, hasPractical: event.target.checked }))} />Includes practical / activity work</label>
-                  {subjectForm.hasPractical && <><Input label="Practical Periods / Week" type="number" min="0" value={subjectForm.practicalPeriods} onChange={(event) => setSubjectForm((previous) => ({ ...previous, practicalPeriods: event.target.value }))} /><Select label="Practical Type" options={[{ value: 'Lab', label: 'Lab' }, { value: 'Practical', label: 'Practical' }, { value: 'Activity', label: 'Activity' }, { value: 'Lab + Practical', label: 'Lab + Practical' }]} value={subjectForm.practicalType === 'Not applicable' ? 'Practical' : subjectForm.practicalType} onChange={(event) => setSubjectForm((previous) => ({ ...previous, practicalType: event.target.value }))} /></>}
-                </div>
-              </Card>
 
-              <Card title="4. Language Position & Classification">
-                {subjectForm.category === 'Language' ? <Select label="Language Position" options={[{ value: 'First Language', label: 'First Language' }, { value: 'Second Language', label: 'Second Language' }, { value: 'Third Language', label: 'Third Language' }, { value: 'Additional Language', label: 'Additional Language' }]} value={subjectForm.languagePosition} onChange={(event) => setSubjectForm((previous) => ({ ...previous, languagePosition: event.target.value }))} /> : <div className="rounded-lg bg-gray-50 p-3 text-sm text-gray-600">Choose “Language” as the subject category to set a language position.</div>}
-                <div className="mt-3 rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900"><FileText className="mr-2 inline h-4 w-4" />Category controls the default compulsory / optional grouping; class grouping can be adjusted separately.</div>
-              </Card>
+
+
             </div>
             <div className="sticky bottom-0 flex justify-end gap-2 border-t bg-white px-6 py-4"><Button variant="outline" onClick={() => setShowSubjectModal(false)}>Cancel</Button><Button onClick={saveSubject}><Save className="h-4 w-4" />Save Subject</Button></div>
           </div>
@@ -1086,7 +952,7 @@ export function DepartmentSubjectGroupingSetup() {
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
             <div className="flex items-center gap-3"><div className="rounded-full bg-red-100 p-2 text-red-700"><AlertCircle className="h-5 w-5" /></div><div><h3 className="font-semibold">Delete subject?</h3><p className="text-sm text-gray-500">{subjectPendingDelete.name} ({subjectPendingDelete.code})</p></div></div>
-            <p className="mt-4 text-sm text-gray-600">The subject will be removed from its department, class grouping, and teacher mapping.</p>
+            <p className="mt-4 text-sm text-gray-600">The subject will be removed from the catalogue and its department.</p>
             <div className="mt-6 flex justify-end gap-2"><Button variant="outline" onClick={() => setSubjectPendingDelete(null)}>Cancel</Button><Button variant="danger" onClick={confirmDeleteSubject}>Delete Subject</Button></div>
           </div>
         </div>

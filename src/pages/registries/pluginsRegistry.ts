@@ -242,6 +242,11 @@ export const pluginsRegistry: Record<string, () => any> = {
     'PaymentGatewayMaster'
   ),
 
+  'online-payment-convenience-fee': rp(
+    () => import('../admin/configuration/OnlinePaymentConvenienceFee'),
+    'OnlinePaymentConvenienceFee'
+  ),
+
   'online-payment-setup': rp(
     () => import('../plugins/payment-gateway/OnlinePaymentSetup'),
     'OnlinePaymentSetup'
