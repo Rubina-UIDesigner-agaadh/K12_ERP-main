@@ -76,7 +76,8 @@ interface Rule {
 
 interface RuleGroup {
   id: string;
-  mode: 'AND' | 'OR';
+  /** Conditions inside every logical block are always ANDed. Blocks themselves are ORed. */
+  mode: 'AND';
   rules: Rule[];
 }
 
@@ -132,6 +133,8 @@ const getDefaultSourceForEntity = (entity: string): string =>
 
 /* ----------------------------- Rule Builder ------------------------------ */
 
+type RuleFieldType = 'identifier' | 'text' | 'number' | 'date' | 'boolean';
+
 const ENTITY_FIELDS: Record<string, string[]> = {
   Branch: ['branch_id', 'branch_name', 'branch_code'],
   Class: ['class_id', 'class_name', 'class_level'],
@@ -139,61 +142,71 @@ const ENTITY_FIELDS: Record<string, string[]> = {
   Section: ['section_id', 'section_name'],
   Subject: ['subject_id', 'subject_name', 'subject_code'],
   Department: ['dept_id', 'dept_name', 'dept_code'],
-  Student: ['student_id', 'admission_no', 'student_name'],
-  Teacher: ['teacher_id', 'employee_code', 'teacher_name'],
-  'Academic Year': ['academic_year_id', 'year_label', 'is_current']
+  Student: ['student_id', 'admission_no', 'student_name', 'attendance_percentage', 'admission_date'],
+  Teacher: ['teacher_id', 'employee_code', 'teacher_name', 'joining_date'],
+  'Academic Year': ['academic_year_id', 'year_label', 'is_current', 'start_date', 'end_date'],
+  Semester: ['semester_id', 'semester_name', 'is_active', 'start_date', 'end_date'],
+  'Created By (Own Records)': ['created_by_user_id']
 };
 
 const RULE_ENTITIES = Object.keys(ENTITY_FIELDS);
 
-const RULE_OPERATORS = [
-  'Equals',
-  'Not Equals',
-  'IN',
-  'NOT IN',
-  'Like',
-  'Between',
-  'Is Null',
-  'Is Not Null'
-];
+const ENTITY_FIELD_TYPES: Record<string, Record<string, RuleFieldType>> = {
+  Branch: { branch_id: 'identifier', branch_name: 'text', branch_code: 'text' },
+  Class: { class_id: 'identifier', class_name: 'text', class_level: 'text' },
+  Division: { division_id: 'identifier', division_name: 'text' },
+  Section: { section_id: 'identifier', section_name: 'text' },
+  Subject: { subject_id: 'identifier', subject_name: 'text', subject_code: 'text' },
+  Department: { dept_id: 'identifier', dept_name: 'text', dept_code: 'text' },
+  Student: { student_id: 'identifier', admission_no: 'text', student_name: 'text', attendance_percentage: 'number', admission_date: 'date' },
+  Teacher: { teacher_id: 'identifier', employee_code: 'text', teacher_name: 'text', joining_date: 'date' },
+  'Academic Year': { academic_year_id: 'identifier', year_label: 'text', is_current: 'boolean', start_date: 'date', end_date: 'date' },
+  Semester: { semester_id: 'identifier', semester_name: 'text', is_active: 'boolean', start_date: 'date', end_date: 'date' },
+  'Created By (Own Records)': { created_by_user_id: 'identifier' }
+};
 
-const RULE_VALUE_SOURCES = [
-  "User's Assigned Branch",
-  "User's Assigned Classes",
-  "User's Assigned Subjects",
-  "User's Assigned Division",
-  "User's Assigned Section",
-  "User's Assigned Department",
-  'Static Value',
-  'Current Academic Year',
-  'Logged-in User ID',
-  "User's Branch",
-  "User's Department"
-];
+const OPERATORS_BY_FIELD_TYPE: Record<RuleFieldType, string[]> = {
+  identifier: ['Equals', 'Not Equals', 'IN', 'NOT IN', 'Is Null', 'Is Not Null'],
+  text: ['Equals', 'Not Equals', 'IN', 'NOT IN', 'Like', 'Is Null', 'Is Not Null'],
+  number: ['Equals', 'Not Equals', 'Between', 'Is Null', 'Is Not Null'],
+  date: ['Equals', 'Not Equals', 'Between', 'Is Null', 'Is Not Null'],
+  boolean: ['Equals', 'Not Equals']
+};
 
-// Maps a filter entity name → its best matching Rule Value Source
+const getRuleFieldType = (entity: string, field: string): RuleFieldType =>
+  ENTITY_FIELD_TYPES[entity]?.[field] || 'text';
+
+const getRuleOperators = (entity: string, field: string): string[] =>
+  OPERATORS_BY_FIELD_TYPE[getRuleFieldType(entity, field)];
+
+const hasAssignedContext = (entity: string) =>
+  ['Branch', 'Class', 'Division', 'Section', 'Subject', 'Department', 'Student', 'Teacher', 'Academic Year', 'Semester'].includes(entity);
+
+const getRuleValueSources = (entity: string, field: string, operator: string): string[] => {
+  if (!operator || operator === 'Is Null' || operator === 'Is Not Null') return [];
+  if (entity === 'Created By (Own Records)' || field === 'created_by_user_id') return ['Logged-in User ID'];
+  if (operator === 'Between') return ['Static Value'];
+  return hasAssignedContext(entity) ? ["User's Assigned Context", 'Static Value'] : ['Static Value'];
+};
+
+// Dynamic context is resolved for the logged-in user against the active term's master schedule.
 const ENTITY_TO_VALUE_SOURCE: Record<string, string> = {
-  'Branch': "User's Assigned Branch",
-  'Class': "User's Assigned Classes",
-  'Subject': "User's Assigned Subjects",
-  'Division': "User's Assigned Division",
-  'Section': "User's Assigned Section",
-  'Department': "User's Assigned Department",
-  'Academic Year': 'Current Academic Year',
+  Branch: "User's Assigned Context",
+  Class: "User's Assigned Context",
+  Subject: "User's Assigned Context",
+  Division: "User's Assigned Context",
+  Section: "User's Assigned Context",
+  Department: "User's Assigned Context",
+  Student: "User's Assigned Context",
+  Teacher: "User's Assigned Context",
+  'Academic Year': "User's Assigned Context",
+  Semester: "User's Assigned Context",
   'Created By (Own Records)': 'Logged-in User ID'
 };
 
 const SQL_VALUE_SOURCE: Record<string, string> = {
-  "User's Assigned Branch": ':user_branch',
-  "User's Assigned Classes": ':user_classes',
-  "User's Assigned Subjects": ':user_subjects',
-  "User's Assigned Division": ':user_divisions',
-  "User's Assigned Section": ':user_sections',
-  "User's Assigned Department": ':user_dept',
-  'Current Academic Year': ':current_academic_year',
-  'Logged-in User ID': ':logged_in_user_id',
-  "User's Branch": ':user_branch',
-  "User's Department": ':user_dept'
+  "User's Assigned Context": ':user_assigned_context',
+  'Logged-in User ID': ':logged_in_user_id'
 };
 
 const SQL_OPERATOR: Record<string, string> = {
@@ -226,11 +239,11 @@ const INITIAL_SCOPES: DataScopeRecord[] = [
     code: 'all_data',
     type: 'System',
     description:
-      'Full institutional data visibility. Reserved for management, trustees and the super administrator login.',
+      'Unfiltered institutional data visibility that bypasses scope evaluation. Reserved for the Super Admin role only.',
     rulesCount: 0,
-    usedByRoles: ['Super Admin', 'Management', 'Trustee'],
+    usedByRoles: ['Super Admin'],
     status: 'Active',
-    applicableFor: ['Custom'],
+    applicableFor: ['Super Admin'],
     logic: 'AND',
     filters: buildFilters([], (e) => `User's Assigned ${e}`)
   },
@@ -442,32 +455,44 @@ const statusBadge: Record<ScopeStatus, 'success' | 'warning' | 'default'> = {
   Inactive: 'default'
 };
 
+const isUnaryOperator = (operator: string) => operator === 'Is Null' || operator === 'Is Not Null';
+
+const isRuleComplete = (rule: Rule) => {
+  if (!rule.entity || !rule.field || !rule.operator) return false;
+  if (isUnaryOperator(rule.operator)) return true;
+  if (!rule.valueSource) return false;
+  return rule.valueSource !== 'Static Value' || Boolean(rule.staticValue.trim());
+};
+
 const sqlValueFor = (rule: Rule) => {
-  if (rule.valueSource === 'Static Value') return `'${rule.staticValue || 'value'}'`;
-  return SQL_VALUE_SOURCE[rule.valueSource] || ':value';
+  if (rule.valueSource !== 'Static Value') return SQL_VALUE_SOURCE[rule.valueSource] || ':user_assigned_context';
+  const values = rule.staticValue.split(',').map((value) => value.trim()).filter(Boolean);
+  const quote = (value: string) => `'${value.replace(/'/g, "''")}'`;
+  if (rule.operator === 'Between' && values.length >= 2) return `${quote(values[0])} AND ${quote(values[1])}`;
+  if ((rule.operator === 'IN' || rule.operator === 'NOT IN') && values.length > 1) return `(${values.map(quote).join(', ')})`;
+  return quote(values[0] || 'value');
 };
 
 const sqlForRule = (rule: Rule) => {
   const op = SQL_OPERATOR[rule.operator] || '=';
-  if (rule.operator === 'Is Null' || rule.operator === 'Is Not Null') {
-    return `${rule.field} ${op}`;
-  }
+  if (isUnaryOperator(rule.operator)) return `${rule.field} ${op}`;
   return `${rule.field} ${op} ${sqlValueFor(rule)}`;
 };
 
 const buildSql = (groups: RuleGroup[]) =>
   groups
-    .filter((g) => g.rules.length > 0)
-    .map((g) => `(${g.rules.map(sqlForRule).join(` ${g.mode} `)})`)
+    .map((group) => group.rules.filter(isRuleComplete))
+    .filter((rules) => rules.length > 0)
+    .map((rules) => `(${rules.map(sqlForRule).join(' AND ')})`)
     .join('\n   OR ');
 
 const newRule = (index: number): Rule => ({
   id: `rule-${Date.now()}-${index}`,
-  entity: 'Class',
-  field: 'class_id',
-  operator: 'IN',
-  valueSource: "User's Assigned Classes",
-  staticValue: 'Class 8'
+  entity: '',
+  field: '',
+  operator: '',
+  valueSource: '',
+  staticValue: ''
 });
 
 /* ==========================================================================
@@ -643,7 +668,10 @@ function DataScopeList({
                     {(currentPage - 1) * PER_PAGE + index + 1}
                   </td>
                   <td className="p-3">
-                    <div className="font-semibold text-gray-900">{s.name}</div>
+                    <div className="flex flex-wrap items-center gap-1.5 font-semibold text-gray-900">
+                      {s.name}
+                      {s.code === 'all_data' && <Badge variant="warning" className="text-[9px]">Super Admin bypass</Badge>}
+                    </div>
                     <div className="text-[10px] text-gray-500 font-mono">{s.code}</div>
                   </td>
                   <td className="p-3">
@@ -680,8 +708,9 @@ function DataScopeList({
                       </button>
                       <button
                         onClick={() => onEdit(s)}
-                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
-                        title="Edit"
+                        disabled={s.code === 'all_data'}
+                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded disabled:cursor-not-allowed disabled:text-gray-300 disabled:hover:bg-transparent"
+                        title={s.code === 'all_data' ? 'All Data is a protected Super Admin escape hatch' : 'Edit'}
                       >
                         <Pencil className="w-4 h-4" />
                       </button>
@@ -1124,7 +1153,7 @@ function DataScopeEditor({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {([
               { value: 'Simple' as const, title: 'Simple logic', hint: 'Combine enabled filters with one AND or OR rule.' },
-              { value: 'Advanced' as const, title: 'Advanced logic', hint: 'Build multiple rule groups with their own conditions.' }
+              { value: 'Advanced' as const, title: 'Advanced logic', hint: 'Build Blocks: AND within a Block, OR between Blocks.' }
             ]).map((option) => (
               <button
                 key={option.value}
@@ -1205,40 +1234,29 @@ function DataScopeEditor({
    ========================================================================== */
 
 const initializeRulesFromFilters = (scope: DataScopeRecord): RuleGroup[] => {
-  const enabledFilters = scope.filters.filter((f) => f.enabled);
+  if (scope.code === 'all_data') return [];
+  const enabledFilters = scope.filters.filter((filter) => filter.enabled);
+  const filtersToBuild = enabledFilters.length ? enabledFilters : [{ entity: 'Class', source: "User's Assigned Context" } as FilterConfig];
+  const makeRule = (filter: FilterConfig, index: number): Rule => {
+    const entity = filter.entity;
+    const field = ENTITY_FIELDS[entity]?.[0] || 'id';
+    const operators = getRuleOperators(entity, field);
+    const operator = entity === 'Created By (Own Records)' ? 'Equals' : operators.includes('IN') ? 'IN' : operators[0] || 'Equals';
+    const valueSource = filter.source === 'Static Value'
+      ? 'Static Value'
+      : ENTITY_TO_VALUE_SOURCE[entity] || "User's Assigned Context";
+    return { id: `r${index + 1}`, entity, field, operator, valueSource, staticValue: '' };
+  };
 
-  if (enabledFilters.length === 0) {
-    return [{
-      id: 'g1',
-      mode: 'AND',
-      rules: [{
-        id: 'r1',
-        entity: 'Class',
-        field: 'class_id',
-        operator: 'IN',
-        valueSource: "User's Assigned Classes",
-        staticValue: ''
-      }]
-    }];
+  if (scope.logic === 'OR' && enabledFilters.length > 1) {
+    return enabledFilters.map((filter, index) => ({
+      id: `g${index + 1}`,
+      mode: 'AND' as const,
+      rules: [makeRule(filter, index)]
+    }));
   }
 
-  return [{
-    id: 'g1',
-    mode: scope.logic,
-    rules: enabledFilters.map((filter, i) => {
-      const entity = filter.entity === 'Created By (Own Records)' ? 'Teacher' : filter.entity;
-      const fields = ENTITY_FIELDS[entity] || ['id'];
-      const valueSource = ENTITY_TO_VALUE_SOURCE[filter.entity] ?? filter.source ?? "User's Assigned Branch";
-      return {
-        id: `r${i + 1}`,
-        entity,
-        field: fields[0] || 'id',
-        operator: 'IN',
-        valueSource,
-        staticValue: ''
-      };
-    })
-  }];
+  return [{ id: 'g1', mode: 'AND' as const, rules: filtersToBuild.map(makeRule) }];
 };
 
 function RuleBuilder({
@@ -1254,393 +1272,142 @@ function RuleBuilder({
   onSave: (groups: RuleGroup[]) => void;
   savedRules?: RuleGroup[];
 }) {
+  const isAllDataBypass = scope.code === 'all_data';
   const [groups, setGroups] = useState<RuleGroup[]>(() =>
-    savedRules && savedRules.length > 0
-      ? savedRules
-      : initializeRulesFromFilters(scope)
+    isAllDataBypass ? [] : savedRules && savedRules.length > 0 ? savedRules.map((group) => ({ ...group, mode: 'AND' as const, rules: [...group.rules] })) : initializeRulesFromFilters(scope)
   );
   const [showSql, setShowSql] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const updateRule = (groupId: string, ruleId: string, patch: Partial<Rule>) =>
-    setGroups((prev) =>
-      prev.map((g) =>
-        g.id === groupId
-          ? {
-              ...g,
-              rules: g.rules.map((r) => {
-                if (r.id !== ruleId) return r;
-                const next = { ...r, ...patch };
-                // entity change re-populates the field list + keeps a valid field
-                if (patch.entity) {
-                  const fields = ENTITY_FIELDS[patch.entity] || [];
-                  next.field = fields[0] || 'id';
-                }
-                return next;
-              })
-            }
-          : g
-      )
-    );
+    setGroups((previous) => previous.map((group) => {
+      if (group.id !== groupId) return group;
+      return {
+        ...group,
+        rules: group.rules.map((rule) => {
+          if (rule.id !== ruleId) return rule;
+          if (Object.prototype.hasOwnProperty.call(patch, 'entity')) return { ...rule, ...patch, field: '', operator: '', valueSource: '', staticValue: '' };
+          if (Object.prototype.hasOwnProperty.call(patch, 'field')) return { ...rule, ...patch, operator: '', valueSource: '', staticValue: '' };
+          if (Object.prototype.hasOwnProperty.call(patch, 'operator')) return { ...rule, ...patch, valueSource: '', staticValue: '' };
+          if (Object.prototype.hasOwnProperty.call(patch, 'valueSource')) return { ...rule, ...patch, staticValue: patch.valueSource === 'Static Value' ? rule.staticValue : '' };
+          return { ...rule, ...patch };
+        })
+      };
+    }));
 
-  const addRule = (groupId: string) =>
-    setGroups((prev) =>
-      prev.map((g) =>
-        g.id === groupId ? { ...g, rules: [...g.rules, newRule(g.rules.length + 1)] } : g
-      )
-    );
-
-  const removeRule = (groupId: string, ruleId: string) =>
-    setGroups((prev) =>
-      prev.map((g) => (g.id === groupId ? { ...g, rules: g.rules.filter((r) => r.id !== ruleId) } : g))
-    );
-
-  const addGroup = (mode: 'AND' | 'OR') =>
-    setGroups((prev) => [
-      ...prev,
-      {
-        id: `g${Date.now()}`,
-        mode,
-        rules: [
-          {
-            id: `r${Date.now()}`,
-            entity: 'Branch',
-            field: 'branch_id',
-            operator: 'Equals',
-            valueSource: "User's Assigned Branch",
-            staticValue: 'Branch A'
-          }
-        ]
-      }
-    ]);
-
-  const removeGroup = (groupId: string) =>
-    setGroups((prev) => prev.filter((g) => g.id !== groupId));
+  const addRule = (groupId: string) => {
+    if (isAllDataBypass) return;
+    setGroups((previous) => previous.map((group) => group.id === groupId ? { ...group, rules: [...group.rules, newRule(group.rules.length + 1)] } : group));
+  };
+  const removeRule = (groupId: string, ruleId: string) => setGroups((previous) => previous.map((group) => group.id === groupId ? { ...group, rules: group.rules.filter((rule) => rule.id !== ruleId) } : group));
+  const addGroup = () => {
+    if (isAllDataBypass) return;
+    setGroups((previous) => [...previous, { id: `block-${Date.now()}`, mode: 'AND' as const, rules: [newRule(1)] }]);
+  };
+  const removeGroup = (groupId: string) => setGroups((previous) => previous.filter((group) => group.id !== groupId));
 
   const sql = buildSql(groups);
-
-  const buildPlainEnglish = (groups: RuleGroup[]): string[] =>
-    groups
-      .filter((g) => g.rules.length > 0)
-      .map((g) => {
-        const parts = g.rules.map((rule) => {
-          const isStatic = rule.valueSource === 'Static Value';
-          const val = isStatic ? `"${rule.staticValue || 'value'}"` : rule.valueSource;
-          const opMap: Record<string, string> = {
-            IN: 'is one of',
-            'NOT IN': 'is NOT one of',
-            Equals: 'equals',
-            'Not Equals': 'does not equal',
-            Like: 'contains',
-            Between: 'is between',
-            'Is Null': 'is empty',
-            'Is Not Null': 'is not empty'
-          };
-          const opText = opMap[rule.operator] || rule.operator;
-          if (rule.operator === 'Is Null' || rule.operator === 'Is Not Null') {
-            return `${rule.entity} ${opText}`;
-          }
-          return `${rule.entity} ${opText} ${val}`;
-        });
-        return parts.join(` ${g.mode} `);
-      });
-
-  const plainEnglishGroups = buildPlainEnglish(groups);
+  const operatorWords: Record<string, string> = {
+    Equals: 'equals', 'Not Equals': 'does not equal', IN: 'is one of', 'NOT IN': 'is not one of',
+    Like: 'contains', Between: 'is between', 'Is Null': 'is empty', 'Is Not Null': 'is not empty'
+  };
+  const describeValueSource = (rule: Rule) => {
+    if (rule.valueSource === 'Static Value') return `the fixed value “${rule.staticValue || 'not entered'}”`;
+    if (rule.valueSource === 'Logged-in User ID') return 'the logged-in user’s ID (own records only)';
+    if (rule.valueSource === "User's Assigned Context") {
+      if (rule.entity === 'Academic Year' || rule.entity === 'Semester') return 'the active academic year and semester for the current term';
+      if (['Class', 'Subject', 'Division', 'Section'].includes(rule.entity)) return `the logged-in user’s ${rule.entity.toLowerCase()} assignments from the active-term master schedule`;
+      return `the logged-in user’s assigned ${rule.entity.toLowerCase()} context`;
+    }
+    return 'the configured context value';
+  };
+  const plainEnglishGroups = groups.map((group, index) => ({
+    id: group.id,
+    number: index + 1,
+    rules: group.rules.filter(isRuleComplete).map((rule) => {
+      const field = `${rule.entity} (${rule.field})`;
+      return isUnaryOperator(rule.operator) ? `${field} ${operatorWords[rule.operator] || rule.operator}` : `${field} ${operatorWords[rule.operator] || rule.operator} ${describeValueSource(rule)}`;
+    }),
+    incompleteCount: group.rules.filter((rule) => !isRuleComplete(rule)).length
+  })).filter((group) => group.rules.length > 0 || group.incompleteCount > 0);
 
   const save = () => {
-    const flat = groups.flatMap((g) => g.rules);
-    if (flat.length === 0) {
-      setError('Add at least one rule before saving.');
-      return;
-    }
-    if (flat.some((r) => r.operator === 'Between' && !r.staticValue.includes(','))) {
-      setError('“Between” needs two comma-separated values, e.g. 10, 20.');
-      return;
-    }
-    onSave(groups);
+    if (isAllDataBypass) return;
+    const flatRules = groups.flatMap((group) => group.rules);
+    if (flatRules.length === 0) { setError('Add a complete rule before saving this scope.'); return; }
+    if (groups.some((group) => group.rules.length === 0)) { setError('Remove empty Blocks or add at least one condition to each Block before saving.'); return; }
+    if (flatRules.some((rule) => !isRuleComplete(rule))) { setError('Complete the Entity → Field → Operator → Value Source chain for every rule before saving.'); return; }
+    if (flatRules.some((rule) => rule.operator === 'Between' && rule.staticValue.split(',').filter((value) => value.trim()).length !== 2)) { setError('“Between” needs two comma-separated static values, e.g. 10, 20.'); return; }
+    onSave(groups.map((group) => ({ ...group, mode: 'AND' as const })));
   };
 
   return (
     <div className="space-y-6 py-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
         <div>
-          <button
-            onClick={onBack}
-            className="flex items-center gap-2 text-xs text-gray-500 hover:text-gray-900 mb-2"
-          >
-            <ArrowLeft className="w-4 h-4" /> Back
-          </button>
-          <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-            <GitBranch className="w-6 h-6 text-purple-600" /> Rule Builder: “{scope.name}”
-          </h1>
-          <p className="text-xs text-gray-500 mt-1">
-            Build complex rules for this scope — rules inside a group combine with the group’s logic, groups combine with OR
-          </p>
+          <button onClick={onBack} className="mb-2 flex items-center gap-2 text-xs text-gray-500 hover:text-gray-900"><ArrowLeft className="h-4 w-4" />Back to scopes</button>
+          <h1 className="flex items-center gap-2 text-xl font-bold text-gray-900"><GitBranch className="h-6 w-6 text-purple-600" />Rule Builder: “{scope.name}”</h1>
+          <p className="mt-1 text-xs text-gray-500">Every condition inside a Block uses AND. Separate Blocks are alternative OR paths to data.</p>
         </div>
-        <Badge variant="secondary" className="text-xs bg-purple-50 text-purple-700 border border-purple-200">
-          <Code2 className="w-3 h-3 mr-1" /> {scope.code}
-        </Badge>
+        <Badge variant="secondary" className="border border-purple-200 bg-purple-50 text-xs text-purple-700"><Code2 className="mr-1 h-3 w-3" />{scope.code}</Badge>
       </div>
 
-      {/* Context Banner — shows what was set in the Editor */}
-      {scope.filters.filter((f) => f.enabled).length > 0 && (
-        <div className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
-          <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-          <div className="text-xs text-blue-900">
-            <p className="font-semibold mb-1">📋 This scope was configured with these filters in the Editor:</p>
-            <div className="flex flex-wrap gap-1.5">
-              {scope.filters.filter((f) => f.enabled).map((f) => (
-                <span key={f.id} className="inline-flex items-center gap-1 rounded-full border border-blue-300 bg-white px-2 py-0.5 text-[11px] font-medium text-blue-800">
-                  {f.entity}<span className="text-blue-500">→ {f.source}</span>
-                </span>
-              ))}
-            </div>
-            <p className="mt-2 text-[11px] text-blue-700">The rules below should match these filters. Add more Rule Groups (OR) below to create more complex logic.</p>
-          </div>
-        </div>
-      )}
+      {!isAllDataBypass && <Card className="border-indigo-200 bg-indigo-50/70 p-4"><div className="flex items-start gap-3"><Info className="mt-0.5 h-4 w-4 shrink-0 text-indigo-600" /><div className="text-xs text-indigo-950"><p className="font-semibold">Dynamic context & academic-year roll-over</p><p className="mt-1">“User’s Assigned Context” resolves from the logged-in user’s current-term master-schedule assignments. Academic Year and Semester context follows the active session automatically after roll-over, so reusable templates do not need to be rebuilt. “Static Value” is a fixed lock; “Logged-in User ID” is for own-record restrictions.</p></div></div></Card>}
 
-      {/* Rule groups */}
-      {groups.map((group, gIndex) => (
-        <React.Fragment key={group.id}>
-          {gIndex > 0 && (
-            <div className="flex items-center gap-3 py-1">
-              <div className="h-px flex-1 bg-amber-300" />
-              <div className="flex flex-col items-center gap-1">
-                <span className="px-5 py-1.5 bg-amber-100 text-amber-800 font-bold text-sm rounded-full border-2 border-amber-300 shadow-sm">OR</span>
-                <p className="text-[10px] text-amber-600 font-medium">if either group matches, the record is shown</p>
-              </div>
-              <div className="h-px flex-1 bg-amber-300" />
-            </div>
-          )}
-          <Card className="overflow-hidden border border-gray-200 shadow-sm">
-          <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 bg-gray-50">
-            <div className="flex items-center gap-3">
-              <h3 className="text-sm font-semibold text-gray-900">Rule Group {gIndex + 1}</h3>
-              <div className="flex items-center gap-1 rounded-md border border-gray-200 bg-white p-0.5">
-                {(['AND', 'OR'] as const).map((m) => (
-                  <button
-                    key={m}
-                    onClick={() =>
-                      setGroups((prev) => prev.map((g) => (g.id === group.id ? { ...g, mode: m } : g)))
-                    }
-                    className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                      group.mode === m ? 'bg-indigo-600 text-white' : 'text-gray-500 hover:bg-gray-100'
-                    }`}
-                    title={`Rules in this group combine with ${m}`}
-                  >
-                    {m}
-                  </button>
-                ))}
-              </div>
-            </div>
-            {groups.length > 1 && (
-              <button
-                onClick={() => removeGroup(group.id)}
-                className="text-[11px] text-rose-600 hover:text-rose-800"
-              >
-                Remove group
-              </button>
-            )}
-          </div>
+      {isAllDataBypass ? (
+        <>
+          <Card className="overflow-hidden border-2 border-emerald-300 shadow-sm"><div className="flex items-start gap-3 bg-emerald-50 px-5 py-4"><Shield className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" /><div><h2 className="text-sm font-bold text-emerald-950">All Data — Super Admin escape hatch</h2><p className="mt-1 text-xs leading-relaxed text-emerald-900">This protected scope bypasses the data-scope engine entirely. Super Admin users assigned to All Data can access all records; no rule blocks or filters are evaluated. Keep this scope reserved for Super Admin access.</p></div></div><div className="border-t border-emerald-200 bg-white px-5 py-4 text-xs text-slate-600">All Data contains zero rules by design. Configure restrictions on a separate scope instead of adding conditions here.</div></Card>
+          <Card className="overflow-hidden border border-blue-200 shadow-sm"><div className="flex items-center gap-2 border-b border-blue-100 bg-blue-50 px-5 py-3"><Eye className="h-4 w-4 text-blue-600" /><h3 className="text-sm font-semibold text-gray-900">Plain-English Preview</h3></div><div className="p-5 text-sm leading-relaxed text-blue-950">When this scope is assigned to a Super Admin, no data filters run and all records are visible.</div></Card>
+          <div className="flex justify-end"><Button variant="outline" size="sm" onClick={onCancel}>Back to scope list</Button></div>
+        </>
+      ) : (
+        <>
+          {scope.filters.filter((filter) => filter.enabled).length > 0 && <div className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3"><Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" /><div className="text-xs text-blue-900"><p className="mb-1 font-semibold">Starting context from the Scope Editor</p><div className="flex flex-wrap gap-1.5">{scope.filters.filter((filter) => filter.enabled).map((filter) => <span key={filter.id} className="inline-flex items-center gap-1 rounded-full border border-blue-300 bg-white px-2 py-0.5 text-[11px] font-medium text-blue-800">{filter.entity}<span className="text-blue-500">→ {filter.source}</span></span>)}</div><p className="mt-2 text-[11px] text-blue-700">Each rule follows Entity → Field → Operator → Value Source.</p></div></div>}
 
-          <div className="p-5 space-y-3">
-            {group.rules.map((rule, rIndex) => (
-              <React.Fragment key={rule.id}>
-                {rIndex > 0 && (
-                  <div className="flex items-center gap-2 py-0.5 px-1">
-                    <div className="h-px flex-1 bg-indigo-100" />
-                    <span className="text-[10px] font-bold text-indigo-400 px-2 py-0.5 bg-indigo-50 rounded border border-indigo-200">
-                      {group.mode}
-                    </span>
-                    <div className="h-px flex-1 bg-indigo-100" />
-                  </div>
-                )}
-                <div className="rounded-lg border border-gray-200 bg-white p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-                    Rule {rIndex + 1}
-                  </span>
-                  <button
-                    onClick={() => removeRule(group.id, rule.id)}
-                    className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-rose-600"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" /> Del
-                  </button>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-                  <select
-                    value={rule.entity}
-                    onChange={(e) => updateRule(group.id, rule.id, { entity: e.target.value })}
-                    className="p-1.5 border border-gray-300 rounded-md text-xs bg-white focus:outline-none"
-                    title="Entity"
-                  >
-                    {RULE_ENTITIES.map((e) => (
-                      <option key={e} value={e}>
-                        {e}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={rule.field}
-                    onChange={(e) => updateRule(group.id, rule.id, { field: e.target.value })}
-                    className="p-1.5 border border-gray-300 rounded-md text-xs bg-white font-mono focus:outline-none"
-                    title="Field"
-                  >
-                    {(ENTITY_FIELDS[rule.entity] || []).map((f) => (
-                      <option key={f} value={f}>
-                        {f}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={rule.operator}
-                    onChange={(e) => updateRule(group.id, rule.id, { operator: e.target.value })}
-                    className="p-1.5 border border-gray-300 rounded-md text-xs bg-white focus:outline-none"
-                    title="Operator"
-                  >
-                    {RULE_OPERATORS.map((op) => (
-                      <option key={op} value={op}>
-                        {op}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={rule.valueSource}
-                    onChange={(e) => updateRule(group.id, rule.id, { valueSource: e.target.value })}
-                    className="p-1.5 border border-gray-300 rounded-md text-xs bg-white focus:outline-none"
-                    title="Value Source"
-                  >
-                    {RULE_VALUE_SOURCES.map((v) => (
-                      <option key={v} value={v}>
-                        {v}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {rule.valueSource === 'Static Value' &&
-                  rule.operator !== 'Is Null' &&
-                  rule.operator !== 'Is Not Null' && (
-                    <div className="mt-2 flex items-center gap-2">
-                      <span className="text-[11px] text-gray-500 whitespace-nowrap">Static value:</span>
-                      <input
-                        type="text"
-                        value={rule.staticValue}
-                        onChange={(e) => updateRule(group.id, rule.id, { staticValue: e.target.value })}
-                        placeholder={rule.operator === 'Between' ? '10, 20' : 'Branch A'}
-                        className="w-full md:w-72 p-1.5 border border-gray-300 rounded-md text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none"
-                      />
+          {groups.map((group, groupIndex) => <React.Fragment key={group.id}>
+            {groupIndex > 0 && <div className="flex items-center gap-3 py-1"><div className="h-px flex-1 bg-amber-300" /><div className="flex flex-col items-center gap-1"><span className="rounded-full border-2 border-amber-300 bg-amber-100 px-5 py-1.5 text-sm font-bold text-amber-800">OR</span><p className="text-[10px] font-medium text-amber-700">either Block can grant a path to matching data</p></div><div className="h-px flex-1 bg-amber-300" /></div>}
+            <Card className="overflow-hidden border border-gray-200 shadow-sm">
+              <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50 px-5 py-3"><div className="flex items-center gap-3"><h3 className="text-sm font-semibold text-gray-900">Block {groupIndex + 1}</h3><Badge variant="info">ALL conditions · AND</Badge></div>{groups.length > 1 && <button onClick={() => removeGroup(group.id)} className="text-[11px] text-rose-600 hover:text-rose-800">Remove Block</button>}</div>
+              <div className="space-y-3 p-5">{group.rules.map((rule, ruleIndex) => {
+                const fields = rule.entity ? ENTITY_FIELDS[rule.entity] || [] : [];
+                const operators = rule.field ? getRuleOperators(rule.entity, rule.field) : [];
+                const valueSources = getRuleValueSources(rule.entity, rule.field, rule.operator);
+                const noValueNeeded = isUnaryOperator(rule.operator);
+                return <React.Fragment key={rule.id}>
+                  {ruleIndex > 0 && <div className="flex items-center gap-2 px-1 py-0.5"><div className="h-px flex-1 bg-indigo-100" /><span className="rounded border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-500">AND</span><div className="h-px flex-1 bg-indigo-100" /></div>}
+                  <div className="rounded-lg border border-gray-200 bg-white p-3"><div className="mb-2 flex items-center justify-between"><span className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Condition {ruleIndex + 1}</span><button onClick={() => removeRule(group.id, rule.id)} className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-rose-600"><Trash2 className="h-3.5 w-3.5" />Remove</button></div>
+                    <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-4">
+                      <label className="block"><span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-indigo-700">1 · Choose Entity</span><select value={rule.entity} onChange={(event) => updateRule(group.id, rule.id, { entity: event.target.value })} className="w-full rounded-md border border-gray-300 bg-white p-2 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"><option value="">Select entity…</option>{RULE_ENTITIES.map((entity) => <option key={entity} value={entity}>{entity}</option>)}</select></label>
+                      <label className="block"><span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-indigo-700">2 · Auto-Populated Field</span><select value={rule.field} disabled={!rule.entity} onChange={(event) => updateRule(group.id, rule.id, { field: event.target.value })} className="w-full rounded-md border border-gray-300 bg-white p-2 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-gray-100"><option value="">{rule.entity ? 'Select field…' : 'Choose entity first'}</option>{fields.map((field) => <option key={field} value={field}>{field}</option>)}</select>{rule.field && <span className="mt-1 block text-[10px] text-gray-400">Field type: {getRuleFieldType(rule.entity, rule.field)}</span>}</label>
+                      <label className="block"><span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-indigo-700">3 · Choose Operator</span><select value={rule.operator} disabled={!rule.field} onChange={(event) => updateRule(group.id, rule.id, { operator: event.target.value })} className="w-full rounded-md border border-gray-300 bg-white p-2 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-gray-100"><option value="">{rule.field ? 'Select compatible operator…' : 'Choose field first'}</option>{operators.map((operator) => <option key={operator} value={operator}>{operator}</option>)}</select></label>
+                      <label className="block"><span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-indigo-700">4 · Choose Value Source</span><select value={rule.valueSource} disabled={!rule.operator || noValueNeeded || valueSources.length === 0} onChange={(event) => updateRule(group.id, rule.id, { valueSource: event.target.value })} className="w-full rounded-md border border-gray-300 bg-white p-2 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-gray-100"><option value="">{noValueNeeded ? 'Not required for this operator' : rule.operator ? 'Select compatible source…' : 'Choose operator first'}</option>{valueSources.map((source) => <option key={source} value={source}>{source}</option>)}</select></label>
                     </div>
-                  )}
-
-                  <p className="mt-2 text-[10px] text-gray-400 font-mono">{sqlForRule(rule)}</p>
-                </div>
-              </React.Fragment>
-            ))}
-
-            <button
-              onClick={() => addRule(group.id)}
-              className="w-full rounded-lg border border-dashed border-indigo-300 bg-indigo-50/50 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50"
-            >
-              <Plus className="w-3.5 h-3.5 inline mr-1" /> Add Rule to this Group
-            </button>
-          </div>
-          </Card>
-        </React.Fragment>
-      ))}
-
-      <div className="flex items-center gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          className="text-xs text-indigo-700 border-indigo-200 hover:bg-indigo-50"
-          onClick={() => addGroup('OR')}
-        >
-          <Plus className="w-3.5 h-3.5 mr-1" /> Add Rule Group (OR)
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="text-xs text-indigo-700 border-indigo-200 hover:bg-indigo-50"
-          onClick={() => addGroup('AND')}
-        >
-          <Plus className="w-3.5 h-3.5 mr-1" /> Add Rule Group (AND)
-        </Button>
-      </div>
-
-      {/* Plain English Preview — always visible */}
-      <Card className="overflow-hidden border border-gray-200 shadow-sm">
-        <div className="flex items-center gap-2 px-5 py-3 border-b border-gray-100 bg-blue-50">
-          <Eye className="w-4 h-4 text-blue-600" />
-          <h3 className="font-semibold text-gray-900 text-sm">What this scope does</h3>
-          <span className="ml-auto text-[10px] text-blue-500 font-medium">Plain English — for everyone</span>
-        </div>
-        <div className="p-5 space-y-3">
-          {plainEnglishGroups.length === 0 ? (
-            <p className="text-xs text-gray-400 italic">Add at least one rule above to see a description here.</p>
-          ) : (
-            <div className="space-y-2">
-              <p className="text-xs font-semibold text-gray-700 mb-3">👁️ A user with this scope will ONLY see records where:</p>
-              {plainEnglishGroups.map((groupText, i) => (
-                <React.Fragment key={i}>
-                  {i > 0 && (
-                    <div className="flex items-center gap-2 my-1">
-                      <div className="h-px flex-1 bg-amber-200" />
-                      <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">OR alternatively:</span>
-                      <div className="h-px flex-1 bg-amber-200" />
-                    </div>
-                  )}
-                  <div className="flex items-start gap-2 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 mt-0.5 shrink-0" />
-                    <p className="text-xs text-emerald-900 leading-relaxed">{groupText}</p>
+                    {rule.valueSource === 'Static Value' && !noValueNeeded && <div className="mt-3"><label className="block text-[11px] font-medium text-gray-600">Fixed value{rule.operator === 'Between' ? ' range' : ''}<input type="text" value={rule.staticValue} onChange={(event) => updateRule(group.id, rule.id, { staticValue: event.target.value })} placeholder={rule.operator === 'Between' ? '10, 20' : rule.operator === 'IN' || rule.operator === 'NOT IN' ? 'Value 1, Value 2' : 'Enter a fixed value'} className="mt-1 w-full rounded-md border border-gray-300 p-2 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500" /></label></div>}
+                    {rule.valueSource === "User's Assigned Context" && <div className="mt-3 flex items-start gap-2 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-[11px] text-blue-900"><Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-600" /><span>{rule.entity === 'Academic Year' || rule.entity === 'Semester' ? 'Resolves to the active academic year / semester and follows term roll-over automatically.' : `Resolves to this user’s current-term ${rule.entity.toLowerCase()} assignments from the master schedule.`}</span></div>}
+                    {rule.valueSource === 'Logged-in User ID' && <div className="mt-3 rounded-md border border-violet-100 bg-violet-50 px-3 py-2 text-[11px] text-violet-900">Own Records Only: match the record’s creator ID to the logged-in user ID.</div>}
+                    {noValueNeeded && <div className="mt-3 rounded-md border border-gray-100 bg-gray-50 px-3 py-2 text-[11px] text-gray-500">This operator does not require a value source.</div>}
+                    <p className="mt-2 break-all font-mono text-[10px] text-gray-400">{isRuleComplete(rule) ? sqlForRule(rule) : 'Complete the selection chain to build this condition.'}</p>
                   </div>
-                </React.Fragment>
-              ))}
-            </div>
-          )}
-        </div>
-      </Card>
+                </React.Fragment>;
+              })}
+                <button onClick={() => addRule(group.id)} className="w-full rounded-lg border border-dashed border-indigo-300 bg-indigo-50/50 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50"><Plus className="mr-1 inline h-3.5 w-3.5" />Add Condition to Block</button>
+              </div>
+            </Card>
+          </React.Fragment>)}
 
-      {/* SQL Preview — collapsible, hidden by default */}
-      <Card className="overflow-hidden border border-gray-200 shadow-sm">
-        <button
-          onClick={() => setShowSql((v) => !v)}
-          aria-expanded={showSql}
-          className="w-full flex items-center justify-between px-5 py-3 border-b border-gray-100 bg-slate-50 hover:bg-slate-100 transition-colors"
-        >
-          <div className="flex items-center gap-2">
-            <Code2 className="w-4 h-4 text-slate-600" />
-            <h3 className="font-semibold text-gray-900 text-sm">Technical SQL Preview</h3>
-            <span className="text-[10px] text-slate-400 font-medium">for developers only</span>
-          </div>
-          <span className="text-[10px] text-indigo-600 font-semibold">{showSql ? '▲ Hide' : '▼ Show'}</span>
-        </button>
-        {showSql && (
-          <div className="p-5">
-            <pre className="rounded-lg bg-slate-900 text-emerald-200 text-[11px] leading-relaxed p-4 overflow-x-auto font-mono">
-              {sql ? `WHERE ${sql}` : '-- add at least one rule to generate the WHERE clause'}
-            </pre>
-            <p className="text-[10px] text-gray-400 mt-2">This WHERE clause is automatically applied to every database query when a user with this scope loads a page.</p>
-          </div>
-        )}
-      </Card>
+          <Button variant="outline" size="sm" className="border-amber-300 text-xs text-amber-800 hover:bg-amber-50" onClick={addGroup}><Plus className="mr-1 h-3.5 w-3.5" />Add Block (OR)</Button>
 
-      {error && (
-        <div className="flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[11px] text-rose-700">
-          <AlertTriangle className="w-4 h-4" /> {error}
-        </div>
+          <Card className="overflow-hidden border border-blue-200 shadow-sm"><div className="flex items-center gap-2 border-b border-blue-100 bg-blue-50 px-5 py-3"><Eye className="h-4 w-4 text-blue-600" /><h3 className="text-sm font-semibold text-gray-900">Plain-English Preview</h3><span className="ml-auto text-[10px] font-medium text-blue-600">Updates as rules change</span></div><div className="space-y-3 p-5">
+            <p className="text-xs text-slate-600">A record is visible when <strong>any one Block</strong> matches. <strong>Every condition inside that Block</strong> must match (AND).</p>
+            {plainEnglishGroups.length === 0 ? <p className="text-xs italic text-gray-400">Complete the rule chain to see a human-readable preview.</p> : plainEnglishGroups.map((group, index) => <React.Fragment key={group.id}>{index > 0 && <div className="flex items-center gap-2"><div className="h-px flex-1 bg-amber-200" /><span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700">OR — alternatively</span><div className="h-px flex-1 bg-amber-200" /></div>}<div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3"><p className="mb-2 text-xs font-bold text-emerald-900">Block {group.number} · all conditions must be true</p><ul className="list-disc space-y-1 pl-5 text-xs leading-relaxed text-emerald-950">{group.rules.map((rule, ruleIndex) => <li key={`${group.id}-${ruleIndex}`}>{rule}</li>)}</ul>{group.incompleteCount > 0 && <p className="mt-2 text-[10px] text-amber-700">{group.incompleteCount} incomplete condition(s) are not yet included in this preview.</p>}</div></React.Fragment>)}
+          </div></Card>
+
+          <Card className="overflow-hidden border border-gray-200 shadow-sm"><button onClick={() => setShowSql((value) => !value)} aria-expanded={showSql} className="flex w-full items-center justify-between border-b border-gray-100 bg-slate-50 px-5 py-3 transition-colors hover:bg-slate-100"><div className="flex items-center gap-2"><Code2 className="h-4 w-4 text-slate-600" /><h3 className="text-sm font-semibold text-gray-900">Technical SQL Preview</h3><span className="text-[10px] font-medium text-slate-400">for developers only</span></div><span className="text-[10px] font-semibold text-indigo-600">{showSql ? '▲ Hide' : '▼ Show'}</span></button>{showSql && <div className="p-5"><pre className="overflow-x-auto rounded-lg bg-slate-900 p-4 font-mono text-[11px] leading-relaxed text-emerald-200">{sql ? `WHERE ${sql}` : '-- complete at least one rule to preview the filter'}</pre><p className="mt-2 text-[10px] text-gray-400">The preview shows the intended filter shape; production enforcement must apply the same scope at the data-access layer.</p></div>}</Card>
+
+          {error && <div className="flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[11px] text-rose-700"><AlertTriangle className="h-4 w-4" />{error}</div>}
+          <div className="flex items-center justify-end gap-2"><Button variant="outline" size="sm" className="text-xs" onClick={onCancel}>Cancel</Button><Button size="sm" className="bg-indigo-600 text-xs text-white hover:bg-indigo-700" onClick={save}><Save className="mr-1 h-3.5 w-3.5" />Save Rules</Button></div>
+        </>
       )}
-
-      <div className="flex items-center justify-end gap-2">
-        <Button variant="outline" size="sm" className="text-xs" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button size="sm" className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white" onClick={save}>
-          <Save className="w-3.5 h-3.5 mr-1" /> Save Rules
-        </Button>
-      </div>
     </div>
   );
 }
@@ -1921,6 +1688,7 @@ export function DataScopeManagement() {
               </Button>
               <Button
                 size="sm"
+                disabled={viewScope.code === 'all_data'}
                 className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white"
                 onClick={() => {
                   const s = viewScope;
@@ -1928,7 +1696,7 @@ export function DataScopeManagement() {
                   handleEdit(s);
                 }}
               >
-                <Pencil className="w-3.5 h-3.5 mr-1" /> Edit Scope
+                <Pencil className="w-3.5 h-3.5 mr-1" /> {viewScope.code === 'all_data' ? 'Protected Scope' : 'Edit Scope'}
               </Button>
             </div>
           </div>

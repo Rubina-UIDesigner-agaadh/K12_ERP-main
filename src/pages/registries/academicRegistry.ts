@@ -83,6 +83,22 @@ export const academicRegistry: Record<string, () => any> = {
     () => import('../academic/academics/event-activities/CompetitionManagement'),
     'CompetitionManagement'
   ),
+  'competition-master': rp(
+    () => import('../academic/academics/event-activities/CompetitionMaster'),
+    'CompetitionMaster'
+  ),
+  'competition-events': rp(
+    () => import('../academic/academics/event-activities/CompetitionEvents'),
+    'CompetitionEvents'
+  ),
+  'competition-student-participation': rp(
+    () => import('../academic/academics/event-activities/StudentParticipation'),
+    'StudentParticipation'
+  ),
+  'competition-results-achievements': rp(
+    () => import('../academic/academics/event-activities/ResultsAchievements'),
+    'ResultsAchievements'
+  ),
   'clubs-activities': rp(
     () => import('../academic/academics/event-activities/ClubsActivities'),
     'ClubsActivities'

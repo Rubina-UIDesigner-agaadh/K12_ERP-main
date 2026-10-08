@@ -419,8 +419,13 @@ const eventActivitiesSidebar: SidebarSection[] = [
     { label: 'Teacher Workload View', id: 'teacher-workload-view' },
     { label: 'Teacher Duty Report', id: 'teacher-duty-report' }
   ] },
+  { title: 'Competition Management', items: [
+    { label: 'Competition Master', id: 'competition-master' },
+    { label: 'Competition Events', id: 'competition-events' },
+    { label: 'Student Participation', id: 'competition-student-participation' },
+    { label: 'Results & Achievements', id: 'competition-results-achievements' }
+  ] },
   { title: 'Co-curricular Activities', items: [
-    { label: 'Competition Management', id: 'competition-management' },
     { label: 'Clubs & Activities', id: 'clubs-activities' },
     { label: 'Activity Attendance & Evaluation', id: 'activity-attendance-evaluation' }
   ] }
