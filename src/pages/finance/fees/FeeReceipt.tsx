@@ -2152,8 +2152,8 @@ export function FeeReceipt() {
 
               {/* Fee Heads Selection */}
               <Card
-                title="Select Fee Heads"
-                subtitle="Choose fee heads and amounts to collect"
+                title="Fee Structure"
+                subtitle={`Fee heads assigned to this student · Class ${selectedStudent.class} · ${selectedStudent.academicYear}`}
                 action={
                   <div className="flex gap-1">
                     <Button variant="ghost" size="xs" onClick={handleDeselectAllFeeHeads}>

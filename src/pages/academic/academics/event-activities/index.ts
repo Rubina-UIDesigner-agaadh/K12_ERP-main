@@ -1,4 +1,8 @@
 export { EventManagement } from './EventManagement';
+export { EventMaster } from './EventMaster';
+export { EventPlanningSchedule } from './EventPlanningSchedule';
+export { EventExecution } from './EventExecution';
+export { EventFeedbackReview } from './EventFeedbackReview';
 export { SmartEventCalendar } from './SmartEventCalendar';
 export { MediaGalleryManagement } from './MediaGalleryManagement';
 export { CompetitionManagement } from './CompetitionManagement';

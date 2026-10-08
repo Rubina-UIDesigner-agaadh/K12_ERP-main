@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
@@ -1136,7 +1137,7 @@ function PaymentModal({
 // ---------------------------------------------------------------- filters
 const EMPTY_STUDENT_FILTERS = { masterFranchise: '', branch: '', className: '', section: '', grNo: '', search: '' };
 const EMPTY_STAFF_FILTERS = { masterFranchise: '', branch: '', department: '', designation: '', staffType: '', empCode: '', search: '' };
-type DuesFilter = 'with' | 'all' | 'clear';
+type DuesFilter = 'with' | 'charged' | 'all' | 'clear';
 
 const branchOptionsFor = (mf: string) => BRANCHES.filter((b) => !mf || FRANCHISE_OF_BRANCH[b] === mf);
 const textMatch = (fields: string[], query: string) => {
@@ -1146,6 +1147,10 @@ const textMatch = (fields: string[], query: string) => {
 
 // ============================================================ MAIN COMPONENT
 export function ChargeReceipt() {
+  const location = useLocation();
+  const chargeReceiptMode = (location.state as { chargeReceiptMode?: string } | null)?.chargeReceiptMode;
+  const postingMode = chargeReceiptMode === 'post-new-charge';
+  const collectMode = chargeReceiptMode === 'collect-charge';
   // shared ledger → local state (synced back so Charge Receipt Import and later visits see changes)
   const [charges, setCharges] = useState<PayerCharge[]>(() => ledger.charges);
   const [receipts, setReceipts] = useState<ChargeReceiptRecord[]>(() => ledger.receipts);
@@ -1163,7 +1168,7 @@ export function ChargeReceipt() {
   const [payerType, setPayerType] = useState<PayerType>('student');
   const [studentFilters, setStudentFilters] = useState(EMPTY_STUDENT_FILTERS);
   const [staffFilters, setStaffFilters] = useState(EMPTY_STAFF_FILTERS);
-  const [duesFilter, setDuesFilter] = useState<DuesFilter>('with');
+  const [duesFilter, setDuesFilter] = useState<DuesFilter>(postingMode ? 'all' : collectMode ? 'charged' : 'with');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [activePayerId, setActivePayerId] = useState<string | null>(null);
   const [detailTab, setDetailTab] = useState<'pending' | 'history'>('pending');
@@ -1212,6 +1217,7 @@ export function ChargeReceipt() {
     const rows = base.filter((p) => {
       const s = summaries[p.id];
       if (duesFilter === 'with' && s.due <= 0) return false;
+      if (duesFilter === 'charged' && !charges.some((charge) => charge.payerId === p.id)) return false;
       if (duesFilter === 'clear' && s.due > 0) return false;
       if (p.type === 'student') {
         const f = studentFilters;
@@ -1236,7 +1242,7 @@ export function ChargeReceipt() {
       return textMatch([p.name, p.empCode, p.department, p.designation, p.staffType, p.phone, p.email, p.branch], f.search);
     });
     return rows.sort((a, b) => summaries[b.id].due - summaries[a.id].due || a.name.localeCompare(b.name));
-  }, [payerType, studentFilters, staffFilters, duesFilter, summaries]);
+  }, [payerType, studentFilters, staffFilters, duesFilter, summaries, charges]);
 
   const listTotalDue = listRows.reduce((s, p) => s + summaries[p.id].due, 0);
   const selectedRows = listRows.filter((p) => selectedIds.includes(p.id));
@@ -1249,7 +1255,7 @@ export function ChargeReceipt() {
   const resetFilters = () => {
     setStudentFilters(EMPTY_STUDENT_FILTERS);
     setStaffFilters(EMPTY_STAFF_FILTERS);
-    setDuesFilter('with');
+    setDuesFilter(postingMode ? 'all' : collectMode ? 'charged' : 'with');
     setSelectedIds([]);
   };
   const setStudentFilter = (key: keyof typeof EMPTY_STUDENT_FILTERS, value: string) =>
@@ -1492,6 +1498,16 @@ export function ChargeReceipt() {
         </div>
       </div>
 
+      {postingMode && !activePayer &&
+      <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+        Select a student below to add a new charge. The list is showing all students so you can choose who the charge applies to.
+      </div>
+      }
+      {collectMode && !activePayer &&
+      <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-800">
+        Showing students who have at least one charge applied, including charges that have already been settled.
+      </div>
+      }
       {notice &&
       <div
         role="status"
@@ -1632,6 +1648,7 @@ export function ChargeReceipt() {
               onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setDuesFilter(e.target.value as DuesFilter)}
               options={[
               { value: 'with', label: 'Has Pending Charges' },
+              { value: 'charged', label: 'Has Charges Applied' },
               { value: 'all', label: 'All' },
               { value: 'clear', label: 'No Pending Charges' }]
               } />
@@ -1696,7 +1713,7 @@ export function ChargeReceipt() {
             <Briefcase className="w-4 h-4 text-purple-600" />
             }
               <h3 className="font-semibold text-gray-800">
-                {payerType === 'student' ? 'Students' : 'Staff'} with charges
+                {postingMode ? `${payerType === 'student' ? 'Students' : 'Staff'} — Select to Post a Charge` : collectMode ? `${payerType === 'student' ? 'Students' : 'Staff'} with Charges Applied` : `${payerType === 'student' ? 'Students' : 'Staff'} with charges`}
               </h3>
             </div>
             <div className="overflow-x-auto">
@@ -1787,9 +1804,9 @@ export function ChargeReceipt() {
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-1">
-                            <Button variant="primary" size="xs" onClick={() => openPayer(p.id)}>
-                              <IndianRupee className="w-3.5 h-3.5" />
-                              Collect Payment
+                            <Button variant="primary" size="xs" onClick={() => { openPayer(p.id); if (postingMode) setChargeModal({ mode: 'add' }); }}>
+                              {postingMode ? <Plus className="w-3.5 h-3.5" /> : <IndianRupee className="w-3.5 h-3.5" />}
+                              {postingMode ? 'Add Charge' : collectMode && s.due <= 0 ? 'View Charges' : 'Collect Payment'}
                             </Button>
                             <Button variant="ghost" size="xs" title="Receipt history" onClick={() => openPayer(p.id, 'history')}>
                               <History className="w-4 h-4 text-gray-600" />

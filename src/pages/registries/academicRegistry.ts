@@ -71,6 +71,22 @@ export const academicRegistry: Record<string, () => any> = {
     () => import('../academic/academics/event-activities/EventManagement.tsx'),
     'EventManagement'
   ),
+  'event-master': rp(
+    () => import('../academic/academics/event-activities/EventMaster'),
+    'EventMaster'
+  ),
+  'event-planning-schedule': rp(
+    () => import('../academic/academics/event-activities/EventPlanningSchedule'),
+    'EventPlanningSchedule'
+  ),
+  'event-execution': rp(
+    () => import('../academic/academics/event-activities/EventExecution'),
+    'EventExecution'
+  ),
+  'event-feedback-review': rp(
+    () => import('../academic/academics/event-activities/EventFeedbackReview'),
+    'EventFeedbackReview'
+  ),
   'smart-event-calendar': rp(
     () => import('../academic/academics/event-activities/SmartEventCalendar'),
     'SmartEventCalendar'

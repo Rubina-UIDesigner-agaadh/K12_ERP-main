@@ -147,7 +147,7 @@ export function CompetitionEvents() {
   };
 
   const addPrize = () => setForm((current) => current ? { ...current, prizes: [...current.prizes, { rank: '', award: '', cashPrize: 0, certificate: true, trophy: false }] } : current);
-  function updatePrize<K extends 'rank' | 'award' | 'cashPrize' | 'certificate' | 'trophy>(index: number, field: K, value: CompetitionEventRecord['prizes'][number][K]) {
+  function updatePrize<K extends 'rank' | 'award' | 'cashPrize' | 'certificate' | 'trophy'>(index: number, field: K, value: CompetitionEventRecord['prizes'][number][K]) {
     setForm((current) => current ? { ...current, prizes: current.prizes.map((prize, prizeIndex) => prizeIndex === index ? { ...prize, [field]: value } : prize) } : current);
   }
 

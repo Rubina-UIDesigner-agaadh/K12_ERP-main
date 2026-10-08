@@ -1,4 +1,5 @@
 import React, { useState, Component } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
@@ -847,6 +848,7 @@ const InfoButton: React.FC<InfoButtonProps> = ({ onClick, className = '' }) =>
   </button>;
 
 export function ChargeSummaryDashboard() {
+  const navigate = useNavigate();
   const [dateRange, setDateRange] = useState({
     from: '',
     to: ''
@@ -1381,11 +1383,11 @@ export function ChargeSummaryDashboard() {
             </div>
 
             {/* Action Buttons */}
-            <Button variant="primary">
+            <Button variant="primary" onClick={() => navigate('/finance/charge/charge-receipt', { state: { chargeReceiptMode: 'post-new-charge' } })}>
               <PlusCircle className="w-4 h-4 mr-2" />
               Post New Charge
             </Button>
-            <Button variant="outline">
+            <Button variant="outline" onClick={() => navigate('/finance/charge/charge-receipt', { state: { chargeReceiptMode: 'collect-charge' } })}>
               <Receipt className="w-4 h-4 mr-2" />
               Collect Charge
             </Button>

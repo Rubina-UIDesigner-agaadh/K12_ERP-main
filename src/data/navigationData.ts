@@ -402,6 +402,12 @@ const eventActivitiesSidebar: SidebarSection[] = [
     { label: 'Media & Gallery Management', id: 'media-gallery-management' },
     { label: 'Event Participation Report', id: 'event-participation-report' }
   ] },
+  { title: 'Event Section', items: [
+    { label: 'Event Master', id: 'event-master' },
+    { label: 'Event Planning & Schedule', id: 'event-planning-schedule' },
+    { label: 'Event Execution', id: 'event-execution' },
+    { label: 'Event Feedback & Review', id: 'event-feedback-review' }
+  ] },
   { title: 'Activity Planning', items: [
     { label: 'Planner Dashboard', id: 'planner-dashboard' },
     { label: 'Activity Management', id: 'activity-management' },
