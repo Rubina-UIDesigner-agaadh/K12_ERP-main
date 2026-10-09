@@ -1,39 +1,12 @@
 // File: ManualAttendanceMarking.tsx
 
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Modal } from '../../../components/ui/Modal';
 import {
-  Search,
-  Save,
-  Users,
-  CheckCircle,
-  XCircle,
-  Clock,
-  UserCheck,
-  UserX,
-  Coffee,
-  Home,
-  Download,
-  Upload,
-  RefreshCw,
-  AlertCircle,
-  Edit3,
-  Building2,
-  Filter,
-  Calendar,
-  Printer,
-  ChevronRight,
-  LogIn,
-  LogOut,
-  Timer,
-  PauseCircle,
-  PlayCircle,
-  Check,
-  X,
-  MoreVertical,
-  FileSpreadsheet,
-  ChevronLeft,
-  AlertTriangle } from
-'lucide-react';
+  AlertCircle, AlertTriangle, Calendar, CheckCircle, ChevronLeft, ChevronRight, Clock, Coffee,
+  Download, Edit3, FileSpreadsheet, Home, Lock, MessageSquare, Paperclip, Printer, Radio, RefreshCw,
+  Save, Search, Send, UserCheck, Wifi, X, XCircle
+} from 'lucide-react';
 
 // Types
 type AttendanceStatus = 'present' | 'absent' | 'half_day' | 'leave' | 'wfh' | 'on_duty' | 'week_off';
@@ -66,56 +39,23 @@ interface Employee {
   isEditing: boolean;
 }
 
-// Status Configuration
-const statusConfig: Record<AttendanceStatus, {label: string;bgColor: string;textColor: string;icon: React.ReactNode;}> = {
-  present: {
-    label: 'Present',
-    bgColor: 'bg-green-100',
-    textColor: 'text-green-700',
-    icon: <CheckCircle className="w-3.5 h-3.5" />
-  },
-  absent: {
-    label: 'Absent',
-    bgColor: 'bg-red-100',
-    textColor: 'text-red-700',
-    icon: <XCircle className="w-3.5 h-3.5" />
-  },
-  half_day: {
-    label: 'Half Day',
-    bgColor: 'bg-amber-100',
-    textColor: 'text-amber-700',
-    icon: <Clock className="w-3.5 h-3.5" />
-  },
-  leave: {
-    label: 'On Leave',
-    bgColor: 'bg-blue-100',
-    textColor: 'text-blue-700',
-    icon: <Coffee className="w-3.5 h-3.5" />
-  },
-  wfh: {
-    label: 'WFH',
-    bgColor: 'bg-purple-100',
-    textColor: 'text-purple-700',
-    icon: <Home className="w-3.5 h-3.5" />
-  },
-  on_duty: {
-    label: 'On Duty',
-    bgColor: 'bg-indigo-100',
-    textColor: 'text-indigo-700',
-    icon: <UserCheck className="w-3.5 h-3.5" />
-  },
-  week_off: {
-    label: 'Week Off',
-    bgColor: 'bg-gray-100',
-    textColor: 'text-gray-700',
-    icon: <Calendar className="w-3.5 h-3.5" />
-  }
-};
+// Display Configuration (ui-level statuses; Late and Not Marked are derived, not stored)
+type ChoiceValue = AttendanceStatus | 'late';
+type DisplayStatus = AttendanceStatus | 'late' | 'not_marked';
+type StaffType = 'Full-time' | 'Part-time' | 'Contract';
+type ModeId = 'auto' | 'manual' | 'hybrid';
 
-const statusOptions = Object.entries(statusConfig).map(([value, config]) => ({
-  value: value as AttendanceStatus,
-  label: config.label
-}));
+const DISPLAY_META: Record<DisplayStatus, { label: string; badge: string; dot: string; icon: React.ReactNode }> = {
+  present: { label: 'Present', badge: 'bg-green-100 text-green-700', dot: 'bg-green-500', icon: <CheckCircle className="w-3.5 h-3.5" /> },
+  late: { label: 'Late', badge: 'bg-yellow-100 text-yellow-800', dot: 'bg-yellow-400', icon: <AlertTriangle className="w-3.5 h-3.5" /> },
+  absent: { label: 'Absent', badge: 'bg-red-100 text-red-700', dot: 'bg-red-500', icon: <XCircle className="w-3.5 h-3.5" /> },
+  half_day: { label: 'Half Day', badge: 'bg-orange-100 text-orange-700', dot: 'bg-orange-500', icon: <Clock className="w-3.5 h-3.5" /> },
+  leave: { label: 'On Leave', badge: 'bg-blue-100 text-blue-700', dot: 'bg-blue-500', icon: <Coffee className="w-3.5 h-3.5" /> },
+  on_duty: { label: 'On Duty', badge: 'bg-indigo-100 text-indigo-700', dot: 'bg-indigo-500', icon: <UserCheck className="w-3.5 h-3.5" /> },
+  wfh: { label: 'WFH', badge: 'bg-purple-100 text-purple-700', dot: 'bg-purple-500', icon: <Home className="w-3.5 h-3.5" /> },
+  week_off: { label: 'Week Off', badge: 'bg-gray-100 text-gray-700', dot: 'bg-gray-400', icon: <Calendar className="w-3.5 h-3.5" /> },
+  not_marked: { label: 'Not Marked', badge: 'bg-slate-100 text-slate-600', dot: 'bg-slate-300', icon: <AlertCircle className="w-3.5 h-3.5" /> }
+};
 
 // Department Options
 const departments = [
@@ -127,15 +67,6 @@ const departments = [
 { value: 'Operations', label: 'Operations' },
 { value: 'Sales', label: 'Sales' },
 { value: 'Administration', label: 'Administration' }];
-
-
-// Shift Options
-const shifts = [
-{ value: 'all', label: 'All Shifts' },
-{ value: 'Morning', label: 'Morning (8:00 AM - 4:00 PM)' },
-{ value: 'General', label: 'General (9:00 AM - 6:00 PM)' },
-{ value: 'Evening', label: 'Evening (2:00 PM - 10:00 PM)' }];
-
 
 // Initial Employee Data
 const initialEmployees: Employee[] = [
@@ -477,12 +408,6 @@ const getCurrentTimeStamp = (): string => {
   return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 };
 
-const formatMinutesToTime = (minutes: number): string => {
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  return `${hours}h ${mins}m`;
-};
-
 const calculateWorkingHours = (
 loginTime: string,
 logoutTime: string,
@@ -515,996 +440,983 @@ breakEnd: string)
   };
 };
 
+// ==================== PAGE HELPERS ====================
+
+const PAGE_SIZE = 8;
+const DEADLINE_MINUTES = 11 * 60;
+const DEVICE_METHODS = ['Fingerprint', 'Face Scan', 'RFID Card'];
+const DEVICE_GATES = ['Main Gate', 'Gate 2', 'Staff Entry'];
+const TIMED_CHOICES: ChoiceValue[] = ['present', 'late', 'half_day', 'on_duty', 'wfh'];
+const CHOICE_LABEL: Record<ChoiceValue, string> = {
+  present: 'Present',
+  late: 'Late',
+  absent: 'Absent',
+  half_day: 'Half Day',
+  leave: 'On Leave',
+  on_duty: 'On Duty',
+  wfh: 'WFH',
+  week_off: 'Week Off'
+};
+const EDIT_CHOICES: ChoiceValue[] = ['present', 'late', 'absent', 'half_day', 'leave', 'on_duty', 'wfh', 'week_off'];
+const BULK_CHOICES: ChoiceValue[] = ['present', 'absent', 'late', 'half_day', 'leave', 'on_duty'];
+const QUICK_FILTERS: { key: 'all' | DisplayStatus; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'present', label: 'Present' },
+  { key: 'absent', label: 'Absent' },
+  { key: 'late', label: 'Late' },
+  { key: 'half_day', label: 'Half Day' },
+  { key: 'leave', label: 'Leave' }
+];
+const SUMMARY_CARDS: { key: 'all' | DisplayStatus; label: string; text: string }[] = [
+  { key: 'all', label: 'Total', text: 'text-gray-900' },
+  { key: 'present', label: 'Present', text: 'text-green-700' },
+  { key: 'absent', label: 'Absent', text: 'text-red-700' },
+  { key: 'late', label: 'Late', text: 'text-yellow-700' },
+  { key: 'half_day', label: 'Half Day', text: 'text-orange-700' },
+  { key: 'leave', label: 'On Leave', text: 'text-blue-700' },
+  { key: 'on_duty', label: 'On Duty', text: 'text-indigo-700' },
+  { key: 'not_marked', label: 'Not Marked', text: 'text-slate-600' }
+];
+const MODES: { id: ModeId; label: string; description: string; icon: React.ReactNode }[] = [
+  { id: 'auto', label: 'Auto', description: 'Biometric / RFID only', icon: <Wifi className="w-4 h-4" /> },
+  { id: 'manual', label: 'Manual', description: 'HR marks each record', icon: <Edit3 className="w-4 h-4" /> },
+  { id: 'hybrid', label: 'Hybrid', description: 'Device first, HR corrects', icon: <RefreshCw className="w-4 h-4" /> }
+];
+const FILTER_INPUT_CLASS = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500';
+const BUTTON_OUTLINE_CLASS = 'inline-flex items-center gap-2 px-3 py-2 border border-gray-300 bg-white rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed';
+
+interface EditDraft {
+  choice: ChoiceValue;
+  inTime: string;
+  outTime: string;
+  reason: string;
+  proofName: string;
+}
+
+interface AttendanceRow extends Employee {
+  staffType: StaffType;
+  markSource?: 'auto' | 'manual';
+  proofName?: string;
+}
+
+const toDateInput = (date: Date): string =>
+`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
+const formatLongDate = (iso: string): string => {
+  const [year, month, day] = iso.split('-').map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
+};
+
+// Staff type is not in the mock records, so it is derived from the serial number for filtering
+const staffTypeOf = (serialNo: number): StaffType => (serialNo % 4 === 0 ? 'Contract' : serialNo % 3 === 0 ? 'Part-time' : 'Full-time');
+
+// Records with a biometric login are auto-marked. Present records without a login are not marked yet.
+const markSourceOf = (employee: Employee): AttendanceRow['markSource'] =>
+employee.loginTime ? 'auto' : employee.status === 'present' ? undefined : 'manual';
+
+const toAttendanceRow = (employee: Employee): AttendanceRow => ({
+  ...employee,
+  staffType: staffTypeOf(employee.serialNo),
+  markSource: markSourceOf(employee)
+});
+
+const displayStatusOf = (row: AttendanceRow): DisplayStatus => {
+  if (!row.markSource) return 'not_marked';
+  return row.status === 'present' && row.isLate ? 'late' : row.status;
+};
+
+// Overtime = net hours above the standard shift (shift length minus a one-hour break)
+const computeOvertime = (row: AttendanceRow, netHours: number): number => {
+  const shiftMinutes = (parseTime(row.shiftEnd) ?? 0) - (parseTime(row.shiftStart) ?? 0);
+  const standardHours = shiftMinutes / 60 - 1;
+  return Math.max(0, Math.round((netHours - standardHours) * 100) / 100);
+};
+
+const downloadTextFile = (filename: string, content: string, mime: string) => {
+  const blob = new Blob(['\uFEFF' + content], { type: `${mime};charset=utf-8;` });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+
+const escapeHtmlText = (value: string): string =>
+value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+const sheetRowsOf = (rows: AttendanceRow[]) => rows.map((row) => [
+  String(row.serialNo),
+  row.name,
+  row.employeeId,
+  row.department,
+  row.staffType,
+  DISPLAY_META[displayStatusOf(row)].label,
+  row.loginTime || '',
+  row.logoutTime || '',
+  row.loginTime ? row.netWorkingHours.toFixed(2) : '',
+  row.markSource === 'auto' ? 'Auto' : row.markSource === 'manual' ? 'Manual' : '',
+  row.remarks
+]);
+
+const SHEET_HEADERS = ['#', 'Employee', 'Code', 'Department', 'Staff Type', 'Status', 'IN', 'OUT', 'Hours', 'Source', 'Remarks'];
+
+// ==================== MAIN COMPONENT ====================
+
 export function ManualAttendanceMarking() {
-  // State
-  const [employees, setEmployees] = useState<Employee[]>(initialEmployees);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [now] = useState(() => new Date());
+  const today = toDateInput(now);
+  const deadlinePassed = now.getHours() * 60 + now.getMinutes() > DEADLINE_MINUTES;
+
+  const [mode, setMode] = useState<ModeId>('hybrid');
+  const [selectedDate, setSelectedDate] = useState(today);
   const [departmentFilter, setDepartmentFilter] = useState('all');
-  const [shiftFilter, setShiftFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [selectedEmployees, setSelectedEmployees] = useState<Set<string>>(new Set());
-  const [selectAll, setSelectAll] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [staffTypeFilter, setStaffTypeFilter] = useState<'all' | StaffType>('all');
+  const [searchDraft, setSearchDraft] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
+  const [quickFilter, setQuickFilter] = useState<'all' | DisplayStatus>('all');
+  const [rows, setRows] = useState<AttendanceRow[]>(() => initialEmployees.map(toAttendanceRow));
+  const [unsavedChanges, setUnsavedChanges] = useState(0);
+  const [locked, setLocked] = useState(false);
+  const [page, setPage] = useState(1);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<EditDraft>({ choice: 'present', inTime: '', outTime: '', reason: '', proofName: '' });
+  const [editError, setEditError] = useState<string | null>(null);
+  const [commentId, setCommentId] = useState<string | null>(null);
+  const [commentDraft, setCommentDraft] = useState('');
+  const [showFullLog, setShowFullLog] = useState(false);
+  const [notice, setNotice] = useState<{ type: 'success' | 'info' | 'error'; text: string } | null>(null);
 
-  // Filtered Data
-  const filteredEmployees = useMemo(() => {
-    return employees.filter((emp) => {
-      const matchesSearch =
-      emp.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      emp.employeeId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      emp.designation.toLowerCase().includes(searchQuery.toLowerCase());
+  const isToday = selectedDate === today;
+  const canEdit = !locked && mode !== 'auto';
 
-      const matchesDepartment = departmentFilter === 'all' || emp.department === departmentFilter;
-      const matchesShift = shiftFilter === 'all' || emp.shift === shiftFilter;
-      const matchesStatus = statusFilter === 'all' || emp.status === statusFilter;
+  // Scope = date + department + staff type. Summary cards and the quick filters work on this scope.
+  const scopeRows = isToday
+    ? rows.filter((row) =>
+      (departmentFilter === 'all' || row.department === departmentFilter) &&
+      (staffTypeFilter === 'all' || row.staffType === staffTypeFilter))
+    : [];
+  const total = scopeRows.length;
+  const countFor = (key: 'all' | DisplayStatus) =>
+    key === 'all' ? total : scopeRows.filter((row) => displayStatusOf(row) === key).length;
+  const pct = (count: number) => (total ? Math.round((count / total) * 100) : 0);
+  const pendingCount = countFor('not_marked');
+  const autoCount = scopeRows.filter((row) => row.markSource === 'auto').length;
 
-      return matchesSearch && matchesDepartment && matchesShift && matchesStatus;
-    });
-  }, [employees, searchQuery, departmentFilter, shiftFilter, statusFilter]);
+  const tableRows = scopeRows.filter((row) =>
+    (quickFilter === 'all' || displayStatusOf(row) === quickFilter) &&
+    (!appliedSearch || [row.name, row.employeeId].some((value) => value.toLowerCase().includes(appliedSearch.toLowerCase()))));
+  const totalPages = Math.max(1, Math.ceil(tableRows.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageRows = tableRows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const pageAllSelected = pageRows.length > 0 && pageRows.every((row) => selectedIds.has(row.id));
+  const commentRow = rows.find((row) => row.id === commentId) ?? null;
 
-  // Statistics
-  const stats = useMemo(() => {
-    const total = employees.length;
-    const present = employees.filter((e) => e.status === 'present').length;
-    const absent = employees.filter((e) => e.status === 'absent').length;
-    const halfDay = employees.filter((e) => e.status === 'half_day').length;
-    const leave = employees.filter((e) => e.status === 'leave').length;
-    const wfh = employees.filter((e) => e.status === 'wfh').length;
-    const onDuty = employees.filter((e) => e.status === 'on_duty').length;
-    const weekOff = employees.filter((e) => e.status === 'week_off').length;
-    const late = employees.filter((e) => e.isLate).length;
-
-    const totalNetHours = employees.reduce((sum, e) => sum + e.netWorkingHours, 0);
-    const totalOvertime = employees.reduce((sum, e) => sum + e.overtime, 0);
-
-    return { total, present, absent, halfDay, leave, wfh, onDuty, weekOff, late, totalNetHours, totalOvertime };
-  }, [employees]);
-
-  // Handlers
-  const handleDateChange = (direction: 'prev' | 'next') => {
-    const date = new Date(selectedDate);
-    date.setDate(date.getDate() + (direction === 'prev' ? -1 : 1));
-    setSelectedDate(date.toISOString().split('T')[0]);
-  };
-
-  const handleSelectAll = () => {
-    if (selectAll) {
-      setSelectedEmployees(new Set());
-    } else {
-      setSelectedEmployees(new Set(filteredEmployees.map((e) => e.id)));
-    }
-    setSelectAll(!selectAll);
-  };
-
-  const handleSelectEmployee = (id: string) => {
-    const newSelected = new Set(selectedEmployees);
-    if (newSelected.has(id)) {
-      newSelected.delete(id);
-    } else {
-      newSelected.add(id);
-    }
-    setSelectedEmployees(newSelected);
-    setSelectAll(newSelected.size === filteredEmployees.length);
-  };
-
-  const handleEditEmployee = (id: string) => {
-    setEmployees((prev) =>
-    prev.map((emp) => ({
-      ...emp,
-      isEditing: emp.id === id ? !emp.isEditing : emp.isEditing
+  // Live device feed (mock device events, one per employee with a biometric login)
+  const feed = useMemo(() => initialEmployees
+    .filter((employee) => employee.loginTime)
+    .map((employee, index) => ({
+      id: employee.id,
+      name: employee.name,
+      code: employee.employeeId,
+      time: employee.loginTime,
+      method: DEVICE_METHODS[index % DEVICE_METHODS.length],
+      gate: DEVICE_GATES[index % DEVICE_GATES.length],
+      late: employee.isLate
     }))
-    );
+    .sort((a, b) => b.time.localeCompare(a.time)), []);
+  const feedToday = isToday ? feed : [];
+
+  useEffect(() => {
+    setPage(1);
+  }, [quickFilter, appliedSearch, departmentFilter, staffTypeFilter, selectedDate]);
+
+  // Unsaved-changes guard: browser close / reload, and in-app navigation (BrowserRouter has no data-router blocker)
+  useEffect(() => {
+    if (unsavedChanges === 0 || locked) return;
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    const originalPushState = window.history.pushState;
+    const guardedPushState = function (this: History, data: unknown, unused: string, url?: string | URL | null) {
+      if (!window.confirm('You have unsaved attendance changes. Leave this page without saving?')) return;
+      originalPushState.call(this, data, unused, url);
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.history.pushState = guardedPushState as History['pushState'];
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.history.pushState = originalPushState;
+    };
+  }, [unsavedChanges, locked]);
+
+  const showNotice = (type: 'success' | 'info' | 'error', text: string) => setNotice({ type, text });
+
+  const updateRows = (ids: string[], patch: (row: AttendanceRow) => AttendanceRow) => {
+    setRows((prev) => prev.map((row) => (ids.includes(row.id) ? patch(row) : row)));
   };
 
-  const handleUpdateField = (id: string, field: keyof Employee, value: string) => {
-    setEmployees((prev) =>
-    prev.map((emp) => {
-      if (emp.id !== id) return emp;
-
-      const updated = { ...emp, [field]: value };
-
-      // Recalculate working hours when time fields change
-      if (['loginTime', 'logoutTime', 'breakStartTime', 'breakEndTime'].includes(field)) {
-        const hours = calculateWorkingHours(
-          field === 'loginTime' ? value : emp.loginTime,
-          field === 'logoutTime' ? value : emp.logoutTime,
-          field === 'breakStartTime' ? value : emp.breakStartTime,
-          field === 'breakEndTime' ? value : emp.breakEndTime
-        );
-        updated.grossHours = hours.grossHours;
-        updated.breakDuration = hours.breakDuration;
-        updated.netWorkingHours = hours.netWorkingHours;
-
-        // Auto-determine status based on hours
-        if (hours.netWorkingHours >= 8) {
-          updated.status = 'present';
-          updated.overtime = Math.round((hours.netWorkingHours - 8) * 100) / 100;
-        } else if (hours.netWorkingHours >= 4) {
-          updated.status = 'half_day';
-          updated.overtime = 0;
-        } else if (hours.netWorkingHours > 0) {
-          updated.status = 'half_day';
-          updated.overtime = 0;
-        }
-
-        // Check for late arrival
-        const shiftStartMinutes = parseTime(emp.shiftStart);
-        const loginMinutes = parseTime(field === 'loginTime' ? value : emp.loginTime);
-        if (shiftStartMinutes !== null && loginMinutes !== null) {
-          const gracePeriod = 5; // 5 minutes grace period
-          if (loginMinutes > shiftStartMinutes + gracePeriod) {
-            updated.isLate = true;
-            updated.lateByMinutes = loginMinutes - shiftStartMinutes;
-          } else {
-            updated.isLate = false;
-            updated.lateByMinutes = 0;
-          }
-        }
-      }
-
-      setHasUnsavedChanges(true);
-      return updated;
-    })
-    );
+  const changeMode = (next: ModeId) => {
+    if (next === mode) return;
+    setMode(next);
+    setEditingId(null);
+    setSelectedIds(new Set());
+    showNotice('info', next === 'auto'
+      ? 'Auto mode: attendance comes from the biometric device only. Manual edits are disabled.'
+      : next === 'manual'
+        ? 'Manual mode: HR marks attendance by hand. Device entries are shown for reference.'
+        : 'Hybrid mode: device entries are used first, and HR can correct any record.');
   };
 
-  const handleStatusChange = (id: string, status: AttendanceStatus) => {
-    setEmployees((prev) =>
-    prev.map((emp) => {
-      if (emp.id !== id) return emp;
-
-      const updated = { ...emp, status };
-
-      // Clear times for certain statuses
-      if (['absent', 'leave', 'week_off'].includes(status)) {
-        updated.loginTime = '';
-        updated.logoutTime = '';
-        updated.breakStartTime = '';
-        updated.breakEndTime = '';
-        updated.grossHours = 0;
-        updated.breakDuration = 0;
-        updated.netWorkingHours = 0;
-        updated.overtime = 0;
-        updated.isLate = false;
-        updated.lateByMinutes = 0;
-      }
-
-      setHasUnsavedChanges(true);
-      return updated;
-    })
-    );
+  const openEdit = (row: AttendanceRow) => {
+    const current = displayStatusOf(row);
+    setEditingId(row.id);
+    setEditDraft({
+      choice: current === 'not_marked' ? 'present' : current,
+      inTime: row.loginTime,
+      outTime: row.logoutTime,
+      reason: row.remarks,
+      proofName: row.proofName ?? ''
+    });
+    setEditError(null);
   };
 
-  const handleBulkStatusChange = (status: AttendanceStatus) => {
-    if (selectedEmployees.size === 0) return;
-
-    setEmployees((prev) =>
-    prev.map((emp) => {
-      if (!selectedEmployees.has(emp.id)) return emp;
-
-      const updated = { ...emp, status };
-
-      if (status === 'present') {
-        updated.loginTime = emp.shiftStart;
-        updated.logoutTime = emp.shiftEnd;
-        updated.breakStartTime = '13:00';
-        updated.breakEndTime = '13:30';
-        const hours = calculateWorkingHours(updated.loginTime, updated.logoutTime, updated.breakStartTime, updated.breakEndTime);
-        updated.grossHours = hours.grossHours;
-        updated.breakDuration = hours.breakDuration;
-        updated.netWorkingHours = hours.netWorkingHours;
-        updated.isLate = false;
-        updated.lateByMinutes = 0;
-        updated.remarks = 'On time';
-      } else if (['absent', 'leave', 'week_off'].includes(status)) {
-        updated.loginTime = '';
-        updated.logoutTime = '';
-        updated.breakStartTime = '';
-        updated.breakEndTime = '';
-        updated.grossHours = 0;
-        updated.breakDuration = 0;
-        updated.netWorkingHours = 0;
-        updated.overtime = 0;
-        updated.isLate = false;
-        updated.lateByMinutes = 0;
-        updated.remarks = status === 'absent' ? 'Absent' : status === 'leave' ? 'On Leave' : 'Week Off';
-      }
-
-      return updated;
-    })
-    );
-    setHasUnsavedChanges(true);
-    setSelectedEmployees(new Set());
-    setSelectAll(false);
+  const applyEdit = (row: AttendanceRow) => {
+    const { choice, inTime, outTime, reason, proofName } = editDraft;
+    if (TIMED_CHOICES.includes(choice) && !inTime) {
+      setEditError('Enter an IN time for this status, or choose Absent, On Leave or Week Off.');
+      return;
+    }
+    const inMinutes = parseTime(inTime);
+    const outMinutes = parseTime(outTime);
+    if (inMinutes !== null && outMinutes !== null && outMinutes <= inMinutes) {
+      setEditError('OUT time must be after the IN time.');
+      return;
+    }
+    const hours = calculateWorkingHours(inTime, outTime, row.breakStartTime, row.breakEndTime);
+    const isLate = choice === 'late';
+    const lateBy = isLate ? Math.max(1, (inMinutes ?? 0) - (parseTime(row.shiftStart) ?? 0)) : 0;
+    updateRows([row.id], (current) => ({
+      ...current,
+      status: choice === 'late' ? 'present' : choice,
+      isLate,
+      lateByMinutes: lateBy,
+      loginTime: inTime,
+      logoutTime: outTime,
+      grossHours: hours.grossHours,
+      breakDuration: hours.breakDuration,
+      netWorkingHours: hours.netWorkingHours,
+      overtime: computeOvertime(current, hours.netWorkingHours),
+      remarks: reason.trim() || current.remarks,
+      proofName: proofName || current.proofName,
+      markSource: 'manual'
+    }));
+    setUnsavedChanges((count) => count + 1);
+    setEditingId(null);
+    setEditError(null);
+    showNotice('success', `Attendance updated for ${row.name}. Click Save All to finish today's changes.`);
   };
 
-  const handleSave = async () => {
-    setIsSaving(true);
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setIsSaving(false);
-    setHasUnsavedChanges(false);
-    // Close all editing modes
-    setEmployees((prev) => prev.map((emp) => ({ ...emp, isEditing: false })));
-    alert('Attendance saved successfully!');
+  const applyBulk = (choice: ChoiceValue) => {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    updateRows(ids, (row) => {
+      const keepTimes = TIMED_CHOICES.includes(choice);
+      const loginTime = keepTimes ? row.loginTime : '';
+      const logoutTime = keepTimes ? row.logoutTime : '';
+      const hours = calculateWorkingHours(loginTime, logoutTime, row.breakStartTime, row.breakEndTime);
+      const isLate = choice === 'late';
+      const lateBy = isLate ? Math.max(1, (parseTime(loginTime) ?? 0) - (parseTime(row.shiftStart) ?? 0)) : 0;
+      return {
+        ...row,
+        status: choice === 'late' ? 'present' : choice,
+        isLate,
+        lateByMinutes: lateBy,
+        loginTime,
+        logoutTime,
+        grossHours: hours.grossHours,
+        breakDuration: hours.breakDuration,
+        netWorkingHours: hours.netWorkingHours,
+        overtime: computeOvertime(row, hours.netWorkingHours),
+        markSource: 'manual'
+      };
+    });
+    setUnsavedChanges((count) => count + ids.length);
+    setSelectedIds(new Set());
+    showNotice('success', `${ids.length} employee(s) marked as ${CHOICE_LABEL[choice]}.`);
   };
 
-  const handleClearFilters = () => {
-    setSearchQuery('');
-    setDepartmentFilter('all');
-    setShiftFilter('all');
-    setStatusFilter('all');
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
+  const toggleRowSelected = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
     });
   };
 
-  const isToday = selectedDate === new Date().toISOString().split('T')[0];
+  const toggleSelectPage = () => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (pageAllSelected) pageRows.forEach((row) => next.delete(row.id));
+      else pageRows.forEach((row) => next.add(row.id));
+      return next;
+    });
+  };
+
+  const openComment = (row: AttendanceRow) => {
+    setCommentId(row.id);
+    setCommentDraft(row.remarks);
+  };
+
+  const saveComment = () => {
+    if (!commentRow) return;
+    const nextText = commentDraft.trim();
+    if (nextText !== commentRow.remarks) {
+      updateRows([commentRow.id], (row) => ({ ...row, remarks: nextText }));
+      setUnsavedChanges((count) => count + 1);
+      showNotice('success', `Comment saved for ${commentRow.name}.`);
+    }
+    setCommentId(null);
+  };
+
+  const saveAll = () => {
+    if (!canEdit || unsavedChanges === 0) return;
+    setUnsavedChanges(0);
+    showNotice('success', `All attendance changes for ${formatLongDate(selectedDate)} saved.`);
+  };
+
+  const submitDay = () => {
+    if (locked || !isToday) return;
+    if (pendingCount > 0 && !window.confirm(`${pendingCount} employee(s) are still not marked. Submit anyway? Submitting locks the day's attendance.`)) return;
+    setUnsavedChanges(0);
+    setLocked(true);
+    setEditingId(null);
+    setSelectedIds(new Set());
+    showNotice('success', `Attendance for ${formatLongDate(selectedDate)} submitted and locked. Edits are disabled.`);
+  };
+
+  const exportCsv = () => {
+    const lines = [SHEET_HEADERS, ...sheetRowsOf(tableRows)]
+      .map((cols) => cols.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(','))
+      .join('\r\n');
+    downloadTextFile(`attendance-${selectedDate}.csv`, lines, 'text/csv');
+    showNotice('success', `Exported ${tableRows.length} row(s) to CSV.`);
+  };
+
+  const openPrintSheet = () => {
+    const win = window.open('', '_blank');
+    if (!win) {
+      showNotice('error', 'Pop-up blocked. Allow pop-ups for this site to print the attendance sheet.');
+      return;
+    }
+    const head = SHEET_HEADERS.map((h) => `<th>${escapeHtmlText(h)}</th>`).join('');
+    const body = sheetRowsOf(tableRows)
+      .map((cols) => `<tr>${cols.map((v) => `<td>${escapeHtmlText(v)}</td>`).join('')}</tr>`)
+      .join('');
+    win.document.write(`<html><head><title>Attendance ${selectedDate}</title><style>body{font-family:Arial,sans-serif;font-size:12px;padding:24px;color:#111}h1{font-size:18px;margin:0 0 4px}p{margin:0 0 12px;color:#555}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:5px;text-align:left}th{background:#f3f4f6}</style></head><body><h1>Attendance Sheet</h1><p>${escapeHtmlText(formatLongDate(selectedDate))} · ${tableRows.length} row(s) · Generated by Admin</p><table><thead><tr>${head}</tr></thead><tbody>${body || '<tr><td colspan="11">No rows</td></tr>'}</tbody></table></body></html>`);
+    win.document.close();
+    window.setTimeout(() => win.print(), 300);
+  };
+
+  const sendSmsAlerts = () => {
+    const targets = scopeRows.filter((row) => ['absent', 'not_marked'].includes(displayStatusOf(row)));
+    showNotice('info', targets.length > 0
+      ? `Prepared SMS alerts for ${targets.length} employee(s) who are absent or not marked. Sending needs the SMS gateway, which is not connected in this prototype.`
+      : 'No absent or unmarked employees, so there are no SMS alerts to prepare.');
+  };
+
+  const clearFilters = () => {
+    setDepartmentFilter('all');
+    setStaffTypeFilter('all');
+    setSearchDraft('');
+    setAppliedSearch('');
+    setQuickFilter('all');
+  };
+
+  const filtersActive = departmentFilter !== 'all' || staffTypeFilter !== 'all' || !!appliedSearch || quickFilter !== 'all';
+  const rangeStart = tableRows.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1;
+  const rangeEnd = Math.min(safePage * PAGE_SIZE, tableRows.length);
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Sticky Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-20">
-        <div className="max-w-[1800px] mx-auto px-6 py-4">
-          {/* Breadcrumb */}
-          <nav className="flex items-center text-sm text-gray-500 mb-3">
-            <span className="hover:text-gray-700 cursor-pointer">Home</span>
-            <ChevronRight className="w-4 h-4 mx-2" />
-            <span className="hover:text-gray-700 cursor-pointer">Attendance</span>
-            <ChevronRight className="w-4 h-4 mx-2" />
-            <span className="text-gray-900 font-medium">Manual Marking</span>
-          </nav>
+    <div className="space-y-6">
+      {/* Zone 1: header, mode switch, live sync status */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Employee Attendance</h1>
+            <p className="text-sm text-gray-500 mt-1 flex items-center gap-2">
+              <Calendar className="w-4 h-4" />
+              Today: {formatLongDate(today)}
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 xl:gap-3">
+            {MODES.map((item) => {
+              const active = mode === item.id;
+              return (
+                <div
+                  key={item.id}
+                  className={`flex items-center gap-3 rounded-lg border px-3 py-2 ${active ? 'border-green-500 bg-green-50' : 'border-gray-200 bg-white'}`}>
+                  <span className={active ? 'text-green-700' : 'text-gray-500'}>{item.icon}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-gray-900">{item.label}</p>
+                    <p className="text-[11px] text-gray-500 truncate">{item.description}</p>
+                  </div>
+                  {active ? (
+                    <span className="px-2 py-0.5 rounded-full bg-green-600 text-white text-[11px] font-medium whitespace-nowrap">Currently ON</span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => changeMode(item.id)}
+                      disabled={locked}
+                      className="px-2.5 py-1 text-xs font-medium rounded-md border border-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
+                      Switch
+                    </button>
+                  )}
+                </div>);
+            })}
+          </div>
+        </div>
+        <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-gray-100 pt-3 text-xs text-gray-600">
+          <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /> Biometric device connected</span>
+          <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-500" /> ERP sync: Live</span>
+          {locked && (
+            <span className="inline-flex items-center gap-1.5 text-amber-700 font-medium"><Lock className="w-3.5 h-3.5" /> Day submitted and locked</span>
+          )}
+        </div>
+      </div>
 
-          {/* Header Row */}
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                <UserCheck className="w-7 h-7 text-blue-600" />
-                Manual Attendance Marking
-              </h1>
-              <p className="text-sm text-gray-500 mt-1">
-                Mark attendance with login, logout, and break timings
-              </p>
+      {notice && (
+        <div className={`flex items-start justify-between gap-3 rounded-lg border px-4 py-3 text-sm ${notice.type === 'success' ? 'bg-green-50 border-green-200 text-green-800' : notice.type === 'error' ? 'bg-red-50 border-red-200 text-red-800' : 'bg-indigo-50 border-indigo-200 text-indigo-800'}`}>
+          <span>{notice.text}</span>
+          <button type="button" onClick={() => setNotice(null)} className="opacity-70 hover:opacity-100">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Zone 2: smart filter bar */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3 items-end">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Date</label>
+            <input
+              type="date"
+              value={selectedDate}
+              max={today}
+              onChange={(e) => setSelectedDate(e.target.value || today)}
+              className={FILTER_INPUT_CLASS} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Department</label>
+            <select value={departmentFilter} onChange={(e) => setDepartmentFilter(e.target.value)} className={FILTER_INPUT_CLASS}>
+              {departments.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Staff Type</label>
+            <select value={staffTypeFilter} onChange={(e) => setStaffTypeFilter(e.target.value as 'all' | StaffType)} className={FILTER_INPUT_CLASS}>
+              <option value="all">All Staff Types</option>
+              <option value="Full-time">Full-time</option>
+              <option value="Part-time">Part-time</option>
+              <option value="Contract">Contract</option>
+            </select>
+          </div>
+          <div className="md:col-span-2">
+            <label className="block text-xs font-medium text-gray-600 mb-1">Employee search</label>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  value={searchDraft}
+                  onChange={(e) => setSearchDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') setAppliedSearch(searchDraft.trim());
+                  }}
+                  placeholder="Name or employee code"
+                  className={`${FILTER_INPUT_CLASS} pl-9`} />
+              </div>
+              <button
+                type="button"
+                onClick={() => setAppliedSearch(searchDraft.trim())}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
+                Search
+              </button>
             </div>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-gray-500 mr-1">Quick filter:</span>
+          {QUICK_FILTERS.map((item) => {
+            const active = quickFilter === item.key;
+            return (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => setQuickFilter(item.key)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${active ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}>
+                {item.label}
+              </button>);
+          })}
+          {filtersActive && (
+            <button type="button" onClick={clearFilters} className="ml-1 text-xs font-medium text-indigo-600 hover:underline">Clear filters</button>
+          )}
+        </div>
+      </div>
 
-            <div className="flex flex-wrap items-center gap-3">
-              {/* Date Navigation */}
-              <div className="flex items-center bg-white border border-gray-300 rounded-lg overflow-hidden shadow-sm">
+      {/* Zone 3: clickable live summary cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
+        {SUMMARY_CARDS.map((card) => {
+          const count = countFor(card.key);
+          const active = quickFilter === card.key;
+          return (
+            <button
+              key={card.key}
+              type="button"
+              onClick={() => setQuickFilter(card.key)}
+              className={`text-left bg-white rounded-xl border p-3 shadow-sm transition-colors ${active ? 'border-indigo-500 ring-2 ring-indigo-200' : 'border-gray-200 hover:border-gray-300'}`}>
+              <p className="text-[11px] font-medium uppercase tracking-wide text-gray-500">{card.label}</p>
+              <p className={`text-2xl font-bold mt-1 ${card.text}`}>{count}</p>
+              <p className="text-[11px] text-gray-500">{pct(count)}% of {total}</p>
+            </button>);
+        })}
+      </div>
+
+      <div className="flex flex-col xl:flex-row gap-6 items-start">
+        <div className="flex-1 min-w-0 w-full space-y-4">
+          {/* Zone 6: bulk action bar */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-3 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+            <div className="flex items-center gap-4">
+              <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={pageAllSelected}
+                  disabled={pageRows.length === 0}
+                  onChange={toggleSelectPage}
+                  className="rounded border-gray-300" />
+                Select all (this page)
+              </label>
+              <span className="text-xs text-gray-500">{selectedIds.size} selected</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {BULK_CHOICES.map((choice) => (
                 <button
-                  onClick={() => handleDateChange('prev')}
-                  className="p-2.5 hover:bg-gray-100 transition-colors border-r border-gray-300">
-
-                  <ChevronLeft className="w-4 h-4 text-gray-600" />
+                  key={choice}
+                  type="button"
+                  disabled={!canEdit || selectedIds.size === 0}
+                  onClick={() => applyBulk(choice)}
+                  className={BUTTON_OUTLINE_CLASS}>
+                  {CHOICE_LABEL[choice]}
                 </button>
-                <div className="flex items-center gap-2 px-4 py-2">
-                  <Calendar className="w-4 h-4 text-blue-600" />
-                  <input
-                    type="date"
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                    className="border-none outline-none text-sm font-medium text-gray-900 bg-transparent w-32" />
+              ))}
+            </div>
+          </div>
 
-                </div>
+          {/* Zone 4: attendance table with inline edit (Zone 5) */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 px-5 py-4 border-b border-gray-200">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Attendance Register</h2>
+                <p className="text-xs text-gray-500">{formatLongDate(selectedDate)} · {total} employee(s) in scope</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={exportCsv} disabled={tableRows.length === 0} className={BUTTON_OUTLINE_CLASS}>
+                  <Download className="w-4 h-4" /> Export
+                </button>
+                <button type="button" onClick={openPrintSheet} disabled={tableRows.length === 0} className={BUTTON_OUTLINE_CLASS}>
+                  <Printer className="w-4 h-4" /> Print
+                </button>
                 <button
-                  onClick={() => handleDateChange('next')}
-                  className="p-2.5 hover:bg-gray-100 transition-colors border-l border-gray-300">
-
-                  <ChevronRight className="w-4 h-4 text-gray-600" />
+                  type="button"
+                  onClick={saveAll}
+                  disabled={!canEdit || unsavedChanges === 0}
+                  className="inline-flex items-center gap-2 px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed">
+                  <Save className="w-4 h-4" /> Save All
                 </button>
               </div>
+            </div>
 
-              {!isToday &&
-              <button
-                onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
-                className="px-4 py-2.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+            {!isToday ? (
+              <div className="px-5 py-10 text-center text-sm text-gray-500">
+                No attendance records for {formatLongDate(selectedDate)} in this prototype. Records are available for today only.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="w-10 px-4 py-3" />
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">#</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Employee</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Dept</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Status</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">IN</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">OUT</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">HRS</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-100">
+                    {pageRows.length === 0 && (
+                      <tr>
+                        <td colSpan={9} className="px-4 py-10 text-center text-gray-500">No employees match these filters.</td>
+                      </tr>
+                    )}
+                    {pageRows.map((row) => {
+                      const display = displayStatusOf(row);
+                      const meta = DISPLAY_META[display];
+                      const isEditing = editingId === row.id;
+                      return (
+                        <React.Fragment key={row.id}>
+                          <tr className={selectedIds.has(row.id) ? 'bg-indigo-50/50' : 'hover:bg-gray-50'}>
+                            <td className="px-4 py-3">
+                              <input
+                                type="checkbox"
+                                checked={selectedIds.has(row.id)}
+                                onChange={() => toggleRowSelected(row.id)}
+                                aria-label={`Select ${row.name}`}
+                                className="rounded border-gray-300" />
+                            </td>
+                            <td className="px-4 py-3 text-gray-500">{row.serialNo}</td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-3">
+                                <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${meta.dot}`} />
+                                <div>
+                                  <p className="font-medium text-gray-900">{row.name}</p>
+                                  <p className="text-xs text-gray-500">{row.employeeId} · {row.staffType}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-gray-700">{row.department}</td>
+                            <td className="px-4 py-3">
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${meta.badge}`}>
+                                {meta.icon}
+                                {meta.label}
+                              </span>
+                              {display === 'late' && <p className="mt-1 text-[11px] text-yellow-700">{row.lateByMinutes} min late</p>}
+                            </td>
+                            <td className="px-4 py-3">
+                              <p className="text-gray-900">{row.loginTime || '—'}</p>
+                              {row.markSource && (
+                                <span className={`text-[10px] font-medium ${row.markSource === 'auto' ? 'text-green-700' : 'text-blue-700'}`}>
+                                  {row.markSource === 'auto' ? 'Auto' : 'Manual'}
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-gray-900">{row.logoutTime || '—'}</td>
+                            <td className="px-4 py-3 text-gray-900">{row.loginTime ? row.netWorkingHours.toFixed(2) : '—'}</td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  title={canEdit ? 'Edit attendance' : 'Editing is disabled in this mode or after submission'}
+                                  onClick={() => (isEditing ? setEditingId(null) : openEdit(row))}
+                                  disabled={!canEdit}
+                                  className={`p-1.5 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed ${isEditing ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:bg-gray-100'}`}>
+                                  <Edit3 className="w-4 h-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  title="Comment"
+                                  onClick={() => openComment(row)}
+                                  className="relative p-1.5 rounded-lg text-gray-600 hover:bg-gray-100">
+                                  <MessageSquare className="w-4 h-4" />
+                                  {row.remarks && <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-indigo-600" />}
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                          {isEditing && (
+                            <tr className="bg-indigo-50/40">
+                              <td colSpan={9} className="px-5 py-4">
+                                <div className="space-y-4 rounded-xl border border-indigo-200 bg-white p-4 shadow-sm">
+                                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
+                                    <div>
+                                      <p className="text-sm font-semibold text-gray-900">Edit attendance · {row.name}</p>
+                                      <p className="text-xs text-gray-500">{row.employeeId} · {row.department} · {formatLongDate(selectedDate)}</p>
+                                    </div>
+                                    <p className="text-xs text-gray-600">Current status: <span className="font-medium text-gray-900">{meta.label}</span></p>
+                                  </div>
+                                  <div>
+                                    <p className="mb-2 text-xs font-medium text-gray-600">Set status</p>
+                                    <div className="flex flex-wrap gap-2">
+                                      {EDIT_CHOICES.map((choice) => (
+                                        <button
+                                          key={choice}
+                                          type="button"
+                                          onClick={() => setEditDraft((draft) => ({ ...draft, choice }))}
+                                          className={`px-3 py-1.5 rounded-full text-xs font-medium border ${editDraft.choice === choice ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}>
+                                          {CHOICE_LABEL[choice]}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+                                    <div>
+                                      <label className="block text-xs font-medium text-gray-600 mb-1">IN time</label>
+                                      <div className="flex gap-2">
+                                        <input
+                                          type="time"
+                                          value={editDraft.inTime}
+                                          onChange={(e) => setEditDraft((draft) => ({ ...draft, inTime: e.target.value }))}
+                                          className={FILTER_INPUT_CLASS} />
+                                        <button
+                                          type="button"
+                                          onClick={() => setEditDraft((draft) => ({ ...draft, inTime: getCurrentTimeStamp() }))}
+                                          className="px-2.5 text-xs font-medium border border-gray-300 rounded-lg hover:bg-gray-50">Now</button>
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <label className="block text-xs font-medium text-gray-600 mb-1">OUT time</label>
+                                      <div className="flex gap-2">
+                                        <input
+                                          type="time"
+                                          value={editDraft.outTime}
+                                          onChange={(e) => setEditDraft((draft) => ({ ...draft, outTime: e.target.value }))}
+                                          className={FILTER_INPUT_CLASS} />
+                                        <button
+                                          type="button"
+                                          onClick={() => setEditDraft((draft) => ({ ...draft, outTime: getCurrentTimeStamp() }))}
+                                          className="px-2.5 text-xs font-medium border border-gray-300 rounded-lg hover:bg-gray-50">Now</button>
+                                      </div>
+                                    </div>
+                                    <div className="md:col-span-2">
+                                      <label className="block text-xs font-medium text-gray-600 mb-1">Reason / remark</label>
+                                      <input
+                                        type="text"
+                                        value={editDraft.reason}
+                                        onChange={(e) => setEditDraft((draft) => ({ ...draft, reason: e.target.value }))}
+                                        placeholder="e.g. Biometric failed at Gate 2"
+                                        className={FILTER_INPUT_CLASS} />
+                                    </div>
+                                    <div className="md:col-span-2">
+                                      <label className="block text-xs font-medium text-gray-600 mb-1">Proof attachment (optional)</label>
+                                      <div className="flex items-center gap-3">
+                                        <label className="inline-flex cursor-pointer items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">
+                                          <Paperclip className="w-4 h-4" /> Attach file
+                                          <input
+                                            type="file"
+                                            accept="image/*,application/pdf"
+                                            className="hidden"
+                                            onChange={(e) => setEditDraft((draft) => ({ ...draft, proofName: e.target.files?.[0]?.name ?? draft.proofName }))} />
+                                        </label>
+                                        <span className="truncate text-xs text-gray-500">{editDraft.proofName || 'No file attached'}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  {editError && <p className="text-sm text-red-600">{editError}</p>}
+                                  <div className="flex justify-end gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditingId(null);
+                                        setEditError(null);
+                                      }}
+                                      className={BUTTON_OUTLINE_CLASS}>
+                                      Cancel
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => applyEdit(row)}
+                                      className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
+                                      Update
+                                    </button>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>);
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
-                  Today
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-3 border-t border-gray-200 text-sm">
+              <p className="text-gray-600">Showing {rangeStart}–{rangeEnd} of {tableRows.length}</p>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={safePage <= 1}
+                  onClick={() => setPage(safePage - 1)}
+                  className={BUTTON_OUTLINE_CLASS}>
+                  <ChevronLeft className="w-4 h-4" /> Prev
                 </button>
-              }
+                <span className="text-xs text-gray-500">Page {safePage} of {totalPages}</span>
+                <button
+                  type="button"
+                  disabled={safePage >= totalPages}
+                  onClick={() => setPage(safePage + 1)}
+                  className={BUTTON_OUTLINE_CLASS}>
+                  Next <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-x-4 gap-y-2 px-5 py-3 border-t border-gray-100 bg-gray-50 text-xs text-gray-600">
+              {(Object.keys(DISPLAY_META) as DisplayStatus[]).map((key) => (
+                <span key={key} className="inline-flex items-center gap-1.5">
+                  <span className={`w-2.5 h-2.5 rounded-full ${DISPLAY_META[key].dot}`} />
+                  {DISPLAY_META[key].label}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
 
-              <button className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm">
-                <Upload className="w-4 h-4" />
-                Import
-              </button>
-
-              <button className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm">
-                <FileSpreadsheet className="w-4 h-4" />
-                Export
-              </button>
-
-              <button className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm">
-                <Printer className="w-4 h-4" />
-                Print
-              </button>
-
+        {/* Zone 7: live auto-feed side panel */}
+        <aside className="w-full xl:w-80 flex-shrink-0 xl:sticky xl:top-4 space-y-4">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+              <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                <Radio className="w-4 h-4 text-green-600" />
+                Live Auto Feed
+              </h3>
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-green-700">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> LIVE
+              </span>
+            </div>
+            <div className="px-4 py-3 border-b border-gray-100 space-y-1.5 text-xs text-gray-600">
+              <div className="flex justify-between"><span>Biometric device</span><span className="font-medium text-green-700">Connected</span></div>
+              <div className="flex justify-between"><span>Gate readers</span><span className="font-medium text-gray-900">3 of 3 online</span></div>
+              <div className="flex justify-between"><span>Last event</span><span className="font-medium text-gray-900">{feedToday[0]?.time ?? '—'}</span></div>
+            </div>
+            <ul className="divide-y divide-gray-100 max-h-80 overflow-y-auto">
+              {feedToday.length === 0 && (
+                <li className="px-4 py-6 text-center text-sm text-gray-500">No device events for this date.</li>
+              )}
+              {feedToday.slice(0, 6).map((entry) => (
+                <li key={entry.id} className="px-4 py-2.5 text-sm">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-mono text-xs font-semibold text-gray-900">{entry.time}</span>
+                    {entry.late && <span className="rounded bg-yellow-100 px-1.5 py-0.5 text-[10px] font-medium text-yellow-800">LATE</span>}
+                  </div>
+                  <p className="truncate text-gray-900">{entry.name} <span className="text-xs text-gray-500">({entry.code})</span></p>
+                  <p className="text-xs text-gray-500">{entry.method} · {entry.gate}</p>
+                </li>
+              ))}
+            </ul>
+            <div className="grid grid-cols-2 gap-2 border-t border-gray-200 px-4 py-3 text-center">
+              <div className="rounded-lg bg-green-50 py-2">
+                <p className="text-lg font-bold text-green-700">{autoCount}</p>
+                <p className="text-[11px] text-green-800">Auto-marked</p>
+              </div>
+              <div className="rounded-lg bg-red-50 py-2">
+                <p className="text-lg font-bold text-red-700">{pendingCount}</p>
+                <p className="text-[11px] text-red-800">Pending</p>
+              </div>
+            </div>
+            <div className="px-4 pb-4">
               <button
-                onClick={handleSave}
-                disabled={isSaving || !hasUnsavedChanges}
-                className={`flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white rounded-lg transition-colors shadow-sm ${
-                hasUnsavedChanges ?
-                'bg-blue-600 hover:bg-blue-700' :
-                'bg-gray-400 cursor-not-allowed'}`
-                }>
-
-                {isSaving ?
-                <RefreshCw className="w-4 h-4 animate-spin" /> :
-
-                <Save className="w-4 h-4" />
-                }
-                Save Attendance
+                type="button"
+                onClick={() => setShowFullLog(true)}
+                className="w-full px-3 py-2 text-sm font-medium border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+                View Full Auto Log
               </button>
             </div>
+          </div>
+        </aside>
+      </div>
+
+      {/* Zone 8: sticky bottom bar */}
+      <div className="sticky bottom-0 z-30 rounded-xl border border-gray-200 bg-white/95 p-4 shadow-lg backdrop-blur">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
+            <span className={`font-semibold ${pendingCount > 0 ? 'text-red-600' : 'text-green-700'}`}>Remaining unmarked: {pendingCount}</span>
+            <span className="text-gray-600">
+              Deadline: Mark by 11:00 AM
+              {deadlinePassed && <span className="ml-1 font-medium text-red-600">(passed)</span>}
+            </span>
+            {unsavedChanges > 0 && !locked && <span className="text-blue-700">{unsavedChanges} unsaved change(s)</span>}
+            {locked && <span className="inline-flex items-center gap-1 font-medium text-amber-700"><Lock className="w-3.5 h-3.5" /> Submitted and locked</span>}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={exportCsv} disabled={tableRows.length === 0} className={BUTTON_OUTLINE_CLASS}>
+              <FileSpreadsheet className="w-4 h-4" /> Export CSV
+            </button>
+            <button type="button" onClick={openPrintSheet} disabled={tableRows.length === 0} className={BUTTON_OUTLINE_CLASS}>
+              <Printer className="w-4 h-4" /> Print Sheet
+            </button>
+            <button type="button" onClick={sendSmsAlerts} className={BUTTON_OUTLINE_CLASS}>
+              <Send className="w-4 h-4" /> Send SMS Alerts
+            </button>
+            <button
+              type="button"
+              onClick={submitDay}
+              disabled={locked || !isToday}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed">
+              <Lock className="w-4 h-4" /> Save &amp; Submit
+            </button>
           </div>
         </div>
       </div>
 
-      <div className="max-w-[1800px] mx-auto px-6 py-6 space-y-6">
-        {/* Unsaved Changes Warning */}
-        {hasUnsavedChanges &&
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-center gap-3">
-            <AlertTriangle className="w-5 h-5 text-amber-600" />
-            <p className="text-sm text-amber-800 font-medium">
-              You have unsaved changes. Click "Save Attendance" to save your changes.
-            </p>
-          </div>
-        }
-
-        {/* Date Banner */}
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl p-6 text-white shadow-lg">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
-              <p className="text-blue-100 text-sm font-medium">Marking Attendance For</p>
-              <h2 className="text-2xl font-bold mt-1">{formatDate(selectedDate)}</h2>
-            </div>
-            <div className="flex items-center gap-8">
-              <div className="text-center">
-                <p className="text-3xl font-bold">{stats.present + stats.wfh + stats.onDuty}</p>
-                <p className="text-blue-100 text-sm">Working</p>
-              </div>
-              <div className="w-px h-12 bg-blue-400" />
-              <div className="text-center">
-                <p className="text-3xl font-bold">{stats.absent}</p>
-                <p className="text-blue-100 text-sm">Absent</p>
-              </div>
-              <div className="w-px h-12 bg-blue-400" />
-              <div className="text-center">
-                <p className="text-3xl font-bold">{stats.leave}</p>
-                <p className="text-blue-100 text-sm">On Leave</p>
-              </div>
-              <div className="w-px h-12 bg-blue-400" />
-              <div className="text-center">
-                <p className="text-3xl font-bold">{stats.total}</p>
-                <p className="text-blue-100 text-sm">Total Staff</p>
-              </div>
-            </div>
-          </div>
+      {/* Comment popup (💬) */}
+      <Modal
+        isOpen={!!commentRow}
+        onClose={() => setCommentId(null)}
+        title={commentRow ? `Comment: ${commentRow.name}` : 'Comment'}
+        size="sm"
+        footer={(
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={() => setCommentId(null)} className={BUTTON_OUTLINE_CLASS}>Cancel</button>
+            <button type="button" onClick={saveComment} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">Save Comment</button>
+          </div>)}>
+        <div className="space-y-2">
+          <p className="text-xs text-gray-500">{commentRow?.employeeId} · {commentRow?.department}</p>
+          <textarea
+            rows={4}
+            value={commentDraft}
+            onChange={(e) => setCommentDraft(e.target.value)}
+            placeholder="Add a note for this attendance record"
+            className={FILTER_INPUT_CLASS} />
         </div>
+      </Modal>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-9 gap-4">
-          {[
-          { label: 'Total', value: stats.total, icon: Users, color: 'blue' },
-          { label: 'Present', value: stats.present, icon: CheckCircle, color: 'green' },
-          { label: 'Absent', value: stats.absent, icon: XCircle, color: 'red' },
-          { label: 'Half Day', value: stats.halfDay, icon: Clock, color: 'amber' },
-          { label: 'On Leave', value: stats.leave, icon: Coffee, color: 'blue' },
-          { label: 'WFH', value: stats.wfh, icon: Home, color: 'purple' },
-          { label: 'On Duty', value: stats.onDuty, icon: UserCheck, color: 'indigo' },
-          { label: 'Week Off', value: stats.weekOff, icon: Calendar, color: 'gray' },
-          { label: 'Late', value: stats.late, icon: AlertCircle, color: 'orange' }].
-          map((stat) =>
-          <div
-            key={stat.label}
-            className={`bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md transition-shadow`}>
-
-              <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-lg bg-${stat.color}-100 flex items-center justify-center`}>
-                  <stat.icon className={`w-5 h-5 text-${stat.color}-600`} />
-                </div>
-                <div>
-                  <p className={`text-xl font-bold text-${stat.color}-600`}>{stat.value}</p>
-                  <p className="text-xs text-gray-500">{stat.label}</p>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Search and Filters */}
-        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-          <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-            {/* Search Input */}
-            <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search by name, ID, or designation..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-
-            </div>
-
-            {/* Filter Toggle */}
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg transition-colors ${
-              showFilters ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`
-              }>
-
-              <Filter className="w-4 h-4" />
-              Filters
-              {(departmentFilter !== 'all' || shiftFilter !== 'all' || statusFilter !== 'all') &&
-              <span className="w-5 h-5 bg-blue-600 text-white text-xs rounded-full flex items-center justify-center">
-                  {[departmentFilter, shiftFilter, statusFilter].filter((f) => f !== 'all').length}
-                </span>
-              }
-            </button>
-
-            {(departmentFilter !== 'all' || shiftFilter !== 'all' || statusFilter !== 'all' || searchQuery) &&
-            <button
-              onClick={handleClearFilters}
-              className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-
-                <XCircle className="w-4 h-4" />
-                Clear Filters
-              </button>
-            }
-          </div>
-
-          {/* Expanded Filters */}
-          {showFilters &&
-          <div className="mt-4 pt-4 border-t border-gray-200 grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
-                <select
-                value={departmentFilter}
-                onChange={(e) => setDepartmentFilter(e.target.value)}
-                className="w-full px-3 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-
-                  {departments.map((dept) =>
-                <option key={dept.value} value={dept.value}>
-                      {dept.label}
-                    </option>
-                )}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Shift</label>
-                <select
-                value={shiftFilter}
-                onChange={(e) => setShiftFilter(e.target.value)}
-                className="w-full px-3 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-
-                  {shifts.map((shift) =>
-                <option key={shift.value} value={shift.value}>
-                      {shift.label}
-                    </option>
-                )}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full px-3 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-
-                  <option value="all">All Status</option>
-                  {statusOptions.map((status) =>
-                <option key={status.value} value={status.value}>
-                      {status.label}
-                    </option>
-                )}
-                </select>
-              </div>
-            </div>
-          }
-        </div>
-
-        {/* Bulk Actions */}
-        {selectedEmployees.size > 0 &&
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold">
-                {selectedEmployees.size}
-              </div>
-              <span className="font-medium text-blue-900">
-                {selectedEmployees.size} employee{selectedEmployees.size > 1 ? 's' : ''} selected
-              </span>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-              onClick={() => handleBulkStatusChange('present')}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors">
-
-                <CheckCircle className="w-4 h-4" />
-                Present
-              </button>
-              <button
-              onClick={() => handleBulkStatusChange('absent')}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors">
-
-                <XCircle className="w-4 h-4" />
-                Absent
-              </button>
-              <button
-              onClick={() => handleBulkStatusChange('half_day')}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium bg-amber-100 text-amber-700 rounded-lg hover:bg-amber-200 transition-colors">
-
-                <Clock className="w-4 h-4" />
-                Half Day
-              </button>
-              <button
-              onClick={() => handleBulkStatusChange('leave')}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors">
-
-                <Coffee className="w-4 h-4" />
-                Leave
-              </button>
-              <button
-              onClick={() => handleBulkStatusChange('wfh')}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors">
-
-                <Home className="w-4 h-4" />
-                WFH
-              </button>
-              <button
-              onClick={() => {
-                setSelectedEmployees(new Set());
-                setSelectAll(false);
-              }}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-
-                <X className="w-4 h-4" />
-                Clear
-              </button>
-            </div>
-          </div>
-        }
-
-        {/* Main Attendance Table */}
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-          {/* Table Header */}
-          <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">Attendance Register</h3>
-              <p className="text-sm text-gray-500">
-                {filteredEmployees.length} of {employees.length} employees
-              </p>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <Timer className="w-4 h-4 text-blue-600" />
-                Total Net Hours: <span className="font-bold text-blue-600">{stats.totalNetHours.toFixed(1)}h</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <Clock className="w-4 h-4 text-green-600" />
-                Overtime: <span className="font-bold text-green-600">{stats.totalOvertime.toFixed(1)}h</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Table */}
+      {/* Full auto log */}
+      <Modal
+        isOpen={showFullLog}
+        onClose={() => setShowFullLog(false)}
+        title="Full Auto Log"
+        size="lg"
+        footer={(
+          <div className="flex justify-end">
+            <button type="button" onClick={() => setShowFullLog(false)} className={BUTTON_OUTLINE_CLASS}>Close</button>
+          </div>)}>
+        {feedToday.length === 0 ? (
+          <p className="text-sm text-gray-500">No device events for this date.</p>
+        ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-100 border-b border-gray-200">
+            <table className="min-w-full divide-y divide-gray-200 text-sm">
+              <thead className="bg-gray-50">
                 <tr>
-                  <th className="py-3 px-4 text-left">
-                    <input
-                      type="checkbox"
-                      checked={selectAll}
-                      onChange={handleSelectAll}
-                      className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" />
-
-                  </th>
-                  <th className="py-3 px-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
-                    S.No
-                  </th>
-                  <th className="py-3 px-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
-                    Emp ID
-                  </th>
-                  <th className="py-3 px-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider min-w-[200px]">
-                    Employee Details
-                  </th>
-                  <th className="py-3 px-4 text-center text-xs font-bold text-gray-600 uppercase tracking-wider">
-                    Shift
-                  </th>
-                  <th className="py-3 px-4 text-center text-xs font-bold text-gray-600 uppercase tracking-wider">
-                    <div className="flex items-center justify-center gap-1">
-                      <LogIn className="w-3.5 h-3.5" />
-                      Login Time
-                    </div>
-                  </th>
-                  <th className="py-3 px-4 text-center text-xs font-bold text-gray-600 uppercase tracking-wider">
-                    <div className="flex items-center justify-center gap-1">
-                      <LogOut className="w-3.5 h-3.5" />
-                      Logout Time
-                    </div>
-                  </th>
-                  <th className="py-3 px-4 text-center text-xs font-bold text-gray-600 uppercase tracking-wider">
-                    <div className="flex items-center justify-center gap-1">
-                      <PauseCircle className="w-3.5 h-3.5" />
-                      Break Start
-                    </div>
-                  </th>
-                  <th className="py-3 px-4 text-center text-xs font-bold text-gray-600 uppercase tracking-wider">
-                    <div className="flex items-center justify-center gap-1">
-                      <PlayCircle className="w-3.5 h-3.5" />
-                      Break End
-                    </div>
-                  </th>
-                  <th className="py-3 px-4 text-center text-xs font-bold text-gray-600 uppercase tracking-wider">
-                    <div className="flex items-center justify-center gap-1">
-                      <Timer className="w-3.5 h-3.5" />
-                      Net Hours
-                    </div>
-                  </th>
-                  <th className="py-3 px-4 text-center text-xs font-bold text-gray-600 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="py-3 px-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider min-w-[150px]">
-                    Remarks
-                  </th>
-                  <th className="py-3 px-4 text-center text-xs font-bold text-gray-600 uppercase tracking-wider">
-                    Actions
-                  </th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-gray-500">Time</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-gray-500">Employee</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-gray-500">Method</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-gray-500">Gate</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-gray-500">Late</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filteredEmployees.map((employee) => {
-                  const status = statusConfig[employee.status];
-                  const isNonWorking = ['absent', 'leave', 'week_off'].includes(employee.status);
-
-                  return (
-                    <tr
-                      key={employee.id}
-                      className={`hover:bg-gray-50 transition-colors ${
-                      employee.isEditing ? 'bg-blue-50' : ''} ${
-                      isNonWorking ? 'bg-gray-50/50' : ''}`}>
-
-                      {/* Checkbox */}
-                      <td className="py-3 px-4">
-                        <input
-                          type="checkbox"
-                          checked={selectedEmployees.has(employee.id)}
-                          onChange={() => handleSelectEmployee(employee.id)}
-                          className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" />
-
-                      </td>
-
-                      {/* Serial No */}
-                      <td className="py-3 px-4">
-                        <span className="text-sm font-medium text-gray-500">{employee.serialNo}</span>
-                      </td>
-
-                      {/* Employee ID */}
-                      <td className="py-3 px-4">
-                        <span className="text-sm font-mono text-gray-600">{employee.employeeId}</span>
-                      </td>
-
-                      {/* Employee Details */}
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-3">
-                          <div
-                            className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold text-white ${
-                            isNonWorking ?
-                            'bg-gray-400' :
-                            'bg-gradient-to-br from-blue-500 to-indigo-600'}`
-                            }>
-
-                            {employee.avatar}
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium text-gray-900">{employee.name}</p>
-                            <p className="text-xs text-gray-500">
-                              {employee.department} • {employee.designation}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Shift */}
-                      <td className="py-3 px-4 text-center">
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">{employee.shift}</p>
-                          <p className="text-xs text-gray-500">
-                            {employee.shiftStart} - {employee.shiftEnd}
-                          </p>
-                        </div>
-                      </td>
-
-                      {/* Login Time */}
-                      <td className="py-3 px-4 text-center">
-                        {employee.isEditing && !isNonWorking ?
-                        <div className="flex flex-col items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateField(employee.id, 'loginTime', getCurrentTimeStamp())}
-                            className="px-3 py-1.5 text-xs font-medium text-blue-700 bg-white border border-blue-300 rounded-lg hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors whitespace-nowrap">
-                            Login
-                          </button>
-                          {employee.loginTime && <span className="text-xs font-medium text-gray-600">{employee.loginTime}</span>}
-                        </div> :
-
-                        employee.loginTime ?
-                        <div>
-                            <span
-                            className={`text-sm font-semibold ${
-                            employee.isLate ? 'text-red-600' : 'text-green-600'}`
-                            }>
-
-                              {employee.loginTime}
-                            </span>
-                            {employee.isLate &&
-                          <p className="text-xs text-red-500">Late by {employee.lateByMinutes}m</p>
-                          }
-                          </div> :
-
-                        <span className="text-sm text-gray-400">—</span>
-                        }
-                      </td>
-
-                      {/* Logout Time */}
-                      <td className="py-3 px-4 text-center">
-                        {employee.isEditing && !isNonWorking ?
-                        <div className="flex flex-col items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateField(employee.id, 'logoutTime', getCurrentTimeStamp())}
-                            className="px-3 py-1.5 text-xs font-medium text-blue-700 bg-white border border-blue-300 rounded-lg hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors whitespace-nowrap">
-                            Logout
-                          </button>
-                          {employee.logoutTime && <span className="text-xs font-medium text-gray-600">{employee.logoutTime}</span>}
-                        </div> :
-
-                        employee.logoutTime ?
-                        <span
-                          className={`text-sm font-semibold ${
-                          employee.isEarlyLeave ? 'text-orange-600' : 'text-blue-600'}`
-                          }>
-
-                            {employee.logoutTime}
-                          </span> :
-
-                        <span className="text-sm text-gray-400">—</span>
-                        }
-                      </td>
-
-                      {/* Break Start Time */}
-                      <td className="py-3 px-4 text-center">
-                        {employee.isEditing && !isNonWorking ?
-                        <div className="flex flex-col items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateField(employee.id, 'breakStartTime', getCurrentTimeStamp())}
-                            className="px-3 py-1.5 text-xs font-medium text-blue-700 bg-white border border-blue-300 rounded-lg hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors whitespace-nowrap">
-                            Break In
-                          </button>
-                          {employee.breakStartTime && <span className="text-xs font-medium text-gray-600">{employee.breakStartTime}</span>}
-                        </div> :
-
-                        employee.breakStartTime ?
-                        <span className="text-sm font-medium text-gray-700">{employee.breakStartTime}</span> :
-
-                        <span className="text-sm text-gray-400">—</span>
-                        }
-                      </td>
-
-                      {/* Break End Time */}
-                      <td className="py-3 px-4 text-center">
-                        {employee.isEditing && !isNonWorking ?
-                        <div className="flex flex-col items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateField(employee.id, 'breakEndTime', getCurrentTimeStamp())}
-                            className="px-3 py-1.5 text-xs font-medium text-blue-700 bg-white border border-blue-300 rounded-lg hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors whitespace-nowrap">
-                            Break Out
-                          </button>
-                          {employee.breakEndTime && <span className="text-xs font-medium text-gray-600">{employee.breakEndTime}</span>}
-                        </div> :
-
-                        employee.breakEndTime ?
-                        <span className="text-sm font-medium text-gray-700">{employee.breakEndTime}</span> :
-
-                        <span className="text-sm text-gray-400">—</span>
-                        }
-                      </td>
-
-                      {/* Net Working Hours */}
-                      <td className="py-3 px-4 text-center">
-                        {employee.netWorkingHours > 0 ?
-                        <div>
-                            <span
-                            className={`text-sm font-bold ${
-                            employee.netWorkingHours >= 8 ?
-                            'text-green-600' :
-                            employee.netWorkingHours >= 6 ?
-                            'text-amber-600' :
-                            'text-red-600'}`
-                            }>
-
-                              {employee.netWorkingHours.toFixed(2)}h
-                            </span>
-                            {employee.overtime > 0 &&
-                          <p className="text-xs text-green-600">+{employee.overtime.toFixed(1)}h OT</p>
-                          }
-                          </div> :
-
-                        <span className="text-sm text-gray-400">—</span>
-                        }
-                      </td>
-
-                      {/* Status */}
-                      <td className="py-3 px-4 text-center">
-                        {employee.isEditing ?
-                        <select
-                          value={employee.status}
-                          onChange={(e) => handleStatusChange(employee.id, e.target.value as AttendanceStatus)}
-                          className="px-2 py-1.5 text-sm border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-
-                            {statusOptions.map((opt) =>
-                          <option key={opt.value} value={opt.value}>
-                                {opt.label}
-                              </option>
-                          )}
-                          </select> :
-
-                        <span
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${status.bgColor} ${status.textColor}`}>
-
-                            {status.icon}
-                            {status.label}
-                          </span>
-                        }
-                      </td>
-
-                      {/* Remarks */}
-                      <td className="py-3 px-4">
-                        {employee.isEditing ?
-                        <input
-                          type="text"
-                          value={employee.remarks}
-                          onChange={(e) => handleUpdateField(employee.id, 'remarks', e.target.value)}
-                          placeholder="Add remarks..."
-                          className="w-full px-2 py-1.5 text-sm border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" /> :
-
-
-                        <span className="text-sm text-gray-600">{employee.remarks || '—'}</span>
-                        }
-                      </td>
-
-                      {/* Actions */}
-                      <td className="py-3 px-4 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          {employee.isEditing ?
-                          <>
-                              <button
-                              onClick={() => handleEditEmployee(employee.id)}
-                              className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                              title="Save">
-
-                                <Check className="w-4 h-4" />
-                              </button>
-                              <button
-                              onClick={() => handleEditEmployee(employee.id)}
-                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                              title="Cancel">
-
-                                <X className="w-4 h-4" />
-                              </button>
-                            </> :
-
-                          <button
-                            onClick={() => handleEditEmployee(employee.id)}
-                            className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                            title="Edit">
-
-                              <Edit3 className="w-4 h-4" />
-                            </button>
-                          }
-                        </div>
-                      </td>
-                    </tr>);
-
-                })}
+                {feedToday.map((entry) => (
+                  <tr key={entry.id}>
+                    <td className="px-3 py-2 font-mono text-xs">{entry.time}</td>
+                    <td className="px-3 py-2">{entry.name} <span className="text-xs text-gray-500">({entry.code})</span></td>
+                    <td className="px-3 py-2">{entry.method}</td>
+                    <td className="px-3 py-2">{entry.gate}</td>
+                    <td className="px-3 py-2">{entry.late ? 'Yes' : 'No'}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
-
-          {/* Empty State */}
-          {filteredEmployees.length === 0 &&
-          <div className="flex flex-col items-center justify-center py-16">
-              <UserX className="w-16 h-16 text-gray-300 mb-4" />
-              <p className="text-lg font-medium text-gray-500">No employees found</p>
-              <p className="text-sm text-gray-400 mt-1">Try adjusting your search or filters</p>
-              <button
-              onClick={handleClearFilters}
-              className="mt-4 px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
-
-                Clear all filters
-              </button>
-            </div>
-          }
-
-          {/* Table Footer */}
-          <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <div className="text-sm text-gray-600">
-                Showing <span className="font-semibold">{filteredEmployees.length}</span> of{' '}
-                <span className="font-semibold">{employees.length}</span> employees
-              </div>
-              <div className="flex items-center gap-6">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                  <span className="text-sm text-gray-600">Present</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                  <span className="text-sm text-gray-600">Absent</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-amber-500"></div>
-                  <span className="text-sm text-gray-600">Half Day</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                  <span className="text-sm text-gray-600">Leave</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-purple-500"></div>
-                  <span className="text-sm text-gray-600">WFH</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Help Section */}
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-5">
-          <div className="flex items-start gap-4">
-            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-              <AlertCircle className="w-5 h-5 text-blue-600" />
-            </div>
-            <div>
-              <h4 className="text-sm font-semibold text-blue-900 mb-2">Quick Tips for Attendance Marking</h4>
-              <ul className="text-sm text-blue-800 space-y-1.5">
-                <li className="flex items-start gap-2">
-                  <span className="text-blue-500 mt-1">•</span>
-                  Click the <Edit3 className="w-3.5 h-3.5 inline text-blue-600" /> edit icon to modify individual employee attendance
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-blue-500 mt-1">•</span>
-                  Select multiple employees using checkboxes for bulk status updates
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-blue-500 mt-1">•</span>
-                  Working hours are automatically calculated when you enter login, logout, and break times
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-blue-500 mt-1">•</span>
-                  Late arrivals are automatically detected based on shift start time (5 min grace period)
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-blue-500 mt-1">•</span>
-                  Don't forget to click <strong>"Save Attendance"</strong> to save all changes
-                </li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </div>
+        )}
+      </Modal>
     </div>);
 
 }

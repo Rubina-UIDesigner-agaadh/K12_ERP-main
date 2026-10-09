@@ -1,58 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import {
-  Search,
-  Printer,
-  FileDown,
-  CheckSquare,
-  Square,
-  User,
-  CreditCard,
-  Building2,
-  Briefcase,
-  Eye,
-  Phone,
-  Mail,
-  MapPin,
-  Calendar,
-  Droplets,
-  Shield,
-  Smartphone,
-  RefreshCw,
-  Download,
-  Filter,
-  MoreHorizontal,
-  X,
-  AlertCircle,
-  Clock,
-  CheckCircle,
-  XCircle,
-  Edit,
-  Trash2,
-  Plus,
-  Upload,
-  Image,
-  Type,
-  QrCode,
-  Palette,
-  Layout,
-  Save,
-  RotateCcw,
-  Move,
-  AlignLeft,
-  AlignCenter,
-  AlignRight,
-  Bold,
-  Italic,
-  ChevronDown,
-  ChevronUp,
-  Settings,
-  Layers,
-  Copy,
-  FileText,
-  AlertTriangle,
-  Send,
-  History } from
-'lucide-react';
+import { Search, Printer, FileDown, CheckSquare, Square, User, CreditCard, Building2, Briefcase, Eye, Phone, Mail, MapPin, Calendar, Droplets, Shield, Smartphone, RefreshCw, Download, Filter, MoreHorizontal, X, AlertCircle, Clock, CheckCircle, XCircle, Edit, Trash2, Plus, Upload, Image, Type, QrCode, Palette, Layout, Save, RotateCcw, Move, AlignLeft, AlignCenter, AlignRight, Bold, Italic, ChevronDown, ChevronUp, Settings, Layers, Copy, FileText, AlertTriangle, Send, History, Barcode, UserPlus } from 'lucide-react';
+import { renderToStaticMarkup } from 'react-dom/server';
 
 // Types
 interface Employee {
@@ -86,9 +34,11 @@ interface ReissueRequest {
   priority: 'Normal' | 'Urgent';
 }
 
+type CardElementType = 'text' | 'field' | 'image' | 'qr' | 'barcode' | 'shape';
+
 interface CardElement {
   id: string;
-  type: 'text' | 'image' | 'qr' | 'shape' | 'field';
+  type: CardElementType;
   label: string;
   x: number;
   y: number;
@@ -101,9 +51,14 @@ interface CardElement {
     color?: string;
     backgroundColor?: string;
     borderRadius?: number;
+    borderWidth?: number;
+    borderColor?: string;
     textAlign?: string;
   };
   fieldMapping?: string;
+  content?: string;
+  imageSrc?: string;
+  imageFit?: 'cover' | 'contain' | 'fill';
 }
 
 interface CardTemplate {
@@ -403,16 +358,429 @@ const defaultCardElements: CardElement[] = [
 },
 {
   id: 'validity',
-  type: 'text',
-  label: 'Validity',
+  type: 'field',
+  label: 'Valid Until',
   x: 100,
   y: 390,
   width: 140,
   height: 30,
   visible: true,
-  style: { fontSize: 12, color: '#ffffff' }
+  style: { fontSize: 12, color: '#ffffff' },
+  fieldMapping: 'expiryDate'
 }];
 
+
+// ==================== CARD DESIGN HELPERS ====================
+
+const DEFAULT_CARD_BACKGROUND = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+const DESIGN_STORAGE_KEY = 'employeeIdCardDesign';
+const VERTICAL_DIMS = { width: 280, height: 420 };
+const HORIZONTAL_DIMS = { width: 420, height: 260 };
+const DESIGN_INPUT_CLASS = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500';
+const DESIGN_LABEL_CLASS = 'block text-xs font-medium text-gray-600 mb-1';
+const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
+const PHONE_PATTERN = /^(\+91)?[6-9]\d{9}$/;
+
+const ELEMENT_PALETTE: { type: CardElementType; label: string; description: string; icon: React.ElementType }[] = [
+  { type: 'text', label: 'Text', description: 'Fixed text, e.g. a title', icon: Type },
+  { type: 'field', label: 'Employee Field', description: 'Name, ID, dates, etc.', icon: FileText },
+  { type: 'image', label: 'Image / Photo', description: 'Upload any picture or logo', icon: Image },
+  { type: 'qr', label: 'QR Code', description: 'Encodes a chosen field', icon: QrCode },
+  { type: 'barcode', label: 'Barcode', description: 'Linear code for scanners', icon: Barcode },
+  { type: 'shape', label: 'Shape', description: 'Box, band or divider', icon: Square }
+];
+
+const ELEMENT_SIZE: Record<CardElementType, { width: number; height: number }> = {
+  text: { width: 140, height: 28 },
+  field: { width: 160, height: 24 },
+  image: { width: 80, height: 80 },
+  qr: { width: 60, height: 60 },
+  barcode: { width: 140, height: 40 },
+  shape: { width: 120, height: 40 }
+};
+
+const FIELD_OPTIONS: { value: string; label: string }[] = [
+  { value: 'name', label: 'Full Name' },
+  { value: 'designation', label: 'Designation' },
+  { value: 'department', label: 'Department' },
+  { value: 'employeeId', label: 'Employee ID' },
+  { value: 'bloodGroup', label: 'Blood Group' },
+  { value: 'email', label: 'Email' },
+  { value: 'phone', label: 'Phone' },
+  { value: 'joiningDate', label: 'Date of Joining' },
+  { value: 'expiryDate', label: 'Valid Until' },
+  { value: 'emergencyContact', label: 'Emergency Contact' },
+  { value: 'cardNumber', label: 'Card Number' }
+];
+
+const getCardDims = (orientation: 'vertical' | 'horizontal') =>
+  orientation === 'vertical' ? VERTICAL_DIMS : HORIZONTAL_DIMS;
+
+// Keeps element placement proportional when the card orientation changes
+const scaleElements = (
+  elements: CardElement[],
+  from: { width: number; height: number },
+  to: { width: number; height: number }
+): CardElement[] => {
+  const sx = to.width / from.width;
+  const sy = to.height / from.height;
+  return elements.map((el) => ({
+    ...el,
+    x: Math.round(el.x * sx),
+    y: Math.round(el.y * sy),
+    width: Math.max(10, Math.round(el.width * sx)),
+    height: Math.max(10, Math.round(el.height * sy))
+  }));
+};
+
+const toIsoDate = (date: Date): string =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
+const addYearsIso = (years: number): string => {
+  const date = new Date();
+  date.setFullYear(date.getFullYear() + years);
+  return toIsoDate(date);
+};
+
+const formatCardDate = (value: string): string =>
+  value ? new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+
+const getFieldValue = (employee: Employee, key?: string): string => {
+  switch (key) {
+    case 'name': return employee.name;
+    case 'designation': return employee.designation;
+    case 'department': return employee.department;
+    case 'employeeId': return employee.employeeId;
+    case 'bloodGroup': return employee.bloodGroup;
+    case 'email': return employee.email;
+    case 'phone': return employee.phone;
+    case 'joiningDate': return formatCardDate(employee.joiningDate);
+    case 'expiryDate': return formatCardDate(employee.expiryDate);
+    case 'emergencyContact': return employee.emergencyContact;
+    case 'cardNumber': return employee.cardNumber;
+    default: return '';
+  }
+};
+
+const hashString = (value: string): number => {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i++) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+};
+
+// Seeded generator so QR / barcode patterns stay stable across re-renders
+const createRandom = (seed: string) => {
+  let state = hashString(seed) || 1;
+  return () => {
+    state ^= state << 13;
+    state ^= state >>> 17;
+    state ^= state << 5;
+    return (state >>> 0) / 4294967296;
+  };
+};
+
+const buildQrPath = (seed: string): string => {
+  const size = 21;
+  const random = createRandom(seed);
+  const finderCell = (row: number, col: number): boolean | null => {
+    const corners = [[0, 0], [0, size - 7], [size - 7, 0]];
+    for (const [r0, c0] of corners) {
+      if (row >= r0 && row < r0 + 7 && col >= c0 && col < c0 + 7) {
+        const r = row - r0;
+        const c = col - c0;
+        return r === 0 || r === 6 || c === 0 || c === 6 || (r >= 2 && r <= 4 && c >= 2 && c <= 4);
+      }
+    }
+    return null;
+  };
+  let path = '';
+  for (let row = 0; row < size; row++) {
+    for (let col = 0; col < size; col++) {
+      const dark = finderCell(row, col) ?? random() > 0.5;
+      if (dark) path += `M${col} ${row}h1v1h-1z`;
+    }
+  }
+  return path;
+};
+
+const buildBarcodeBars = (seed: string): { x: number; w: number }[] => {
+  const random = createRandom(seed);
+  const bars: { x: number; w: number }[] = [];
+  let x = 2;
+  while (x < 96) {
+    const w = 1 + Math.floor(random() * 3);
+    bars.push({ x, w });
+    x += w + 1 + Math.floor(random() * 2);
+  }
+  return bars;
+};
+
+interface IssueCardForm {
+  name: string;
+  employeeId: string;
+  designation: string;
+  department: string;
+  email: string;
+  phone: string;
+  bloodGroup: string;
+  joiningDate: string;
+  emergencyContact: string;
+  address: string;
+  validUntil: string;
+  photo: string;
+}
+
+const createEmptyIssueForm = (): IssueCardForm => ({
+  name: '',
+  employeeId: '',
+  designation: '',
+  department: '',
+  email: '',
+  phone: '',
+  bloodGroup: '',
+  joiningDate: toIsoDate(new Date()),
+  emergencyContact: '',
+  address: '',
+  validUntil: addYearsIso(1),
+  photo: ''
+});
+
+interface CardFaceProps {
+  employee: Employee;
+  elements: CardElement[];
+  background: string;
+  orientation: 'vertical' | 'horizontal';
+  editable?: boolean;
+  selectedId?: string | null;
+  onSelect?: (id: string) => void;
+  onMove?: (id: string, x: number, y: number) => void;
+  onResize?: (id: string, width: number, height: number) => void;
+}
+
+// Renders the card from its elements. Inline styles only, so the same markup works in the print window.
+const CardFace: React.FC<CardFaceProps> = ({
+  employee,
+  elements,
+  background,
+  orientation,
+  editable = false,
+  selectedId = null,
+  onSelect,
+  onMove,
+  onResize
+}) => {
+  const dims = getCardDims(orientation);
+  const dragRef = useRef<{
+    mode: 'move' | 'resize';
+    id: string;
+    startX: number;
+    startY: number;
+    originX: number;
+    originY: number;
+    originW: number;
+    originH: number;
+  } | null>(null);
+
+  const beginDrag = (event: React.PointerEvent<HTMLDivElement>, el: CardElement, mode: 'move' | 'resize') => {
+    if (!editable) return;
+    event.stopPropagation();
+    event.preventDefault();
+    onSelect?.(el.id);
+    dragRef.current = {
+      mode,
+      id: el.id,
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: el.x,
+      originY: el.y,
+      originW: el.width,
+      originH: el.height
+    };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+
+  const continueDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    if (!drag) return;
+    const dx = event.clientX - drag.startX;
+    const dy = event.clientY - drag.startY;
+    if (drag.mode === 'move') {
+      const el = elements.find((item) => item.id === drag.id);
+      if (!el) return;
+      const x = Math.min(Math.max(0, drag.originX + dx), Math.max(0, dims.width - el.width));
+      const y = Math.min(Math.max(0, drag.originY + dy), Math.max(0, dims.height - el.height));
+      onMove?.(drag.id, Math.round(x), Math.round(y));
+    } else {
+      const width = Math.min(Math.max(16, drag.originW + dx), dims.width - drag.originX);
+      const height = Math.min(Math.max(16, drag.originH + dy), dims.height - drag.originY);
+      onResize?.(drag.id, Math.round(width), Math.round(height));
+    }
+  };
+
+  const endDrag = () => {
+    dragRef.current = null;
+  };
+
+  const renderContent = (el: CardElement) => {
+    const textAlign = (el.style.textAlign as React.CSSProperties['textAlign']) || 'left';
+    switch (el.type) {
+      case 'text':
+        return <span style={{ width: '100%', textAlign }}>{el.content ?? el.label}</span>;
+      case 'field':
+        return <span style={{ width: '100%', textAlign }}>{getFieldValue(employee, el.fieldMapping)}</span>;
+      case 'image': {
+        const src = el.imageSrc || (el.id === 'photo' ? employee.photo : '');
+        if (src) {
+          return (
+            <img
+              src={src}
+              alt={el.label}
+              draggable={false}
+              style={{ width: '100%', height: '100%', objectFit: el.imageFit ?? 'cover', display: 'block' }} />);
+
+        }
+        const Icon = el.id === 'photo' ? User : Building2;
+        return (
+          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', background: 'rgba(255,255,255,0.7)' }}>
+            <Icon width="45%" height="45%" />
+          </div>);
+
+      }
+      case 'qr': {
+        const seed = `${employee.employeeId}|${el.id}|${getFieldValue(employee, el.fieldMapping ?? 'employeeId')}`;
+        return (
+          <svg viewBox="0 0 21 21" width="100%" height="100%" shapeRendering="crispEdges">
+            <rect width="21" height="21" fill="#ffffff" />
+            <path d={buildQrPath(seed)} fill="#111827" />
+          </svg>);
+
+      }
+      case 'barcode': {
+        const seed = getFieldValue(employee, el.fieldMapping ?? 'employeeId');
+        return (
+          <svg viewBox="0 0 100 40" width="100%" height="100%" preserveAspectRatio="none">
+            <rect width="100" height="40" fill="#ffffff" />
+            {buildBarcodeBars(seed).map((bar) => (
+              <rect key={bar.x} x={bar.x} y={3} width={bar.w} height={34} fill="#111827" />
+            ))}
+          </svg>);
+
+      }
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div
+      onPointerDown={() => {
+        if (editable) onSelect?.('');
+      }}
+      style={{
+        position: 'relative',
+        width: dims.width,
+        height: dims.height,
+        overflow: 'hidden',
+        borderRadius: 12,
+        background,
+        boxShadow: editable ? '0 25px 50px -12px rgba(0,0,0,0.25)' : undefined,
+        flexShrink: 0
+      }}>
+      {elements.map((el) => {
+        if (!el.visible && !editable) return null;
+        const isSelected = editable && selectedId === el.id;
+        const justify = el.style.textAlign === 'center' ? 'center' : el.style.textAlign === 'right' ? 'flex-end' : 'flex-start';
+        const style: React.CSSProperties = {
+          position: 'absolute',
+          left: el.x,
+          top: el.y,
+          width: el.width,
+          height: el.height,
+          boxSizing: 'border-box',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: justify,
+          fontSize: el.style.fontSize,
+          fontWeight: el.style.fontWeight as React.CSSProperties['fontWeight'],
+          color: el.style.color,
+          backgroundColor: el.style.backgroundColor,
+          borderRadius: el.style.borderRadius,
+          borderWidth: el.style.borderWidth ?? 0,
+          borderStyle: el.style.borderWidth ? 'solid' : undefined,
+          borderColor: el.style.borderColor,
+          opacity: el.visible ? 1 : 0.35,
+          lineHeight: 1.2,
+          overflow: 'hidden',
+          cursor: editable ? 'move' : undefined,
+          outline: isSelected ? '2px solid #6366f1' : undefined,
+          outlineOffset: 2,
+          touchAction: editable ? 'none' : undefined
+        };
+        return (
+          <div
+            key={el.id}
+            title={editable ? el.label : undefined}
+            style={style}
+            onPointerDown={(event) => beginDrag(event, el, 'move')}
+            onPointerMove={continueDrag}
+            onPointerUp={endDrag}
+            onPointerCancel={endDrag}>
+            {renderContent(el)}
+            {isSelected &&
+            <div
+              onPointerDown={(event) => beginDrag(event, el, 'resize')}
+              onPointerMove={continueDrag}
+              onPointerUp={endDrag}
+              style={{ position: 'absolute', right: -6, bottom: -6, width: 12, height: 12, background: '#6366f1', border: '2px solid #ffffff', borderRadius: 3, cursor: 'nwse-resize' }} />}
+          </div>);
+
+      })}
+    </div>);
+
+};
+
+const readSavedDesign = (): { elements: CardElement[]; background: string; orientation: 'vertical' | 'horizontal' } | null => {
+  try {
+    const raw = window.localStorage.getItem(DESIGN_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || !Array.isArray(parsed.elements)) return null;
+    return {
+      elements: parsed.elements as CardElement[],
+      background: typeof parsed.background === 'string' ? parsed.background : DEFAULT_CARD_BACKGROUND,
+      orientation: parsed.orientation === 'horizontal' ? 'horizontal' : 'vertical'
+    };
+  } catch {
+    return null;
+  }
+};
+
+// Opens a print-ready window with one card per page. The browser's "Save as PDF" destination produces the PDF.
+const openCardPrintWindow = (
+  cards: Employee[],
+  elements: CardElement[],
+  background: string,
+  orientation: 'vertical' | 'horizontal',
+  title: string
+): boolean => {
+  const win = window.open('', '_blank');
+  if (!win) return false;
+  const dims = getCardDims(orientation);
+  const pages = cards
+    .map((employee) =>
+      `<div class="page">${renderToStaticMarkup(
+        <CardFace employee={employee} elements={elements} background={background} orientation={orientation} />
+      )}</div>`)
+    .join('');
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8" /><title>${title}</title><style>@page{size:${dims.width}px ${dims.height}px;margin:0}html,body{margin:0;padding:0;font-family:Arial,Helvetica,sans-serif;background:#fff}.page{width:${dims.width}px;height:${dims.height}px;overflow:hidden;page-break-after:always;break-after:page}.page:last-child{page-break-after:auto;break-after:auto}</style></head><body>${pages}</body></html>`);
+  win.document.close();
+  win.focus();
+  window.setTimeout(() => win.print(), 300);
+  return true;
+};
 
 const departments = ['Mathematics', 'English', 'Science', 'Hindi', 'Physical Education', 'Arts', 'Library', 'Accounts', 'Administration', 'IT'];
 const designations = ['HOD', 'Senior Teacher', 'Teacher', 'Admin Officer', 'Lab Assistant', 'Sports Coach', 'Librarian', 'Accountant'];
@@ -430,7 +798,7 @@ export function EmployeeIDCardGenerator() {
   const searchRef = useRef<HTMLDivElement>(null);
 
   // Employee States
-  const [employees] = useState<Employee[]>(mockEmployees);
+  const [employees, setEmployees] = useState<Employee[]>(mockEmployees);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [selectedEmployees, setSelectedEmployees] = useState<Set<string>>(new Set());
   const [showActionsMenu, setShowActionsMenu] = useState<string | null>(null);
@@ -448,14 +816,28 @@ export function EmployeeIDCardGenerator() {
 
   // Card Design States
   const [cardView, setCardView] = useState<'front' | 'back'>('front');
-  const [cardElements, setCardElements] = useState<CardElement[]>(defaultCardElements);
+  const savedDesign = useMemo(() => readSavedDesign(), []);
+  const [cardElements, setCardElements] = useState<CardElement[]>(savedDesign?.elements ?? defaultCardElements);
   const [selectedElement, setSelectedElement] = useState<string | null>(null);
-  const [cardOrientation, setCardOrientation] = useState<'vertical' | 'horizontal'>('vertical');
-  const [cardBackground, setCardBackground] = useState('linear-gradient(135deg, #667eea 0%, #764ba2 100%)');
+  const [cardOrientation, setCardOrientation] = useState<'vertical' | 'horizontal'>(savedDesign?.orientation ?? 'vertical');
+  const [cardBackground, setCardBackground] = useState(savedDesign?.background ?? DEFAULT_CARD_BACKGROUND);
   const [showElementPanel, setShowElementPanel] = useState(true);
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
+
+  // Card design preview, print feedback and issue-card form state
+  const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [showIssueModal, setShowIssueModal] = useState(false);
+  const [issueForm, setIssueForm] = useState<IssueCardForm>(createEmptyIssueForm);
+  const [issueErrors, setIssueErrors] = useState<Record<string, string>>({});
+  const [previewEmployeeId, setPreviewEmployeeId] = useState<string>(mockEmployees[0].id);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const selectedEl = cardElements.find((el) => el.id === selectedElement) ?? null;
+  const selectedCards = employees.filter((emp) => selectedEmployees.has(emp.id));
+  const previewEmployee = employees.find((emp) => emp.id === previewEmployeeId) ?? employees[0];
+  const clampNumber = (raw: string, min: number, max: number) => Math.min(Math.max(Number(raw) || 0, min), Math.max(min, max));
+
   const itemsPerPage = 10;
 
   // Click outside handler
@@ -584,36 +966,212 @@ export function EmployeeIDCardGenerator() {
     setSelectedEmployee(null);
   };
 
-  const handleElementToggle = (elementId: string) => {
-    setCardElements((prev) =>
-    prev.map((el) =>
-    el.id === elementId ? { ...el, visible: !el.visible } : el
-    )
-    );
-  };
-
-  const handleElementStyleChange = (elementId: string, styleKey: string, value: any) => {
-    setCardElements((prev) =>
-    prev.map((el) =>
-    el.id === elementId ? { ...el, style: { ...el.style, [styleKey]: value } } : el
-    )
-    );
-  };
-
-  const handleAddElement = (type: CardElement['type']) => {
+  const handleAddElement = (type: CardElementType) => {
+    const dims = getCardDims(cardOrientation);
+    const size = ELEMENT_SIZE[type];
+    const id = `${type}-${Date.now()}`;
+    const typeLabel = ELEMENT_PALETTE.find((item) => item.type === type)?.label ?? type;
     const newElement: CardElement = {
-      id: `element-${Date.now()}`,
+      id,
       type,
-      label: `New ${type}`,
-      x: 50,
-      y: 200,
-      width: 100,
-      height: 30,
+      label: `${typeLabel} ${cardElements.filter((el) => el.type === type).length + 1}`,
+      x: Math.round((dims.width - size.width) / 2),
+      y: Math.round((dims.height - size.height) / 2),
+      width: size.width,
+      height: size.height,
       visible: true,
-      style: { fontSize: 14, color: '#ffffff' }
+      style: type === 'text' || type === 'field'
+        ? { fontSize: 14, fontWeight: 'normal', color: '#ffffff', textAlign: 'center' }
+        : type === 'shape'
+          ? { backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 8 }
+          : {},
+      fieldMapping: type === 'field' ? 'name' : type === 'qr' || type === 'barcode' ? 'employeeId' : undefined,
+      content: type === 'text' ? 'Your text' : undefined
     };
-    setCardElements([...cardElements, newElement]);
+    setCardElements((prev) => [...prev, newElement]);
+    setSelectedElement(id);
   };
+
+  const updateElement = (elementId: string, patch: Partial<CardElement>) => {
+    setCardElements((prev) => prev.map((el) => (el.id === elementId ? { ...el, ...patch } : el)));
+  };
+
+  const updateElementStyle = (elementId: string, patch: Partial<CardElement['style']>) => {
+    setCardElements((prev) => prev.map((el) => (el.id === elementId ? { ...el, style: { ...el.style, ...patch } } : el)));
+  };
+
+  const moveElement = (elementId: string, x: number, y: number) => updateElement(elementId, { x, y });
+
+  const resizeElement = (elementId: string, width: number, height: number) => updateElement(elementId, { width, height });
+
+  const changeOrientation = (next: 'vertical' | 'horizontal') => {
+    if (next === cardOrientation) return;
+    setCardElements((prev) => scaleElements(prev, getCardDims(cardOrientation), getCardDims(next)));
+    setCardOrientation(next);
+  };
+
+  const resetDesign = () => {
+    setCardElements(cardOrientation === 'vertical' ? defaultCardElements : scaleElements(defaultCardElements, VERTICAL_DIMS, HORIZONTAL_DIMS));
+    setSelectedElement(null);
+    setNotice({ type: 'success', text: 'Design reset to the default layout. Click Save Design to keep it.' });
+  };
+
+  const handleImageUpload = (elementId: string, file: File | undefined) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setNotice({ type: 'error', text: 'Please choose an image file (PNG, JPG, SVG or WebP).' });
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setNotice({ type: 'error', text: 'Image is larger than 2 MB. Please choose a smaller image.' });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => updateElement(elementId, { imageSrc: String(reader.result) });
+    reader.readAsDataURL(file);
+  };
+
+  const saveDesign = () => {
+    try {
+      window.localStorage.setItem(DESIGN_STORAGE_KEY, JSON.stringify({
+        elements: cardElements,
+        background: cardBackground,
+        orientation: cardOrientation,
+        savedAt: new Date().toISOString()
+      }));
+      setNotice({ type: 'success', text: 'Card design saved. The layout is kept in this browser and is used for previews and printing.' });
+    } catch {
+      setNotice({ type: 'error', text: 'The design could not be saved because browser storage is full. Remove large images and try again.' });
+    }
+  };
+
+  const printCards = (cards: Employee[], title: string) => {
+    if (cards.length === 0) return;
+    const opened = openCardPrintWindow(cards, cardElements, cardBackground, cardOrientation, title);
+    if (!opened) {
+      setNotice({ type: 'error', text: 'Pop-up blocked. Allow pop-ups for this site to print or save the card as PDF.' });
+    }
+  };
+
+  const updateRequestStatus = (requestId: string, status: ReissueRequest['status']) => {
+    setReissueRequests((prev) => prev.map((req) => (req.id === requestId ? { ...req, status } : req)));
+  };
+
+  const processRequest = (request: ReissueRequest) => {
+    const today = toIsoDate(new Date());
+    const newCardNumber = `CARD-${today.replace(/-/g, '')}-R${request.id.slice(-4)}`;
+    setReissueRequests((prev) => prev.map((req) => (req.id === request.id ? { ...req, status: 'Completed' } : req)));
+    setEmployees((prev) => prev.map((emp) => (
+      emp.employeeId === request.employeeId
+        ? { ...emp, idCardStatus: 'Active', lastIssuedDate: today, cardNumber: newCardNumber }
+        : emp
+    )));
+    setNotice({ type: 'success', text: `New card issued for ${request.employeeName}. The request is marked as completed.` });
+  };
+
+  const viewRequestEmployee = (request: ReissueRequest) => {
+    const emp = employees.find((item) => item.employeeId === request.employeeId);
+    if (!emp) {
+      setNotice({ type: 'error', text: `No employee record found for ${request.employeeName}.` });
+      return;
+    }
+    handleViewCard(emp);
+  };
+
+  const openIssueModal = () => {
+    const form = createEmptyIssueForm();
+    let number = employees.length + 1;
+    let suggestedId = `EMP-${new Date().getFullYear()}-${String(number).padStart(3, '0')}`;
+    while (employees.some((emp) => emp.employeeId.toLowerCase() === suggestedId.toLowerCase())) {
+      number += 1;
+      suggestedId = `EMP-${new Date().getFullYear()}-${String(number).padStart(3, '0')}`;
+    }
+    setIssueForm({ ...form, employeeId: suggestedId });
+    setIssueErrors({});
+    setShowIssueModal(true);
+  };
+
+  const validateIssueForm = (form: IssueCardForm): Record<string, string> => {
+    const errors: Record<string, string> = {};
+    const today = toIsoDate(new Date());
+    const email = form.email.trim();
+    const phoneDigits = form.phone.replace(/[\s-]/g, '');
+    const emergencyDigits = form.emergencyContact.replace(/[\s-]/g, '');
+    if (form.name.trim().length < 3) errors.name = 'Enter the full name (at least 3 characters).';
+    if (!form.employeeId.trim()) {
+      errors.employeeId = 'Employee ID is required.';
+    } else if (employees.some((emp) => emp.employeeId.toLowerCase() === form.employeeId.trim().toLowerCase())) {
+      errors.employeeId = 'This Employee ID already has a card.';
+    }
+    if (!form.designation) errors.designation = 'Select a designation.';
+    if (!form.department) errors.department = 'Select a department.';
+    if (!email) {
+      errors.email = 'Email is required.';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      errors.email = 'Enter a valid email address.';
+    } else if (employees.some((emp) => emp.email.toLowerCase() === email.toLowerCase())) {
+      errors.email = 'This email is already used by another card.';
+    }
+    if (!phoneDigits) {
+      errors.phone = 'Phone number is required.';
+    } else if (!PHONE_PATTERN.test(phoneDigits)) {
+      errors.phone = 'Enter a valid 10-digit mobile number (optionally with +91).';
+    }
+    if (emergencyDigits && !PHONE_PATTERN.test(emergencyDigits)) {
+      errors.emergencyContact = 'Enter a valid 10-digit mobile number.';
+    }
+    if (!form.joiningDate) errors.joiningDate = 'Joining date is required.';
+    if (!form.bloodGroup) errors.bloodGroup = 'Select a blood group.';
+    if (!form.validUntil) {
+      errors.validUntil = 'Card validity date is required.';
+    } else if (form.validUntil <= today) {
+      errors.validUntil = 'Validity must be a future date.';
+    }
+    return errors;
+  };
+
+  const handleIssueCard = () => {
+    const errors = validateIssueForm(issueForm);
+    setIssueErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+    const today = toIsoDate(new Date());
+    const newEmployee: Employee = {
+      id: `NEW-${Date.now()}`,
+      employeeId: issueForm.employeeId.trim(),
+      name: issueForm.name.trim(),
+      designation: issueForm.designation,
+      department: issueForm.department,
+      email: issueForm.email.trim(),
+      phone: issueForm.phone.trim(),
+      bloodGroup: issueForm.bloodGroup,
+      joiningDate: issueForm.joiningDate,
+      address: issueForm.address.trim(),
+      emergencyContact: issueForm.emergencyContact.trim(),
+      photo: issueForm.photo,
+      isNewJoinee: true,
+      idCardStatus: 'Active',
+      lastIssuedDate: today,
+      expiryDate: issueForm.validUntil,
+      cardNumber: `CARD-${today.replace(/-/g, '')}-${String(employees.length + 1).padStart(3, '0')}`
+    };
+    setEmployees((prev) => [newEmployee, ...prev]);
+    setCurrentPage(1);
+    setActiveTab('cards');
+    setShowIssueModal(false);
+    setNotice({ type: 'success', text: `ID card issued for ${newEmployee.name} (${newEmployee.employeeId}). The card is now listed in ID Cards.` });
+  };
+
+  const handleIssuePhotoUpload = (file: File | undefined) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/') || file.size > 2 * 1024 * 1024) {
+      setIssueErrors((prev) => ({ ...prev, photo: 'Choose an image file under 2 MB.' }));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setIssueForm((prev) => ({ ...prev, photo: String(reader.result) }));
+    reader.readAsDataURL(file);
+  };
+
 
   const handleDeleteElement = (elementId: string) => {
     setCardElements((prev) => prev.filter((el) => el.id !== elementId));
@@ -708,20 +1266,6 @@ export function EmployeeIDCardGenerator() {
   };
 
   // QR Code Component
-  const QRCodeDisplay = ({ size = 60 }: {size?: number;}) =>
-  <div className="bg-white p-1 rounded" style={{ width: size, height: size }}>
-      <div className="grid grid-cols-8 gap-px" style={{ width: size - 8, height: size - 8 }}>
-        {Array.from({ length: 64 }).map((_, i) =>
-      <div
-        key={i}
-        className={Math.random() > 0.5 ? 'bg-gray-900' : 'bg-white'}
-        style={{ width: (size - 8) / 8 - 1, height: (size - 8) / 8 - 1 }} />
-
-      )}
-      </div>
-    </div>;
-
-
   // ID Card Preview Component
   const IDCardPreview = ({ employee, view }: {employee: Employee;view: 'front' | 'back';}) =>
   <div
@@ -729,63 +1273,7 @@ export function EmployeeIDCardGenerator() {
     style={{ background: cardBackground }}>
 
       {view === 'front' ?
-    <div className="h-full flex flex-col">
-          {/* Header */}
-          <div className="bg-white/10 backdrop-blur px-4 py-3 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
-                <Building2 className="w-5 h-5 text-indigo-600" />
-              </div>
-              <div>
-                <p className="text-white font-bold text-sm">School Name</p>
-                <p className="text-indigo-200 text-[10px]">Excellence in Education</p>
-              </div>
-            </div>
-            <Shield className="w-6 h-6 text-indigo-200" />
-          </div>
-
-          {/* Photo Section */}
-          <div className="flex-1 flex flex-col items-center justify-center px-6 py-4">
-            <div className="w-28 h-28 rounded-full bg-white p-1 shadow-lg mb-4">
-              <div className="w-full h-full rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center overflow-hidden">
-                {employee.photo ?
-            <img src={employee.photo} alt={employee.name} className="w-full h-full object-cover" /> :
-
-            <User className="w-14 h-14 text-gray-400" />
-            }
-              </div>
-            </div>
-
-            <h2 className="text-white font-bold text-lg text-center">{employee.name}</h2>
-            <p className="text-indigo-200 text-sm text-center">{employee.designation}</p>
-            <div className="mt-2 px-3 py-1 bg-white/20 rounded-full">
-              <p className="text-white text-xs font-medium">{employee.department}</p>
-            </div>
-          </div>
-
-          {/* ID and Blood Group */}
-          <div className="bg-white mx-4 mb-4 rounded-lg p-3">
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="text-[10px] text-gray-500 uppercase">Employee ID</p>
-                <p className="text-sm font-bold text-gray-900">{employee.employeeId}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-[10px] text-gray-500 uppercase">Blood Group</p>
-                <p className="text-lg font-bold text-red-600">{employee.bloodGroup}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Footer with QR */}
-          <div className="bg-white/10 backdrop-blur px-4 py-2 flex items-center justify-between">
-            <QRCodeDisplay size={50} />
-            <div className="text-right">
-              <p className="text-[10px] text-indigo-200">Valid Until</p>
-              <p className="text-white text-xs font-medium">{employee.expiryDate ? formatDate(employee.expiryDate) : 'Dec 2025'}</p>
-            </div>
-          </div>
-        </div> :
+    <CardFace employee={employee} elements={cardElements} background={cardBackground} orientation={cardOrientation} /> :
 
     <div className="h-full bg-gradient-to-b from-gray-100 to-gray-200 flex flex-col">
           {/* Magnetic Strip */}
@@ -847,7 +1335,13 @@ export function EmployeeIDCardGenerator() {
               Generate, manage, and design employee ID cards
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={openIssueModal}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+              <UserPlus className="w-4 h-4" />
+              Issue New Card
+            </button>
             <button
               onClick={handleSelectAll}
               disabled={filteredEmployees.length === 0}
@@ -861,7 +1355,7 @@ export function EmployeeIDCardGenerator() {
               <span className="text-sm">Select All</span>
             </button>
             <button
-              onClick={() => window.print()}
+              onClick={() => printCards(selectedCards, 'Print ID cards')}
               disabled={selectedEmployees.size === 0}
               className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50">
 
@@ -869,7 +1363,7 @@ export function EmployeeIDCardGenerator() {
               <span className="text-sm">Print ({selectedEmployees.size})</span>
             </button>
             <button
-              onClick={() => console.log('Export PDF')}
+              onClick={() => printCards(selectedCards, 'Export PDF')}
               disabled={selectedEmployees.size === 0}
               className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50">
 
@@ -924,6 +1418,13 @@ export function EmployeeIDCardGenerator() {
 
           {/* Tab Content */}
           <div className="p-6">
+            {notice &&
+            <div className={`mb-4 flex items-start justify-between gap-3 rounded-lg border px-4 py-3 text-sm ${notice.type === 'success' ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
+                <span>{notice.text}</span>
+                <button type="button" onClick={() => setNotice(null)} className="opacity-70 hover:opacity-100">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>}
             {/* ID CARDS TAB */}
             {activeTab === 'cards' &&
             <div className="space-y-6">
@@ -1120,20 +1621,14 @@ export function EmployeeIDCardGenerator() {
                                   </button>
                                   <hr className="my-1" />
                                   <button
-                              onClick={() => {
-                                window.print();
-                                setShowActionsMenu(null);
-                              }}
+                              onClick={() => { printCards([employee], 'Print ID card'); setShowActionsMenu(null); }}
                               className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2">
 
                                     <Printer className="w-4 h-4" />
                                     Print Card
                                   </button>
                                   <button
-                              onClick={() => {
-                                console.log('Download:', employee.id);
-                                setShowActionsMenu(null);
-                              }}
+                              onClick={() => { printCards([employee], 'Save ID card as PDF'); setShowActionsMenu(null); }}
                               className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2">
 
                                     <Download className="w-4 h-4" />
@@ -1197,270 +1692,423 @@ export function EmployeeIDCardGenerator() {
 
             {/* CARD DESIGN EDITOR TAB */}
             {activeTab === 'design' &&
-            <div className="space-y-6">
-                <div className="flex gap-6">
-                  {/* Left Panel - Element Controls */}
-                  <div className="w-80 flex-shrink-0 space-y-4">
-                    {/* Template Settings */}
-                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                      <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                        <Settings className="w-4 h-4" />
-                        Card Settings
-                      </h3>
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Orientation</label>
-                          <div className="flex gap-2">
+            <div className="flex flex-col xl:flex-row gap-6">
+                {/* Left panel: card settings, element palette, layers and element properties */}
+                <div className="w-full xl:w-96 flex-shrink-0 space-y-4">
+                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                      <Settings className="w-4 h-4" />
+                      Card Settings
+                    </h3>
+                    <div className="space-y-4">
+                      <div>
+                        <label className={DESIGN_LABEL_CLASS}>Orientation</label>
+                        <div className="flex gap-2">
+                          {(['vertical', 'horizontal'] as const).map((option) => (
                             <button
-                            onClick={() => setCardOrientation('vertical')}
-                            className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
-                            cardOrientation === 'vertical' ? 'bg-indigo-600 text-white' : 'bg-white border border-gray-200 hover:bg-gray-50'}`
-                            }>
-
-                              Vertical
+                              key={option}
+                              type="button"
+                              onClick={() => changeOrientation(option)}
+                              className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${cardOrientation === option ? 'bg-indigo-600 text-white' : 'bg-white border border-gray-200 hover:bg-gray-50'}`}>
+                              {option === 'vertical' ? 'Vertical' : 'Horizontal'}
                             </button>
-                            <button
-                            onClick={() => setCardOrientation('horizontal')}
-                            className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
-                            cardOrientation === 'horizontal' ? 'bg-indigo-600 text-white' : 'bg-white border border-gray-200 hover:bg-gray-50'}`
-                            }>
-
-                              Horizontal
-                            </button>
-                          </div>
+                          ))}
                         </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Background</label>
-                          <div className="grid grid-cols-4 gap-2">
-                            {[
+                      </div>
+                      <div>
+                        <label className={DESIGN_LABEL_CLASS}>Background</label>
+                        <div className="grid grid-cols-4 gap-2">
+                          {[
                           'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                           'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)',
-                          'linear-gradient(135deg, #ee0979 0%, #ff6a00 100%)',
-                          'linear-gradient(135deg, #2c3e50 0%, #4ca1af 100%)',
-                          'linear-gradient(135deg, #8E2DE2 0%, #4A00E0 100%)',
-                          'linear-gradient(135deg, #FC466B 0%, #3F5EFB 100%)',
-                          'linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%)',
-                          '#1a1a2e'].
-                          map((bg, i) =>
-                          <button
-                            key={i}
-                            onClick={() => setCardBackground(bg)}
-                            className={`w-10 h-10 rounded-lg border-2 ${
-                            cardBackground === bg ? 'border-indigo-600' : 'border-transparent'}`
-                            }
-                            style={{ background: bg }} />
-
-                          )}
-                          </div>
+                          'linear-gradient(135deg, #2193b0 0%, #6dd5ed 100%)',
+                          'linear-gradient(135deg, #373b44 0%, #4286f4 100%)',
+                          'linear-gradient(135deg, #f12711 0%, #f5af19 100%)',
+                          'linear-gradient(135deg, #654ea3 0%, #eaafc8 100%)',
+                          '#ffffff',
+                          '#1f2937'].map((bg) => (
+                            <button
+                              key={bg}
+                              type="button"
+                              aria-label="Set card background"
+                              onClick={() => setCardBackground(bg)}
+                              className={`h-10 rounded-lg border-2 ${cardBackground === bg ? 'border-indigo-600' : 'border-transparent'}`}
+                              style={{ background: bg }} />
+                          ))}
                         </div>
                       </div>
                     </div>
+                  </div>
 
-                    {/* Add Elements */}
-                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                      <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                        <Plus className="w-4 h-4" />
-                        Add Elements
-                      </h3>
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                        onClick={() => handleAddElement('text')}
-                        className="flex items-center gap-2 p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 text-sm">
+                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                      <Plus className="w-4 h-4" />
+                      Add Element
+                    </h3>
+                    <div className="grid grid-cols-2 gap-2">
+                      {ELEMENT_PALETTE.map((item) => {
+                        const Icon = item.icon;
+                        return (
+                          <button
+                            key={item.type}
+                            type="button"
+                            onClick={() => handleAddElement(item.type)}
+                            className="flex items-start gap-2 p-2.5 bg-white border border-gray-200 rounded-lg hover:bg-indigo-50 hover:border-indigo-200 text-left transition-colors">
+                            <Icon className="w-4 h-4 text-indigo-600 mt-0.5 flex-shrink-0" />
+                            <span className="min-w-0">
+                              <span className="block text-sm font-medium text-gray-900">{item.label}</span>
+                              <span className="block text-[11px] leading-tight text-gray-500">{item.description}</span>
+                            </span>
+                          </button>);
 
-                          <Type className="w-4 h-4 text-gray-500" />
-                          Text
-                        </button>
-                        <button
-                        onClick={() => handleAddElement('image')}
-                        className="flex items-center gap-2 p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 text-sm">
-
-                          <Image className="w-4 h-4 text-gray-500" />
-                          Image
-                        </button>
-                        <button
-                        onClick={() => handleAddElement('field')}
-                        className="flex items-center gap-2 p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 text-sm">
-
-                          <FileText className="w-4 h-4 text-gray-500" />
-                          Field
-                        </button>
-                        <button
-                        onClick={() => handleAddElement('qr')}
-                        className="flex items-center gap-2 p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 text-sm">
-
-                          <QrCode className="w-4 h-4 text-gray-500" />
-                          QR Code
-                        </button>
-                      </div>
+                      })}
                     </div>
+                  </div>
 
-                    {/* Element List */}
-                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                          <Layers className="w-4 h-4" />
-                          Elements
-                        </h3>
-                        <span className="text-xs text-gray-500">{cardElements.length} items</span>
-                      </div>
-                      <div className="space-y-2 max-h-[300px] overflow-y-auto">
-                        {cardElements.map((element) =>
-                      <div
-                        key={element.id}
-                        onClick={() => setSelectedElement(element.id)}
-                        className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${
-                        selectedElement === element.id ? 'bg-indigo-100 border border-indigo-200' : 'bg-white border border-gray-200 hover:bg-gray-50'}`
-                        }>
-
+                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                      <Layers className="w-4 h-4" />
+                      Elements ({cardElements.length})
+                    </h3>
+                    <div className="space-y-1.5 max-h-56 overflow-y-auto">
+                      {cardElements.map((element) => (
+                        <div
+                          key={element.id}
+                          className={`flex items-center justify-between gap-2 p-2 rounded-lg border cursor-pointer ${selectedElement === element.id ? 'bg-indigo-50 border-indigo-300' : 'bg-white border-gray-200 hover:bg-gray-50'}`}
+                          onClick={() => setSelectedElement(element.id)}>
+                          <span className="text-sm text-gray-800 truncate">{element.label}</span>
+                          <div className="flex items-center gap-1 flex-shrink-0">
                             <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleElementToggle(element.id);
-                          }}
-                          className={`p-1 rounded ${element.visible ? 'text-indigo-600' : 'text-gray-400'}`}>
-
-                              <Eye className="w-4 h-4" />
+                              type="button"
+                              title={element.visible ? 'Hide element' : 'Show element'}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                updateElement(element.id, { visible: !element.visible });
+                              }}
+                              className="p-1 text-gray-500 hover:text-gray-800">
+                              {element.visible ? <Eye className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
                             </button>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-gray-900 truncate">{element.label}</p>
-                              <p className="text-xs text-gray-500 capitalize">{element.type}</p>
-                            </div>
                             <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteElement(element.id);
-                          }}
-                          className="p-1 text-gray-400 hover:text-red-600">
-
+                              type="button"
+                              title="Delete element"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteElement(element.id);
+                              }}
+                              className="p-1 text-gray-500 hover:text-red-600">
                               <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
-                      )}
-                      </div>
+                        </div>
+                      ))}
+                      {cardElements.length === 0 && <p className="text-xs text-gray-500">No elements yet. Add one above.</p>}
                     </div>
+                  </div>
 
-                    {/* Selected Element Properties */}
-                    {selectedElement &&
-                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                        <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                  {selectedEl &&
+                  <div className="bg-white rounded-lg p-4 border border-indigo-200 shadow-sm space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-semibold text-gray-900 flex items-center gap-2">
                           <Edit className="w-4 h-4" />
                           Element Properties
                         </h3>
-                        <div className="space-y-3">
-                          <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">Font Size</label>
-                            <input
-                          type="number"
-                          value={cardElements.find((e) => e.id === selectedElement)?.style.fontSize || 14}
-                          onChange={(e) => handleElementStyleChange(selectedElement, 'fontSize', parseInt(e.target.value))}
-                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 capitalize">{selectedEl.type}</span>
+                      </div>
 
+                      <div>
+                        <label className={DESIGN_LABEL_CLASS}>Name</label>
+                        <input
+                          type="text"
+                          value={selectedEl.label}
+                          onChange={(e) => updateElement(selectedEl.id, { label: e.target.value })}
+                          className={DESIGN_INPUT_CLASS} />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className={DESIGN_LABEL_CLASS}>X (px)</label>
+                          <input type="number" value={selectedEl.x} min={0}
+                            onChange={(e) => updateElement(selectedEl.id, { x: clampNumber(e.target.value, 0, getCardDims(cardOrientation).width - selectedEl.width) })}
+                            className={DESIGN_INPUT_CLASS} />
+                        </div>
+                        <div>
+                          <label className={DESIGN_LABEL_CLASS}>Y (px)</label>
+                          <input type="number" value={selectedEl.y} min={0}
+                            onChange={(e) => updateElement(selectedEl.id, { y: clampNumber(e.target.value, 0, getCardDims(cardOrientation).height - selectedEl.height) })}
+                            className={DESIGN_INPUT_CLASS} />
+                        </div>
+                        <div>
+                          <label className={DESIGN_LABEL_CLASS}>Width (px)</label>
+                          <input type="number" value={selectedEl.width} min={16}
+                            onChange={(e) => updateElement(selectedEl.id, { width: clampNumber(e.target.value, 16, getCardDims(cardOrientation).width - selectedEl.x) })}
+                            className={DESIGN_INPUT_CLASS} />
+                        </div>
+                        <div>
+                          <label className={DESIGN_LABEL_CLASS}>Height (px)</label>
+                          <input type="number" value={selectedEl.height} min={16}
+                            onChange={(e) => updateElement(selectedEl.id, { height: clampNumber(e.target.value, 16, getCardDims(cardOrientation).height - selectedEl.y) })}
+                            className={DESIGN_INPUT_CLASS} />
+                        </div>
+                      </div>
+
+                      <label className="flex items-center gap-2 text-sm text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={selectedEl.visible}
+                          onChange={(e) => updateElement(selectedEl.id, { visible: e.target.checked })} />
+                        Show on card
+                      </label>
+
+                      {selectedEl.type === 'text' &&
+                      <div>
+                          <label className={DESIGN_LABEL_CLASS}>Text</label>
+                          <input
+                            type="text"
+                            value={selectedEl.content ?? ''}
+                            onChange={(e) => updateElement(selectedEl.id, { content: e.target.value })}
+                            className={DESIGN_INPUT_CLASS} />
+                        </div>}
+
+                      {selectedEl.type === 'field' &&
+                      <div>
+                          <label className={DESIGN_LABEL_CLASS}>Data field</label>
+                          <select
+                            value={selectedEl.fieldMapping ?? 'name'}
+                            onChange={(e) => updateElement(selectedEl.id, { fieldMapping: e.target.value })}
+                            className={DESIGN_INPUT_CLASS}>
+                            {FIELD_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>{option.label}</option>
+                            ))}
+                          </select>
+                        </div>}
+
+                      {(selectedEl.type === 'qr' || selectedEl.type === 'barcode') &&
+                      <div>
+                          <label className={DESIGN_LABEL_CLASS}>Encodes</label>
+                          <select
+                            value={selectedEl.fieldMapping ?? 'employeeId'}
+                            onChange={(e) => updateElement(selectedEl.id, { fieldMapping: e.target.value })}
+                            className={DESIGN_INPUT_CLASS}>
+                            <option value="employeeId">Employee ID</option>
+                            <option value="cardNumber">Card Number</option>
+                            <option value="name">Full Name</option>
+                            <option value="phone">Phone</option>
+                          </select>
+                        </div>}
+
+                      {(selectedEl.type === 'text' || selectedEl.type === 'field') &&
+                      <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className={DESIGN_LABEL_CLASS}>Font size</label>
+                            <input type="number" min={6} max={48} value={selectedEl.style.fontSize ?? 12}
+                              onChange={(e) => updateElementStyle(selectedEl.id, { fontSize: clampNumber(e.target.value, 6, 48) })}
+                              className={DESIGN_INPUT_CLASS} />
                           </div>
                           <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">Text Color</label>
-                            <input
-                          type="color"
-                          value={cardElements.find((e) => e.id === selectedElement)?.style.color || '#ffffff'}
-                          onChange={(e) => handleElementStyleChange(selectedElement, 'color', e.target.value)}
-                          className="w-full h-10 rounded-lg cursor-pointer" />
-
+                            <label className={DESIGN_LABEL_CLASS}>Weight</label>
+                            <select
+                              value={selectedEl.style.fontWeight ?? 'normal'}
+                              onChange={(e) => updateElementStyle(selectedEl.id, { fontWeight: e.target.value })}
+                              className={DESIGN_INPUT_CLASS}>
+                              <option value="normal">Normal</option>
+                              <option value="bold">Bold</option>
+                            </select>
                           </div>
                           <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">Text Align</label>
+                            <label className={DESIGN_LABEL_CLASS}>Text colour</label>
+                            <input type="color" value={selectedEl.style.color ?? '#ffffff'}
+                              onChange={(e) => updateElementStyle(selectedEl.id, { color: e.target.value })}
+                              className="w-full h-9 border border-gray-200 rounded-lg bg-white p-1" />
+                          </div>
+                          <div>
+                            <label className={DESIGN_LABEL_CLASS}>Alignment</label>
                             <div className="flex gap-1">
-                              {['left', 'center', 'right'].map((align) =>
-                          <button
-                            key={align}
-                            onClick={() => handleElementStyleChange(selectedElement, 'textAlign', align)}
-                            className={`flex-1 py-2 rounded-lg text-sm ${
-                            cardElements.find((e) => e.id === selectedElement)?.style.textAlign === align ?
-                            'bg-indigo-600 text-white' :
-                            'bg-white border border-gray-200'}`
-                            }>
+                              {[
+                              { value: 'left', icon: AlignLeft },
+                              { value: 'center', icon: AlignCenter },
+                              { value: 'right', icon: AlignRight }].map((option) => {
+                                const AlignIcon = option.icon;
+                                return (
+                                  <button
+                                    key={option.value}
+                                    type="button"
+                                    title={`Align ${option.value}`}
+                                    onClick={() => updateElementStyle(selectedEl.id, { textAlign: option.value })}
+                                    className={`flex-1 p-1.5 rounded-lg border ${selectedEl.style.textAlign === option.value ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                                    <AlignIcon className="w-4 h-4 mx-auto" />
+                                  </button>);
 
-                                  {align === 'left' && <AlignLeft className="w-4 h-4 mx-auto" />}
-                                  {align === 'center' && <AlignCenter className="w-4 h-4 mx-auto" />}
-                                  {align === 'right' && <AlignRight className="w-4 h-4 mx-auto" />}
-                                </button>
-                          )}
+                              })}
                             </div>
                           </div>
-                        </div>
-                      </div>
-                  }
+                        </div>}
 
-                    {/* Import/Export */}
-                    <div className="flex gap-2">
+                      {(selectedEl.type === 'shape' || selectedEl.type === 'image') &&
+                      <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className={DESIGN_LABEL_CLASS}>Corner radius</label>
+                            <input type="number" min={0} max={100} value={selectedEl.style.borderRadius ?? 0}
+                              onChange={(e) => updateElementStyle(selectedEl.id, { borderRadius: clampNumber(e.target.value, 0, 100) })}
+                              className={DESIGN_INPUT_CLASS} />
+                          </div>
+                          <div>
+                            <label className={DESIGN_LABEL_CLASS}>Border width</label>
+                            <input type="number" min={0} max={10} value={selectedEl.style.borderWidth ?? 0}
+                              onChange={(e) => updateElementStyle(selectedEl.id, { borderWidth: clampNumber(e.target.value, 0, 10) })}
+                              className={DESIGN_INPUT_CLASS} />
+                          </div>
+                          <div>
+                            <label className={DESIGN_LABEL_CLASS}>Border colour</label>
+                            <input type="color" value={selectedEl.style.borderColor ?? '#ffffff'}
+                              onChange={(e) => updateElementStyle(selectedEl.id, { borderColor: e.target.value })}
+                              className="w-full h-9 border border-gray-200 rounded-lg bg-white p-1" />
+                          </div>
+                        </div>}
+
+                      {selectedEl.type !== 'qr' && selectedEl.type !== 'barcode' &&
+                      <div className="flex items-end gap-2">
+                          <div className="flex-1">
+                            <label className={DESIGN_LABEL_CLASS}>Background colour</label>
+                            <input type="color" value={selectedEl.style.backgroundColor?.startsWith('#') ? selectedEl.style.backgroundColor : '#ffffff'}
+                              onChange={(e) => updateElementStyle(selectedEl.id, { backgroundColor: e.target.value })}
+                              className="w-full h-9 border border-gray-200 rounded-lg bg-white p-1" />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => updateElementStyle(selectedEl.id, { backgroundColor: undefined })}
+                            className="px-3 py-2 text-xs border border-gray-200 rounded-lg hover:bg-gray-50">
+                            No background
+                          </button>
+                        </div>}
+
+                      {selectedEl.type === 'image' &&
+                      <div className="space-y-2">
+                          <label className={DESIGN_LABEL_CLASS}>Picture</label>
+                          <input
+                            ref={imageInputRef}
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              handleImageUpload(selectedEl.id, e.target.files?.[0]);
+                              e.target.value = '';
+                            }} />
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => imageInputRef.current?.click()}
+                              className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">
+                              <Upload className="w-4 h-4" />
+                              {selectedEl.imageSrc ? 'Replace image' : 'Upload image'}
+                            </button>
+                            {selectedEl.imageSrc &&
+                            <button
+                              type="button"
+                              onClick={() => updateElement(selectedEl.id, { imageSrc: undefined })}
+                              className="px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50">
+                              Remove
+                            </button>}
+                          </div>
+                          <div>
+                            <label className={DESIGN_LABEL_CLASS}>Fit</label>
+                            <select
+                              value={selectedEl.imageFit ?? 'cover'}
+                              onChange={(e) => updateElement(selectedEl.id, { imageFit: e.target.value as CardElement['imageFit'] })}
+                              className={DESIGN_INPUT_CLASS}>
+                              <option value="cover">Fill frame (crop)</option>
+                              <option value="contain">Fit inside frame</option>
+                              <option value="fill">Stretch to frame</option>
+                            </select>
+                          </div>
+                          <p className="text-[11px] text-gray-500">PNG, JPG, SVG or WebP up to 2 MB. Use width and height above to size it.</p>
+                        </div>}
+
                       <button
+                        type="button"
+                        onClick={() => handleDeleteElement(selectedEl.id)}
+                        className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-red-600 border border-red-200 rounded-lg hover:bg-red-50">
+                        <Trash2 className="w-4 h-4" />
+                        Delete element
+                      </button>
+                    </div>}
+
+                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 flex gap-2">
+                    <button
                       onClick={handleImportDesign}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 text-sm">
-
-                        <Upload className="w-4 h-4" />
-                        Import
-                      </button>
-                      <button
+                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm hover:bg-gray-50">
+                      <Upload className="w-4 h-4" />
+                      Import
+                    </button>
+                    <button
                       onClick={handleExportDesign}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 text-sm">
-
-                        <Download className="w-4 h-4" />
-                        Export
-                      </button>
-                    </div>
+                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm hover:bg-gray-50">
+                      <Download className="w-4 h-4" />
+                      Export
+                    </button>
                   </div>
+                </div>
 
-                  {/* Right Panel - Preview */}
-                  <div className="flex-1">
-                    <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
-                      <div className="flex items-center justify-between mb-6">
+                {/* Right panel: live card preview (editable on the front) */}
+                <div className="flex-1 min-w-0">
+                  <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
+                    <div className="flex flex-col md:flex-row md:items-start justify-between gap-3 mb-4">
+                      <div>
                         <h3 className="font-semibold text-gray-900">Card Preview</h3>
-                        <div className="flex gap-2">
-                          <button
-                          onClick={() => setCardView('front')}
-                          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                          cardView === 'front' ? 'bg-indigo-600 text-white' : 'bg-white border border-gray-200 hover:bg-gray-50'}`
-                          }>
-
-                            Front
-                          </button>
-                          <button
-                          onClick={() => setCardView('back')}
-                          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                          cardView === 'back' ? 'bg-indigo-600 text-white' : 'bg-white border border-gray-200 hover:bg-gray-50'}`
-                          }>
-
-                            Back
-                          </button>
+                        <p className="text-xs text-gray-500 mt-1">Click an element to select it. Drag it to move. Drag the corner handle to resize.</p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <select
+                          value={previewEmployee.id}
+                          onChange={(e) => setPreviewEmployeeId(e.target.value)}
+                          className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white max-w-[220px]">
+                          {employees.map((emp) => (
+                            <option key={emp.id} value={emp.id}>{emp.name}</option>
+                          ))}
+                        </select>
+                        <div className="flex rounded-lg border border-gray-200 overflow-hidden">
+                          {(['front', 'back'] as const).map((side) => (
+                            <button
+                              key={side}
+                              type="button"
+                              onClick={() => setCardView(side)}
+                              className={`px-4 py-2 text-sm capitalize ${cardView === side ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}>
+                              {side}
+                            </button>
+                          ))}
                         </div>
                       </div>
-
-                      <div className="flex items-center justify-center min-h-[500px] bg-gradient-to-br from-gray-100 via-gray-50 to-gray-100 rounded-xl p-8">
-                        <IDCardPreview
-                        employee={employees[0]}
-                        view={cardView} />
-
-                      </div>
-
-                      <div className="flex justify-end gap-3 mt-6">
-                        <button
-                        onClick={() => setCardElements(defaultCardElements)}
-                        className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 text-sm">
-
-                          <RotateCcw className="w-4 h-4" />
-                          Reset to Default
-                        </button>
-                        <button
-                        onClick={() => console.log('Save Design')}
-                        className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm">
-
-                          <Save className="w-4 h-4" />
-                          Save Design
-                        </button>
-                      </div>
+                    </div>
+                    <div className="flex items-center justify-center min-h-[520px] bg-gradient-to-br from-gray-100 via-gray-50 to-gray-100 rounded-xl p-8 overflow-auto">
+                      {cardView === 'front' ?
+                      <CardFace
+                        employee={previewEmployee}
+                        elements={cardElements}
+                        background={cardBackground}
+                        orientation={cardOrientation}
+                        editable
+                        selectedId={selectedElement}
+                        onSelect={(id) => setSelectedElement(id || null)}
+                        onMove={moveElement}
+                        onResize={resizeElement} /> :
+                      <IDCardPreview employee={previewEmployee} view="back" />}
+                    </div>
+                    <div className="flex flex-wrap justify-end gap-3 mt-6">
+                      <button
+                        onClick={resetDesign}
+                        className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50">
+                        <RotateCcw className="w-4 h-4" />
+                        Reset to Default
+                      </button>
+                      <button
+                        onClick={saveDesign}
+                        className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+                        <Save className="w-4 h-4" />
+                        Save Design
+                      </button>
                     </div>
                   </div>
                 </div>
-              </div>
-            }
+              </div>}
 
             {/* REISSUE REQUESTS TAB */}
             {activeTab === 'requests' &&
@@ -1520,20 +2168,20 @@ export function EmployeeIDCardGenerator() {
                             <div className="flex items-center gap-1">
                               {request.status === 'Pending' &&
                           <>
-                                  <button className="p-1.5 text-green-600 hover:bg-green-50 rounded" title="Approve">
+                                  <button onClick={() => updateRequestStatus(request.id, 'Approved')} className="p-1.5 text-green-600 hover:bg-green-50 rounded" title="Approve">
                                     <CheckCircle className="w-4 h-4" />
                                   </button>
-                                  <button className="p-1.5 text-red-600 hover:bg-red-50 rounded" title="Reject">
+                                  <button onClick={() => updateRequestStatus(request.id, 'Rejected')} className="p-1.5 text-red-600 hover:bg-red-50 rounded" title="Reject">
                                     <XCircle className="w-4 h-4" />
                                   </button>
                                 </>
                           }
                               {request.status === 'Approved' &&
-                          <button className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded" title="Process">
+                          <button onClick={() => processRequest(request)} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded" title="Process">
                                   <Send className="w-4 h-4" />
                                 </button>
                           }
-                              <button className="p-1.5 text-gray-500 hover:bg-gray-100 rounded" title="View">
+                              <button onClick={() => viewRequestEmployee(request)} className="p-1.5 text-gray-500 hover:bg-gray-100 rounded" title="View">
                                 <Eye className="w-4 h-4" />
                               </button>
                             </div>
@@ -1620,14 +2268,14 @@ export function EmployeeIDCardGenerator() {
 
                   <div className="flex gap-3 pt-4">
                     <button
-                    onClick={() => window.print()}
+                    onClick={() => selectedEmployee && printCards([selectedEmployee], 'Print ID card')}
                     className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50">
 
                       <Printer className="w-4 h-4" />
                       Print
                     </button>
                     <button
-                    onClick={() => console.log('Download')}
+                    onClick={() => selectedEmployee && printCards([selectedEmployee], 'Save ID card as PDF')}
                     className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50">
 
                       <Download className="w-4 h-4" />
@@ -1650,6 +2298,114 @@ export function EmployeeIDCardGenerator() {
           </div>
         </div>
       }
+
+      {/* Issue New Card Modal */}
+      {showIssueModal &&
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] flex flex-col">
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Issue New ID Card</h2>
+                <p className="text-sm text-gray-500">Enter the staff details. Fields marked * are required.</p>
+              </div>
+              <button
+                onClick={() => setShowIssueModal(false)}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-4">
+              {([
+              { key: 'name', label: 'Full Name *', type: 'text' },
+              { key: 'employeeId', label: 'Employee ID *', type: 'text' },
+              { key: 'email', label: 'Email *', type: 'email' },
+              { key: 'phone', label: 'Phone *', type: 'tel' },
+              { key: 'joiningDate', label: 'Date of Joining *', type: 'date' },
+              { key: 'validUntil', label: 'Card Valid Until *', type: 'date' },
+              { key: 'emergencyContact', label: 'Emergency Contact', type: 'tel' }] as const).map((field) => (
+                <div key={field.key}>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{field.label}</label>
+                  <input
+                    type={field.type}
+                    value={issueForm[field.key]}
+                    onChange={(e) => setIssueForm((prev) => ({ ...prev, [field.key]: e.target.value }))}
+                    className={`w-full px-3 py-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500 ${issueErrors[field.key] ? 'border-red-400' : 'border-gray-200'}`} />
+                  {issueErrors[field.key] && <p className="text-xs text-red-600 mt-1">{issueErrors[field.key]}</p>}
+                </div>
+              ))}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Designation *</label>
+                <select
+                  value={issueForm.designation}
+                  onChange={(e) => setIssueForm((prev) => ({ ...prev, designation: e.target.value }))}
+                  className={`w-full px-3 py-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500 ${issueErrors.designation ? 'border-red-400' : 'border-gray-200'}`}>
+                  <option value="">Select designation...</option>
+                  {designations.map((item) => <option key={item} value={item}>{item}</option>)}
+                </select>
+                {issueErrors.designation && <p className="text-xs text-red-600 mt-1">{issueErrors.designation}</p>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Department *</label>
+                <select
+                  value={issueForm.department}
+                  onChange={(e) => setIssueForm((prev) => ({ ...prev, department: e.target.value }))}
+                  className={`w-full px-3 py-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500 ${issueErrors.department ? 'border-red-400' : 'border-gray-200'}`}>
+                  <option value="">Select department...</option>
+                  {departments.map((item) => <option key={item} value={item}>{item}</option>)}
+                </select>
+                {issueErrors.department && <p className="text-xs text-red-600 mt-1">{issueErrors.department}</p>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Blood Group *</label>
+                <select
+                  value={issueForm.bloodGroup}
+                  onChange={(e) => setIssueForm((prev) => ({ ...prev, bloodGroup: e.target.value }))}
+                  className={`w-full px-3 py-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500 ${issueErrors.bloodGroup ? 'border-red-400' : 'border-gray-200'}`}>
+                  <option value="">Select blood group...</option>
+                  {BLOOD_GROUPS.map((item) => <option key={item} value={item}>{item}</option>)}
+                </select>
+                {issueErrors.bloodGroup && <p className="text-xs text-red-600 mt-1">{issueErrors.bloodGroup}</p>}
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                <textarea
+                  rows={2}
+                  value={issueForm.address}
+                  onChange={(e) => setIssueForm((prev) => ({ ...prev, address: e.target.value }))}
+                  className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <div className="md:col-span-2 flex items-center gap-4">
+                <div className="w-16 h-16 rounded-lg bg-gray-100 border border-gray-200 overflow-hidden flex items-center justify-center flex-shrink-0">
+                  {issueForm.photo ?
+                  <img src={issueForm.photo} alt="Staff photo preview" className="w-full h-full object-cover" /> :
+                  <User className="w-6 h-6 text-gray-400" />}
+                </div>
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Photo (optional)</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleIssuePhotoUpload(e.target.files?.[0])}
+                    className="block w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100" />
+                  {issueErrors.photo && <p className="text-xs text-red-600 mt-1">{issueErrors.photo}</p>}
+                </div>
+              </div>
+            </div>
+            <div className="p-6 border-t border-gray-200 flex justify-end gap-3">
+              <button
+                onClick={() => setShowIssueModal(false)}
+                className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50">
+                Cancel
+              </button>
+              <button
+                onClick={handleIssueCard}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+                <CreditCard className="w-4 h-4" />
+                Issue Card
+              </button>
+            </div>
+          </div>
+        </div>}
 
       {/* Reissue Modal */}
       {showReissueModal && selectedEmployee &&

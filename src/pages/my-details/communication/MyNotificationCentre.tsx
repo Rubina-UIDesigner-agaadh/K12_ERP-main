@@ -12,8 +12,30 @@ import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Select } from '../../../components/ui/Select';
 import { Badge } from '../../../components/ui/Badge';
+const DOCUMENT_NOTIFICATION_KEY = 'erp.employeeDocumentNotifications';
+
+// Document rejections raised from HR Employee Profile (shared client-side store)
+const readDocumentNotificationItems = () => {
+  try {
+    const raw = window.localStorage.getItem(DOCUMENT_NOTIFICATION_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((item: { id: string; documentName: string; reason: string; createdAt: string; read: boolean }) => ({
+      id: `doc-${item.id}`,
+      category: 'system',
+      message: `Your document "${item.documentName}" was rejected by HR. Reason: ${item.reason}. Please upload a valid copy.`,
+      date: new Date(item.createdAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+      read: !!item.read,
+      link: 'View Document'
+    }));
+  } catch {
+    return [];
+  }
+};
+
 export function MyNotificationCentre() {
   const notifications = [
+    ...readDocumentNotificationItems(),
   {
     id: 1,
     category: 'academic',

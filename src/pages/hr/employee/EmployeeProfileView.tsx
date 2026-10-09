@@ -4,6 +4,7 @@ import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Select } from '../../../components/ui/Select';
 import { Badge } from '../../../components/ui/Badge';
+import { Modal } from '../../../components/ui/Modal';
 import {
   Search,
   User,
@@ -2399,6 +2400,50 @@ const buildEmployeePrefill = (employee: Employee): Record<string, string> => {
 };
 
 // Main Component
+// ==================== DOCUMENT VERIFICATION (client-side) ====================
+
+const DOCUMENT_NOTIFICATION_KEY = 'erp.employeeDocumentNotifications';
+
+const DOCUMENT_AUTHENTICITY_CHECKS = [
+  { id: 'identity', label: 'Name, date of birth and ID number match the employee record' },
+  { id: 'original', label: 'Document is the original or a certified copy' },
+  { id: 'validity', label: 'Document is valid and has not expired' },
+  { id: 'issuer', label: 'Issuing authority, stamp or signature is visible and legible' }
+];
+
+interface DocumentNotificationRecord {
+  id: string;
+  recipientCode: string;
+  recipientName: string;
+  documentName: string;
+  reason: string;
+  createdAt: string;
+  read: boolean;
+}
+
+const readDocumentNotifications = (): DocumentNotificationRecord[] => {
+  try {
+    const raw = window.localStorage.getItem(DOCUMENT_NOTIFICATION_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const writeDocumentNotification = (record: DocumentNotificationRecord) => {
+  try {
+    window.localStorage.setItem(DOCUMENT_NOTIFICATION_KEY, JSON.stringify([record, ...readDocumentNotifications()]));
+  } catch {
+    // Storage unavailable: the rejection still applies for this session.
+  }
+};
+
+const todayIsoLocal = (): string => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+};
+
 export function EmployeeProfileView() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -2421,6 +2466,12 @@ export function EmployeeProfileView() {
   const [activeSubTab, setActiveSubTab] = useState('personal');
   const [modalOpen, setModalOpen] = useState(false);
   const [modalSection, setModalSection] = useState<string | null>(null);
+  const [documentOverrides, setDocumentOverrides] = useState<Record<string, Employee['documents']>>({});
+  const [reviewDocumentId, setReviewDocumentId] = useState<string | null>(null);
+  const [documentChecks, setDocumentChecks] = useState<Record<string, boolean>>({});
+  const [documentRemarks, setDocumentRemarks] = useState('');
+  const [documentError, setDocumentError] = useState<string | null>(null);
+  const [documentNotice, setDocumentNotice] = useState<string | null>(null);
   const [filters, setFilters] = useState({
     department: '',
     status: '',
@@ -2509,6 +2560,59 @@ export function EmployeeProfileView() {
     setActiveTab('overview');
     setActiveSubTab('personal');
   };
+  const employeeDocuments = employee ? (documentOverrides[employee.id] ?? employee.documents) : [];
+  const reviewDocument = employeeDocuments.find((doc) => doc.id === reviewDocumentId) ?? null;
+
+  const openDocumentReview = (docId: string) => {
+    setReviewDocumentId(docId);
+    setDocumentChecks({});
+    setDocumentRemarks('');
+    setDocumentError(null);
+  };
+
+  const closeDocumentReview = () => {
+    setReviewDocumentId(null);
+    setDocumentError(null);
+  };
+
+  const decideDocument = (decision: 'Verified' | 'Rejected') => {
+    if (!reviewDocument || !employee) return;
+    const remarks = documentRemarks.trim();
+    if (decision === 'Verified' && !DOCUMENT_AUTHENTICITY_CHECKS.every((check) => documentChecks[check.id])) {
+      setDocumentError('Tick all authenticity checks before verifying this document.');
+      return;
+    }
+    if (decision === 'Rejected' && !remarks) {
+      setDocumentError('Enter the reason for rejection. The reason is sent to the employee.');
+      return;
+    }
+    const today = todayIsoLocal();
+    setDocumentOverrides((prev) => ({
+      ...prev,
+      [employee.id]: employeeDocuments.map((doc) => (
+        doc.id === reviewDocument.id
+          ? { ...doc, status: decision, verifiedBy: 'HR Admin', verifiedDate: today, remarks: remarks || doc.remarks }
+          : doc
+      ))
+    }));
+    if (decision === 'Rejected') {
+      writeDocumentNotification({
+        id: `DOCN-${Date.now()}`,
+        recipientCode: employee.code,
+        recipientName: employee.fullName,
+        documentName: reviewDocument.name,
+        reason: remarks,
+        createdAt: new Date().toISOString(),
+        read: false
+      });
+      setDocumentNotice(`"${reviewDocument.name}" was rejected. A notification has been sent to ${employee.fullName}.`);
+    } else {
+      setDocumentNotice(`"${reviewDocument.name}" was verified for ${employee.fullName}.`);
+    }
+    setReviewDocumentId(null);
+    setDocumentError(null);
+  };
+
   const openModal = (section: string) => {
     setModalSection(section);
     setModalOpen(true);
@@ -2786,6 +2890,71 @@ export function EmployeeProfileView() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <Modal
+        isOpen={!!reviewDocument}
+        onClose={closeDocumentReview}
+        title={reviewDocument ? `Verify Document: ${reviewDocument.name}` : 'Verify Document'}
+        size="lg"
+        footer={reviewDocument ? (
+          <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <Button variant="ghost" onClick={closeDocumentReview}>Close</Button>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row">
+              <Button variant="danger" onClick={() => decideDocument('Rejected')}>Reject Document</Button>
+              <Button variant="primary" onClick={() => decideDocument('Verified')}>Verify Document</Button>
+            </div>
+          </div>
+        ) : null}>
+        {reviewDocument && (
+          <div className="space-y-5">
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+              <div className="flex min-h-[220px] flex-col items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 p-6 text-center">
+                <FileText className="h-12 w-12 text-gray-400" />
+                <p className="mt-3 text-sm font-medium text-gray-800">{reviewDocument.name}</p>
+                <p className="text-xs text-gray-500">{reviewDocument.fileType} • {reviewDocument.fileSize}</p>
+                <p className="mt-4 max-w-xs text-xs text-gray-500">
+                  Preview not available. Uploaded files are not stored in this prototype, so check the original document before you decide.
+                </p>
+              </div>
+              <div className="space-y-3 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-500">Current status</span>
+                  {getDocBadge(reviewDocument.status)}
+                </div>
+                <div className="flex justify-between"><span className="text-gray-500">Category</span><span className="text-gray-900">{reviewDocument.category || '—'}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Uploaded</span><span className="text-gray-900">{reviewDocument.uploadDate || '—'}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Expiry</span><span className="text-gray-900">{reviewDocument.expiryDate || '—'}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Mandatory</span><span className="text-gray-900">{reviewDocument.mandatory ? 'Yes' : 'No'}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Last verified by</span><span className="text-gray-900">{reviewDocument.verifiedBy || '—'}</span></div>
+              </div>
+            </div>
+            <div>
+              <p className="mb-2 text-sm font-semibold text-gray-900">Authenticity checks</p>
+              <div className="space-y-2">
+                {DOCUMENT_AUTHENTICITY_CHECKS.map((check) => (
+                  <label key={check.id} className="flex items-start gap-3 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5"
+                      checked={!!documentChecks[check.id]}
+                      onChange={(e) => setDocumentChecks((prev) => ({ ...prev, [check.id]: e.target.checked }))} />
+                    <span>{check.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">Remarks / reason for rejection</label>
+              <textarea
+                rows={3}
+                value={documentRemarks}
+                onChange={(e) => setDocumentRemarks(e.target.value)}
+                placeholder="Required when rejecting. This reason is sent to the employee."
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+            {documentError && <p className="text-sm text-red-600">{documentError}</p>}
+          </div>
+        )}
+      </Modal>
       <MetricModal
         isOpen={modalOpen}
         onClose={closeModal}
@@ -3752,7 +3921,7 @@ export function EmployeeProfileView() {
                           <div className="flex items-center gap-2">
                             <Badge variant="success">
                               {
-                        employee.documents.filter(
+                        employeeDocuments.filter(
                           (d) => d.status === 'Verified'
                         ).length
                         }{' '}
@@ -3760,7 +3929,7 @@ export function EmployeeProfileView() {
                             </Badge>
                             <Badge variant="warning">
                               {
-                        employee.documents.filter(
+                        employeeDocuments.filter(
                           (d) => d.status === 'Pending'
                         ).length
                         }{' '}
@@ -3768,8 +3937,15 @@ export function EmployeeProfileView() {
                             </Badge>
                           </div>
                         </div>
+                        {documentNotice &&
+                          <div className="mb-4 flex items-start justify-between gap-3 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-800">
+                            <span>{documentNotice}</span>
+                            <button type="button" onClick={() => setDocumentNotice(null)} className="opacity-70 hover:opacity-100">
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>}
                         <div className="space-y-3">
-                          {employee.documents.map((d) =>
+                          {employeeDocuments.map((d) =>
                     <div
                       key={d.id}
                       className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
@@ -3802,10 +3978,10 @@ export function EmployeeProfileView() {
                               </div>
                               <div className="flex items-center gap-3">
                                 {getDocBadge(d.status)}
-                                <Button variant="outline" size="sm">
+                                <Button variant="outline" size="sm" onClick={() => openDocumentReview(d.id)} title="View and verify document">
                                   <Eye className="w-4 h-4" />
                                 </Button>
-                                <Button variant="outline" size="sm">
+                                <Button variant="outline" size="sm" disabled title="Download needs document storage, which is not connected in this prototype">
                                   <Download className="w-4 h-4" />
                                 </Button>
                               </div>
