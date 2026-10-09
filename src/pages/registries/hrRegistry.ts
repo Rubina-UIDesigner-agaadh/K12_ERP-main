@@ -7,8 +7,8 @@ export const hrRegistry: Record<string, () => any> = {
     'EmployeeSummaryDashboard'
   ),
   'employee-list-directory': rp(
-    () => import('../hr/employee/EmployeeList'),
-    'EmployeeList'
+    () => import('../hr/employee/EmployeeProfileView'),
+    'EmployeeProfileView'
   ),
   'employee-profile-view': rp(
     () => import('../hr/employee/EmployeeProfileView'),
@@ -19,12 +19,12 @@ export const hrRegistry: Record<string, () => any> = {
     'EmployeeServiceRegister'
   ),
   'probation-confirmation-list': rp(
-    () => import('../hr/employee/ProbationConfirmationList'),
-    'ProbationConfirmationList'
+    () => import('../hr/employee/ProbationConfirmationWorkspace'),
+    'ProbationConfirmationWorkspace'
   ),
   'exit-relieved-employees': rp(
-    () => import('../hr/employee/ExitRelievedEmployees'),
-    'ExitRelievedEmployees'
+    () => import('../hr/employee/EmployeeSeparationExit'),
+    'EmployeeSeparationExit'
   ),
   'add-edit-employee-profile': rp(
     () => import('../hr/employee/EmployeeProfile'),
@@ -35,8 +35,8 @@ export const hrRegistry: Record<string, () => any> = {
     'EmployeeJoiningOnboarding'
   ),
   'employee-confirmation': rp(
-    () => import('../hr/employee/EmployeeConfirmation'),
-    'EmployeeConfirmation'
+    () => import('../hr/employee/ProbationConfirmationWorkspace'),
+    'ProbationConfirmationWorkspace'
   ),
   'employee-transfer': rp(
     () => import('../hr/employee/EmployeeTransfer'),
@@ -49,6 +49,14 @@ export const hrRegistry: Record<string, () => any> = {
   'employee-separation-exit': rp(
     () => import('../hr/employee/EmployeeSeparationExit'),
     'EmployeeSeparationExit'
+  ),
+  'shift-view-and-switch': rp(
+    () => import('../hr/employee/ShiftViewAndSwitch'),
+    'ShiftViewAndSwitch'
+  ),
+  'staff-achievement': rp(
+    () => import('../hr/employee/StaffAchievement'),
+    'StaffAchievement'
   ),
   'document-upload-verification': rp(
     () => import('../hr/employee/DocumentUploadVerification'),

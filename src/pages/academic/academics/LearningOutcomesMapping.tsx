@@ -35,9 +35,9 @@ import {
   Link,
   AlertTriangle } from
 'lucide-react';
-import { Card } from '../../../../components/ui/Card';
-import { Button } from '../../../../components/ui/Button';
-import { Badge } from '../../../../components/ui/Badge';
+import { Card } from '../../../components/ui/Card';
+import { Button } from '../../../components/ui/Button';
+import { Badge } from '../../../components/ui/Badge';
 // ==================== TYPE DEFINITIONS ====================
 interface LearningOutcome {
   id: number;

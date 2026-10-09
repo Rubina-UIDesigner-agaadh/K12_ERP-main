@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
@@ -18,7 +19,6 @@ import {
   XCircle,
   AlertCircle,
   Download,
-  LogOut,
   User,
   Clock,
   MessageSquare,
@@ -26,31 +26,19 @@ import {
   Filter,
   Plus,
   Eye,
-  Edit,
-  Trash2,
-  Mail,
-  Phone,
-  Building,
-  Briefcase,
   AlertTriangle,
   Info,
   RefreshCw,
   X,
   Check,
-  FileCheck,
   Send,
-  Printer,
   History,
   UserX,
-  UserCheck,
-  CalendarDays,
   Timer,
   DollarSign,
   Award,
   ClipboardCheck,
-  ArrowRight,
-  ChevronDown,
-  ChevronUp } from
+  ArrowRight } from
 'lucide-react';
 
 // ==================== TYPES ====================
@@ -407,6 +395,7 @@ const StepIndicator: React.FC<{currentStep: number;steps: string[];}> = ({ curre
 
 // ==================== MAIN COMPONENT ====================
 export function EmployeeExitSeparation() {
+  const navigate = useNavigate();
   // Tab State
   const [activeTab, setActiveTab] = useState<MainTab>('requests');
 
@@ -417,6 +406,7 @@ export function EmployeeExitSeparation() {
 
   // Search & Filter State
   const [searchTerm, setSearchTerm] = useState('');
+  const [historySearch, setHistorySearch] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<RequestFilter>('all');
 
@@ -505,6 +495,15 @@ export function EmployeeExitSeparation() {
       return matchesDept && matchesStatus;
     });
   }, [exitRequests, departmentFilter, statusFilter]);
+
+  const filteredExitedEmployees = useMemo(() => {
+    const term = historySearch.trim().toLowerCase();
+    if (!term) return exitedEmployees;
+    return exitedEmployees.filter((employee) =>
+      [employee.employeeName, employee.employeeId, employee.employeeCode, employee.department, employee.designation]
+        .some((value) => value.toLowerCase().includes(term))
+    );
+  }, [exitedEmployees, historySearch]);
 
   const requestStats = useMemo(() => ({
     total: exitRequests.length,
@@ -797,6 +796,14 @@ export function EmployeeExitSeparation() {
     addToast('info', 'Notice period status updated');
   };
 
+  const handleOpenNoticePeriods = () => {
+    setActiveTab('requests');
+    handleCheckNoticePeriod();
+    // This route is retained as the Employee Separation / Exit entry point;
+    // both legacy navigation IDs now render this combined workspace.
+    navigate('/hr/employee/employee-separation-exit');
+  };
+
   // Request table columns
   const requestColumns = [
   {
@@ -1005,10 +1012,10 @@ export function EmployeeExitSeparation() {
             <UserX className="w-7 h-7 text-red-600" />
             Employee Exit & Separation
           </h1>
-          <p className="text-sm text-gray-500">Manage resignations, clearances, and employee exits</p>
+          <p className="text-sm text-gray-500">Track employees in notice or exit processing and review employees who have already left.</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={handleCheckNoticePeriod} leftIcon={<RefreshCw className="w-4 h-4" />}>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={handleOpenNoticePeriods} leftIcon={<RefreshCw className="w-4 h-4" />}>
             Check Notice Periods
           </Button>
           <Button variant="primary" onClick={() => setShowNewRequestModal(true)} leftIcon={<Plus className="w-4 h-4" />}>
@@ -1082,8 +1089,8 @@ export function EmployeeExitSeparation() {
         <div className="border-b border-gray-200 bg-white">
           <nav className="flex -mb-px">
             {[
-            { id: 'requests' as MainTab, label: 'Exit Requests', icon: FileText, count: requestStats.total },
-            { id: 'history' as MainTab, label: 'Exit History', icon: History, count: exitedEmployees.length }].
+            { id: 'requests' as MainTab, label: 'Leaving / Exit Requests', icon: FileText, count: requestStats.total },
+            { id: 'history' as MainTab, label: 'Employees Already Left', icon: History, count: exitedEmployees.length }].
             map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -1173,18 +1180,37 @@ export function EmployeeExitSeparation() {
           {/* Exit History Tab */}
           {activeTab === 'history' &&
           <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-gray-600">
-                  Showing <span className="font-semibold">{exitedEmployees.length}</span> exited employees
-                </p>
-                <Button variant="outline" leftIcon={<Download className="w-4 h-4" />}>
-                  Export History
-                </Button>
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                <div className="relative w-full lg:max-w-xl">
+                  <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="exited-employee-search">Search Employees Already Left</label>
+                  <Search className="absolute left-3 top-9 h-4 w-4 text-gray-400" />
+                  <input
+                    id="exited-employee-search"
+                    type="search"
+                    value={historySearch}
+                    onChange={(event) => setHistorySearch(event.target.value)}
+                    placeholder="Search by name, employee ID, code, department or designation"
+                    className="w-full rounded-lg border border-gray-300 py-2.5 pl-10 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="flex items-center gap-3">
+                  <p className="whitespace-nowrap text-sm text-gray-600">
+                    Showing <span className="font-semibold">{filteredExitedEmployees.length}</span> of {exitedEmployees.length} exited employees
+                  </p>
+                  <Button variant="outline" leftIcon={<Download className="w-4 h-4" />}>
+                    Export History
+                  </Button>
+                </div>
               </div>
 
-              {exitedEmployees.length > 0 ?
-            <Table columns={exitedColumns} data={exitedEmployees} /> :
-
+              {filteredExitedEmployees.length > 0 ?
+            <Table columns={exitedColumns} data={filteredExitedEmployees} /> :
+            exitedEmployees.length > 0 ?
+            <div className="text-center py-10 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                  <Search className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                  <h3 className="text-base font-medium text-gray-900 mb-1">No employees match this search</h3>
+                  <p className="text-sm text-gray-500">Try an employee name, ID, department, or designation.</p>
+                </div> :
             <div className="text-center py-12 bg-gray-50 rounded-lg border border-dashed border-gray-300">
                   <History className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                   <h3 className="text-lg font-medium text-gray-900 mb-2">No exit history</h3>
@@ -1193,6 +1219,7 @@ export function EmployeeExitSeparation() {
             }
             </div>
           }
+
         </div>
       </Card>
 

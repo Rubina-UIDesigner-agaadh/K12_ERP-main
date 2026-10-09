@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   SearchIcon,
-  FilterIcon,
   DownloadIcon,
   EyeIcon,
   ChevronDownIcon,
@@ -30,6 +29,7 @@ import {
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
+import { Modal } from '../../../components/ui/Modal';
 
 // Types
 interface ProbationEmployee {
@@ -398,7 +398,14 @@ export function ProbationConfirmationList() {
   const navigate = useNavigate();
 
   // State
-  const [employees] = useState<ProbationEmployee[]>(probationEmployeesData);
+  const [employees, setEmployees] = useState<ProbationEmployee[]>(probationEmployeesData);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
+  const [actionModal, setActionModal] = useState<'confirm' | 'extend' | 'terminate' | null>(null);
+  const [actionMessage, setActionMessage] = useState('');
+  const [confirmationDate, setConfirmationDate] = useState(new Date().toISOString().slice(0, 10));
+  const [confirmationRemarks, setConfirmationRemarks] = useState('');
+  const [extensionMonths, setExtensionMonths] = useState('3');
+  const [extensionReason, setExtensionReason] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDepartment, setSelectedDepartment] = useState('All Departments');
   const [selectedDesignation, setSelectedDesignation] = useState('All Designations');
@@ -487,6 +494,8 @@ export function ProbationConfirmationList() {
       matchesProbationEndTo);
 
   });
+
+  const selectedEmployee = employees.find((employee) => employee.id === selectedEmployeeId) || null;
 
   // Sort employees
   const sortedEmployees = [...filteredEmployees].sort((a, b) => {
@@ -622,6 +631,50 @@ export function ProbationConfirmationList() {
     return 'text-green-600';
   };
 
+  const openActionModal = (action: 'confirm' | 'extend' | 'terminate') => {
+    if (!selectedEmployee) return;
+    setActionMessage('');
+    if (action === 'confirm') setConfirmationDate(new Date().toISOString().slice(0, 10));
+    if (action === 'extend') { setExtensionMonths('3'); setExtensionReason(''); }
+    setActionModal(action);
+  };
+
+  const submitConfirmation = () => {
+    if (!selectedEmployee || !confirmationDate) return;
+    const confirmedName = selectedEmployee.name;
+    setEmployees((current) => current.filter((employee) => employee.id !== selectedEmployee.id));
+    setSelectedEmployeeId('');
+    setActionModal(null);
+    setConfirmationRemarks('');
+    setActionMessage(`${confirmedName} has been confirmed and removed from the probation list.`);
+  };
+
+  const submitExtension = () => {
+    if (!selectedEmployee || !extensionMonths || !extensionReason.trim()) return;
+    const months = Math.max(1, Number.parseInt(extensionMonths, 10) || 1);
+    const endDate = new Date(`${selectedEmployee.probationEndDate}T00:00:00`);
+    endDate.setMonth(endDate.getMonth() + months);
+    const updatedEndDate = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`;
+    const updatedEmployee: ProbationEmployee = {
+      ...selectedEmployee,
+      status: 'Extended',
+      probationEndDate: updatedEndDate,
+      probationMonths: selectedEmployee.probationMonths + months,
+      probationPeriod: `${selectedEmployee.probationMonths + months} Months`,
+      totalProbationDays: selectedEmployee.totalProbationDays + months * 30,
+      daysLeft: Math.max(1, selectedEmployee.daysLeft + months * 30),
+    };
+    setEmployees((current) => current.map((employee) => employee.id === selectedEmployee.id ? updatedEmployee : employee));
+    setActionModal(null);
+    setExtensionReason('');
+    setActionMessage(`Probation for ${updatedEmployee.name} extended by ${months} month${months === 1 ? '' : 's'} through ${formatDate(updatedEndDate)}.`);
+  };
+
+  const continueToExit = () => {
+    setActionModal(null);
+    navigate('/hr/employee/employee-separation-exit');
+  };
+
   return (
     <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
       {/* Header */}
@@ -629,10 +682,10 @@ export function ProbationConfirmationList() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
             <UsersIcon className="w-7 h-7 text-blue-600" />
-            Probation Employee List
+            Probation &amp; Confirmation
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            View and manage employees currently on probation period
+            Select an employee to reveal their details and confirmation actions directly beneath their row.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -670,6 +723,8 @@ export function ProbationConfirmationList() {
           </div>
         </div>
       </div>
+
+      {actionMessage && <div role="status" className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{actionMessage}</div>}
 
       {/* Filters Card */}
       <Card className="p-4">
@@ -1036,13 +1091,14 @@ export function ProbationConfirmationList() {
                   </th>
                 }
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Action
+                  Details / Profile
                 </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-100">
-              {paginatedEmployees.map((employee) =>
-              <tr key={employee.id} className="hover:bg-gray-50 transition-colors">
+              {paginatedEmployees.map((employee) => (
+              <React.Fragment key={employee.id}>
+                <tr className={`transition-colors ${selectedEmployeeId === employee.id ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
                   {visibleColumns.employeeCode &&
                 <td className="px-4 py-3">
                       <span className="text-sm font-medium text-blue-600">{employee.employeeCode}</span>
@@ -1158,17 +1214,56 @@ export function ProbationConfirmationList() {
                     </td>
                 }
                   <td className="px-4 py-3">
-                    <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => navigate(`/hr/employee/${employee.id}/profile`)}>
-
-                      <EyeIcon className="w-4 h-4 mr-1" />
-                      View Profile
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant={selectedEmployeeId === employee.id ? 'primary' : 'outline'}
+                        size="sm"
+                        aria-expanded={selectedEmployeeId === employee.id}
+                        onClick={() => setSelectedEmployeeId((current) => current === employee.id ? '' : employee.id)}
+                      >
+                        {selectedEmployeeId === employee.id ? 'Hide Details' : 'Details & Actions'}
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => navigate('/hr/employee/employee-list-directory', { state: { employeeCode: employee.employeeCode } })}>
+                        <EyeIcon className="mr-1 h-4 w-4" />Profile
+                      </Button>
+                    </div>
                   </td>
                 </tr>
-              )}
+                {selectedEmployeeId === employee.id && (
+                  <tr className="bg-blue-50/40">
+                    <td colSpan={Object.values(visibleColumns).filter(Boolean).length + 1} className="p-3 sm:p-4">
+                      <div className="overflow-hidden rounded-xl border border-blue-200 bg-white">
+                        <div className="flex flex-col gap-4 border-b border-gray-100 bg-blue-50/70 p-4 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="flex items-center gap-4">
+                            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-600 text-sm font-bold text-white">{employee.name.split(' ').filter(Boolean).map((part) => part[0]).join('').slice(0, 2).toUpperCase()}</div>
+                            <div>
+                              <h2 className="font-semibold text-gray-900">{employee.name}</h2>
+                              <p className="text-sm text-gray-600">{employee.employeeCode} · {employee.designation} · {employee.department}</p>
+                              <p className="text-xs text-gray-500">Reporting manager: {employee.reportingManager}</p>
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant={getStatusVariant(employee.status)}>{employee.status}</Badge>
+                            <Button variant="outline" size="sm" onClick={() => navigate('/hr/employee/employee-list-directory', { state: { employeeCode: employee.employeeCode } })}><EyeIcon className="mr-1 h-4 w-4" />Full Profile</Button>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4">
+                          <div className="rounded-lg border border-gray-100 p-3"><p className="text-xs uppercase tracking-wide text-gray-500">Email / Phone</p><p className="mt-1 text-sm font-medium text-gray-900">{employee.email}</p><p className="text-sm text-gray-600">{employee.phone}</p></div>
+                          <div className="rounded-lg border border-gray-100 p-3"><p className="text-xs uppercase tracking-wide text-gray-500">Joining / Branch</p><p className="mt-1 text-sm font-medium text-gray-900">{formatDate(employee.dateOfJoining)}</p><p className="text-sm text-gray-600">{employee.branch}</p></div>
+                          <div className="rounded-lg border border-gray-100 p-3"><p className="text-xs uppercase tracking-wide text-gray-500">Probation</p><p className="mt-1 text-sm font-medium text-gray-900">{employee.probationPeriod}</p><p className="text-sm text-gray-600">{formatDate(employee.probationStartDate)} – {formatDate(employee.probationEndDate)}</p></div>
+                          <div className="rounded-lg border border-gray-100 p-3"><p className="text-xs uppercase tracking-wide text-gray-500">Progress</p><ProgressBar completed={employee.daysCompleted} total={employee.totalProbationDays} status={employee.status} /><p className={`mt-1 text-xs font-medium ${getDaysLeftColor(employee.daysLeft, employee.status)}`}>{getDaysLeftText(employee.daysLeft, employee.status)}</p></div>
+                        </div>
+                        <div className="flex flex-wrap justify-end gap-2 border-t border-gray-100 bg-gray-50 p-4">
+                          <Button variant="outline" onClick={() => openActionModal('confirm')}>Confirm as Permanent</Button>
+                          <Button variant="outline" onClick={() => openActionModal('extend')}>Extend Probation</Button>
+                          <Button variant="danger" onClick={() => openActionModal('terminate')}>Terminate</Button>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
+              ))}
             </tbody>
           </table>
 
@@ -1255,6 +1350,29 @@ export function ProbationConfirmationList() {
           </div>
         }
       </Card>
+
+      <Modal isOpen={actionModal === 'confirm' && Boolean(selectedEmployee)} onClose={() => setActionModal(null)} title={`Confirm ${selectedEmployee?.name || 'Employee'} as Permanent`} size="md">
+        {selectedEmployee && <div className="space-y-4">
+          <div><label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="probation-confirmation-date">Confirmation date</label><input id="probation-confirmation-date" type="date" value={confirmationDate} onChange={(event) => setConfirmationDate(event.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" /></div>
+          <div><label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="probation-confirmation-remarks">Remarks</label><textarea id="probation-confirmation-remarks" rows={3} value={confirmationRemarks} onChange={(event) => setConfirmationRemarks(event.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Optional confirmation notes" /></div>
+          <div className="flex justify-end gap-2 border-t pt-4"><Button variant="outline" onClick={() => setActionModal(null)}>Cancel</Button><Button variant="primary" onClick={submitConfirmation} disabled={!confirmationDate}>Confirm Employee</Button></div>
+        </div>}
+      </Modal>
+
+      <Modal isOpen={actionModal === 'extend' && Boolean(selectedEmployee)} onClose={() => setActionModal(null)} title={`Extend ${selectedEmployee?.name || 'Employee'}'s Probation`} size="md">
+        {selectedEmployee && <div className="space-y-4">
+          <div><label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="probation-extension-months">Extension period</label><select id="probation-extension-months" value={extensionMonths} onChange={(event) => setExtensionMonths(event.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"><option value="1">1 month</option><option value="3">3 months</option><option value="6">6 months</option></select></div>
+          <div><label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="probation-extension-reason">Reason / improvement plan</label><textarea id="probation-extension-reason" rows={3} value={extensionReason} onChange={(event) => setExtensionReason(event.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Required to extend probation" /></div>
+          <div className="flex justify-end gap-2 border-t pt-4"><Button variant="outline" onClick={() => setActionModal(null)}>Cancel</Button><Button variant="primary" onClick={submitExtension} disabled={!extensionReason.trim()}>Save Extension</Button></div>
+        </div>}
+      </Modal>
+
+      <Modal isOpen={actionModal === 'terminate' && Boolean(selectedEmployee)} onClose={() => setActionModal(null)} title="Continue to Employee Exit & Separation" size="sm">
+        {selectedEmployee && <div className="space-y-4">
+          <p className="text-sm text-gray-600">The exit and separation workspace will open for <span className="font-semibold text-gray-900">{selectedEmployee.name}</span>.</p>
+          <div className="flex justify-end gap-2 border-t pt-4"><Button variant="outline" onClick={() => setActionModal(null)}>Cancel</Button><Button variant="danger" onClick={continueToExit}>Continue to Exit</Button></div>
+        </div>}
+      </Modal>
 
       {/* Click outside to close dropdowns */}
       {(showExportDropdown || showColumnDropdown) &&

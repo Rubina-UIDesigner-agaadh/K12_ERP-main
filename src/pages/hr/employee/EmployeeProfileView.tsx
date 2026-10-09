@@ -1,4 +1,5 @@
-import React, { useMemo, useState, Component } from 'react';
+import React, { useEffect, useMemo, useState, Component } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Select } from '../../../components/ui/Select';
@@ -21,7 +22,6 @@ import {
   AlertCircle,
   Download,
   Printer,
-  Edit,
   ChevronRight,
   Home,
   Users,
@@ -40,28 +40,19 @@ import {
   BookOpen,
   Languages,
   Laptop,
-  Activity,
-  BarChart3,
   Eye,
   MessageSquare,
-  ThumbsUp,
-  ThumbsDown,
   Stethoscope,
   Droplet,
-  Timer,
-  PlayCircle,
-  Coffee,
   Layers,
   Fingerprint,
   Lock,
   Plus,
   RefreshCw,
+  Settings,
   Share2,
-  Upload,
   Globe,
   Trophy,
-  Filter,
-  ChevronDown,
   XCircle,
   Car,
   FolderOpen } from
@@ -102,6 +93,8 @@ interface StudentOutcome {
   subject: string;
   averageScore: number;
   passRate: number;
+  priorYearAverageScore?: number;
+  priorYearPassRate?: number;
   trend: 'up' | 'down' | 'stable';
   comparison: string;
 }
@@ -155,6 +148,9 @@ interface HealthRecord {
     date: string;
   }[];
 }
+const EMPLOYEE_HEALTH_RECORDS_STORAGE_KEY = 'k12-employee-health-records-v1';
+const EMPLOYEE_HEALTH_RECORDS_EVENT = 'k12-employee-health-records-updated';
+
 interface Employee {
   id: string;
   code: string;
@@ -268,6 +264,14 @@ interface Employee {
       percentage: string;
       grade: string;
     }[];
+    professionalQualifications?: {
+      degree: string;
+      institution: string;
+      year: string;
+      grade: string;
+      specialization: string;
+      registrationNumber: string;
+    }[];
     certifications: {
       name: string;
       issuingAuthority: string;
@@ -284,10 +288,15 @@ interface Employee {
       duration: string;
       responsibilities: string;
       reasonForLeaving: string;
+      location?: string;
+      lastSalary?: string;
       verified: boolean;
     }[];
   };
   skills: {
+    technicalSkills?: string[];
+    softSkills?: string[];
+    hobbies?: string[];
     languages: {
       name: string;
       proficiency: 'native' | 'fluent' | 'intermediate' | 'basic';
@@ -389,7 +398,6 @@ interface Employee {
   engagement: {
     achievements: Achievement[];
     disciplinaryRecords: DisciplinaryRecord[];
-    committees: string[];
     responsibilities: string[];
     mentoring: string[];
   };
@@ -409,6 +417,38 @@ interface Employee {
     permissions: string[];
   };
 }
+
+type StoredEmployeeHealthRecords = Record<string, Partial<HealthRecord>>;
+const normalizeEmployeeHealthKey = (value: string) => value.trim().toUpperCase();
+
+const readStoredEmployeeHealthRecords = (): StoredEmployeeHealthRecords => {
+  if (typeof window === 'undefined') return {};
+  try {
+    return JSON.parse(window.localStorage.getItem(EMPLOYEE_HEALTH_RECORDS_STORAGE_KEY) || '{}') as StoredEmployeeHealthRecords;
+  } catch {
+    return {};
+  }
+};
+
+type AttendanceLog = Employee['attendance']['recentLogs'][number];
+
+const getWeeklyAttendanceGroups = (logs: AttendanceLog[]) => {
+  const groups = new Map<string, { startDate: Date; endDate: Date; logs: AttendanceLog[] }>();
+  logs.forEach((log) => {
+    const date = new Date(`${log.date}T00:00:00`);
+    if (Number.isNaN(date.getTime()) || date.getDay() === 0) return;
+    const startDate = new Date(date);
+    startDate.setDate(startDate.getDate() - ((startDate.getDay() + 6) % 7));
+    const endDate = new Date(startDate);
+    endDate.setDate(endDate.getDate() + 5);
+    const key = startDate.toISOString().slice(0, 10);
+    const group = groups.get(key) || { startDate, endDate, logs: [] };
+    group.logs.push(log);
+    groups.set(key, group);
+  });
+  return Array.from(groups.values()).sort((a, b) => b.startDate.getTime() - a.startDate.getTime());
+};
+
 // Mock Data
 const mockEmployees: Employee[] = [
 {
@@ -567,6 +607,23 @@ const mockEmployees: Employee[] = [
       percentage: '88%',
       grade: 'First Class with Distinction'
     }],
+    professionalQualifications: [
+    {
+      degree: 'B.Ed',
+      institution: 'IGNOU',
+      year: '2009',
+      grade: '75%',
+      specialization: 'Mathematics Education',
+      registrationNumber: 'BEd-IGNOU-2009-0034'
+    },
+    {
+      degree: 'CTET Qualification',
+      institution: 'CBSE',
+      year: '2018',
+      grade: 'Qualified',
+      specialization: 'Teacher Eligibility',
+      registrationNumber: 'CTET-2018-12345'
+    }],
 
     certifications: [
     {
@@ -604,6 +661,8 @@ const mockEmployees: Employee[] = [
       responsibilities:
       'Teaching Mathematics to Grades 9-12, Lab coordination',
       reasonForLeaving: 'Better opportunity',
+      location: 'New Delhi',
+      lastSalary: '₹42,000 / month',
       verified: true
     },
     {
@@ -615,11 +674,16 @@ const mockEmployees: Employee[] = [
       responsibilities:
       'Teaching, Curriculum development, Student mentoring',
       reasonForLeaving: 'Career growth',
+      location: 'Gurugram',
+      lastSalary: '₹58,000 / month',
       verified: true
     }]
 
   },
   skills: {
+    technicalSkills: ['MS Office', 'Google Workspace', 'GeoGebra', 'MATLAB', 'Learning Management Systems'],
+    softSkills: ['Communication', 'Leadership', 'Classroom Management', 'Student Mentoring'],
+    hobbies: ['Chess', 'Reading', 'Science Fair Mentoring'],
     languages: [
     {
       name: 'English',
@@ -1145,6 +1209,8 @@ const mockEmployees: Employee[] = [
       subject: 'Mathematics',
       averageScore: 78.5,
       passRate: 96,
+      priorYearAverageScore: 73.3,
+      priorYearPassRate: 91.2,
       trend: 'up',
       comparison: '+5.2% vs last year'
     },
@@ -1153,6 +1219,8 @@ const mockEmployees: Employee[] = [
       subject: 'Mathematics',
       averageScore: 74.2,
       passRate: 92,
+      priorYearAverageScore: 73.1,
+      priorYearPassRate: 90.9,
       trend: 'stable',
       comparison: '+1.1% vs last year'
     },
@@ -1161,6 +1229,8 @@ const mockEmployees: Employee[] = [
       subject: 'Mathematics',
       averageScore: 71.8,
       passRate: 88,
+      priorYearAverageScore: 68.3,
+      priorYearPassRate: 84.5,
       trend: 'up',
       comparison: '+3.5% vs last year'
     },
@@ -1169,6 +1239,8 @@ const mockEmployees: Employee[] = [
       subject: 'Mathematics',
       averageScore: 82.3,
       passRate: 100,
+      priorYearAverageScore: 74.5,
+      priorYearPassRate: 92.2,
       trend: 'up',
       comparison: '+7.8% vs last year'
     }],
@@ -1316,11 +1388,6 @@ const mockEmployees: Employee[] = [
     }],
 
     disciplinaryRecords: [],
-    committees: [
-    'Academic Committee Member',
-    'Examination Cell Coordinator',
-    'CBSE Affiliation Committee'],
-
     responsibilities: [
     'Class Teacher - Class 10-A',
     'Math Olympiad Coordinator',
@@ -1670,6 +1737,8 @@ const mockEmployees: Employee[] = [
       subject: 'English',
       averageScore: 75.0,
       passRate: 98,
+      priorYearAverageScore: 72.0,
+      priorYearPassRate: 95,
       trend: 'up',
       comparison: '+3.0% vs last year'
     }],
@@ -1719,7 +1788,6 @@ const mockEmployees: Employee[] = [
     }],
 
     disciplinaryRecords: [],
-    committees: ['Cultural Committee'],
     responsibilities: ['Drama Club Advisor'],
     mentoring: []
   },
@@ -1893,9 +1961,9 @@ const sectionInfoData: Record<string, MetricInfo> = {
 
   },
   schedule: {
-    title: 'Schedule & Workload',
+    title: 'Schedule Details',
     description:
-    'Current timetable, class mappings, and workload distribution.',
+    'Current timetable and class mappings.',
     dataSource: {
       title: 'Data Source',
       description: 'Integrated with timetable management system.'
@@ -1903,11 +1971,11 @@ const sectionInfoData: Record<string, MetricInfo> = {
     whyItMatters: {
       title: 'Why It Matters',
       description:
-      'Ensures balanced workload distribution and prevents scheduling conflicts.'
+      'Keeps class schedules accurate and helps prevent scheduling conflicts.'
     },
     recommendedActions: [
     {
-      title: 'Review workload balance'
+      title: 'Review timetable assignments'
     },
     {
       title: 'Check for scheduling conflicts'
@@ -1940,7 +2008,7 @@ const sectionInfoData: Record<string, MetricInfo> = {
   performance: {
     title: 'Performance & Growth',
     description:
-    'Student outcomes, feedback scores, CPD progress, and KRA achievements.',
+    'Student outcomes, feedback scores, and continuing professional development.',
     dataSource: {
       title: 'Data Source',
       description:
@@ -1949,11 +2017,11 @@ const sectionInfoData: Record<string, MetricInfo> = {
     whyItMatters: {
       title: 'Why It Matters',
       description:
-      'Drives appraisals, increments, promotions, and professional development planning.'
+      'Supports fair appraisals, promotion decisions, and professional development planning.'
     },
     recommendedActions: [
     {
-      title: 'Review KRA progress'
+      title: 'Review performance trends'
     },
     {
       title: 'Schedule feedback discussion'
@@ -1963,23 +2031,23 @@ const sectionInfoData: Record<string, MetricInfo> = {
   engagement: {
     title: 'Engagement & Welfare',
     description:
-    'Achievements, awards, committee memberships, and disciplinary records.',
+    'Achievements, awards, health and wellness information, and disciplinary records.',
     dataSource: {
       title: 'Data Source',
       description:
-      'Maintained by HR through nomination records and committee minutes.'
+      'Maintained by HR through recognition, wellness, and disciplinary records.'
     },
     whyItMatters: {
       title: 'Why It Matters',
       description:
-      'Recognizes contributions and tracks institutional involvement.'
+      'Recognizes employee contributions and supports staff wellbeing.'
     },
     recommendedActions: [
     {
       title: 'Update achievement records'
     },
     {
-      title: 'Review committee assignments'
+      title: 'Review health and wellness details'
     }]
 
   },
@@ -2227,45 +2295,106 @@ const MetricModal = ({
 };
 // Main Component
 export function EmployeeProfileView() {
-  const [selectedId, setSelectedId] = useState<string>('EMP001');
-  const [search, setSearch] = useState('');
+  const location = useLocation();
+  const requestedEmployeeCode = (location.state as { employeeCode?: string } | null)?.employeeCode?.trim().toUpperCase();
+  const requestedEmployee = requestedEmployeeCode
+    ? mockEmployees.find((candidate) => candidate.code.toUpperCase() === requestedEmployeeCode || candidate.id.toUpperCase() === requestedEmployeeCode)
+    : undefined;
+  const [selectedId, setSelectedId] = useState<string>(() => requestedEmployee?.id ?? '');
+  const [showProfilePage, setShowProfilePage] = useState(Boolean(requestedEmployee));
+  const [search, setSearch] = useState(() => requestedEmployee?.code ?? '');
   const [activeTab, setActiveTab] = useState('overview');
   const [activeSubTab, setActiveSubTab] = useState('personal');
   const [modalOpen, setModalOpen] = useState(false);
   const [modalSection, setModalSection] = useState<string | null>(null);
-  const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState({
     department: '',
     status: '',
     staffType: '',
-    designation: ''
+    designation: '',
+    employmentType: '',
+    branch: '',
+    gender: '',
+    joiningFrom: '',
+    joiningTo: ''
   });
-  const employee = mockEmployees.find((e) => e.id === selectedId);
+  const [storedHealthRecords, setStoredHealthRecords] = useState<StoredEmployeeHealthRecords>(readStoredEmployeeHealthRecords);
+
+  useEffect(() => {
+    const syncStoredHealthRecords = () => setStoredHealthRecords(readStoredEmployeeHealthRecords());
+    window.addEventListener('storage', syncStoredHealthRecords);
+    window.addEventListener(EMPLOYEE_HEALTH_RECORDS_EVENT, syncStoredHealthRecords);
+    return () => {
+      window.removeEventListener('storage', syncStoredHealthRecords);
+      window.removeEventListener(EMPLOYEE_HEALTH_RECORDS_EVENT, syncStoredHealthRecords);
+    };
+  }, []);
+
+  const baseEmployee = mockEmployees.find((e) => e.id === selectedId);
+  const storedHealth = baseEmployee
+    ? storedHealthRecords[normalizeEmployeeHealthKey(baseEmployee.code)] || storedHealthRecords[normalizeEmployeeHealthKey(baseEmployee.id)]
+    : undefined;
+  const employee = baseEmployee
+    ? {
+        ...baseEmployee,
+        health: storedHealth
+          ? {
+              bloodGroup: storedHealth.bloodGroup ?? baseEmployee.health.bloodGroup,
+              allergies: storedHealth.allergies ?? baseEmployee.health.allergies,
+              medicalConditions: storedHealth.medicalConditions ?? baseEmployee.health.medicalConditions,
+              emergencyMedical: storedHealth.emergencyMedical ?? baseEmployee.health.emergencyMedical,
+              insuranceNumber: storedHealth.insuranceNumber ?? baseEmployee.health.insuranceNumber,
+              lastCheckup: storedHealth.lastCheckup ?? baseEmployee.health.lastCheckup,
+              vaccinations: storedHealth.vaccinations ?? baseEmployee.health.vaccinations,
+            }
+          : baseEmployee.health,
+      }
+    : undefined;
+  const peerFeedback = employee ? employee.performance.feedback.filter((feedback) => feedback.type === 'peer') : [];
+  const studentFeedback = employee ? employee.performance.feedback.filter((feedback) => feedback.type === 'student' || feedback.type === 'parent') : [];
+  const evaluationFeedback = employee ? employee.performance.feedback.filter((feedback) => feedback.type === 'admin') : [];
+  const getFeedbackAverage = (feedback: Feedback[]) =>
+    feedback.length ? feedback.reduce((sum, item) => sum + item.rating, 0) / feedback.length : 0;
+
   const filteredEmployees = useMemo(() => {
     return mockEmployees.filter((e) => {
-      const matchesSearch =
-      !search ||
-      e.fullName.toLowerCase().includes(search.toLowerCase()) ||
-      e.code.toLowerCase().includes(search.toLowerCase()) ||
-      e.department.toLowerCase().includes(search.toLowerCase()) ||
-      e.designation.toLowerCase().includes(search.toLowerCase());
-      const matchesDept =
-      !filters.department || e.department === filters.department;
+      const searchTerm = search.trim().toLowerCase();
+      const matchesSearch = !searchTerm || [
+        e.fullName, e.id, e.code, e.department, e.designation, e.contact.officialEmail,
+        e.contact.personalEmail, e.contact.mobile, e.contact.alternateMobile,
+        e.contact.permanentAddress.city, e.contact.permanentAddress.state,
+        e.contact.currentAddress.city, e.contact.currentAddress.state,
+        e.employment.campus, e.employment.location, e.employment.employmentType,
+        e.reportingManager, e.payrollId, e.biometricId, e.statutory.pfNumber, e.statutory.uanNumber,
+        e.employeeCategory, e.personal.gender, e.dateOfJoining,
+      ].some((value) => value.toLowerCase().includes(searchTerm));
+      const matchesDepartment = !filters.department || e.department === filters.department;
       const matchesStatus = !filters.status || e.status === filters.status;
-      const matchesType =
-      !filters.staffType || e.staffType === filters.staffType;
-      const matchesDesig =
-      !filters.designation ||
-      e.designation.toLowerCase().includes(filters.designation.toLowerCase());
-      return (
-        matchesSearch &&
-        matchesDept &&
-        matchesStatus &&
-        matchesType &&
-        matchesDesig);
-
+      const matchesStaffType = !filters.staffType || e.staffType === filters.staffType;
+      const matchesDesignation = !filters.designation || e.designation.toLowerCase().includes(filters.designation.toLowerCase());
+      const matchesEmploymentType = !filters.employmentType || e.employment.employmentType === filters.employmentType;
+      const matchesBranch = !filters.branch || e.employment.campus === filters.branch || e.employment.location === filters.branch;
+      const matchesGender = !filters.gender || e.personal.gender === filters.gender;
+      const matchesJoiningFrom = !filters.joiningFrom || e.dateOfJoining >= filters.joiningFrom;
+      const matchesJoiningTo = !filters.joiningTo || e.dateOfJoining <= filters.joiningTo;
+      return matchesSearch && matchesDepartment && matchesStatus && matchesStaffType && matchesDesignation
+        && matchesEmploymentType && matchesBranch && matchesGender && matchesJoiningFrom && matchesJoiningTo;
     });
   }, [search, filters]);
+  const selectEmployee = (id: string) => {
+    setSelectedId(id);
+    setShowProfilePage(true);
+    setActiveTab('overview');
+    setActiveSubTab('personal');
+  };
+  const returnToDirectory = () => {
+    setShowProfilePage(false);
+    setSelectedId('');
+    setSearch('');
+    setFilters({ department: '', status: '', staffType: '', designation: '', employmentType: '', branch: '', gender: '', joiningFrom: '', joiningTo: '' });
+    setActiveTab('overview');
+    setActiveSubTab('personal');
+  };
   const openModal = (section: string) => {
     setModalSection(section);
     setModalOpen(true);
@@ -2384,6 +2513,16 @@ export function EmployeeProfileView() {
       icon: Phone
     },
     {
+      id: 'employment',
+      label: 'Employment',
+      icon: Briefcase
+    },
+    {
+      id: 'family',
+      label: 'Family & Nominee',
+      icon: Users
+    },
+    {
       id: 'statutory',
       label: 'Statutory',
       icon: Shield
@@ -2395,14 +2534,24 @@ export function EmployeeProfileView() {
     },
     {
       id: 'bank',
-      label: 'Bank',
+      label: 'Bank & Salary',
       icon: CreditCard
+    },
+    {
+      id: 'account',
+      label: 'Account Details',
+      icon: Settings
+    },
+    {
+      id: 'system',
+      label: 'System Access',
+      icon: Lock
     }],
 
     professional: [
     {
       id: 'qualification',
-      label: 'Education',
+      label: 'Qualifications',
       icon: GraduationCap
     },
     {
@@ -2417,7 +2566,7 @@ export function EmployeeProfileView() {
     },
     {
       id: 'certifications',
-      label: 'Certifications',
+      label: 'Certifications & Courses',
       icon: Award
     }],
 
@@ -2433,11 +2582,6 @@ export function EmployeeProfileView() {
       icon: Users
     },
     {
-      id: 'workload',
-      label: 'Workload',
-      icon: BarChart3
-    },
-    {
       id: 'attendance',
       label: 'Attendance',
       icon: Clock
@@ -2446,6 +2590,11 @@ export function EmployeeProfileView() {
       id: 'leave',
       label: 'Leave',
       icon: CalendarDays
+    },
+    {
+      id: 'settings',
+      label: 'Settings & Assets',
+      icon: Settings
     }],
 
     performance: [
@@ -2465,10 +2614,11 @@ export function EmployeeProfileView() {
       icon: BookOpen
     },
     {
-      id: 'kra',
-      label: 'KRA/KPI',
+      id: 'goals',
+      label: 'Goals & KPIs',
       icon: Target
-    }],
+    },
+    ],
 
     engagement: [
     {
@@ -2477,9 +2627,9 @@ export function EmployeeProfileView() {
       icon: Trophy
     },
     {
-      id: 'committees',
-      label: 'Committees',
-      icon: Users
+      id: 'responsibilities',
+      label: 'Responsibilities',
+      icon: Briefcase
     },
     {
       id: 'health',
@@ -2490,19 +2640,24 @@ export function EmployeeProfileView() {
       id: 'disciplinary',
       label: 'Records',
       icon: FileText
+    },
+    {
+      id: 'activities',
+      label: 'Activities & Feedback',
+      icon: MessageSquare
     }]
 
   };
   const departments = [...new Set(mockEmployees.map((e) => e.department))];
   const statuses = [...new Set(mockEmployees.map((e) => e.status))];
   const staffTypes = [...new Set(mockEmployees.map((e) => e.staffType))];
-  const clearFilters = () =>
-  setFilters({
-    department: '',
-    status: '',
-    staffType: '',
-    designation: ''
-  });
+  const employmentTypes = [...new Set(mockEmployees.map((e) => e.employment.employmentType))];
+  const branches = [...new Set(mockEmployees.flatMap((e) => [e.employment.campus, e.employment.location]))].filter(Boolean);
+  const genders = [...new Set(mockEmployees.map((e) => e.personal.gender))];
+  const clearFilters = () => {
+    setSearch('');
+    setFilters({ department: '', status: '', staffType: '', designation: '', employmentType: '', branch: '', gender: '', joiningFrom: '', joiningTo: '' });
+  };
   const renderSubNav = (
   tabs: {
     id: string;
@@ -2542,7 +2697,7 @@ export function EmployeeProfileView() {
           <ChevronRight className="w-4 h-4 mx-2" />
           <span>Employee</span>
           <ChevronRight className="w-4 h-4 mx-2" />
-          <span className="text-gray-900 font-medium">360° Profile</span>
+          <span className="text-gray-900 font-medium">Directory & Profile</span>
         </nav>
 
         {/* Header */}
@@ -2552,193 +2707,168 @@ export function EmployeeProfileView() {
               <div className="p-2 bg-blue-100 rounded-lg">
                 <User className="w-6 h-6 text-blue-600" />
               </div>
-              Employee 360° Profile View
+              Employee Directory & Profile
             </h1>
             <p className="text-sm text-gray-500 mt-1">
-              Comprehensive employee information across all dimensions
+              {showProfilePage ? 'Complete employee profile with personal, employment, academic, financial, operational, and access details.' : 'Search the directory, refine the filters, then open an employee profile as a separate view.'}
             </p>
           </div>
-          {employee &&
+          {showProfilePage && employee &&
           <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={returnToDirectory}>Back to Employee List</Button>
               <Button variant="outline" className="flex items-center gap-2">
-                <RefreshCw className="w-4 h-4" />
-                Sync
+                <RefreshCw className="w-4 h-4" />Sync
               </Button>
               <Button variant="outline" className="flex items-center gap-2">
-                <Printer className="w-4 h-4" />
-                Print
+                <Printer className="w-4 h-4" />Print
               </Button>
               <Button variant="outline" className="flex items-center gap-2">
-                <Download className="w-4 h-4" />
-                Export
+                <Download className="w-4 h-4" />Export
               </Button>
               <Button variant="outline" className="flex items-center gap-2">
-                <Share2 className="w-4 h-4" />
-                Share
-              </Button>
-              <Button
-              variant="primary"
-              className="flex items-center gap-2 bg-blue-600 text-white">
-
-                <Edit className="w-4 h-4" />
-                Edit
+                <Share2 className="w-4 h-4" />Share
               </Button>
             </div>
           }
         </div>
 
-        {/* Search & Filters */}
-        <Card className="p-4">
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col md:flex-row items-center gap-4">
-              <div className="relative flex-1 w-full">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search by ID, name, department, designation..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
-
-              </div>
-              <Button
-                variant="outline"
-                onClick={() => setShowFilters(!showFilters)}
-                className="flex items-center gap-2">
-
-                <Filter className="w-4 h-4" />
-                Filters
-                <ChevronDown
-                  className={`w-4 h-4 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
-
-              </Button>
-              <div className="w-full md:w-80">
-                <Select
-                  label=""
-                  options={[
-                  {
-                    value: '',
-                    label: 'Select Employee'
-                  },
-                  ...filteredEmployees.map((e) => ({
-                    value: e.id,
-                    label: `${e.code} - ${e.fullName}`
-                  }))]
-                  }
-                  value={selectedId}
-                  onChange={(e) => setSelectedId(e.target.value)} />
-
-              </div>
+        {!showProfilePage && <>
+        {/* Detailed employee search and filters */}
+        <Card className="p-5">
+          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Search &amp; Filter Employees</h2>
+              <p className="text-sm text-gray-500">Search names, identifiers, contact details, manager, or location, then narrow by employment details below.</p>
             </div>
-
-            {showFilters &&
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-4 border-t">
-                <Select
-                label="Department"
-                options={[
-                {
-                  value: '',
-                  label: 'All Departments'
-                },
-                ...departments.map((d) => ({
-                  value: d,
-                  label: d
-                }))]
-                }
-                value={filters.department}
-                onChange={(e) =>
-                setFilters((f) => ({
-                  ...f,
-                  department: e.target.value
-                }))
-                } />
-
-                <Select
-                label="Status"
-                options={[
-                {
-                  value: '',
-                  label: 'All Status'
-                },
-                ...statuses.map((s) => ({
-                  value: s,
-                  label: s
-                }))]
-                }
-                value={filters.status}
-                onChange={(e) =>
-                setFilters((f) => ({
-                  ...f,
-                  status: e.target.value
-                }))
-                } />
-
-                <Select
-                label="Staff Type"
-                options={[
-                {
-                  value: '',
-                  label: 'All Types'
-                },
-                ...staffTypes.map((t) => ({
-                  value: t,
-                  label: t
-                }))]
-                }
-                value={filters.staffType}
-                onChange={(e) =>
-                setFilters((f) => ({
-                  ...f,
-                  staffType: e.target.value
-                }))
-                } />
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Designation
-                  </label>
-                  <input
-                  type="text"
-                  placeholder="Filter by designation"
-                  value={filters.designation}
-                  onChange={(e) =>
-                  setFilters((f) => ({
-                    ...f,
-                    designation: e.target.value
-                  }))
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
-
-                </div>
-                <div className="md:col-span-4 flex justify-end">
-                  <Button
-                  variant="outline"
-                  onClick={clearFilters}
-                  className="flex items-center gap-2">
-
-                    <X className="w-4 h-4" />
-                    Clear Filters
-                  </Button>
-                </div>
-              </div>
-            }
+            <Badge variant="info">{filteredEmployees.length} match{filteredEmployees.length === 1 ? '' : 'es'}</Badge>
+          </div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="relative xl:col-span-2">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <input
+                aria-label="Search employees"
+                type="search"
+                placeholder="Name, ID, code, email, mobile, manager, or campus"
+                value={search}
+                onChange={(event) => { setSearch(event.target.value); setSelectedId(''); }}
+                className="w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-10 pr-3 text-sm text-gray-900 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <Select
+              label="Department"
+              options={[{ value: '', label: 'All Departments' }, ...departments.map((department) => ({ value: department, label: department }))]}
+              value={filters.department}
+              onChange={(event) => { setFilters((current) => ({ ...current, department: event.target.value })); setSelectedId(''); }}
+            />
+            <Select
+              label="Employment Status"
+              options={[{ value: '', label: 'All Statuses' }, ...statuses.map((status) => ({ value: status, label: status }))]}
+              value={filters.status}
+              onChange={(event) => { setFilters((current) => ({ ...current, status: event.target.value })); setSelectedId(''); }}
+            />
+            <Select
+              label="Staff Type"
+              options={[{ value: '', label: 'All Staff Types' }, ...staffTypes.map((type) => ({ value: type, label: type }))]}
+              value={filters.staffType}
+              onChange={(event) => { setFilters((current) => ({ ...current, staffType: event.target.value })); setSelectedId(''); }}
+            />
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="employee-designation-filter">Designation</label>
+              <input
+                id="employee-designation-filter"
+                type="text"
+                placeholder="Filter by designation"
+                value={filters.designation}
+                onChange={(event) => { setFilters((current) => ({ ...current, designation: event.target.value })); setSelectedId(''); }}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <Select
+              label="Employment Type"
+              options={[{ value: '', label: 'All Employment Types' }, ...employmentTypes.map((type) => ({ value: type, label: type }))]}
+              value={filters.employmentType}
+              onChange={(event) => { setFilters((current) => ({ ...current, employmentType: event.target.value })); setSelectedId(''); }}
+            />
+            <Select
+              label="Branch / Campus"
+              options={[{ value: '', label: 'All Branches / Campuses' }, ...branches.map((branch) => ({ value: branch, label: branch }))]}
+              value={filters.branch}
+              onChange={(event) => { setFilters((current) => ({ ...current, branch: event.target.value })); setSelectedId(''); }}
+            />
+            <Select
+              label="Gender"
+              options={[{ value: '', label: 'All Genders' }, ...genders.map((gender) => ({ value: gender, label: gender }))]}
+              value={filters.gender}
+              onChange={(event) => { setFilters((current) => ({ ...current, gender: event.target.value })); setSelectedId(''); }}
+            />
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="employee-joining-from">Joining Date From</label>
+              <input id="employee-joining-from" type="date" value={filters.joiningFrom} onChange={(event) => { setFilters((current) => ({ ...current, joiningFrom: event.target.value })); setSelectedId(''); }} className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="employee-joining-to">Joining Date To</label>
+              <input id="employee-joining-to" type="date" value={filters.joiningTo} onChange={(event) => { setFilters((current) => ({ ...current, joiningTo: event.target.value })); setSelectedId(''); }} className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+          </div>
+          <div className="mt-4 flex justify-end">
+            <Button variant="outline" onClick={() => { setSearch(''); clearFilters(); setSelectedId(''); }}>
+              Clear search &amp; filters
+            </Button>
           </div>
         </Card>
 
-        {!employee ?
-        <Card className="p-16 text-center">
-            <div className="w-32 h-32 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <User className="w-16 h-16 text-gray-400" />
+        {/* Directory table appears directly below the detailed filters */}
+        <Card className="overflow-hidden">
+          <div className="flex flex-col gap-1 border-b border-gray-200 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="font-semibold text-gray-900">Employee Directory</h2>
+              <p className="text-xs text-gray-500">Select an employee to open their profile in a separate view.</p>
             </div>
-            <h3 className="text-2xl font-semibold text-gray-900 mb-2">
-              Select an Employee
-            </h3>
-            <p className="text-gray-500 max-w-md mx-auto">
-              Use the search bar or dropdown to find and select an employee to
-              view their 360-degree profile.
-            </p>
-          </Card> :
+            <span className="text-sm text-gray-500">{filteredEmployees.length} employee{filteredEmployees.length === 1 ? '' : 's'}</span>
+          </div>
+          {filteredEmployees.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Employee</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Employee ID / Code</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Designation</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Department</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Branch / Campus</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Staff Type</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Status</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 bg-white">
+                  {filteredEmployees.map((candidate) => (
+                    <tr key={candidate.id} className={`transition-colors ${selectedId === candidate.id ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
+                      <td className="whitespace-nowrap px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-100 text-sm font-bold text-indigo-700">{candidate.avatar}</span>
+                          <span><span className="block text-sm font-semibold text-gray-900">{candidate.fullName}</span><span className="text-xs text-gray-500">{candidate.contact.officialEmail}</span></span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3"><span className="block text-sm font-medium text-gray-900">{candidate.id}</span><span className="text-xs text-gray-500">{candidate.code}</span></td>
+                      <td className="px-4 py-3 text-sm text-gray-700">{candidate.designation}</td>
+                      <td className="px-4 py-3 text-sm text-gray-700">{candidate.department}</td>
+                      <td className="px-4 py-3 text-sm text-gray-700">{candidate.employment.campus} · {candidate.employment.location}</td>
+                      <td className="px-4 py-3 text-sm text-gray-700">{candidate.staffType}</td>
+                      <td className="px-4 py-3">{getStatusBadge(candidate.status)}</td>
+                      <td className="px-4 py-3 text-right"><Button variant={selectedId === candidate.id ? 'primary' : 'outline'} size="sm" onClick={() => selectEmployee(candidate.id)}>{selectedId === candidate.id ? 'Selected' : 'View Profile'}</Button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="p-10 text-center text-sm text-gray-500">No employees match these search filters.</div>
+          )}
+        </Card>
 
+        </>}
+        {showProfilePage && employee && (
         <>
             {/* Header Card */}
             <Card className="p-6 bg-gradient-to-r from-blue-600 to-indigo-700 text-white">
@@ -3141,10 +3271,6 @@ export function EmployeeProfileView() {
                         onClick={() => openModal('personal')} />
 
                           </div>
-                          <Button variant="outline" size="sm">
-                            <Edit className="w-4 h-4 mr-2" />
-                            Edit
-                          </Button>
                         </div>
                         <div className="space-y-6">
                           <div>
@@ -3157,6 +3283,18 @@ export function EmployeeProfileView() {
                         {
                           l: 'Full Name',
                           v: employee.fullName
+                        },
+                        {
+                          l: 'Title',
+                          v: '—'
+                        },
+                        {
+                          l: 'First Name',
+                          v: employee.firstName
+                        },
+                        {
+                          l: 'Last Name',
+                          v: employee.lastName
                         },
                         {
                           l: 'Employee Code',
@@ -3186,6 +3324,58 @@ export function EmployeeProfileView() {
                         {
                           l: 'Nationality',
                           v: employee.personal.nationality
+                        },
+                        {
+                          l: 'Religion',
+                          v: employee.personal.religion
+                        },
+                        {
+                          l: 'Category',
+                          v: employee.personal.category
+                        },
+                        {
+                          l: 'Caste',
+                          v: employee.personal.caste
+                        },
+                        {
+                          l: 'Spouse',
+                          v: employee.personal.spouseName || '—'
+                        },
+                        {
+                          l: 'Father',
+                          v: employee.personal.fatherName
+                        },
+                        {
+                          l: 'Mother',
+                          v: employee.personal.motherName
+                        },
+                        {
+                          l: 'Dependents',
+                          v: String(employee.personal.numberOfDependents)
+                        },
+                        {
+                          l: 'Anniversary Date',
+                          v: '—'
+                        },
+                        {
+                          l: 'Height / Weight',
+                          v: '—'
+                        },
+                        {
+                          l: 'Mother Tongue',
+                          v: '—'
+                        },
+                        {
+                          l: 'Identification Marks',
+                          v: '—'
+                        },
+                        {
+                          l: 'Known Languages',
+                          v: employee.skills.languages.map((language) => language.name).join(', ') || '—'
+                        },
+                        {
+                          l: 'Medical Conditions',
+                          v: employee.health.medicalConditions.join(', ') || '—'
                         }].
                         map((f, i) =>
                         <InfoBlock
@@ -3217,6 +3407,7 @@ export function EmployeeProfileView() {
                           label="Passport"
                           value={employee.personal.passport}
                           icon={<Globe className="w-3 h-3" />} />
+                              <InfoBlock label="Passport Expiry" value="—" />
 
                               <InfoBlock
                           label="Driving License"
@@ -3244,10 +3435,6 @@ export function EmployeeProfileView() {
                             </h3>
                             <InfoIconBtn onClick={() => openModal('contact')} />
                           </div>
-                          <Button variant="outline" size="sm">
-                            <Edit className="w-4 h-4 mr-2" />
-                            Edit
-                          </Button>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                           <InfoBlock
@@ -3260,6 +3447,10 @@ export function EmployeeProfileView() {
                       value={employee.contact.officialEmail}
                       icon={<Mail className="w-3 h-3" />}
                       highlight />
+                          <InfoBlock label="Alternate Mobile" value={employee.contact.alternateMobile} icon={<Phone className="w-3 h-3" />} />
+                          <InfoBlock label="Personal Email" value={employee.contact.personalEmail} icon={<Mail className="w-3 h-3" />} />
+                          <InfoBlock label="WhatsApp Number" value="—" icon={<Phone className="w-3 h-3" />} />
+                          <InfoBlock label="LinkedIn Profile" value="—" icon={<Globe className="w-3 h-3" />} />
 
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
@@ -3291,10 +3482,14 @@ export function EmployeeProfileView() {
                                 {addr.a.line1}, {addr.a.line2}
                               </p>
                               <p className="text-sm text-gray-600">
-                                {addr.a.city}, {addr.a.state} - {addr.a.pincode}
+                                {addr.a.city}, {addr.a.state} - {addr.a.pincode}, {addr.a.country}
                               </p>
                             </div>
                     )}
+                        </div>
+                        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                          <InfoBlock label="Same as Permanent Address" value={employee.contact.sameAsPermanent ? 'Yes' : 'No'} />
+                          <InfoBlock label="District / Landmark" value="—" />
                         </div>
                         <h4 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
                           <div className="w-6 h-0.5 bg-red-500 rounded" />
@@ -3323,6 +3518,7 @@ export function EmployeeProfileView() {
                                 <Phone className="w-3 h-3 text-gray-400" />
                                 {c.phone}
                               </p>
+                              <p className="mt-1 text-xs text-gray-600 flex items-start gap-2"><MapPin className="mt-0.5 h-3 w-3 shrink-0 text-gray-400" />{c.address || '—'}</p>
                             </div>
                     )}
                         </div>
@@ -3450,10 +3646,6 @@ export function EmployeeProfileView() {
                         }{' '}
                               Pending
                             </Badge>
-                            <Button variant="primary" size="sm">
-                              <Upload className="w-4 h-4 mr-2" />
-                              Upload
-                            </Button>
                           </div>
                         </div>
                         <div className="space-y-3">
@@ -3478,8 +3670,14 @@ export function EmployeeProfileView() {
                             }
                                   </p>
                                   <p className="text-xs text-gray-500">
-                                    {d.type} • {d.fileSize}
+                                    {d.type} • {d.fileType} • {d.fileSize}
                                   </p>
+                                  <div className="mt-2 grid grid-cols-1 gap-x-4 gap-y-1 text-xs text-gray-500 sm:grid-cols-2">
+                                    <span>Category: {d.category || '—'}</span><span>Uploaded: {d.uploadDate || '—'}</span>
+                                    <span>Expiry: {d.expiryDate || '—'}</span><span>Mandatory: {d.mandatory ? 'Yes' : 'No'}</span>
+                                    <span>Verified by: {d.verifiedBy || '—'}</span><span>Verified date: {d.verifiedDate || '—'}</span>
+                                  </div>
+                                  {d.remarks && <p className="mt-2 text-xs text-gray-600">Remarks: {d.remarks}</p>}
                                 </div>
                               </div>
                               <div className="flex items-center gap-3">
@@ -3537,6 +3735,22 @@ export function EmployeeProfileView() {
                         {
                           l: 'IFSC',
                           v: employee.bank.ifsc
+                        },
+                        {
+                          l: 'Account Type',
+                          v: employee.bank.accountType
+                        },
+                        {
+                          l: 'MICR Code',
+                          v: employee.bank.micrCode
+                        },
+                        {
+                          l: 'Payment Mode',
+                          v: employee.bank.paymentMode
+                        },
+                        {
+                          l: 'Secondary Bank Account',
+                          v: '—'
                         }].
                         map((f, i) =>
                         <div key={i}>
@@ -3580,11 +3794,201 @@ export function EmployeeProfileView() {
                                   {employee.bank.basicPay}
                                 </p>
                               </div>
+                              {[
+                                { label: 'DA', value: '—' },
+                                { label: 'HRA', value: '—' },
+                                { label: 'Conveyance', value: '—' },
+                                { label: 'Medical Allowance', value: '—' },
+                                { label: 'Special / Other Allowances', value: '—' },
+                                { label: 'Gross Salary', value: '—' },
+                                { label: 'PF Deduction', value: '—' },
+                                { label: 'Professional Tax', value: '—' },
+                                { label: 'Net Salary', value: '—' },
+                                { label: 'TDS Applicable', value: '—' },
+                                { label: 'Loan / EMI / Outstanding', value: '—' },
+                                { label: 'Loan Start Date', value: '—' },
+                              ].map((field) => <div key={field.label}><p className="text-xs text-green-700 uppercase">{field.label}</p><p className="text-sm font-medium text-gray-900">{field.value}</p></div>)}
                             </div>
                           </div>
                         </div>
                       </Card>
                 }
+                    {activeSubTab === 'employment' && (
+                      <div className="space-y-6">
+                        <Card className="p-6">
+                          <div className="mb-5 flex items-center gap-2"><Briefcase className="h-5 w-5 text-blue-600" /><div><h3 className="text-lg font-semibold text-gray-900">Employment Information</h3><p className="text-sm text-gray-500">Appointment, assignment, reporting, and employee identifiers.</p></div></div>
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                            {[
+                              { label: 'Employee ID', value: employee.id },
+                              { label: 'Employee Code', value: employee.code },
+                              { label: 'Payroll ID', value: employee.payrollId },
+                              { label: 'Biometric ID', value: employee.biometricId },
+                              { label: 'Employee Category', value: employee.employeeCategory },
+                              { label: 'Staff Type', value: employee.employment.staffType },
+                              { label: 'Employment Type', value: employee.employment.employmentType },
+                              { label: 'Employment Status', value: employee.status },
+                              { label: 'Department', value: employee.employment.department },
+                              { label: 'Designation', value: employee.employment.designation },
+                              { label: 'Date of Joining', value: employee.employment.dateOfJoining },
+                              { label: 'Probation Period', value: employee.employment.probationPeriod },
+                              { label: 'Probation End Date', value: '—' },
+                              { label: 'Confirmation Date', value: employee.employment.confirmationDate || employee.confirmationDate || '—' },
+                              { label: 'Contract End Date', value: '—' },
+                              { label: 'Notice Period', value: employee.employment.noticePeriod },
+                              { label: 'Retirement Date', value: employee.retirementDate || '—' },
+                              { label: 'Previous Employee Code', value: '—' },
+                              { label: 'Previous Joining Date', value: '—' },
+                              { label: 'Previous Exit Date', value: '—' },
+                              { label: 'Reason for Previous Exit', value: '—' }, 
+                              { label: 'Reporting Manager', value: employee.employment.reportingManager },
+                              { label: 'Reporting Manager ID', value: employee.employment.reportingManagerId },
+                              { label: 'Secondary Manager', value: '—' },
+                            ].map((field) => <InfoBlock key={field.label} label={field.label} value={field.value} />)}
+                          </div>
+                        </Card>
+                        <Card className="p-6">
+                          <h3 className="mb-4 text-lg font-semibold text-gray-900">Campus, Work Schedule & Teaching Assignment</h3>
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                            {[
+                              { label: 'Campus / Branch', value: employee.employment.campus },
+                              { label: 'Work Location', value: employee.employment.location },
+                              { label: 'Building / Block', value: employee.employment.building },
+                              { label: 'Floor', value: employee.employment.floor },
+                              { label: 'Office / Desk', value: employee.employment.desk },
+                              { label: 'Grade', value: employee.employment.grade },
+                              { label: 'Level', value: employee.employment.level },
+                              { label: 'Default Shift', value: employee.employment.shift },
+                              { label: 'Extension Number', value: '—' },
+                              { label: 'Primary Subject', value: employee.skills.teaching[0] || '—' },
+                              { label: 'Secondary Subjects', value: employee.skills.teaching.slice(1).join(', ') || '—' },
+                              { label: 'Weekly Teaching Hours', value: `${employee.schedule.weeklyLoad.reduce((total, day) => total + day.teachingHours, 0)} hours` },
+                              { label: 'Max Periods / Day', value: '—' },
+                              { label: 'Class Teacher Of', value: '—' },
+                              { label: 'Previous Internal Employment', value: '—' },
+                            ].map((field) => <InfoBlock key={field.label} label={field.label} value={field.value} />)}
+                          </div>
+                          <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            <div><p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Working Days</p><div className="flex flex-wrap gap-2">{employee.employment.workingDays.map((day) => <Badge key={day} variant="info">{day}</Badge>)}</div></div>
+                            <div><p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Weekly Off</p><div className="flex flex-wrap gap-2">{employee.employment.weeklyOff.map((day) => <Badge key={day} variant="secondary">{day}</Badge>)}</div></div>
+                          </div>
+                          <div className="mt-5"><p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Classes Handling</p><div className="flex flex-wrap gap-2">{employee.schedule.classMapping.length ? employee.schedule.classMapping.map((item, index) => <Badge key={`${item.class}-${item.section}-${index}`} variant="success">{item.class}-{item.section} · {item.subject}</Badge>) : <span className="text-sm text-gray-500">—</span>}</div></div>
+                        </Card>
+                      </div>
+                    )}
+
+                    {activeSubTab === 'family' && (
+                      <div className="space-y-6">
+                        <Card className="p-6">
+                          <div className="mb-5 flex items-center justify-between gap-3"><div><h3 className="text-lg font-semibold text-gray-900">Family Members</h3><p className="text-sm text-gray-500">Family and dependent information represented in the employee record.</p></div><Badge variant="info">{employee.personal.numberOfDependents} dependent{employee.personal.numberOfDependents === 1 ? '' : 's'}</Badge></div>
+                          <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+                            {[
+                              { name: employee.personal.spouseName || '—', relationship: 'Spouse', phone: employee.contact.emergencyContacts.find((contact) => contact.relationship.toLowerCase().includes('spouse'))?.phone || '—' },
+                              { name: employee.personal.fatherName || '—', relationship: 'Father', phone: employee.contact.emergencyContacts.find((contact) => contact.relationship.toLowerCase().includes('father'))?.phone || '—' },
+                              { name: employee.personal.motherName || '—', relationship: 'Mother', phone: employee.contact.emergencyContacts.find((contact) => contact.relationship.toLowerCase().includes('mother'))?.phone || '—' },
+                            ].map((member) => (
+                              <div key={member.relationship} className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                                <h4 className="mb-3 font-semibold text-gray-900">{member.relationship}</h4>
+                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                  <InfoBlock label="Name" value={member.name} />
+                                  <InfoBlock label="Relationship" value={member.relationship} />
+                                  <InfoBlock label="Date of Birth" value="—" />
+                                  <InfoBlock label="Occupation" value="—" />
+                                  <InfoBlock label="Phone" value={member.phone} />
+                                  <InfoBlock label="Aadhaar" value="—" />
+                                  <InfoBlock label="Dependent" value="Not recorded" />
+                                  <InfoBlock label="Nominee" value="Not recorded" />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </Card>
+                        <Card className="p-6">
+                          <h3 className="mb-4 text-lg font-semibold text-gray-900">Nomination Details</h3>
+                          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                            {[
+                              { title: 'Provident Fund Nominee', name: '—', relationship: '—', share: '—', dateOfBirth: '—', address: '—', phone: '—' },
+                              { title: 'Gratuity Nominee', name: employee.statutory.gratuityNomination || '—', relationship: 'See nomination record', share: '—', dateOfBirth: '—', address: '—', phone: '—' },
+                              { title: 'Insurance Nominee', name: '—', relationship: '—', share: '—', dateOfBirth: '—', address: '—', phone: '—' },
+                            ].map((nominee) => (
+                              <div key={nominee.title} className="rounded-xl border border-gray-200 p-4">
+                                <h4 className="mb-3 font-semibold text-gray-900">{nominee.title}</h4>
+                                <div className="space-y-3">
+                                  <InfoBlock label="Nominee Name" value={nominee.name} />
+                                  <InfoBlock label="Relationship" value={nominee.relationship} />
+                                  <InfoBlock label="Date of Birth / Share %" value={`${nominee.dateOfBirth} / ${nominee.share}`} />
+                                  <InfoBlock label="Address / Phone" value={`${nominee.address} / ${nominee.phone}`} />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </Card>
+                      </div>
+                    )}
+
+                    {activeSubTab === 'account' && (
+                      <Card className="p-6">
+                        <div className="mb-5 flex items-center gap-2"><Settings className="h-5 w-5 text-blue-600" /><div><h3 className="text-lg font-semibold text-gray-900">Account Details & Security</h3><p className="text-sm text-gray-500">Credentials are not displayed; unavailable account settings are shown as not configured.</p></div></div>
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                          {[
+                            { label: 'Username', value: employee.contact.officialEmail },
+                            { label: 'Temporary Password', value: 'Not displayed for security' },
+                            { label: 'Last Login', value: employee.systemInfo.lastLogin || '—' },
+                            { label: 'Password Last Changed', value: '—' },
+                            { label: 'Account Status', value: employee.status === 'Active' ? 'Active' : employee.status },
+                            { label: 'MFA Enabled', value: 'Not configured' },
+                            { label: 'MFA Method', value: '—' },
+                            { label: 'Recovery Email', value: '—' },
+                            { label: 'Session Timeout', value: '—' },
+                            { label: 'IP Restriction', value: '—' },
+                            { label: 'Allowed IPs', value: '—' },
+                            { label: 'Device Limit', value: '—' },
+                            { label: 'API Access', value: '—' },
+                            { label: 'API Key', value: 'Managed securely' },
+                          ].map((field) => <InfoBlock key={field.label} label={field.label} value={field.value} />)}
+                        </div>
+                        <div className="mt-6 border-t border-gray-100 pt-5">
+                          <h4 className="mb-3 text-sm font-semibold text-gray-800">Notification Preferences</h4>
+                          <p className="text-sm text-gray-500">Email, SMS, push, WhatsApp, leave, salary, announcement, and task-reminder preferences are not present in the available employee record.</p>
+                        </div>
+                      </Card>
+                    )}
+
+                    {activeSubTab === 'system' && (
+                      <div className="space-y-6">
+                        <Card className="p-6">
+                          <div className="mb-5 flex items-center gap-2"><Shield className="h-5 w-5 text-indigo-600" /><div><h3 className="text-lg font-semibold text-gray-900">Role, Permissions & Data Access</h3><p className="text-sm text-gray-500">Configured access available on this employee record.</p></div></div>
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                            {[
+                              { label: 'Primary Role / Access Level', value: employee.systemInfo.accessLevel },
+                              { label: 'Secondary Role', value: '—' },
+                              { label: 'Custom Role', value: '—' },
+                              { label: 'Branch Access', value: employee.employment.campus || employee.employment.location },
+                              { label: 'Department Access', value: employee.department },
+                              { label: 'Class Access', value: employee.schedule.classMapping.map((item) => `${item.class}-${item.section}`).join(', ') || '—' },
+                              { label: 'Access Type', value: '—' },
+                              { label: 'Access Start / End Time', value: '—' },
+                              { label: 'Access Days', value: '—' },
+                            ].map((field) => <InfoBlock key={field.label} label={field.label} value={field.value} />)}
+                          </div>
+                          <div className="mt-6">
+                            <h4 className="mb-3 text-sm font-semibold text-gray-800">Module & Action Permissions</h4>
+                            {employee.systemInfo.permissions.length ? <div className="flex flex-wrap gap-2">{employee.systemInfo.permissions.map((permission, index) => <Badge key={`${permission}-${index}`} variant="info">{permission}</Badge>)}</div> : <p className="text-sm text-gray-500">No permissions recorded.</p>}
+                          </div>
+                        </Card>
+                        <Card className="p-6">
+                          <h3 className="mb-4 text-lg font-semibold text-gray-900">System Audit & Login History</h3>
+                          <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                            {[
+                              { label: 'Created At', value: employee.systemInfo.createdAt },
+                              { label: 'Created By', value: employee.systemInfo.createdBy },
+                              { label: 'Last Modified', value: employee.systemInfo.lastModified },
+                              { label: 'Modified By', value: employee.systemInfo.modifiedBy },
+                            ].map((field) => <InfoBlock key={field.label} label={field.label} value={field.value} />)}
+                          </div>
+                          {employee.systemInfo.loginHistory.length ? <div className="overflow-x-auto"><table className="min-w-full divide-y divide-gray-200 text-sm"><thead className="bg-gray-50"><tr><th className="px-3 py-2 text-left font-semibold text-gray-600">Date</th><th className="px-3 py-2 text-left font-semibold text-gray-600">IP</th><th className="px-3 py-2 text-left font-semibold text-gray-600">Device</th></tr></thead><tbody className="divide-y divide-gray-100">{employee.systemInfo.loginHistory.map((login, index) => <tr key={`${login.date}-${index}`}><td className="px-3 py-2">{login.date}</td><td className="px-3 py-2">{login.ip}</td><td className="px-3 py-2">{login.device}</td></tr>)}</tbody></table></div> : <p className="text-sm text-gray-500">No login history recorded.</p>}
+                        </Card>
+                      </div>
+                    )}
                   </div>
                 </div>
             }
@@ -3602,13 +4006,9 @@ export function EmployeeProfileView() {
                           <div className="flex items-center gap-2">
                             <GraduationCap className="w-5 h-5 text-gray-400" />
                             <h3 className="text-lg font-semibold text-gray-900">
-                              Education
+                              Academic & Professional Qualifications
                             </h3>
                           </div>
-                          <Button variant="outline" size="sm">
-                            <Plus className="w-4 h-4 mr-2" />
-                            Add
-                          </Button>
                         </div>
                         <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-6 border border-indigo-100 mb-6">
                           <div className="flex items-center gap-4">
@@ -3629,38 +4029,50 @@ export function EmployeeProfileView() {
                             </div>
                           </div>
                         </div>
-                        <div className="space-y-4">
-                          {employee.qualification.education.map((e, i) =>
-                    <div
-                      key={i}
-                      className="relative pl-8 pb-6 border-l-2 border-gray-200 last:border-l-0">
-
-                              <div className="absolute left-[-9px] top-0 w-4 h-4 rounded-full bg-blue-600 border-2 border-white shadow" />
-                              <div className="bg-gray-50 rounded-xl p-4 ml-4">
-                                <div className="flex items-start justify-between">
-                                  <div>
-                                    <h4 className="text-sm font-semibold text-gray-900">
-                                      {e.degree}
-                                    </h4>
-                                    <p className="text-sm text-gray-600">
-                                      {e.institution}
-                                    </p>
+                        <div>
+                          <h4 className="mb-4 text-sm font-semibold uppercase tracking-wide text-gray-700">Academic Qualifications</h4>
+                          <div className="space-y-4">
+                            {employee.qualification.education.length > 0 ? employee.qualification.education.map((education, index) =>
+                    <div key={`${education.degree}-${index}`} className="relative border-l-2 border-gray-200 pb-5 pl-8 last:border-l-0 last:pb-0">
+                                <div className="absolute left-[-9px] top-0 h-4 w-4 rounded-full border-2 border-white bg-blue-600 shadow" />
+                                <div className="ml-4 rounded-xl border border-gray-200 bg-gray-50 p-4">
+                                  <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
+                                    <div><h5 className="text-sm font-semibold text-gray-900">{education.degree}</h5><p className="text-sm text-gray-600">{education.institution}</p></div>
+                                    <Badge variant="secondary">{education.yearOfPassing}</Badge>
                                   </div>
-                                  <div className="text-right">
-                                    <p className="text-sm font-medium text-green-600">
-                                      {e.percentage}
-                                    </p>
-                                    <Badge
-                              variant="secondary"
-                              className="text-xs">
-
-                                      {e.yearOfPassing}
-                                    </Badge>
+                                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                                    <div><p className="text-xs text-gray-500">Board / University</p><p className="text-sm font-medium text-gray-800">{education.board || '—'}</p></div>
+                                    <div><p className="text-xs text-gray-500">School / College</p><p className="text-sm font-medium text-gray-800">{education.institution || '—'}</p></div>
+                                    <div><p className="text-xs text-gray-500">Year of Passing</p><p className="text-sm font-medium text-gray-800">{education.yearOfPassing || '—'}</p></div>
+                                    <div><p className="text-xs text-gray-500">Percentage / CGPA</p><p className="text-sm font-medium text-green-700">{education.percentage || '—'}</p></div>
+                                    <div><p className="text-xs text-gray-500">Subjects / Stream</p><p className="text-sm font-medium text-gray-800">{education.specialization || '—'}</p></div>
+                                    <div><p className="text-xs text-gray-500">Grade / Result</p><p className="text-sm font-medium text-gray-800">{education.grade || '—'}</p></div>
                                   </div>
                                 </div>
                               </div>
-                            </div>
-                    )}
+                    ) : <p className="rounded-lg border border-dashed border-gray-300 p-5 text-sm text-gray-500">No academic qualifications recorded.</p>}
+                          </div>
+                        </div>
+
+                        <div className="mt-8 border-t border-gray-100 pt-6">
+                          <h4 className="mb-4 text-sm font-semibold uppercase tracking-wide text-gray-700">Professional Qualifications</h4>
+                          {employee.qualification.professionalQualifications?.length ?
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                              {employee.qualification.professionalQualifications.map((qualification, index) =>
+                      <div key={`${qualification.degree}-${index}`} className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-4">
+                                  <h5 className="font-semibold text-gray-900">{qualification.degree}</h5>
+                                  <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                                    <div><p className="text-xs text-gray-500">Institution</p><p className="font-medium text-gray-800">{qualification.institution}</p></div>
+                                    <div><p className="text-xs text-gray-500">Year</p><p className="font-medium text-gray-800">{qualification.year}</p></div>
+                                    <div><p className="text-xs text-gray-500">Grade / Score</p><p className="font-medium text-gray-800">{qualification.grade}</p></div>
+                                    <div><p className="text-xs text-gray-500">Specialization</p><p className="font-medium text-gray-800">{qualification.specialization}</p></div>
+                                  </div>
+                                  <p className="mt-3 text-xs text-gray-500">Registration Number: <span className="font-medium text-gray-700">{qualification.registrationNumber || '—'}</span></p>
+                                </div>
+                      )}
+                            </div> :
+                    <p className="rounded-lg border border-dashed border-gray-300 p-5 text-sm text-gray-500">No professional qualifications recorded.</p>
+                    }
                         </div>
                       </Card>
                 }
@@ -3712,6 +4124,12 @@ export function EmployeeProfileView() {
                                   </Badge>
                         }
                               </div>
+                              <div className="mt-4 grid grid-cols-1 gap-3 border-t border-gray-200 pt-4 sm:grid-cols-3">
+                                <div><p className="text-xs text-gray-500">Location</p><p className="text-sm font-medium text-gray-800">{e.location || '—'}</p></div>
+                                <div><p className="text-xs text-gray-500">Last Salary</p><p className="text-sm font-medium text-gray-800">{e.lastSalary || '—'}</p></div>
+                                <div><p className="text-xs text-gray-500">Reason for Leaving</p><p className="text-sm font-medium text-gray-800">{e.reasonForLeaving || '—'}</p></div>
+                              </div>
+                              <p className="mt-4 text-sm text-gray-700"><span className="font-semibold">Key Responsibilities:</span> {e.responsibilities || '—'}</p>
                             </div>
                     )}
                         </div>
@@ -3720,110 +4138,47 @@ export function EmployeeProfileView() {
 
                     {activeSubTab === 'skills' &&
                 <Card className="p-6">
-                        <div className="flex items-center justify-between mb-6">
-                          <div className="flex items-center gap-2">
-                            <Layers className="w-5 h-5 text-gray-400" />
-                            <h3 className="text-lg font-semibold text-gray-900">
-                              Skills
-                            </h3>
-                          </div>
+                        <div className="mb-6 flex items-center gap-2">
+                          <Layers className="h-5 w-5 text-gray-400" />
+                          <h3 className="text-lg font-semibold text-gray-900">Skills &amp; Expertise</h3>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          <div className="bg-blue-50 rounded-xl p-5 border border-blue-100">
-                            <h4 className="text-sm font-semibold text-blue-900 mb-4 flex items-center gap-2">
-                              <Languages className="w-4 h-4" />
-                              Languages
-                            </h4>
-                            <div className="space-y-3">
-                              {employee.skills.languages.map((l, i) =>
-                        <div
-                          key={i}
-                          className="flex items-center justify-between">
-
-                                  <span className="text-sm text-gray-700">
-                                    {l.name}
-                                  </span>
-                                  <Badge
-                            variant={
-                            l.proficiency === 'native' ?
-                            'success' :
-                            'info'
-                            }
-                            className="capitalize">
-
-                                    {l.proficiency}
-                                  </Badge>
-                                </div>
-                        )}
-                            </div>
+                        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                          <div className="rounded-xl border border-blue-100 bg-blue-50 p-5">
+                            <h4 className="mb-4 flex items-center gap-2 text-sm font-semibold text-blue-900"><Languages className="h-4 w-4" />Languages Known</h4>
+                            <div className="space-y-3">{employee.skills.languages.map((language, index) =>
+                    <div key={`${language.name}-${index}`} className="flex items-center justify-between"><span className="text-sm text-gray-700">{language.name}</span><Badge variant={language.proficiency === 'native' ? 'success' : 'info'} className="capitalize">{language.proficiency}</Badge></div>
+                    )}</div>
                           </div>
-                          <div className="bg-purple-50 rounded-xl p-5 border border-purple-100">
-                            <h4 className="text-sm font-semibold text-purple-900 mb-4 flex items-center gap-2">
-                              <Laptop className="w-4 h-4" />
-                              Software
-                            </h4>
-                            <div className="space-y-3">
-                              {employee.skills.software.map((s, i) =>
-                        <div key={i}>
-                                  <div className="flex items-center justify-between text-sm mb-1">
-                                    <span className="text-gray-700">
-                                      {s.name}
-                                    </span>
-                                    <span className="text-xs text-purple-600 capitalize">
-                                      {s.proficiency}
-                                    </span>
-                                  </div>
-                                  <ProgressBar
-                            value={
-                            s.proficiency === 'expert' ?
-                            100 :
-                            s.proficiency === 'advanced' ?
-                            75 :
-                            s.proficiency === 'intermediate' ?
-                            50 :
-                            25
-                            }
-                            max={100}
-                            color="purple"
-                            showPct={false} />
-
-                                </div>
-                        )}
-                            </div>
+                          <div className="rounded-xl border border-purple-100 bg-purple-50 p-5">
+                            <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold text-purple-900"><Laptop className="h-4 w-4" />Technical Skills</h4>
+                            <div className="mb-4 flex flex-wrap gap-2">{(employee.skills.technicalSkills?.length ? employee.skills.technicalSkills : employee.skills.software.map((skill) => skill.name)).map((skill, index) => <Badge key={`${skill}-${index}`} variant="primary">{skill}</Badge>)}</div>
+                            <h5 className="mb-3 text-xs font-semibold uppercase tracking-wide text-purple-800">Software proficiency</h5>
+                            <div className="space-y-3">{employee.skills.software.map((skill, index) =>
+                    <div key={`${skill.name}-${index}`}>
+                                <div className="mb-1 flex items-center justify-between text-sm"><span className="text-gray-700">{skill.name}</span><span className="text-xs capitalize text-purple-700">{skill.proficiency}</span></div>
+                                <ProgressBar value={skill.proficiency === 'expert' ? 100 : skill.proficiency === 'advanced' ? 75 : skill.proficiency === 'intermediate' ? 50 : 25} max={100} color="purple" showPct={false} />
+                              </div>
+                    )}</div>
                           </div>
-                          <div className="bg-green-50 rounded-xl p-5 border border-green-100">
-                            <h4 className="text-sm font-semibold text-green-900 mb-4 flex items-center gap-2">
-                              <BookOpen className="w-4 h-4" />
-                              Teaching Subjects
-                            </h4>
-                            <div className="flex flex-wrap gap-2">
-                              {employee.skills.teaching.map((s, i) =>
-                        <Badge
-                          key={i}
-                          variant="success"
-                          className="text-xs">
-
-                                  {s}
-                                </Badge>
-                        )}
-                            </div>
+                          <div className="rounded-xl border border-amber-100 bg-amber-50 p-5">
+                            <h4 className="mb-4 flex items-center gap-2 text-sm font-semibold text-amber-900"><Star className="h-4 w-4" />Soft Skills</h4>
+                            <div className="flex flex-wrap gap-2">{employee.skills.softSkills?.length ? employee.skills.softSkills.map((skill, index) => <Badge key={`${skill}-${index}`} variant="warning">{skill}</Badge>) : <p className="text-sm text-gray-500">No soft skills listed.</p>}</div>
                           </div>
-                          <div className="bg-amber-50 rounded-xl p-5 border border-amber-100">
-                            <h4 className="text-sm font-semibold text-amber-900 mb-4 flex items-center gap-2">
-                              <Activity className="w-4 h-4" />
-                              Extracurricular
-                            </h4>
-                            <div className="flex flex-wrap gap-2">
-                              {employee.skills.extracurricular.map((a, i) =>
-                        <Badge
-                          key={i}
-                          variant="warning"
-                          className="text-xs">
-
-                                  {a}
-                                </Badge>
-                        )}
-                            </div>
+                          <div className="rounded-xl border border-green-100 bg-green-50 p-5">
+                            <h4 className="mb-4 flex items-center gap-2 text-sm font-semibold text-green-900"><BookOpen className="h-4 w-4" />Teaching Subjects</h4>
+                            <div className="flex flex-wrap gap-2">{employee.skills.teaching.map((subject, index) => <Badge key={`${subject}-${index}`} variant="success" className="text-xs">{subject}</Badge>)}</div>
+                          </div>
+                          <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-5">
+                            <h4 className="mb-4 text-sm font-semibold text-indigo-900">Hobbies &amp; Interests</h4>
+                            <div className="flex flex-wrap gap-2">{(employee.skills.hobbies?.length ? employee.skills.hobbies : employee.skills.extracurricular).map((hobby, index) => <Badge key={`${hobby}-${index}`} variant="info" className="text-xs">{hobby}</Badge>)}</div>
+                          </div>
+                          <div className="rounded-xl border border-orange-100 bg-orange-50 p-5">
+                            <h4 className="mb-4 text-sm font-semibold text-orange-900">Extracurricular</h4>
+                            <div className="flex flex-wrap gap-2">{employee.skills.extracurricular.map((activity, index) => <Badge key={`${activity}-${index}`} variant="warning" className="text-xs">{activity}</Badge>)}</div>
+                          </div>
+                          <div className="rounded-xl border border-gray-200 bg-gray-50 p-5 md:col-span-2">
+                            <h4 className="mb-4 text-sm font-semibold text-gray-800">Specializations</h4>
+                            <div className="flex flex-wrap gap-2">{employee.skills.specializations.map((specialization, index) => <Badge key={`${specialization}-${index}`} variant="secondary">{specialization}</Badge>)}</div>
                           </div>
                         </div>
                       </Card>
@@ -3835,13 +4190,9 @@ export function EmployeeProfileView() {
                           <div className="flex items-center gap-2">
                             <Award className="w-5 h-5 text-gray-400" />
                             <h3 className="text-lg font-semibold text-gray-900">
-                              Certifications
+                              Certifications & Courses
                             </h3>
                           </div>
-                          <Button variant="outline" size="sm">
-                            <Plus className="w-4 h-4 mr-2" />
-                            Add
-                          </Button>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           {employee.qualification.certifications.map((c, i) =>
@@ -3860,21 +4211,15 @@ export function EmployeeProfileView() {
                                   </Badge>
                         }
                               </div>
-                              <h4 className="text-sm font-semibold text-gray-900 mb-1">
+                              <h4 className="text-sm font-semibold text-gray-900 mb-3">
                                 {c.name}
                               </h4>
-                              <p className="text-xs text-gray-600 mb-2">
-                                {c.issuingAuthority}
-                              </p>
-                              <div className="grid grid-cols-2 gap-2 text-xs">
-                                <div>
-                                  <p className="text-gray-400">Issued</p>
-                                  <p className="font-medium">{c.issueDate}</p>
-                                </div>
-                                <div>
-                                  <p className="text-gray-400">Expires</p>
-                                  <p className="font-medium">{c.expiryDate}</p>
-                                </div>
+                              <div className="grid grid-cols-1 gap-3 text-xs sm:grid-cols-2">
+                                <div><p className="text-gray-400">Course Name / Certification</p><p className="font-medium text-gray-800">{c.name}</p></div>
+                                <div><p className="text-gray-400">Provider</p><p className="font-medium text-gray-800">{c.issuingAuthority}</p></div>
+                                <div><p className="text-gray-400">Completion Date</p><p className="font-medium text-gray-800">{c.issueDate}</p></div>
+                                <div><p className="text-gray-400">Certificate ID</p><p className="font-medium text-gray-800">{c.credentialId}</p></div>
+                                <div><p className="text-gray-400">Expiry Date</p><p className="font-medium text-gray-800">{c.expiryDate || '—'}</p></div>
                               </div>
                             </div>
                     )}
@@ -4013,68 +4358,6 @@ export function EmployeeProfileView() {
                       </Card>
                 }
 
-                    {activeSubTab === 'workload' &&
-                <Card className="p-6">
-                        <div className="flex items-center justify-between mb-6">
-                          <div className="flex items-center gap-2">
-                            <BarChart3 className="w-5 h-5 text-gray-400" />
-                            <h3 className="text-lg font-semibold text-gray-900">
-                              Weekly Workload
-                            </h3>
-                          </div>
-                          <Badge variant="secondary">
-                            {employee.schedule.weeklyLoad.reduce(
-                        (s, d) => s + d.totalPeriods,
-                        0
-                      )}{' '}
-                            Periods/Week
-                          </Badge>
-                        </div>
-                        <div className="space-y-4">
-                          {employee.schedule.weeklyLoad.map((d, i) =>
-                    <div key={i} className="p-4 bg-gray-50 rounded-xl">
-                              <div className="flex items-center justify-between mb-3">
-                                <span className="text-sm font-semibold text-gray-900">
-                                  {d.day}
-                                </span>
-                                <span className="text-sm text-gray-600">
-                                  {d.totalPeriods} periods
-                                </span>
-                              </div>
-                              <div className="flex gap-2">
-                                <div className="flex-1">
-                                  <p className="text-xs text-gray-500 mb-1">
-                                    Teaching ({d.teachingHours}h)
-                                  </p>
-                                  <div className="h-3 bg-blue-200 rounded-full overflow-hidden">
-                                    <div
-                              className="h-full bg-blue-500 rounded-full"
-                              style={{
-                                width: `${d.teachingHours / 8 * 100}%`
-                              }} />
-
-                                  </div>
-                                </div>
-                                <div className="flex-1">
-                                  <p className="text-xs text-gray-500 mb-1">
-                                    Admin ({d.adminHours}h)
-                                  </p>
-                                  <div className="h-3 bg-purple-200 rounded-full overflow-hidden">
-                                    <div
-                              className="h-full bg-purple-500 rounded-full"
-                              style={{
-                                width: `${d.adminHours / 8 * 100}%`
-                              }} />
-
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                    )}
-                        </div>
-                      </Card>
-                }
-
                     {activeSubTab === 'attendance' &&
                 <Card className="p-6">
                         <div className="flex items-center justify-between mb-6">
@@ -4129,40 +4412,79 @@ export function EmployeeProfileView() {
                             </div>
                     )}
                         </div>
-                        <h4 className="text-sm font-semibold text-gray-700 mb-4">
-                          Recent Logs
-                        </h4>
-                        <div className="space-y-2">
-                          {employee.attendance.recentLogs.map((l, i) =>
-                    <div
-                      key={i}
-                      className={`flex items-center justify-between p-3 rounded-lg border ${l.status === 'Present' ? 'bg-green-50 border-green-200' : l.status === 'Late' ? 'bg-amber-50 border-amber-200' : 'bg-blue-50 border-blue-200'}`}>
+                        <div className="mb-8">
+                          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                            <h4 className="text-sm font-semibold text-gray-800">Week-wise Attendance Logs</h4>
+                            <span className="text-xs text-gray-500">Daily records grouped Monday–Saturday</span>
+                          </div>
+                          {getWeeklyAttendanceGroups(employee.attendance.recentLogs).length > 0 ?
+                    <div className="space-y-4">
+                              {getWeeklyAttendanceGroups(employee.attendance.recentLogs).map((week) =>
+                      <section key={week.startDate.toISOString()} className="overflow-hidden rounded-xl border border-gray-200">
+                                  <div className="flex items-center justify-between gap-3 bg-gray-50 px-4 py-3">
+                                    <h5 className="text-sm font-semibold text-gray-800">{week.startDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} – {week.endDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</h5>
+                                    <Badge variant="secondary">{week.logs.length} log{week.logs.length === 1 ? '' : 's'}</Badge>
+                                  </div>
+                                  <div className="overflow-x-auto">
+                                    <table className="min-w-full divide-y divide-gray-100">
+                                      <thead className="bg-white"><tr>
+                                        <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">Date</th>
+                                        <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">Check-in</th>
+                                        <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">Check-out</th>
+                                        <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">Hours</th>
+                                        <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">Status</th>
+                                        <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">Remarks</th>
+                                      </tr></thead>
+                                      <tbody className="divide-y divide-gray-100">
+                                        {week.logs.map((log, index) =>
+                              <tr key={`${log.date}-${index}`}>
+                                            <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-900">{new Date(`${log.date}T00:00:00`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                                            <td className="px-4 py-3 text-sm text-gray-600">{log.inTime}</td>
+                                            <td className="px-4 py-3 text-sm text-gray-600">{log.outTime}</td>
+                                            <td className="px-4 py-3 text-sm text-gray-600">{log.totalHours}</td>
+                                            <td className="px-4 py-3"><Badge variant={log.status === 'Present' ? 'success' : log.status === 'Late' ? 'warning' : log.status === 'Leave' ? 'info' : 'danger'}>{log.status}</Badge></td>
+                                            <td className="px-4 py-3 text-sm text-gray-500">{log.remarks || '—'}</td>
+                                          </tr>
+                              )}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </section>
+                      )}
+                            </div> :
+                    <div className="rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500">No weekly attendance logs recorded.</div>
+                    }
+                        </div>
 
-                              <div className="flex items-center gap-4">
-                                <span className="text-sm font-medium text-gray-900">
-                                  {l.date}
-                                </span>
-                                <Badge
-                          variant={
-                          l.status === 'Present' ?
-                          'success' :
-                          l.status === 'Late' ?
-                          'warning' :
-                          'info'
-                          }>
-
-                                  {l.status}
-                                </Badge>
-                              </div>
-                              <div className="flex items-center gap-4 text-sm text-gray-600">
-                                <span>In: {l.inTime}</span>
-                                <span>Out: {l.outTime}</span>
-                                <span className="font-medium">
-                                  {l.totalHours}
-                                </span>
-                              </div>
-                            </div>
-                    )}
+                        <div>
+                          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                            <h4 className="text-sm font-semibold text-gray-800">Monthly Attendance Log</h4>
+                            <span className="text-xs text-gray-500">Present, absent, leave, and attendance rate</span>
+                          </div>
+                          <div className="overflow-x-auto rounded-xl border border-gray-200">
+                            <table className="min-w-full divide-y divide-gray-200">
+                              <thead className="bg-gray-50"><tr>
+                                <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Month</th>
+                                <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-gray-500">Present</th>
+                                <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-gray-500">Absent</th>
+                                <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-gray-500">Leave</th>
+                                <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-gray-500">Attendance rate</th>
+                              </tr></thead>
+                              <tbody className="divide-y divide-gray-100 bg-white">
+                                {employee.attendance.monthlyTrend.map((month, index) => {
+                                  const scheduledDays = month.present + month.absent + month.leaves;
+                                  const attendanceRate = scheduledDays ? Math.round(month.present / scheduledDays * 100) : 0;
+                                  return <tr key={`${month.month}-${index}`}>
+                                    <td className="px-4 py-3 text-sm font-medium text-gray-900">{month.month}</td>
+                                    <td className="px-4 py-3 text-right text-sm text-green-700">{month.present}</td>
+                                    <td className="px-4 py-3 text-right text-sm text-red-700">{month.absent}</td>
+                                    <td className="px-4 py-3 text-right text-sm text-blue-700">{month.leaves}</td>
+                                    <td className="px-4 py-3 text-right text-sm font-semibold text-gray-800">{attendanceRate}%</td>
+                                  </tr>;
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
                         </div>
                       </Card>
                 }
@@ -4176,9 +4498,6 @@ export function EmployeeProfileView() {
                               Leave Balance
                             </h3>
                           </div>
-                          <Button variant="primary" size="sm">
-                            Apply Leave
-                          </Button>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           {employee.leaveBalance.map((l, i) =>
@@ -4212,16 +4531,58 @@ export function EmployeeProfileView() {
                         'red'
                         } />
 
-                              <div className="flex justify-between mt-2 text-xs text-gray-500">
+                              <div className="mt-2 flex flex-wrap justify-between gap-x-3 gap-y-1 text-xs text-gray-500">
                                 <span>Taken: {l.taken}</span>
                                 <span>Pending: {l.pending}</span>
                                 <span>Entitled: {l.entitled}</span>
+                                <span>Carry forward: {l.carryForward}</span>
+                                <span>Encashable: {l.encashable}</span>
                               </div>
                             </div>
                     )}
                         </div>
                       </Card>
                 }
+                    {activeSubTab === 'settings' && (
+                      <div className="space-y-6">
+                        <Card className="p-6">
+                          <h3 className="mb-4 text-lg font-semibold text-gray-900">Attendance & Overtime Settings</h3>
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                            {[
+                              { label: 'Default Shift', value: employee.employment.shift },
+                              { label: 'Work Hours / Day', value: '—' },
+                              { label: 'Weekly Off', value: employee.employment.weeklyOff.join(', ') || '—' },
+                              { label: 'Attendance Mode', value: '—' },
+                              { label: 'Check-in Time', value: '—' },
+                              { label: 'Check-out Time', value: '—' },
+                              { label: 'Grace Period', value: '—' },
+                              { label: 'Half Day After', value: '—' },
+                              { label: 'OT Eligible', value: '—' },
+                              { label: 'OT Rate / Hour', value: '—' },
+                              { label: 'Max OT Hours / Month', value: '—' },
+                              { label: 'Minimum OT Hours', value: '—' },
+                            ].map((field) => <InfoBlock key={field.label} label={field.label} value={field.value} />)}
+                          </div>
+                        </Card>
+                        <Card className="p-6">
+                          <h3 className="mb-4 text-lg font-semibold text-gray-900">Asset Allocation</h3>
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                            {[
+                              { label: 'Laptop / Desktop', value: '—' },
+                              { label: 'ID Card Number', value: '—' },
+                              { label: 'Biometric ID', value: employee.biometricId },
+                              { label: 'Parking Slot', value: '—' },
+                              { label: 'Locker Number', value: '—' },
+                              { label: 'Mobile Device', value: '—' },
+                              { label: 'Access Card', value: '—' },
+                              { label: 'Keys Issued', value: '—' },
+                              { label: 'Other Assets', value: '—' },
+                            ].map((field) => <InfoBlock key={field.label} label={field.label} value={field.value} />)}
+                          </div>
+                          <p className="mt-4 text-xs text-gray-500">Unavailable operational settings and asset assignments are not recorded in the current employee sample data.</p>
+                        </Card>
+                      </div>
+                    )}
                   </div>
                 </div>
             }
@@ -4233,6 +4594,28 @@ export function EmployeeProfileView() {
                     {renderSubNav(subTabs.performance)}
                   </div>
                   <div className="lg:col-span-3">
+                    {activeSubTab === 'goals' && (
+                      <Card className="p-6">
+                        <div className="mb-5 flex items-center justify-between gap-3"><div><h3 className="text-lg font-semibold text-gray-900">Current Goals & KPIs</h3><p className="text-sm text-gray-500">Targets, measured progress, due dates, and status.</p></div><Badge variant="info">{employee.performance.kras.length} goals</Badge></div>
+                        <div className="space-y-4">
+                          {employee.performance.kras.length ? employee.performance.kras.map((goal, index) => (
+                            <div key={`${goal.title}-${index}`} className="rounded-xl border border-gray-200 bg-gray-50 p-5">
+                              <div className="flex flex-wrap items-start justify-between gap-3"><div><h4 className="font-semibold text-gray-900">{goal.title}</h4><p className="mt-1 text-sm text-gray-600">{goal.description}</p></div><span className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${getKRAColor(goal.status)}`}>{goal.status.replace('-', ' ')}</span></div>
+                              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                                <InfoBlock label="Category" value="—" />
+                                <InfoBlock label="Target Date" value={goal.deadline} />
+                                <InfoBlock label="Weightage" value="—" />
+                                <InfoBlock label="KPI Metric" value={goal.unit} />
+                                <InfoBlock label="Target Value" value={`${goal.target} ${goal.unit}`} />
+                                <InfoBlock label="Achieved" value={`${goal.achieved} ${goal.unit}`} />
+                              </div>
+                              <div className="mt-4"><div className="mb-1 flex justify-between text-xs text-gray-500"><span>Progress</span><span>{goal.target ? Math.round(goal.achieved / goal.target * 100) : 0}%</span></div><ProgressBar value={goal.achieved} max={goal.target || 1} color="blue" /></div>
+                            </div>
+                          )) : <p className="rounded-lg border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500">No goals or KPIs are recorded.</p>}
+                        </div>
+                      </Card>
+                    )}
+
                     {activeSubTab === 'outcomes' &&
                 <Card className="p-6">
                         <div className="flex items-center justify-between mb-6">
@@ -4253,9 +4636,10 @@ export function EmployeeProfileView() {
                       className="p-5 bg-gray-50 rounded-xl border border-gray-200">
 
                               <div className="flex items-center justify-between mb-3">
-                                <h4 className="text-sm font-semibold text-gray-900">
-                                  {o.class}
-                                </h4>
+                                <div>
+                                  <h4 className="text-sm font-semibold text-gray-900">{o.class}</h4>
+                                  <p className="mt-0.5 text-xs text-gray-500">{o.subject}</p>
+                                </div>
                                 {o.trend === 'up' ?
                         <TrendingUp className="w-5 h-5 text-green-500" /> :
                         o.trend === 'down' ?
@@ -4264,27 +4648,23 @@ export function EmployeeProfileView() {
                         <span className="w-5 h-5 bg-gray-300 rounded-full" />
                         }
                               </div>
-                              <div className="grid grid-cols-2 gap-4">
-                                <div className="text-center p-3 bg-white rounded-lg">
-                                  <p className="text-2xl font-bold text-blue-600">
-                                    {o.averageScore}%
-                                  </p>
-                                  <p className="text-xs text-gray-500">
-                                    Average
-                                  </p>
+                              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                <div className="rounded-lg bg-white p-3">
+                                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Average score</p>
+                                  <div className="flex items-end justify-between gap-3">
+                                    <div><p className="text-2xl font-bold text-blue-600">{o.averageScore}%</p><p className="text-xs text-gray-500">Current year</p></div>
+                                    <div className="text-right"><p className="text-lg font-semibold text-gray-700">{o.priorYearAverageScore !== undefined ? `${o.priorYearAverageScore}%` : '—'}</p><p className="text-xs text-gray-500">Prior year</p></div>
+                                  </div>
                                 </div>
-                                <div className="text-center p-3 bg-white rounded-lg">
-                                  <p className="text-2xl font-bold text-green-600">
-                                    {o.passRate}%
-                                  </p>
-                                  <p className="text-xs text-gray-500">
-                                    Pass Rate
-                                  </p>
+                                <div className="rounded-lg bg-white p-3">
+                                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Pass rate</p>
+                                  <div className="flex items-end justify-between gap-3">
+                                    <div><p className="text-2xl font-bold text-green-600">{o.passRate}%</p><p className="text-xs text-gray-500">Current year</p></div>
+                                    <div className="text-right"><p className="text-lg font-semibold text-gray-700">{o.priorYearPassRate !== undefined ? `${o.priorYearPassRate}%` : '—'}</p><p className="text-xs text-gray-500">Prior year</p></div>
+                                  </div>
                                 </div>
                               </div>
-                              <p className="text-xs text-green-600 mt-3 text-center">
-                                {o.comparison}
-                              </p>
+                              <p className="mt-3 text-center text-xs font-medium text-blue-700">Year-over-year comparison: {o.comparison}</p>
                             </div>
                     )}
                         </div>
@@ -4292,63 +4672,76 @@ export function EmployeeProfileView() {
                 }
 
                     {activeSubTab === 'feedback' &&
-                <Card className="p-6">
-                        <div className="flex items-center justify-between mb-6">
-                          <div className="flex items-center gap-2">
-                            <MessageSquare className="w-5 h-5 text-gray-400" />
-                            <h3 className="text-lg font-semibold text-gray-900">
-                              Feedback
-                            </h3>
+                <div className="space-y-4">
+                  <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
+                    <h3 className="font-semibold text-blue-900">Feedback &amp; Performance Evaluation</h3>
+                    <p className="mt-1 text-sm text-blue-800">Peer feedback, student feedback, and formal performance evaluation are grouped here as separate sections.</p>
+                  </div>
+
+                  <section className="rounded-xl border border-gray-200 bg-white p-5">
+                    <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900">Peers</h3>
+                        <p className="text-xs text-gray-500">Feedback shared by colleagues and peers.</p>
+                      </div>
+                      <div className="flex items-center gap-2"><Badge variant="warning">{peerFeedback.length} entries</Badge>{peerFeedback.length > 0 && <RatingStars rating={getFeedbackAverage(peerFeedback)} />}</div>
+                    </div>
+                    {peerFeedback.length > 0 ? (
+                      <div className="space-y-3">
+                        {peerFeedback.map((feedback, index) => (
+                          <div key={`peer-${feedback.date}-${index}`} className="rounded-lg border border-gray-100 bg-gray-50 p-4">
+                            <div className="mb-2 flex flex-wrap items-center justify-between gap-2"><Badge variant="warning">Peer</Badge><div className="flex items-center gap-3"><RatingStars rating={feedback.rating} /><span className="text-xs text-gray-500">{feedback.date}</span></div></div>
+                            <p className="text-sm text-gray-700">“{feedback.comment}”</p>
+                            {feedback.anonymous && <p className="mt-2 text-xs italic text-gray-400">Anonymous feedback</p>}
                           </div>
-                          <RatingStars
-                      rating={
-                      employee.performance.feedback.reduce(
-                        (s, f) => s + f.rating,
-                        0
-                      ) / employee.performance.feedback.length
-                      } />
+                        ))}
+                      </div>
+                    ) : <div className="rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500">No peer feedback has been recorded.</div>}
+                  </section>
 
-                        </div>
-                        <div className="space-y-4">
-                          {employee.performance.feedback.map((f, i) =>
-                    <div
-                      key={i}
-                      className="p-4 bg-gray-50 rounded-xl border border-gray-200">
+                  <section className="rounded-xl border border-gray-200 bg-white p-5">
+                    <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900">Students</h3>
+                        <p className="text-xs text-gray-500">Student and parent feedback entries.</p>
+                      </div>
+                      <div className="flex items-center gap-2"><Badge variant="info">{studentFeedback.length} entries</Badge>{studentFeedback.length > 0 && <RatingStars rating={getFeedbackAverage(studentFeedback)} />}</div>
+                    </div>
+                    {studentFeedback.length > 0 ? (
+                      <div className="space-y-3">
+                        {studentFeedback.map((feedback, index) => (
+                          <div key={`student-${feedback.date}-${index}`} className="rounded-lg border border-gray-100 bg-gray-50 p-4">
+                            <div className="mb-2 flex flex-wrap items-center justify-between gap-2"><Badge variant={feedback.type === 'parent' ? 'success' : 'info'} className="capitalize">{feedback.type}</Badge><div className="flex items-center gap-3"><RatingStars rating={feedback.rating} /><span className="text-xs text-gray-500">{feedback.date}</span></div></div>
+                            <p className="text-sm text-gray-700">“{feedback.comment}”</p>
+                            {feedback.anonymous && <p className="mt-2 text-xs italic text-gray-400">Anonymous feedback</p>}
+                          </div>
+                        ))}
+                      </div>
+                    ) : <div className="rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500">No student feedback has been recorded.</div>}
+                  </section>
 
-                              <div className="flex items-center justify-between mb-3">
-                                <div className="flex items-center gap-3">
-                                  <Badge
-                            variant={
-                            f.type === 'student' ?
-                            'info' :
-                            f.type === 'parent' ?
-                            'success' :
-                            f.type === 'peer' ?
-                            'warning' :
-                            'secondary'
-                            }
-                            className="capitalize">
-
-                                    {f.type}
-                                  </Badge>
-                                  <RatingStars rating={f.rating} />
-                                </div>
-                                <span className="text-xs text-gray-500">
-                                  {f.date}
-                                </span>
-                              </div>
-                              <p className="text-sm text-gray-700">
-                                "{f.comment}"
-                              </p>
-                              {f.anonymous &&
-                      <p className="text-xs text-gray-400 mt-2 italic">
-                                  Anonymous feedback
-                                </p>
-                      }
-                            </div>
-                    )}
-                        </div>
-                      </Card>
+                  <section className="rounded-xl border border-gray-200 bg-white p-5">
+                    <div className="mb-5 flex items-center gap-3"><div className="rounded-lg bg-purple-100 p-2"><Award className="h-5 w-5 text-purple-700" /></div><div><h3 className="text-lg font-semibold text-gray-900">Performance Evaluation</h3><p className="text-xs text-gray-500">Appraisal ratings, review dates, and evaluator notes.</p></div></div>
+                    <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                      <div className="rounded-xl bg-blue-50 p-4"><p className="text-xs text-blue-700">Current rating</p><p className="mt-1 text-2xl font-bold text-blue-900">{employee.performance.currentRating}/5</p></div>
+                      <div className="rounded-xl bg-indigo-50 p-4"><p className="text-xs text-indigo-700">Overall score</p><p className="mt-1 text-2xl font-bold text-indigo-900">{employee.performance.overallScore}/5</p></div>
+                      <div className="rounded-xl bg-amber-50 p-4"><p className="text-xs text-amber-700">Evaluation rank</p><p className="mt-1 text-2xl font-bold text-amber-900">{employee.performance.rank}</p></div>
+                      <div className="rounded-xl bg-green-50 p-4"><p className="text-xs text-green-700">Percentile</p><p className="mt-1 text-2xl font-bold text-green-900">{employee.performance.percentile}%</p></div>
+                    </div>
+                    <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div className="rounded-lg border border-gray-200 p-4"><p className="text-xs uppercase tracking-wide text-gray-500">Last appraisal</p><p className="mt-1 font-semibold text-gray-900">{employee.performance.lastAppraisalDate}</p></div>
+                      <div className="rounded-lg border border-gray-200 p-4"><p className="text-xs uppercase tracking-wide text-gray-500">Next appraisal</p><p className="mt-1 font-semibold text-gray-900">{employee.performance.nextAppraisalDate}</p></div>
+                    </div>
+                    <div className="mt-5 border-t border-gray-100 pt-4">
+                      <div className="mb-3 flex items-center justify-between gap-3"><h4 className="font-semibold text-gray-800">Evaluator Feedback</h4>{evaluationFeedback.length > 0 && <RatingStars rating={getFeedbackAverage(evaluationFeedback)} />}</div>
+                      {evaluationFeedback.length > 0 ? (
+                        <div className="space-y-3">{evaluationFeedback.map((feedback, index) => (
+                          <div key={`evaluation-${feedback.date}-${index}`} className="rounded-lg bg-gray-50 p-4"><div className="mb-2 flex items-center justify-between"><Badge variant="secondary">Evaluation</Badge><span className="text-xs text-gray-500">{feedback.date}</span></div><p className="text-sm text-gray-700">“{feedback.comment}”</p></div>
+                        ))}</div>
+                      ) : <p className="text-sm text-gray-500">No performance evaluation comments have been recorded.</p>}
+                    </div>
+                  </section>
+                </div>
                 }
 
                     {activeSubTab === 'cpd' &&
@@ -4409,70 +4802,6 @@ export function EmployeeProfileView() {
                       </Card>
                 }
 
-                    {activeSubTab === 'kra' &&
-                <Card className="p-6">
-                        <div className="flex items-center justify-between mb-6">
-                          <div className="flex items-center gap-2">
-                            <Target className="w-5 h-5 text-gray-400" />
-                            <h3 className="text-lg font-semibold text-gray-900">
-                              KRA/KPI
-                            </h3>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm text-gray-500">
-                              Next Appraisal:
-                            </span>
-                            <Badge variant="info">
-                              {employee.performance.nextAppraisalDate}
-                            </Badge>
-                          </div>
-                        </div>
-                        <div className="space-y-4">
-                          {employee.performance.kras.map((k, i) =>
-                    <div
-                      key={i}
-                      className="p-5 bg-gray-50 rounded-xl border border-gray-200">
-
-                              <div className="flex items-center justify-between mb-3">
-                                <h4 className="text-sm font-semibold text-gray-900">
-                                  {k.title}
-                                </h4>
-                                <span
-                          className={`text-xs px-3 py-1 rounded-full font-medium ${getKRAColor(k.status)}`}>
-
-                                  {k.status.replace('-', ' ').toUpperCase()}
-                                </span>
-                              </div>
-                              <p className="text-xs text-gray-500 mb-3">
-                                {k.description}
-                              </p>
-                              <ProgressBar
-                        value={k.achieved}
-                        max={k.target}
-                        color={
-                        k.status === 'achieved' ?
-                        'green' :
-                        k.status === 'at-risk' ?
-                        'orange' :
-                        k.status === 'missed' ?
-                        'red' :
-                        'blue'
-                        } />
-
-                              <div className="flex justify-between mt-2 text-xs text-gray-500">
-                                <span>
-                                  Achieved: {k.achieved} {k.unit}
-                                </span>
-                                <span>
-                                  Target: {k.target} {k.unit}
-                                </span>
-                                <span>Deadline: {k.deadline}</span>
-                              </div>
-                            </div>
-                    )}
-                        </div>
-                      </Card>
-                }
                   </div>
                 </div>
             }
@@ -4541,74 +4870,38 @@ export function EmployeeProfileView() {
                       </Card>
                 }
 
-                    {activeSubTab === 'committees' &&
+                    {activeSubTab === 'responsibilities' &&
                 <Card className="p-6">
-                        <div className="flex items-center justify-between mb-6">
-                          <div className="flex items-center gap-2">
-                            <Users className="w-5 h-5 text-gray-400" />
-                            <h3 className="text-lg font-semibold text-gray-900">
-                              Committees & Responsibilities
-                            </h3>
-                          </div>
+                        <div className="flex items-center gap-2 mb-6">
+                          <Briefcase className="w-5 h-5 text-gray-400" />
+                          <h3 className="text-lg font-semibold text-gray-900">
+                            Responsibilities & Mentoring
+                          </h3>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          <div className="bg-blue-50 rounded-xl p-5 border border-blue-100">
-                            <h4 className="text-sm font-semibold text-blue-900 mb-4 flex items-center gap-2">
-                              <Users className="w-4 h-4" />
-                              Committee Memberships
-                            </h4>
-                            <div className="space-y-2">
-                              {employee.engagement.committees.map((c, i) =>
-                        <div
-                          key={i}
-                          className="flex items-center gap-3 p-3 bg-white rounded-lg">
-
-                                  <CheckCircle className="w-4 h-4 text-blue-500" />
-                                  <span className="text-sm text-gray-700">
-                                    {c}
-                                  </span>
-                                </div>
-                        )}
-                            </div>
-                          </div>
                           <div className="bg-green-50 rounded-xl p-5 border border-green-100">
                             <h4 className="text-sm font-semibold text-green-900 mb-4 flex items-center gap-2">
                               <Briefcase className="w-4 h-4" />
                               Additional Responsibilities
                             </h4>
                             <div className="space-y-2">
-                              {employee.engagement.responsibilities.map(
-                          (r, i) =>
-                          <div
-                            key={i}
-                            className="flex items-center gap-3 p-3 bg-white rounded-lg">
-
+                              {employee.engagement.responsibilities.length > 0 ? employee.engagement.responsibilities.map((responsibility, index) =>
+                        <div key={index} className="flex items-center gap-3 p-3 bg-white rounded-lg">
                                     <CheckCircle className="w-4 h-4 text-green-500" />
-                                    <span className="text-sm text-gray-700">
-                                      {r}
-                                    </span>
+                                    <span className="text-sm text-gray-700">{responsibility}</span>
                                   </div>
-
-                        )}
+                        ) : <p className="text-sm text-gray-500">No additional responsibilities recorded.</p>}
                             </div>
                           </div>
-                          <div className="bg-purple-50 rounded-xl p-5 border border-purple-100 md:col-span-2">
+                          <div className="bg-purple-50 rounded-xl p-5 border border-purple-100">
                             <h4 className="text-sm font-semibold text-purple-900 mb-4 flex items-center gap-2">
                               <Users className="w-4 h-4" />
                               Mentoring
                             </h4>
                             <div className="flex flex-wrap gap-2">
-                              {employee.engagement.mentoring.length > 0 ?
-                        employee.engagement.mentoring.map((m, i) =>
-                        <Badge key={i} variant="secondary">
-                                    {m}
-                                  </Badge>
-                        ) :
-
-                        <p className="text-sm text-gray-500">
-                                  No mentees assigned
-                                </p>
-                        }
+                              {employee.engagement.mentoring.length > 0 ? employee.engagement.mentoring.map((mentee, index) =>
+                        <Badge key={index} variant="secondary">{mentee}</Badge>
+                        ) : <p className="text-sm text-gray-500">No mentees assigned.</p>}
                             </div>
                           </div>
                         </div>
@@ -4676,6 +4969,10 @@ export function EmployeeProfileView() {
                                   {c}
                                 </p>
                         )}
+                            </div>
+                            <div className="mt-4 rounded-lg border border-red-100 bg-white p-3">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Emergency medical information</p>
+                              <p className="mt-1 text-sm text-gray-700">{employee.health.emergencyMedical || 'No emergency medical information recorded.'}</p>
                             </div>
                           </div>
                           <div className="bg-green-50 rounded-xl p-5 border border-green-100">
@@ -4764,12 +5061,33 @@ export function EmployeeProfileView() {
                   }
                       </Card>
                 }
+                    {activeSubTab === 'activities' && (
+                      <div className="space-y-6">
+                        <Card className="p-6">
+                          <div className="mb-4 flex items-center justify-between gap-3"><div><h3 className="text-lg font-semibold text-gray-900">Training & Development</h3><p className="text-sm text-gray-500">Courses, providers, completion dates, duration, and certification.</p></div><Badge variant="info">{employee.performance.cpdCourses.length} records</Badge></div>
+                          {employee.performance.cpdCourses.length ? <div className="space-y-3">{employee.performance.cpdCourses.map((course, index) => <div key={`${course.name}-${index}`} className="rounded-lg border border-gray-200 bg-gray-50 p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><h4 className="font-semibold text-gray-900">{course.name}</h4><p className="text-sm text-gray-600">{course.provider} · {course.category}</p></div><Badge variant={course.certificate ? 'success' : 'warning'}>{course.certificate ? 'Certificate received' : 'Certificate not recorded'}</Badge></div><div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4"><InfoBlock label="Date" value={course.completedDate} /><InfoBlock label="Duration" value={`${course.hours} hours`} /><InfoBlock label="Mode" value="—" /><InfoBlock label="Status" value="Completed" /></div></div>)}</div> : <p className="text-sm text-gray-500">No training records are recorded.</p>}
+                        </Card>
+                        <Card className="p-6">
+                          <h3 className="mb-4 text-lg font-semibold text-gray-900">Committee & Club Memberships</h3>
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><InfoBlock label="Committee / Club Name" value="—" /><InfoBlock label="Role" value="—" /><InfoBlock label="Since" value="—" /><InfoBlock label="Responsibilities" value="—" /></div>
+                          <p className="mt-3 text-xs text-gray-500">Membership data is not present in the current employee record.</p>
+                        </Card>
+                        <Card className="p-6">
+                          <h3 className="mb-4 text-lg font-semibold text-gray-900">Activities & Events</h3>
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><InfoBlock label="Event Name" value="—" /><InfoBlock label="Role" value="—" /><InfoBlock label="Date" value="—" /><InfoBlock label="Contribution" value="—" /></div>
+                        </Card>
+                        <Card className="p-6">
+                          <h3 className="mb-4 text-lg font-semibold text-gray-900">Employee Satisfaction & Feedback</h3>
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"><InfoBlock label="Job Satisfaction" value="—" /><InfoBlock label="Engagement Score" value="—" /><InfoBlock label="Growth Potential" value="—" /><InfoBlock label="Suggestions" value="—" /><InfoBlock label="Last Survey Date" value="—" /><InfoBlock label="Survey Participation" value="—" /></div>
+                          <div className="mt-5 border-t border-gray-100 pt-4"><h4 className="mb-2 text-sm font-semibold text-gray-800">Recent Feedback</h4>{employee.performance.feedback.length ? <div className="space-y-2">{employee.performance.feedback.slice(0, 4).map((feedback, index) => <div key={`${feedback.date}-${index}`} className="rounded-lg bg-gray-50 p-3"><div className="mb-1 flex items-center justify-between gap-2"><Badge variant="secondary" className="capitalize">{feedback.type}</Badge><span className="text-xs text-gray-500">{feedback.date}</span></div><p className="text-sm text-gray-700">{feedback.comment}</p></div>)}</div> : <p className="text-sm text-gray-500">No feedback recorded.</p>}</div>
+                        </Card>
+                      </div>
+                    )}
                   </div>
                 </div>
             }
             </div>
-          </>
-        }
+        </>)}
       </div>
     </div>);
 

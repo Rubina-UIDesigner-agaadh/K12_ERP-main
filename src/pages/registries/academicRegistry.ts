@@ -87,6 +87,34 @@ export const academicRegistry: Record<string, () => any> = {
     () => import('../academic/academics/event-activities/EventFeedbackReview'),
     'EventFeedbackReview'
   ),
+  'teacher-activity-master': rp(
+    () => import('../academic/academics/event-activities/TeacherActivityMaster'),
+    'TeacherActivityMaster'
+  ),
+  'professional-development': rp(
+    () => import('../academic/academics/event-activities/ProfessionalDevelopment'),
+    'ProfessionalDevelopment'
+  ),
+  'teacher-achievements': rp(
+    () => import('../academic/academics/event-activities/TeacherAchievements'),
+    'TeacherAchievements'
+  ),
+  'duty-master': rp(
+    () => import('../academic/academics/event-activities/DutyMaster'),
+    'DutyMaster'
+  ),
+  'duty-roster': rp(
+    () => import('../academic/academics/event-activities/DutyRoster'),
+    'DutyRoster'
+  ),
+  'duty-attendance': rp(
+    () => import('../academic/academics/event-activities/DutyAttendance'),
+    'DutyAttendance'
+  ),
+  'reports-analytics': rp(
+    () => import('../academic/academics/event-activities/ReportsAnalytics'),
+    'ReportsAnalytics'
+  ),
   'smart-event-calendar': rp(
     () => import('../academic/academics/event-activities/SmartEventCalendar'),
     'SmartEventCalendar'
