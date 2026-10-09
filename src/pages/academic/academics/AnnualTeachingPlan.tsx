@@ -5,7 +5,7 @@ import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
 import { Modal } from '../../../components/ui/Modal';
 import { ACADEMIC_PLANNING_KEYS, ACADEMIC_YEARS, CLASSES, DEFAULT_ATPS, DEFAULT_CURRICULUM_CHAPTERS, MONTHS, SUBJECTS, createBlankAtp, downloadPlanningCsv, loadPlanningCollection, newPlanningId, savePlanningCollection, type AnnualTeachingPlanRecord, type CurriculumChapter, type PlanStatus } from './academicPlanningData';
-import { EmptyState, PageHeader, PlanningPanel, SelectField, StatusPill, TextAreaField, TextField } from './academicPlanningUi';
+import { EmptyState, PageHeader, PlanningPanel, SelectField, StatusPill, TextAreaField, TextField } from './academicPlanningData';
 
 const reviewCriteria = ['All chapters included?', 'Period allocation realistic?', 'Syllabus completable within year?', 'Exam periods accounted for?', 'Adequate revision time?', 'Lab periods planned?', 'Buffer periods included?', 'Difficult chapters given more time?'];
 const statuses = ['All', 'Draft', 'Submitted', 'HOD Approved', 'Principal Viewed', 'Returned'];

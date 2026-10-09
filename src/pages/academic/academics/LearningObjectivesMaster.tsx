@@ -1,11 +1,11 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { Download, Plus, Printer, Search, Upload } from 'lucide-react';
+import { Download, Edit3, Plus, Printer, Search, Upload } from 'lucide-react';
 import { Badge } from '../../../components/ui/Badge';
 import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
 import { Modal } from '../../../components/ui/Modal';
 import { ACADEMIC_PLANNING_KEYS, ACADEMIC_YEARS, BLOOM_LEVELS, CLASSES, DEFAULT_CURRICULUM_CHAPTERS, DEFAULT_LEARNING_OBJECTIVES, SUBJECTS, createBlankObjective, downloadPlanningCsv, loadPlanningCollection, newPlanningId, savePlanningCollection, type CurriculumChapter, type LearningObjectiveRecord } from './academicPlanningData';
-import { EmptyState, PageHeader, PlanningPanel, SelectField, StatusPill, TextAreaField, TextField } from './academicPlanningData.ts';
+import { EmptyState, PageHeader, PlanningField, PlanningPanel, SelectField, StatusPill, TextAreaField, TextField } from './academicPlanningData';
 
 interface SubjectOutcomeRecord { id: string; className: string; subject: string; academicYear: string; statement: string; boardObjectives: string; nepFramework: string; }
 const DEFAULT_SUBJECT_OUTCOMES: SubjectOutcomeRecord[] = [

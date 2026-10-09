@@ -82,13 +82,17 @@ export const hrRegistry: Record<string, () => any> = {
     () => import('../hr/employee/EmployeeReportAdvanced'),
     'EmployeeReportAdvanced'
   ),
+  'employee-reports': rp(
+    () => import('../hr/employee/EmployeeReportAdvanced'),
+    'EmployeeReportAdvanced'
+  ),
   'staff-strength-demographic-report': rp(
-    () => import('../hr/employee/StaffStrengthDemographicReport'),
-    'StaffStrengthDemographicReport'
+    () => import('../hr/employee/EmployeeReportAdvanced'),
+    'EmployeeReportAdvanced'
   ),
   'teaching-allocation-summary': rp(
-    () => import('../hr/employee/TeachingAllocationSummary'),
-    'TeachingAllocationSummary'
+    () => import('../hr/employee/EmployeeReportAdvanced'),
+    'EmployeeReportAdvanced'
   ),
 
   // Attendance

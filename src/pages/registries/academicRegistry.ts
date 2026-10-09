@@ -6,6 +6,38 @@ import { rp } from './registryHelper';
  */
 export const academicRegistry: Record<string, () => any> = {
   // Academics — planning and classroom operations
+  'academic-planning-dashboard': rp(
+    () => import('../academic/academics/AcademicPlanningDashboard'),
+    'AcademicPlanningDashboard'
+  ),
+  'annual-teaching-plan': rp(
+    () => import('../academic/academics/AnnualTeachingPlan'),
+    'AnnualTeachingPlan'
+  ),
+  'monthly-teaching-plan': rp(
+    () => import('../academic/academics/MonthlyTeachingPlan'),
+    'MonthlyTeachingPlan'
+  ),
+  'weekly-teaching-plan': rp(
+    () => import('../academic/academics/WeeklyTeachingPlan'),
+    'WeeklyTeachingPlan'
+  ),
+  'curriculum-master': rp(
+    () => import('../academic/academics/CurriculumMaster'),
+    'CurriculumMaster'
+  ),
+  'lesson-plan-creation': rp(
+    () => import('../academic/academics/LessonPlanCreation'),
+    'LessonPlanCreation'
+  ),
+  'learning-objectives-master': rp(
+    () => import('../academic/academics/LearningObjectivesMaster'),
+    'LearningObjectivesMaster'
+  ),
+  'textbook-resource-master': rp(
+    () => import('../academic/academics/TextbookResourceMaster'),
+    'TextbookResourceMaster'
+  ),
   'academic-planning-execution': rp(
     () => import('../academic/academics/AcademicPlanningExecution'),
     'AcademicPlanningExecution'
@@ -68,7 +100,7 @@ export const academicRegistry: Record<string, () => any> = {
 
   // Event/Activities — legacy routes retained alongside the new pages
   'event-management': rp(
-    () => import('../academic/academics/event-activities/EventManagement.tsx'),
+    () => import('../academic/academics/event-activities/EventManagement'),
     'EventManagement'
   ),
   'event-master': rp(

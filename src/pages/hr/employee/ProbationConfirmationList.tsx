@@ -1091,7 +1091,7 @@ export function ProbationConfirmationList() {
                   </th>
                 }
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Details / Profile
+                  Details & Actions
                 </th>
               </tr>
             </thead>
@@ -1223,9 +1223,6 @@ export function ProbationConfirmationList() {
                       >
                         {selectedEmployeeId === employee.id ? 'Hide Details' : 'Details & Actions'}
                       </Button>
-                      <Button variant="ghost" size="sm" onClick={() => navigate('/hr/employee/employee-list-directory', { state: { employeeCode: employee.employeeCode } })}>
-                        <EyeIcon className="mr-1 h-4 w-4" />Profile
-                      </Button>
                     </div>
                   </td>
                 </tr>
@@ -1244,7 +1241,7 @@ export function ProbationConfirmationList() {
                           </div>
                           <div className="flex flex-wrap items-center gap-2">
                             <Badge variant={getStatusVariant(employee.status)}>{employee.status}</Badge>
-                            <Button variant="outline" size="sm" onClick={() => navigate('/hr/employee/employee-list-directory', { state: { employeeCode: employee.employeeCode } })}><EyeIcon className="mr-1 h-4 w-4" />Full Profile</Button>
+                            
                           </div>
                         </div>
                         <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -1254,6 +1251,7 @@ export function ProbationConfirmationList() {
                           <div className="rounded-lg border border-gray-100 p-3"><p className="text-xs uppercase tracking-wide text-gray-500">Progress</p><ProgressBar completed={employee.daysCompleted} total={employee.totalProbationDays} status={employee.status} /><p className={`mt-1 text-xs font-medium ${getDaysLeftColor(employee.daysLeft, employee.status)}`}>{getDaysLeftText(employee.daysLeft, employee.status)}</p></div>
                         </div>
                         <div className="flex flex-wrap justify-end gap-2 border-t border-gray-100 bg-gray-50 p-4">
+                          <Button variant="outline" onClick={() => navigate('/hr/employee/employee-list-directory', { state: { employeeCode: employee.employeeCode } })}><EyeIcon className="mr-1 h-4 w-4" />View Profile</Button>
                           <Button variant="outline" onClick={() => openActionModal('confirm')}>Confirm as Permanent</Button>
                           <Button variant="outline" onClick={() => openActionModal('extend')}>Extend Probation</Button>
                           <Button variant="danger" onClick={() => openActionModal('terminate')}>Terminate</Button>

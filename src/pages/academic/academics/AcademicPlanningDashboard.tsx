@@ -32,7 +32,7 @@ import {
   type CurriculumChapter,
   type LessonPlanRecord,
   type WeeklyTeachingItem,
-} from './academicPlanningData.ts';
+} from './academicPlanningData';
 
 type ClassProgress = { className: string; percent: number };
 

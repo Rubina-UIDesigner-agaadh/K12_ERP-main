@@ -1,7 +1,7 @@
 // EmployeeProfile.tsx
 
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   User, MapPin, Briefcase, GraduationCap, CreditCard, Users, Shield, Save,
   Search, Clock, Target, Award, TrendingUp, Heart, FileText,
@@ -24,11 +24,7 @@ const tabConfig = [
 { id: 'family', label: 'Family & Nominee', icon: Users },
 { id: 'documents', label: 'Documents', icon: FileText },
 { id: 'health', label: 'Health Records', icon: Heart },
-{ id: 'operations', label: 'Operations', icon: Clock },
-{ id: 'performance', label: 'Performance', icon: Target },
-{ id: 'engagement', label: 'Engagement', icon: Heart },
-{ id: 'account', label: 'Account Details', icon: Settings },
-{ id: 'system', label: 'System Access', icon: Shield }];
+{ id: 'operations', label: 'Operations', icon: Clock }];
 
 
 const genderOptions = [{ value: 'm', label: 'Male' }, { value: 'f', label: 'Female' }, { value: 'o', label: 'Other' }];
@@ -48,6 +44,7 @@ const shiftOptions = [{ value: 'morning', label: 'Morning (7AM-3PM)' }, { value:
 const leaveTypeOptions = [{ value: 'cl', label: 'Casual Leave' }, { value: 'sl', label: 'Sick Leave' }, { value: 'el', label: 'Earned Leave' }, { value: 'ml', label: 'Maternity Leave' }, { value: 'pl', label: 'Paternity Leave' }];
 const ratingOptions = [{ value: '5', label: '5 - Outstanding' }, { value: '4', label: '4 - Exceeds Expectations' }, { value: '3', label: '3 - Meets Expectations' }, { value: '2', label: '2 - Needs Improvement' }, { value: '1', label: '1 - Unsatisfactory' }];
 const roleOptions = [{ value: 'admin', label: 'Administrator' }, { value: 'hr', label: 'HR Manager' }, { value: 'teacher', label: 'Teacher' }, { value: 'staff', label: 'Staff' }, { value: 'viewer', label: 'Viewer' }];
+const branchOptions = [{ value: 'Main Campus', label: 'Main Campus' }, { value: 'City Campus', label: 'City Campus' }, { value: 'North Campus', label: 'North Campus' }];
 
 const EMPLOYEE_HEALTH_RECORDS_STORAGE_KEY = 'k12-employee-health-records-v1';
 type EmployeeHealthRecord = {
@@ -99,41 +96,63 @@ const readEmployeeHealthRecordMap = (): EmployeeHealthRecordMap => {
   }
 };
 
+// Picks the option whose label matches the directory value (e.g. "Male" -> "m").
+// When the fixed list has no match, the employee's own value is kept so it is still shown.
+const pickOption = (options: { value: string; label: string }[], text?: string): string => {
+  const wanted = (text ?? '').trim();
+  if (!wanted) return '';
+  const match = options.find((option) => option.label.toLowerCase() === wanted.toLowerCase());
+  return match ? match.value : wanted;
+};
+
+// Adds the current value as an extra option when the fixed list does not contain it.
+const withOption = (options: { value: string; label: string }[], current?: string) => {
+  if (!current || options.some((option) => option.value === current)) return options;
+  return [...options, { value: current, label: current }];
+};
+
+type EmployeePrefill = Record<string, string>;
+
 export function EmployeeProfile() {
   const navigate = useNavigate();
+  // Values sent from Employee Directory & Profile (Edit button); empty when the form is opened directly.
+  const location = useLocation();
+  const prefill: EmployeePrefill = (location.state as { prefill?: EmployeePrefill } | null)?.prefill ?? {};
   const [activeTab, setActiveTab] = useState('personal');
   const [showApplicantPicker, setShowApplicantPicker] = useState(false);
   const [applicantSearch, setApplicantSearch] = useState('');
   const [importedApplicant, setImportedApplicant] = useState<ApplicantImportRecord | null>(null);
+  const [employeeRole, setEmployeeRole] = useState('');
   const [applicantPrefill, setApplicantPrefill] = useState({
-    firstName: '',
-    lastName: '',
-    phone: '',
-    personalEmail: '',
-    address: '',
-    department: '',
-    designation: '',
-    branch: '',
-    subject: '',
-    qualification: '',
+    firstName: prefill.firstName ?? '',
+    lastName: prefill.lastName ?? '',
+    phone: prefill.primaryMobile ?? '',
+    personalEmail: prefill.personalEmail ?? '',
+    address: prefill.permanentLine2 ?? '',
+    department: pickOption(departmentOptions, prefill.department),
+    designation: pickOption(designationOptions, prefill.designation),
+    branch: prefill.campus ?? '',
+    subject: prefill.primarySubject ?? '',
+    qualification: prefill.highestQualification ?? '',
+    specialization: prefill.fieldOfStudy ?? '',
     experience: '',
     source: '',
     expectedSalary: '',
-    tags: ''
+    tags: prefill.technicalSkills ?? ''
   });
   const [experiences, setExperiences] = useState([{ id: 1 }]);
   const [familyMembers, setFamilyMembers] = useState([{ id: 1 }]);
   const [documents, setDocuments] = useState([{ id: 1 }]);
   const [goals, setGoals] = useState([{ id: 1 }]);
   const [trainings, setTrainings] = useState([{ id: 1 }]);
-  const [employeeCode, setEmployeeCode] = useState('');
+  const [employeeCode, setEmployeeCode] = useState(prefill.code ?? '');
   const [healthForm, setHealthForm] = useState({
     bloodGroup: '',
-    allergies: '',
-    medicalConditions: '',
+    allergies: prefill.allergies ?? '',
+    medicalConditions: prefill.medicalConditions ?? '',
     emergencyMedical: '',
-    insuranceNumber: '',
-    lastCheckup: ''
+    insuranceNumber: prefill.insuranceNumber ?? '',
+    lastCheckup: prefill.lastCheckup ?? ''
   });
   const [vaccinations, setVaccinations] = useState([{ id: 1, name: '', date: '' }]);
   const [healthSavedMessage, setHealthSavedMessage] = useState('');
@@ -212,6 +231,7 @@ export function EmployeeProfile() {
       designation: optionValueForLabel(designationOptions, applicant.position),
       branch: applicant.branch,
       subject: applicant.subject,
+      specialization: applicant.subject,
       qualification: applicant.qualification,
       experience: applicant.experience,
       source: applicant.source,
@@ -253,39 +273,32 @@ export function EmployeeProfile() {
         <Input label="Last Name" placeholder="Last Name" value={applicantPrefill.lastName} onChange={(event) => setApplicantPrefill((current) => ({ ...current, lastName: event.target.value }))} required />
       </div>
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Select label="Gender" options={genderOptions} value="" onChange={() => {}} />
-        <Input label="Date of Birth" type="date" required />
-        <Select label="Marital Status" options={maritalOptions} value="" onChange={() => {}} />
-        <Input label="Anniversary Date" type="date" />
+        <Select label="Gender" options={withOption(genderOptions, prefill.gender)} defaultValue={pickOption(genderOptions, prefill.gender)} onChange={() => {}} />
+        <Input label="Date of Birth" defaultValue={prefill.dateOfBirth} type="date" required />
+        <Select label="Marital Status" options={withOption(maritalOptions, prefill.maritalStatus)} defaultValue={pickOption(maritalOptions, prefill.maritalStatus)} onChange={() => {}} />
       </div>
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Input label="Nationality" placeholder="Indian" />
-        <Select label="Religion" options={religionOptions} value="" onChange={() => {}} />
-        <Select label="Category" options={categoryOptions} value="" onChange={() => {}} />
-        <Input label="Caste" placeholder="Caste (optional)" />
+        <Input label="Nationality" defaultValue={prefill.nationality} placeholder="Indian" />
+        <Select label="Religion" options={withOption(religionOptions, prefill.religion)} defaultValue={pickOption(religionOptions, prefill.religion)} onChange={() => {}} />
+        <Select label="Category" options={withOption(categoryOptions, prefill.category)} defaultValue={pickOption(categoryOptions, prefill.category)} onChange={() => {}} />
+        <Input label="Caste" defaultValue={prefill.caste} placeholder="Caste (optional)" />
       </div>
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Select label="Blood Group" options={bloodOptions} value="" onChange={() => {}} />
         <Input label="Height (cm)" type="number" placeholder="170" />
         <Input label="Weight (kg)" type="number" placeholder="70" />
         <Input label="Mother Tongue" placeholder="Hindi" />
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Input label="Aadhaar Number" placeholder="XXXX XXXX XXXX" required />
-        <Input label="PAN Number" placeholder="ABCDE1234F" />
-        <Input label="Voter ID" placeholder="Voter ID" />
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Input label="Passport Number" placeholder="Passport (optional)" />
-        <Input label="Passport Expiry" type="date" />
-        <Input label="Driving License" placeholder="DL Number" />
+        <Input label="Aadhaar Number" defaultValue={prefill.aadhaar} placeholder="XXXX XXXX XXXX" required />
+        <Input label="PAN Number" defaultValue={prefill.pan} placeholder="ABCDE1234F" />
+        <Input label="Voter ID" defaultValue={prefill.voterId} placeholder="Voter ID" />
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Input label="Identification Marks" placeholder="Any visible marks" />
         <Input label="Known Languages" placeholder="Hindi, English, etc." />
       </div>
       <div className="grid grid-cols-1 gap-4">
-        <Input label="Medical Conditions (if any)" placeholder="Diabetes, BP, allergies, etc." />
+        <Input label="Medical Conditions (if any)" defaultValue={prefill.medicalConditions} placeholder="Diabetes, BP, allergies, etc." />
       </div>
     </div>;
 
@@ -294,24 +307,24 @@ export function EmployeeProfile() {
   <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Input label="Primary Mobile" placeholder="+91 XXXXXXXXXX" value={applicantPrefill.phone} onChange={(event) => setApplicantPrefill((current) => ({ ...current, phone: event.target.value }))} required />
-        <Input label="Secondary Mobile" placeholder="+91 XXXXXXXXXX" />
+        <Input label="Secondary Mobile" defaultValue={prefill.secondaryMobile} placeholder="+91 XXXXXXXXXX" />
         <Input label="WhatsApp Number" placeholder="+91 XXXXXXXXXX" />
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Input label="Official Email" type="email" placeholder="name@school.edu" required />
+        <Input label="Official Email" defaultValue={prefill.officialEmail} type="email" placeholder="name@school.edu" required />
         <Input label="Personal Email" type="email" placeholder="personal@email.com" value={applicantPrefill.personalEmail} onChange={(event) => setApplicantPrefill((current) => ({ ...current, personalEmail: event.target.value }))} />
         <Input label="LinkedIn Profile" placeholder="linkedin.com/in/username" />
       </div>
       <FormSection title="Permanent Address">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Input label="House No. / Building" placeholder="House/Flat No." />
+          <Input label="House No. / Building" defaultValue={prefill.permanentLine1} placeholder="House/Flat No." />
           <Input label="Street / Locality" placeholder="Street Name" value={applicantPrefill.address} onChange={(event) => setApplicantPrefill((current) => ({ ...current, address: event.target.value }))} />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
-          <Input label="City" placeholder="City" />
+          <Input label="City" defaultValue={prefill.permanentCity} placeholder="City" />
           <Input label="District" placeholder="District" />
-          <Input label="State" placeholder="State" />
-          <Input label="Pincode" placeholder="XXXXXX" />
+          <Input label="State" defaultValue={prefill.permanentState} placeholder="State" />
+          <Input label="Pincode" defaultValue={prefill.permanentPincode} placeholder="XXXXXX" />
         </div>
         <Input label="Landmark" placeholder="Near..." className="mt-4" />
       </FormSection>
@@ -321,14 +334,14 @@ export function EmployeeProfile() {
           <label htmlFor="sameAddress" className="text-sm text-gray-600">Same as Permanent Address</label>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Input label="House No. / Building" placeholder="House/Flat No." />
-          <Input label="Street / Locality" placeholder="Street Name" />
+          <Input label="House No. / Building" defaultValue={prefill.currentLine1} placeholder="House/Flat No." />
+          <Input label="Street / Locality" defaultValue={prefill.currentLine2} placeholder="Street Name" />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
-          <Input label="City" placeholder="City" />
+          <Input label="City" defaultValue={prefill.currentCity} placeholder="City" />
           <Input label="District" placeholder="District" />
-          <Input label="State" placeholder="State" />
-          <Input label="Pincode" placeholder="XXXXXX" />
+          <Input label="State" defaultValue={prefill.currentState} placeholder="State" />
+          <Input label="Pincode" defaultValue={prefill.currentPincode} placeholder="XXXXXX" />
         </div>
       </FormSection>
       <FormSection title="Emergency Contacts">
@@ -337,10 +350,10 @@ export function EmployeeProfile() {
         <div key={i} className="bg-gray-50 p-4 rounded-lg border">
               <h5 className="font-medium text-gray-700 mb-3">Emergency Contact {i}</h5>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Input label="Name" placeholder="Full Name" />
-                <Select label="Relationship" options={relationOptions} value="" onChange={() => {}} />
-                <Input label="Phone" placeholder="+91 XXXXXXXXXX" />
-                <Input label="Address" placeholder="Address" />
+                <Input label="Name" defaultValue={prefill.emergencyName} placeholder="Full Name" />
+                <Select label="Relationship" options={withOption(relationOptions, prefill.emergencyRelation)} defaultValue={pickOption(relationOptions, prefill.emergencyRelation)} onChange={() => {}} />
+                <Input label="Phone" defaultValue={prefill.emergencyPhone} placeholder="+91 XXXXXXXXXX" />
+                <Input label="Address" defaultValue={prefill.emergencyAddress} placeholder="Address" />
               </div>
             </div>
         )}
@@ -352,48 +365,32 @@ export function EmployeeProfile() {
   const EmploymentInfo = () =>
   <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Select label="Staff Type" options={staffTypeOptions} value="" onChange={() => {}} />
-        <Select label="Employment Type" options={employmentOptions} value="" onChange={() => {}} />
-        <Select label="Status" options={statusOptions} value="" onChange={() => {}} />
-        <Input label="Date of Joining" type="date" required />
+        <Select label="Staff Type" options={withOption(staffTypeOptions, prefill.staffType)} defaultValue={pickOption(staffTypeOptions, prefill.staffType)} onChange={() => {}} />
+        <Select label="Employment Type" options={withOption(employmentOptions, prefill.employmentType)} defaultValue={pickOption(employmentOptions, prefill.employmentType)} onChange={() => {}} />
+        <Select label="Status" options={withOption(statusOptions, prefill.status)} defaultValue={pickOption(statusOptions, prefill.status)} onChange={() => {}} />
+        <Input label="Date of Joining" defaultValue={prefill.dateOfJoining} type="date" required />
       </div>
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Select label="Department" options={departmentOptions} value={applicantPrefill.department} onChange={(event) => setApplicantPrefill((current) => ({ ...current, department: event.target.value }))} />
-        <Select label="Designation" options={designationOptions} value={applicantPrefill.designation} onChange={(event) => setApplicantPrefill((current) => ({ ...current, designation: event.target.value }))} />
-        <Input label="Reporting Manager" placeholder="Select Manager" />
-        <Input label="Secondary Manager" placeholder="Select (optional)" />
+        <Select label="Department" options={withOption(departmentOptions, applicantPrefill.department)} value={applicantPrefill.department} onChange={(event) => setApplicantPrefill((current) => ({ ...current, department: event.target.value }))} />
+        <Select label="Designation" options={withOption(designationOptions, applicantPrefill.designation)} value={applicantPrefill.designation} onChange={(event) => setApplicantPrefill((current) => ({ ...current, designation: event.target.value }))} />
       </div>
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Input label="Campus/Branch" placeholder="Main Campus" value={applicantPrefill.branch} onChange={(event) => setApplicantPrefill((current) => ({ ...current, branch: event.target.value }))} />
-        <Input label="Building/Block" placeholder="Block A" />
-        <Input label="Office Room" placeholder="Room 101" />
-        <Input label="Extension Number" placeholder="Ext. 123" />
+        <Select label="Campus/Branch" options={withOption([{ value: '', label: 'Select campus/branch' }, ...branchOptions], applicantPrefill.branch)} value={applicantPrefill.branch} onChange={(event) => setApplicantPrefill((current) => ({ ...current, branch: event.target.value }))} />
+        <Select label="Role" options={[{ value: '', label: 'Select role' }, ...roleOptions]} value={employeeRole} onChange={(event) => setEmployeeRole(event.target.value)} />
       </div>
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Input label="Probation End Date" type="date" />
-        <Input label="Confirmation Date" type="date" />
-        <Input label="Contract End Date" type="date" />
-        <Input label="Notice Period (Days)" type="number" placeholder="30" />
+        <Input label="Notice Period (Days)" defaultValue={prefill.noticePeriod} type="number" placeholder="30" />
       </div>
       <FormSection title="Teaching Details (if applicable)">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Input label="Primary Subject" placeholder="Mathematics" value={applicantPrefill.subject} onChange={(event) => setApplicantPrefill((current) => ({ ...current, subject: event.target.value }))} />
-          <Input label="Secondary Subjects" placeholder="Physics, Chemistry" />
+          <Input label="Secondary Subjects" defaultValue={prefill.secondarySubjects} placeholder="Physics, Chemistry" />
           <Input label="Classes Handling" placeholder="IX, X, XI, XII" />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-          <Input label="Weekly Teaching Hours" type="number" placeholder="30" />
-          <Input label="Max Periods/Day" type="number" placeholder="6" />
           <Select label="Class Teacher Of" options={[{ value: '', label: 'None' }, { value: '10a', label: 'Class 10-A' }]} value="" onChange={() => {}} />
         </div>
-      </FormSection>
-      <FormSection title="Previous Employment in Organization">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Input label="Previous Employee Code" placeholder="If rejoined" />
-          <Input label="Previous Joining Date" type="date" />
-          <Input label="Previous Exit Date" type="date" />
-        </div>
-        <Input label="Reason for Leaving" placeholder="Reason" className="mt-4" />
       </FormSection>
     </div>;
 
@@ -417,12 +414,12 @@ export function EmployeeProfile() {
       <FormSection title="Professional Qualifications">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Input label="Degree/Certification" placeholder="B.Ed, M.Ed, etc." value={applicantPrefill.qualification} onChange={(event) => setApplicantPrefill((current) => ({ ...current, qualification: event.target.value }))} />
-          <Input label="Institution" placeholder="University Name" />
-          <Input label="Year" type="number" placeholder="2020" />
-          <Input label="Grade/Score" placeholder="A / 80%" />
+          <Input label="Institution" defaultValue={prefill.university} placeholder="University Name" />
+          <Input label="Year" defaultValue={prefill.yearOfPassing} type="number" placeholder="2020" />
+          <Input label="Grade/Score" defaultValue={prefill.percentage} placeholder="A / 80%" />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-          <Input label="Specialization" placeholder="Special Education, etc." value={applicantPrefill.subject} onChange={(event) => setApplicantPrefill((current) => ({ ...current, subject: event.target.value }))} />
+          <Input label="Specialization" placeholder="Special Education, etc." value={applicantPrefill.specialization} onChange={(event) => setApplicantPrefill((current) => ({ ...current, specialization: event.target.value }))} />
           <Input label="Registration Number" placeholder="If applicable" />
         </div>
       </FormSection>
@@ -462,11 +459,11 @@ export function EmployeeProfile() {
       <FormSection title="Skills & Expertise">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Input label="Technical Skills" placeholder="MS Office, Tally, etc." value={applicantPrefill.tags} onChange={(event) => setApplicantPrefill((current) => ({ ...current, tags: event.target.value }))} />
-          <Input label="Soft Skills" placeholder="Communication, Leadership" />
+          <Input label="Soft Skills" defaultValue={prefill.softSkills} placeholder="Communication, Leadership" />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
           <Input label="Languages Known" placeholder="English (Fluent), Hindi (Native)" />
-          <Input label="Hobbies & Interests" placeholder="Reading, Sports, etc." />
+          <Input label="Hobbies & Interests" defaultValue={prefill.hobbies} placeholder="Reading, Sports, etc." />
         </div>
       </FormSection>
     </div>;
@@ -476,16 +473,16 @@ export function EmployeeProfile() {
   <div className="space-y-6">
       <FormSection title="Primary Bank Account">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Input label="Bank Name" placeholder="State Bank of India" />
-          <Input label="Branch Name" placeholder="Main Branch" />
-          <Input label="Account Number" placeholder="XXXXXXXXXX" />
-          <Input label="Confirm Account" placeholder="Re-enter Account" />
+          <Input label="Bank Name" defaultValue={prefill.bankName} placeholder="State Bank of India" />
+          <Input label="Branch Name" defaultValue={prefill.bankBranch} placeholder="Main Branch" />
+          <Input label="Account Number" defaultValue={prefill.accountNumber} placeholder="XXXXXXXXXX" />
+          <Input label="Confirm Account" defaultValue={prefill.accountNumber} placeholder="Re-enter Account" />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
-          <Input label="IFSC Code" placeholder="SBIN0001234" />
-          <Input label="Account Type" placeholder="Savings/Current" />
-          <Input label="MICR Code" placeholder="XXXXXX" />
-          <Select label="Payment Mode" options={paymentOptions} value="" onChange={() => {}} />
+          <Input label="IFSC Code" defaultValue={prefill.ifsc} placeholder="SBIN0001234" />
+          <Input label="Account Type" defaultValue={prefill.accountType} placeholder="Savings/Current" />
+          <Input label="MICR Code" defaultValue={prefill.micrCode} placeholder="XXXXXX" />
+          <Select label="Payment Mode" options={withOption(paymentOptions, prefill.paymentMode)} defaultValue={pickOption(paymentOptions, prefill.paymentMode)} onChange={() => {}} />
         </div>
       </FormSection>
       <FormSection title="Secondary Bank Account (Optional)">
@@ -498,8 +495,8 @@ export function EmployeeProfile() {
       </FormSection>
       <FormSection title="Salary Structure">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Select label="Salary Grade" options={gradeOptions} value="" onChange={() => {}} />
-          <Input label="Basic Pay" type="number" placeholder="25000" />
+          <Select label="Salary Grade" options={withOption(gradeOptions, prefill.salaryGrade)} defaultValue={pickOption(gradeOptions, prefill.salaryGrade)} onChange={() => {}} />
+          <Input label="Basic Pay" defaultValue={prefill.basicPay} type="number" placeholder="25000" />
           <Input label="DA" type="number" placeholder="5000" />
           <Input label="HRA" type="number" placeholder="10000" />
         </div>
@@ -518,9 +515,9 @@ export function EmployeeProfile() {
       </FormSection>
       <FormSection title="Statutory Details">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Input label="PF Number" placeholder="PF Account Number" />
-          <Input label="UAN Number" placeholder="Universal Account No." />
-          <Input label="ESI Number" placeholder="ESI Number" />
+          <Input label="PF Number" defaultValue={prefill.pfNumber} placeholder="PF Account Number" />
+          <Input label="UAN Number" defaultValue={prefill.uanNumber} placeholder="Universal Account No." />
+          <Input label="ESI Number" defaultValue={prefill.esiNumber} placeholder="ESI Number" />
           <Input label="TDS Applicable" placeholder="Yes/No" />
         </div>
       </FormSection>
@@ -595,7 +592,7 @@ export function EmployeeProfile() {
   const Documents = () =>
   <div className="space-y-6">
       <FormSection title="Identity Documents">
-        {[{ label: 'Aadhaar Card', required: true }, { label: 'PAN Card', required: true }, { label: 'Passport', required: false }, { label: 'Voter ID', required: false }, { label: 'Driving License', required: false }].map((doc) =>
+        {[{ label: 'Aadhaar Card', required: true }, { label: 'PAN Card', required: true }, { label: 'Voter ID', required: false }].map((doc) =>
       <div key={doc.label} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg border mb-2">
             <div className="flex items-center gap-3">
               <FileText className="w-5 h-5 text-gray-400" />
@@ -647,7 +644,6 @@ export function EmployeeProfile() {
       <FormSection title="Health Profile">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <Input label="Employee Code" placeholder="Enter the employee code" value={employeeCode} onChange={(event) => handleEmployeeCodeChange(event.target.value)} required />
-          <Select label="Blood Group" options={[{ value: '', label: 'Select blood group' }, ...bloodOptions.map((option) => ({ value: option.label, label: option.label }))]} value={healthForm.bloodGroup} onChange={(event) => setHealthForm((current) => ({ ...current, bloodGroup: event.target.value }))} />
           <Input label="Health Insurance Number" placeholder="Policy / member number" value={healthForm.insuranceNumber} onChange={(event) => setHealthForm((current) => ({ ...current, insuranceNumber: event.target.value }))} />
         </div>
         <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -683,9 +679,7 @@ export function EmployeeProfile() {
   <div className="space-y-6">
       <FormSection title="Attendance Settings">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Select label="Default Shift" options={shiftOptions} value="" onChange={() => {}} />
-          <Input label="Work Hours/Day" type="number" placeholder="8" />
-          <Input label="Weekly Off" placeholder="Sunday" />
+          <Select label="Default Shift" options={withOption(shiftOptions, prefill.shift)} defaultValue={pickOption(shiftOptions, prefill.shift)} onChange={() => {}} />
           <Select label="Attendance Mode" options={[{ value: 'bio', label: 'Biometric' }, { value: 'app', label: 'App Based' }, { value: 'manual', label: 'Manual' }]} value="" onChange={() => {}} />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
@@ -731,254 +725,6 @@ export function EmployeeProfile() {
     </div>;
 
 
-  const Performance = () =>
-  <div className="space-y-6">
-      <FormSection title="Current Goals & KPIs">
-        {goals.map((goal, idx) =>
-      <div key={goal.id} className="bg-gray-50 p-4 rounded-lg border mb-4">
-            <div className="flex justify-between items-center mb-3">
-              <h5 className="font-medium text-gray-700">Goal {idx + 1}</h5>
-              {goals.length > 1 && <Button variant="outline" size="sm" onClick={() => removeItem(setGoals, goals, goal.id)}><Trash2 className="w-4 h-4" /></Button>}
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <Input label="Goal Title" placeholder="Goal Name" />
-              <Select label="Category" options={[{ value: 'academic', label: 'Academic' }, { value: 'admin', label: 'Administrative' }, { value: 'personal', label: 'Personal Development' }]} value="" onChange={() => {}} />
-              <Input label="Target Date" type="date" />
-              <Input label="Weightage %" type="number" placeholder="25" />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-              <Input label="KPI Metric" placeholder="e.g., Student Pass %" />
-              <Input label="Target Value" placeholder="e.g., 95%" />
-              <Select label="Status" options={[{ value: 'pending', label: 'Pending' }, { value: 'progress', label: 'In Progress' }, { value: 'completed', label: 'Completed' }]} value="" onChange={() => {}} />
-            </div>
-            <Input label="Description" placeholder="Goal description..." className="mt-4" />
-          </div>
-      )}
-        <Button variant="outline" size="sm" onClick={() => addItem(setGoals, goals)}><Plus className="w-4 h-4 mr-2" />Add Goal</Button>
-      </FormSection>
-      <FormSection title="Performance Appraisal">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Input label="Appraisal Period" placeholder="FY 2024-25" />
-          <Select label="Self Rating" options={ratingOptions} value="" onChange={() => {}} />
-          <Select label="Manager Rating" options={ratingOptions} value="" onChange={() => {}} />
-          <Select label="Final Rating" options={ratingOptions} value="" onChange={() => {}} />
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-          <Input label="Strengths" placeholder="Key strengths identified" />
-          <Input label="Areas of Improvement" placeholder="Areas to work on" />
-        </div>
-        <Input label="Manager Comments" placeholder="Detailed feedback..." className="mt-4" />
-      </FormSection>
-      <FormSection title="Awards & Recognition">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Input label="Award Title" placeholder="Best Teacher Award" />
-          <Input label="Awarded By" placeholder="Organization" />
-          <Input label="Award Date" type="date" />
-          <Input label="Description" placeholder="Details" />
-        </div>
-        <Button variant="outline" size="sm" className="mt-4"><Plus className="w-4 h-4 mr-2" />Add Award</Button>
-      </FormSection>
-      <FormSection title="Disciplinary Records">
-        <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Input label="Incident Date" type="date" />
-            <Select label="Type" options={[{ value: 'warning', label: 'Warning' }, { value: 'suspension', label: 'Suspension' }, { value: 'show_cause', label: 'Show Cause' }]} value="" onChange={() => {}} />
-            <Input label="Issued By" placeholder="Manager Name" />
-            <Select label="Status" options={[{ value: 'open', label: 'Open' }, { value: 'closed', label: 'Closed' }]} value="" onChange={() => {}} />
-          </div>
-          <Input label="Details" placeholder="Incident description..." className="mt-4" />
-        </div>
-      </FormSection>
-    </div>;
-
-
-  const Engagement = () =>
-  <div className="space-y-6">
-      <FormSection title="Training & Development">
-        {trainings.map((training, idx) =>
-      <div key={training.id} className="bg-gray-50 p-4 rounded-lg border mb-4">
-            <div className="flex justify-between items-center mb-3">
-              <h5 className="font-medium text-gray-700">Training {idx + 1}</h5>
-              {trainings.length > 1 && <Button variant="outline" size="sm" onClick={() => removeItem(setTrainings, trainings, training.id)}><Trash2 className="w-4 h-4" /></Button>}
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <Input label="Training Name" placeholder="Program Title" />
-              <Input label="Provider" placeholder="Training Provider" />
-              <Input label="Date" type="date" />
-              <Input label="Duration (hours)" type="number" placeholder="8" />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-              <Select label="Mode" options={[{ value: 'online', label: 'Online' }, { value: 'offline', label: 'Offline' }, { value: 'hybrid', label: 'Hybrid' }]} value="" onChange={() => {}} />
-              <Select label="Status" options={[{ value: 'upcoming', label: 'Upcoming' }, { value: 'ongoing', label: 'Ongoing' }, { value: 'completed', label: 'Completed' }]} value="" onChange={() => {}} />
-              <Input label="Certificate ID" placeholder="If completed" />
-            </div>
-          </div>
-      )}
-        <Button variant="outline" size="sm" onClick={() => addItem(setTrainings, trainings)}><Plus className="w-4 h-4 mr-2" />Add Training</Button>
-      </FormSection>
-      <FormSection title="Committee & Club Memberships">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Input label="Committee/Club Name" placeholder="Sports Committee" />
-          <Select label="Role" options={[{ value: 'member', label: 'Member' }, { value: 'coordinator', label: 'Coordinator' }, { value: 'head', label: 'Head' }]} value="" onChange={() => {}} />
-          <Input label="Since" type="date" />
-          <Input label="Responsibilities" placeholder="Key duties" />
-        </div>
-        <Button variant="outline" size="sm" className="mt-4"><Plus className="w-4 h-4 mr-2" />Add Membership</Button>
-      </FormSection>
-      <FormSection title="Activities & Events">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Input label="Event Name" placeholder="Annual Day" />
-          <Input label="Role" placeholder="Organizer/Participant" />
-          <Input label="Date" type="date" />
-          <Input label="Contribution" placeholder="Details" />
-        </div>
-        <Button variant="outline" size="sm" className="mt-4"><Plus className="w-4 h-4 mr-2" />Add Activity</Button>
-      </FormSection>
-      <FormSection title="Employee Satisfaction">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-green-50 p-4 rounded-lg border border-green-200 text-center">
-            <Star className="w-8 h-8 text-green-600 mx-auto mb-2" />
-            <p className="text-2xl font-bold text-green-900">4.5/5</p>
-            <p className="text-sm text-green-700">Job Satisfaction</p>
-          </div>
-          <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 text-center">
-            <Activity className="w-8 h-8 text-blue-600 mx-auto mb-2" />
-            <p className="text-2xl font-bold text-blue-900">85%</p>
-            <p className="text-sm text-blue-700">Engagement Score</p>
-          </div>
-          <div className="bg-purple-50 p-4 rounded-lg border border-purple-200 text-center">
-            <TrendingUp className="w-8 h-8 text-purple-600 mx-auto mb-2" />
-            <p className="text-2xl font-bold text-purple-900">High</p>
-            <p className="text-sm text-purple-700">Growth Potential</p>
-          </div>
-        </div>
-      </FormSection>
-      <FormSection title="Feedback & Suggestions">
-        <Input label="Recent Feedback" placeholder="Employee's recent feedback..." />
-        <Input label="Suggestions" placeholder="Improvement suggestions..." className="mt-4" />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-          <Input label="Last Survey Date" type="date" />
-          <Select label="Survey Participation" options={[{ value: 'yes', label: 'Participated' }, { value: 'no', label: 'Not Participated' }]} value="" onChange={() => {}} />
-        </div>
-      </FormSection>
-    </div>;
-
-
-  const AccountDetails = () =>
-  <div className="space-y-6">
-      <FormSection title="Login Credentials">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Input label="Username" placeholder="Auto-generated from Email" disabled />
-          <Input label="Temporary Password" type="password" placeholder="System Generated" disabled />
-          <div className="flex items-end gap-2">
-            <Button variant="outline"><Mail className="w-4 h-4 mr-2" />Send Credentials</Button>
-          </div>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-          <Input label="Last Login" placeholder="Never" disabled />
-          <Input label="Password Last Changed" placeholder="N/A" disabled />
-          <Select label="Account Status" options={[{ value: 'active', label: 'Active' }, { value: 'locked', label: 'Locked' }, { value: 'disabled', label: 'Disabled' }]} value="" onChange={() => {}} />
-        </div>
-      </FormSection>
-      <FormSection title="Multi-Factor Authentication">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Select label="MFA Enabled" options={[{ value: 'yes', label: 'Yes' }, { value: 'no', label: 'No' }]} value="" onChange={() => {}} />
-          <Select label="MFA Method" options={[{ value: 'sms', label: 'SMS OTP' }, { value: 'email', label: 'Email OTP' }, { value: 'app', label: 'Authenticator App' }]} value="" onChange={() => {}} />
-          <Input label="Recovery Email" type="email" placeholder="backup@email.com" />
-        </div>
-      </FormSection>
-      <FormSection title="Session & Security">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Input label="Session Timeout (mins)" type="number" placeholder="30" />
-          <Select label="IP Restriction" options={[{ value: 'no', label: 'No Restriction' }, { value: 'office', label: 'Office Only' }, { value: 'custom', label: 'Custom IPs' }]} value="" onChange={() => {}} />
-          <Input label="Allowed IPs" placeholder="192.168.1.*" />
-          <Select label="Device Limit" options={[{ value: '1', label: '1 Device' }, { value: '3', label: '3 Devices' }, { value: 'unlimited', label: 'Unlimited' }]} value="" onChange={() => {}} />
-        </div>
-      </FormSection>
-      <FormSection title="Notifications Preferences">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {['Email Notifications', 'SMS Alerts', 'Push Notifications', 'WhatsApp Updates', 'Leave Alerts', 'Salary Alerts', 'Announcement Alerts', 'Task Reminders'].map((pref) =>
-        <label key={pref} className="flex items-center gap-2 bg-gray-50 p-3 rounded-lg border cursor-pointer">
-              <input type="checkbox" defaultChecked className="w-4 h-4" />
-              <span className="text-sm">{pref}</span>
-            </label>
-        )}
-        </div>
-      </FormSection>
-      <FormSection title="API & Integration Access">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Input label="API Key" placeholder="Auto-generated" disabled />
-          <Select label="API Access" options={[{ value: 'none', label: 'No Access' }, { value: 'read', label: 'Read Only' }, { value: 'full', label: 'Full Access' }]} value="" onChange={() => {}} />
-          <div className="flex items-end"><Button variant="outline">Generate New Key</Button></div>
-        </div>
-      </FormSection>
-    </div>;
-
-
-  const SystemAccess = () =>
-  <div className="space-y-6">
-      <FormSection title="Role & Permissions">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Select label="Primary Role" options={roleOptions} value="" onChange={() => {}} />
-          <Select label="Secondary Role" options={[{ value: '', label: 'None' }, ...roleOptions]} value="" onChange={() => {}} />
-          <Input label="Custom Role" placeholder="If applicable" />
-        </div>
-      </FormSection>
-      <FormSection title="Module Access">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {['Dashboard', 'Students', 'Employees', 'Attendance', 'Fees', 'Payroll', 'Timetable', 'Examinations', 'Reports', 'Library', 'Transport', 'Inventory', 'Communication', 'Settings', 'HR Management', 'Accounts'].map((module) =>
-        <label key={module} className="flex items-center gap-2 bg-gray-50 p-3 rounded-lg border cursor-pointer hover:bg-gray-100">
-              <input type="checkbox" className="w-4 h-4" />
-              <span className="text-sm font-medium">{module}</span>
-            </label>
-        )}
-        </div>
-      </FormSection>
-      <FormSection title="Data Access Level">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Select label="Branch Access" options={[{ value: 'own', label: 'Own Branch Only' }, { value: 'selected', label: 'Selected Branches' }, { value: 'all', label: 'All Branches' }]} value="" onChange={() => {}} />
-          <Select label="Department Access" options={[{ value: 'own', label: 'Own Department' }, { value: 'selected', label: 'Selected Departments' }, { value: 'all', label: 'All Departments' }]} value="" onChange={() => {}} />
-          <Select label="Class Access" options={[{ value: 'assigned', label: 'Assigned Classes' }, { value: 'all', label: 'All Classes' }]} value="" onChange={() => {}} />
-        </div>
-      </FormSection>
-      <FormSection title="Action Permissions">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="text-left p-3">Module</th>
-                <th className="text-center p-3">View</th>
-                <th className="text-center p-3">Create</th>
-                <th className="text-center p-3">Edit</th>
-                <th className="text-center p-3">Delete</th>
-                <th className="text-center p-3">Export</th>
-                <th className="text-center p-3">Approve</th>
-              </tr>
-            </thead>
-            <tbody>
-              {['Students', 'Employees', 'Fees', 'Attendance', 'Reports'].map((module) =>
-            <tr key={module} className="border-b">
-                  <td className="p-3 font-medium">{module}</td>
-                  {[...Array(6)].map((_, i) =>
-              <td key={i} className="text-center p-3"><input type="checkbox" className="w-4 h-4" /></td>
-              )}
-                </tr>
-            )}
-            </tbody>
-          </table>
-        </div>
-      </FormSection>
-      <FormSection title="Time-based Access">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Select label="Access Type" options={[{ value: '24x7', label: '24x7 Access' }, { value: 'working', label: 'Working Hours Only' }, { value: 'custom', label: 'Custom Schedule' }]} value="" onChange={() => {}} />
-          <Input label="Access Start Time" type="time" />
-          <Input label="Access End Time" type="time" />
-          <Input label="Access Days" placeholder="Mon-Fri" />
-        </div>
-      </FormSection>
-    </div>;
-
-
   const renderTabContent = () => {
     const tabs: Record<string, JSX.Element> = {
       personal: <PersonalDetails />,
@@ -989,11 +735,7 @@ export function EmployeeProfile() {
       family: <FamilyNominee />,
       documents: <Documents />,
       health: <HealthRecords />,
-      operations: <Operations />,
-      performance: <Performance />,
-      engagement: <Engagement />,
-      account: <AccountDetails />,
-      system: <SystemAccess />
+      operations: <Operations />
     };
     return tabs[activeTab] || <div className="text-center py-12 text-gray-500">Content coming soon</div>;
   };

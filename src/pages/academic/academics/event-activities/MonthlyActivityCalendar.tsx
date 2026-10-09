@@ -449,7 +449,7 @@ export function MonthlyActivityCalendar() {
   const formatDateShort = (date: Date) => date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
 
   const getStatusBadge = (status: string) => {
-    const variants: Record<string, 'success' | 'warning' | 'error' | 'info' | 'outline'> = { Scheduled: 'info', Ongoing: 'warning', Completed: 'success', Cancelled: 'error', Postponed: 'outline' };
+    const variants: Record<string, 'success' | 'warning' | 'danger' | 'info' | 'outline'> = { Scheduled: 'info', Ongoing: 'warning', Completed: 'success', Cancelled: 'danger', Postponed: 'outline' };
     return variants[status] || 'outline';
   };
 

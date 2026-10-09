@@ -5,7 +5,7 @@ import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
 import { Modal } from '../../../components/ui/Modal';
 import { ACADEMIC_PLANNING_KEYS, DEFAULT_ATPS, DEFAULT_LESSON_PLANS, DEFAULT_WEEKLY_PLANS, SUBJECTS, createBlankLesson, downloadPlanningCsv, loadPlanningCollection, newPlanningId, savePlanningCollection, type LessonPlanRecord, type PeriodStatus, type WeeklyTeachingItem } from './academicPlanningData';
-import { EmptyState, PageHeader, PlanningPanel, SelectField, StatusPill, TextAreaField, TextField } from './academicPlanningUi';
+import { EmptyState, PageHeader, PlanningPanel, SelectField, StatusPill, TextAreaField, TextField } from './academicPlanningData';
 
 const dayList = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const teachersFor = (items: WeeklyTeachingItem[]) => [...new Set(items.map((item) => item.teacher))];

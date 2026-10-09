@@ -1,3 +1,5 @@
+import React, { type ReactNode } from 'react';
+
 export const ACADEMIC_PLANNING_KEYS = {
   chapters: 'k12-curriculum-master-v1',
   objectives: 'k12-learning-objectives-v1',
@@ -154,6 +156,7 @@ export interface ResourceRecord {
   libraryCatalogNo: string;
   copies: number;
   digitalFile: string;
+  worksheets?: string;
   url: string;
   accessType: string;
   offlineAvailable: boolean;
@@ -537,3 +540,195 @@ export const DEFAULT_LESSON_PLANS: LessonPlanRecord[] = [
   { ...lesson('LP-2025-12B-PHY-093', 'Mr. R. Kumar', 'Class 12', 'Physics', '2025-11-26', 'Electric Current — Basics', 'Approved', 'Electricity', 'Electric current'), section: 'B', periodNumber: 4, submitToHod: true, hodFeedback: 'Approved by HOD' },
   { ...lesson('LP-2025-10A-SCI-088', 'Mr. R. Kumar', 'Class 10', 'Science', '2025-11-25', '9.1: Reflection Laws', 'Approved', 'Light—Reflection and Refraction', 'Reflection of Light'), section: 'A', periodNumber: 3, submitToHod: true, hodFeedback: 'Approved by HOD' }
 ];
+
+// ==================== SHARED PLANNING UI HELPERS ====================
+// Used by the teaching-plan, curriculum, lesson-plan and learning-objective pages.
+// Written with React.createElement because this module is a .ts file.
+
+export const planningInputClass = 'w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent';
+export const planningLabelClass = 'block text-xs font-medium text-gray-600 mb-1';
+
+type PlanningPillTone = 'gray' | 'blue' | 'green' | 'amber' | 'red' | 'indigo';
+const PLANNING_STATUS_TONES: Record<string, PlanningPillTone> = {
+  Draft: 'gray',
+  Planned: 'gray',
+  Submitted: 'blue',
+  'HOD Approved': 'green',
+  'Principal Viewed': 'indigo',
+  Returned: 'red',
+  Approved: 'green',
+  Completed: 'green',
+  Skipped: 'amber',
+  Postponed: 'amber',
+  Missed: 'red',
+  Substituted: 'indigo',
+  Active: 'green',
+  Inactive: 'gray',
+  Pending: 'amber',
+  'In Progress': 'blue'
+};
+const PLANNING_TONE_CLASSES: Record<PlanningPillTone, string> = {
+  gray: 'bg-gray-100 text-gray-700',
+  blue: 'bg-blue-100 text-blue-700',
+  green: 'bg-green-100 text-green-700',
+  amber: 'bg-amber-100 text-amber-800',
+  red: 'bg-red-100 text-red-700',
+  indigo: 'bg-indigo-100 text-indigo-700'
+};
+
+export function PageHeader({ title, description, actions }: { title: string; description?: string; actions?: ReactNode }): React.ReactElement {
+  return React.createElement(
+    'div',
+    { className: 'flex flex-wrap items-start justify-between gap-4' },
+    React.createElement(
+      'div',
+      null,
+      React.createElement('h1', { className: 'text-xl font-bold text-gray-900' }, title),
+      description ? React.createElement('p', { className: 'mt-1 text-sm text-gray-500' }, description) : null
+    ),
+    actions ? React.createElement('div', { className: 'flex flex-wrap gap-2' }, actions) : null
+  );
+}
+
+export function StatusPill({ status }: { status: string }): React.ReactElement {
+  const tone = PLANNING_STATUS_TONES[status] ?? 'gray';
+  return React.createElement(
+    'span',
+    { className: `inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${PLANNING_TONE_CLASSES[tone]}` },
+    status
+  );
+}
+
+export function EmptyState({ children }: { children?: ReactNode }): React.ReactElement {
+  return React.createElement(
+    'div',
+    { className: 'rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 py-8 text-center text-sm text-gray-500' },
+    children
+  );
+}
+
+export function PlanningPanel({ title, description, children }: { title: string; description?: string; children?: ReactNode }): React.ReactElement {
+  return React.createElement(
+    'section',
+    { className: 'rounded-lg border border-gray-200 bg-white p-4' },
+    React.createElement('h3', { className: 'text-sm font-semibold text-gray-900' }, title),
+    description ? React.createElement('p', { className: 'mt-1 text-xs text-gray-500' }, description) : null,
+    React.createElement('div', { className: 'mt-3' }, children)
+  );
+}
+
+export function PlanningField({ label, children }: { label: string; children?: ReactNode }): React.ReactElement {
+  return React.createElement('div', null, React.createElement('span', { className: planningLabelClass }, label), children);
+}
+
+export function TextField({
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = 'text',
+  min,
+  max,
+  readOnly = false,
+  className = ''
+}: {
+  label: string;
+  value: string | number;
+  onChange?: (value: string) => void;
+  placeholder?: string;
+  type?: string;
+  min?: number | string;
+  max?: number | string;
+  readOnly?: boolean;
+  className?: string;
+}): React.ReactElement {
+  return React.createElement(
+    'label',
+    { className: `block ${className}` },
+    React.createElement('span', { className: planningLabelClass }, label),
+    React.createElement('input', {
+      className: readOnly ? `${planningInputClass} bg-gray-50` : planningInputClass,
+      type,
+      value,
+      placeholder,
+      min,
+      max,
+      readOnly: readOnly || !onChange,
+      onChange: (event: React.ChangeEvent<HTMLInputElement>) => onChange?.(event.target.value)
+    })
+  );
+}
+
+export function SelectField({
+  label,
+  value,
+  onChange,
+  options,
+  className = ''
+}: {
+  label: string;
+  value: string | number;
+  onChange: (value: string) => void;
+  options: ReadonlyArray<string | { value: string; label: string }>;
+  className?: string;
+}): React.ReactElement {
+  return React.createElement(
+    'label',
+    { className: `block ${className}` },
+    React.createElement('span', { className: planningLabelClass }, label),
+    React.createElement(
+      'select',
+      {
+        className: planningInputClass,
+        value,
+        onChange: (event: React.ChangeEvent<HTMLSelectElement>) => onChange(event.target.value)
+      },
+      options.map((option) => {
+        const optionValue = typeof option === 'string' ? option : option.value;
+        const optionLabel = typeof option === 'string' ? option : option.label;
+        return React.createElement('option', { key: optionValue, value: optionValue }, optionLabel);
+      })
+    )
+  );
+}
+
+export function TextAreaField({
+  label,
+  value,
+  onChange,
+  placeholder,
+  rows = 3
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  rows?: number;
+}): React.ReactElement {
+  return React.createElement(
+    'label',
+    { className: 'block' },
+    React.createElement('span', { className: planningLabelClass }, label),
+    React.createElement('textarea', {
+      className: `${planningInputClass} resize-y`,
+      rows,
+      value,
+      placeholder,
+      onChange: (event: React.ChangeEvent<HTMLTextAreaElement>) => onChange(event.target.value)
+    })
+  );
+}
+
+export function CheckField({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }): React.ReactElement {
+  return React.createElement(
+    'label',
+    { className: 'inline-flex items-center gap-2 text-sm text-gray-700 cursor-pointer' },
+    React.createElement('input', {
+      type: 'checkbox',
+      className: 'h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500',
+      checked,
+      onChange: (event: React.ChangeEvent<HTMLInputElement>) => onChange(event.target.checked)
+    }),
+    label
+  );
+}

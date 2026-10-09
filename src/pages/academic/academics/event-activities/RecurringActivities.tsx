@@ -214,7 +214,7 @@ const STATUS_CONFIG: Record<
   ActivityStatus,
   {
     label: string;
-    variant: 'success' | 'warning' | 'error' | 'default';
+    variant: 'success' | 'warning' | 'danger' | 'default';
   }> =
 {
   active: {
@@ -231,14 +231,14 @@ const STATUS_CONFIG: Record<
   },
   archived: {
     label: 'Archived',
-    variant: 'error'
+    variant: 'danger'
   }
 };
 const OCCURRENCE_STATUS: Record<
   OccurrenceStatus,
   {
     label: string;
-    variant: 'success' | 'warning' | 'error' | 'info' | 'default';
+    variant: 'success' | 'warning' | 'danger' | 'info' | 'default';
   }> =
 {
   scheduled: {
@@ -259,7 +259,7 @@ const OCCURRENCE_STATUS: Record<
   },
   cancelled: {
     label: 'Cancelled',
-    variant: 'error'
+    variant: 'danger'
   }
 };
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -1697,8 +1697,7 @@ export function RecurringActivities() {
                 p ?
                 {
                   ...p,
-                  recurrenceType: e.target.
-                  value as RecurrenceType
+                  recurrenceType: e.target.value as RecurrenceType
                 } :
                 null
                 ) :
@@ -1770,9 +1769,7 @@ export function RecurringActivities() {
                     <div className="grid grid-cols-2 gap-2">
                       <Select
                     label="Week"
-                    value={
-                    editingActivity?.monthWeek ?? activityForm.monthWeek
-                    }
+                    value={String(editingActivity?.monthWeek ?? activityForm.monthWeek ?? 0)}
                     onChange={(e) =>
                     editingActivity ?
                     setEditingActivity((p) =>
@@ -1790,21 +1787,18 @@ export function RecurringActivities() {
                     }
                     options={[
                     {
-                      value: 0,
+                      value: '0',
                       label: 'N/A'
                     },
                     ...WEEK_OPTIONS.map((w) => ({
-                      value: w.value,
+                      value: String(w.value),
                       label: w.label
                     }))]
                     } />
                   
                       <Select
                     label="Day"
-                    value={
-                    editingActivity?.monthWeekDay ??
-                    activityForm.monthWeekDay
-                    }
+                    value={String(editingActivity?.monthWeekDay ?? activityForm.monthWeekDay ?? 0)}
                     onChange={(e) =>
                     editingActivity ?
                     setEditingActivity((p) =>
@@ -1821,7 +1815,7 @@ export function RecurringActivities() {
                     }))
                     }
                     options={DAYS.map((d, i) => ({
-                      value: i,
+                      value: String(i),
                       label: d
                     }))} />
                   
@@ -1834,9 +1828,7 @@ export function RecurringActivities() {
               <div className="grid grid-cols-2 gap-4">
                     <Select
                   label="Month"
-                  value={
-                  editingActivity?.yearMonth ?? activityForm.yearMonth
-                  }
+                  value={String(editingActivity?.yearMonth ?? activityForm.yearMonth ?? 0)}
                   onChange={(e) =>
                   editingActivity ?
                   setEditingActivity((p) =>
@@ -1853,7 +1845,7 @@ export function RecurringActivities() {
                   }))
                   }
                   options={MONTHS.map((m, i) => ({
-                    value: i,
+                    value: String(i),
                     label: m
                   }))} />
                 
@@ -1944,8 +1936,7 @@ export function RecurringActivities() {
                 p ?
                 {
                   ...p,
-                  assignmentType: e.target.
-                  value as AssignmentType
+                  assignmentType: e.target.value as AssignmentType
                 } :
                 null
                 ) :

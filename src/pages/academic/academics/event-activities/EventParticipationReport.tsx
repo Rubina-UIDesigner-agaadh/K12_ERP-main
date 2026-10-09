@@ -156,9 +156,9 @@ const aggregateTeacherData = (): Teacher[] => {
 
 // ==================== UTILITIES ====================
 
-const getStatusVariant = (status: ParticipationStatus): 'success' | 'warning' | 'destructive' | 'default' => {
-  const map: Record<ParticipationStatus, 'success' | 'warning' | 'destructive' | 'default'> = {
-    Completed: 'success', Confirmed: 'default', Pending: 'warning', Cancelled: 'destructive', 'No Show': 'destructive'
+const getStatusVariant = (status: ParticipationStatus): 'success' | 'warning' | 'danger' | 'default' => {
+  const map: Record<ParticipationStatus, 'success' | 'warning' | 'danger' | 'default'> = {
+    Completed: 'success', Confirmed: 'default', Pending: 'warning', Cancelled: 'danger', 'No Show': 'danger'
   };
   return map[status];
 };
@@ -494,8 +494,8 @@ export function EventParticipationReport() {
 
       {/* View Toggle */}
       <div className="flex items-center gap-2">
-        <Button variant={viewMode === 'teachers' ? 'default' : 'outline'} size="sm" onClick={() => setViewMode('teachers')}><Users className="h-4 w-4 mr-2" />By Teachers</Button>
-        <Button variant={viewMode === 'events' ? 'default' : 'outline'} size="sm" onClick={() => setViewMode('events')}><Calendar className="h-4 w-4 mr-2" />By Events</Button>
+        <Button variant={viewMode === 'teachers' ? 'primary' : 'outline'} size="sm" onClick={() => setViewMode('teachers')}><Users className="h-4 w-4 mr-2" />By Teachers</Button>
+        <Button variant={viewMode === 'events' ? 'primary' : 'outline'} size="sm" onClick={() => setViewMode('events')}><Calendar className="h-4 w-4 mr-2" />By Events</Button>
       </div>
 
       {/* Search & Filters */}

@@ -793,13 +793,14 @@ export function SkillDevelopmentAssessment() {
       {/* Skill Category Overview Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {statsByCategory.map((sc) =>
-        <Card
+        <div
           key={sc.category}
-          className="!p-0 cursor-pointer"
+          className="cursor-pointer"
           onClick={() => {
             setFilterSkill(sc.category);
             setActiveTab('list');
           }}>
+          <Card className="!p-0">
 
             <div className="p-3 text-center">
               <div
@@ -821,6 +822,7 @@ export function SkillDevelopmentAssessment() {
               </div>
             </div>
           </Card>
+        </div>
         )}
       </div>
 

@@ -5,7 +5,7 @@ import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
 import { Modal } from '../../../components/ui/Modal';
 import { ACADEMIC_PLANNING_KEYS, DEFAULT_ATPS, DEFAULT_MONTHLY_PLANS, MONTHS, SUBJECTS, createBlankMonthlyPeriod, createBlankMonthlyPlan, downloadPlanningCsv, loadPlanningCollection, savePlanningCollection, type AnnualTeachingPlanRecord, type MonthlyPlanPeriod, type MonthlyTeachingPlanRecord } from './academicPlanningData';
-import { EmptyState, PageHeader, PlanningPanel, SelectField, StatusPill, TextAreaField, TextField } from './academicPlanningUi';
+import { EmptyState, PageHeader, PlanningPanel, SelectField, StatusPill, TextAreaField, TextField } from './academicPlanningData';
 
 const today = new Date();
 const monthName = MONTHS[(today.getMonth() + 9) % 12];

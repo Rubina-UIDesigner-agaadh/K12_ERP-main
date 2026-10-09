@@ -5,7 +5,7 @@ import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
 import { Modal } from '../../../components/ui/Modal';
 import { ACADEMIC_PLANNING_KEYS, BLOOM_LEVELS, CLASSES, DEFAULT_CURRICULUM_CHAPTERS, DEFAULT_LEARNING_OBJECTIVES, DEFAULT_LESSON_PLANS, DEFAULT_MONTHLY_PLANS, DEFAULT_RESOURCES, SUBJECTS, createBlankLesson, downloadPlanningCsv, loadPlanningCollection, newPlanningId, savePlanningCollection, type LessonPlanRecord, type LessonProcedurePhase, type LessonStatus, type LearningObjectiveRecord, type MonthlyTeachingPlanRecord, type ResourceRecord, type TopicLearningObjective } from './academicPlanningData';
-import { EmptyState, PageHeader, PlanningPanel, SelectField, StatusPill, TextAreaField, TextField } from './academicPlanningUi';
+import { EmptyState, PageHeader, PlanningPanel, SelectField, StatusPill, TextAreaField, TextField } from './academicPlanningData';
 
 const TEMPLATE_KEY = `${ACADEMIC_PLANNING_KEYS.lessons}-templates-v1`;
 const defaultDate = '2025-11-24';
@@ -32,7 +32,7 @@ export function LessonPlanCreation() {
   const persist = (next: LessonPlanRecord[]) => { setLessons(next); savePlanningCollection(ACADEMIC_PLANNING_KEYS.lessons, next); };
   const persistTemplates = (next: LessonPlanRecord[]) => { setTemplates(next); savePlanningCollection(TEMPLATE_KEY, next); };
   const update = <K extends keyof LessonPlanRecord,>(key: K, value: LessonPlanRecord[K]) => setForm((current) => current ? { ...current, [key]: value } : current);
-  const filtered = useMemo(() => lessons.filter((item) => (teacherFilter === 'All Teachers' || item.teacher === teacherFilter) && (classFilter === 'All Classes' || item.className === classFilter) && (subjectFilter === 'All Subjects' || item.subject === subjectFilter) && (statusFilter === 'All Statuses' || item.status === statusFilter) && (!dateFilter || item.date === dateFilter) && (!search || `${item.teacher} ${item.subject} ${item.className} ${item.title} ${item.chapter} ${item.topic}`.toLowerCase().includes(search.toLowerCase())), [lessons, teacherFilter, classFilter, subjectFilter, statusFilter, dateFilter, search]);
+  const filtered = useMemo(() => lessons.filter((item) => (teacherFilter === 'All Teachers' || item.teacher === teacherFilter) && (classFilter === 'All Classes' || item.className === classFilter) && (subjectFilter === 'All Subjects' || item.subject === subjectFilter) && (statusFilter === 'All Statuses' || item.status === statusFilter) && (!dateFilter || item.date === dateFilter) && (!search || `${item.teacher} ${item.subject} ${item.className} ${item.title} ${item.chapter} ${item.topic}`.toLowerCase().includes(search.toLowerCase()))), [lessons, teacherFilter, classFilter, subjectFilter, statusFilter, dateFilter, search]);
   const teachers = [...new Set(lessons.map((item) => item.teacher))];
   const classChapters = chapters.filter((chapter) => form && chapter.className === form.className && chapter.subject === form.subject);
   const selectedChapter = classChapters.find((chapter) => chapter.name === form?.chapter);

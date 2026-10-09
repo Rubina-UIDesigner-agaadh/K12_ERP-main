@@ -841,17 +841,17 @@ const specialActivitiesData: SpecialActivity[] = [
 // ==================== UTILITIES ====================
 const getStatusVariant = (
 status: DutyStatus | TeacherStatus)
-: 'success' | 'warning' | 'destructive' | 'default' => {
-  const map: Record<string, 'success' | 'warning' | 'destructive' | 'default'> =
+: 'success' | 'warning' | 'danger' | 'default' => {
+  const map: Record<string, 'success' | 'warning' | 'danger' | 'default'> =
   {
     Scheduled: 'default',
     'In Progress': 'warning',
     Completed: 'success',
-    Cancelled: 'destructive',
+    Cancelled: 'danger',
     'Pending Confirmation': 'warning',
     Available: 'success',
     'On Duty': 'warning',
-    'On Leave': 'destructive',
+    'On Leave': 'danger',
     'In Class': 'default',
     Busy: 'warning'
   };
@@ -859,20 +859,20 @@ status: DutyStatus | TeacherStatus)
 };
 const getPriorityVariant = (
 priority: DutyPriority)
-: 'destructive' | 'warning' | 'success' =>
+: 'danger' | 'warning' | 'success' =>
 ({
-  High: 'destructive',
+  High: 'danger',
   Medium: 'warning',
   Low: 'success'
-})[priority] as 'destructive' | 'warning' | 'success';
+})[priority] as 'danger' | 'warning' | 'success';
 const getSeverityVariant = (
 severity: 'High' | 'Medium' | 'Low')
-: 'destructive' | 'warning' | 'default' =>
+: 'danger' | 'warning' | 'default' =>
 ({
-  High: 'destructive',
+  High: 'danger',
   Medium: 'warning',
   Low: 'default'
-})[severity] as 'destructive' | 'warning' | 'default';
+})[severity] as 'danger' | 'warning' | 'default';
 const getDutyIcon = (type: DutyType) => {
   const icons: Record<DutyType, React.ElementType> = {
     Assembly: Megaphone,
@@ -2111,7 +2111,7 @@ export function PlannerDashboard() {
               <Button variant="outline" onClick={closeModal}>
                 Cancel
               </Button>
-              <Button variant="destructive" onClick={handleDeleteDuty}>
+              <Button variant="danger" onClick={handleDeleteDuty}>
                 <Trash2 className="h-4 w-4 mr-2" />
                 Delete
               </Button>

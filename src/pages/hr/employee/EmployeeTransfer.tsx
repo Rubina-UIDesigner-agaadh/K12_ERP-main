@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Toggle } from '../../../components/ui/Toggle';
 import {
   Search,
   ArrowRight,
@@ -39,7 +40,9 @@ import {
   RefreshCw,
   Filter,
   ChevronDown,
-  ChevronUp } from
+  ChevronUp,
+  DollarSign
+} from
 'lucide-react';
 
 // Types
@@ -350,6 +353,20 @@ const incomingTransferSteps: TransferStep[] = [
 { id: 5, title: 'Onboarding', description: 'Complete onboarding and orientation', status: 'pending' }];
 
 
+const TRANSFER_REASON_OPTIONS = [
+  { value: 'promotion', label: 'Promotion' },
+  { value: 'restructuring', label: 'Restructuring' },
+  { value: 'performance', label: 'Performance' },
+  { value: 'disciplinary', label: 'Disciplinary' },
+  { value: 'personal-request', label: 'Personal Request' },
+  { value: 'operational', label: 'Operational Requirement' },
+  { value: 'other', label: 'Other' }
+];
+
+const transferFieldClass = 'w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white';
+const transferLabelClass = 'block text-sm font-medium text-gray-700 mb-1';
+const transferSectionHeadingClass = 'flex items-center gap-2 text-base font-semibold text-gray-900 mb-4';
+
 export function EmployeeTransfer() {
   const [activeTab, setActiveTab] = useState<'outgoing' | 'incoming' | 'history'>('outgoing');
   const [searchQuery, setSearchQuery] = useState('');
@@ -367,7 +384,37 @@ export function EmployeeTransfer() {
   const [newManager, setNewManager] = useState('');
   const [effectiveDate, setEffectiveDate] = useState('');
   const [remarks, setRemarks] = useState('');
-  const [transferReason, setTransferReason] = useState('');
+  // Employee identification (pre-filled from the selected employee)
+  const [empFullName, setEmpFullName] = useState('');
+  const [empId, setEmpId] = useState('');
+  const [empJobTitle, setEmpJobTitle] = useState('');
+  const [empDepartment, setEmpDepartment] = useState('');
+  const [empEmail, setEmpEmail] = useState('');
+  const [empMobile, setEmpMobile] = useState('');
+  // Current branch details
+  const [currentBranch, setCurrentBranch] = useState('');
+  const [currentManager, setCurrentManager] = useState('');
+  const [shiftStart, setShiftStart] = useState('');
+  const [shiftEnd, setShiftEnd] = useState('');
+  const [officeRoomNo, setOfficeRoomNo] = useState('');
+  // Transfer details
+  const [reportingDateNewBranch, setReportingDateNewBranch] = useState('');
+  const [transferType, setTransferType] = useState('');
+  const [durationFrom, setDurationFrom] = useState('');
+  const [durationTo, setDurationTo] = useState('');
+  // Reason for transfer (one or more)
+  const [transferReasons, setTransferReasons] = useState<string[]>([]);
+  // Employment condition changes
+  const [salaryChange, setSalaryChange] = useState(false);
+  const [newSalary, setNewSalary] = useState('');
+  const [benefitsChange, setBenefitsChange] = useState(false);
+  const [roleChange, setRoleChange] = useState(false);
+  const [roleChangeDetails, setRoleChangeDetails] = useState('');
+  const [relocationAssistance, setRelocationAssistance] = useState(false);
+
+  const toggleTransferReason = (value: string) => {
+    setTransferReasons((prev) => prev.includes(value) ? prev.filter((reason) => reason !== value) : [...prev, value]);
+  };
 
   // Incoming transfer state
   const [incomingTransfers, setIncomingTransfers] = useState<TransferRequest[]>(mockIncomingTransfers);
@@ -412,8 +459,29 @@ export function EmployeeTransfer() {
     setNewManager('');
     setEffectiveDate('');
     setRemarks('');
-    setTransferReason('');
     setShowSuccess(false);
+    setEmpFullName(employee.name);
+    setEmpId(employee.id);
+    setEmpJobTitle(employee.designation);
+    setEmpDepartment(departments.find((dept) => dept.label === employee.department)?.value ?? '');
+    setEmpEmail(employee.email);
+    setEmpMobile(employee.phone);
+    setCurrentBranch(branches.find((branch) => branch.label === employee.branch)?.value ?? '');
+    setCurrentManager(employee.reportingManager);
+    setShiftStart('');
+    setShiftEnd('');
+    setOfficeRoomNo('');
+    setReportingDateNewBranch('');
+    setTransferType('');
+    setDurationFrom('');
+    setDurationTo('');
+    setTransferReasons([]);
+    setSalaryChange(false);
+    setNewSalary('');
+    setBenefitsChange(false);
+    setRoleChange(false);
+    setRoleChangeDetails('');
+    setRelocationAssistance(false);
   };
 
   const handleClearSelection = () => {
@@ -500,7 +568,7 @@ export function EmployeeTransfer() {
     return 'pending';
   };
 
-  const isFormValid = newBranch && effectiveDate && transferReason;
+  const isFormValid = Boolean(newBranch && effectiveDate && transferReasons.length > 0);
 
   return (
     <div className="space-y-6 p-6 bg-gray-50 min-h-screen">
@@ -728,187 +796,266 @@ export function EmployeeTransfer() {
                     </p>
                   </div>
 
-                  <div className="p-6 space-y-6">
-                    {/* Current vs New Assignment */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      {/* Current Assignment */}
-                      <div className="bg-gray-50 rounded-lg p-5 border border-gray-200">
-                        <div className="flex items-center gap-2 mb-4">
-                          <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
-                            <Building2 className="w-4 h-4 text-gray-600" />
-                          </div>
-                          <h4 className="font-semibold text-gray-700">Current Assignment</h4>
+                                    <div className="p-6 space-y-8">
+                    {/* Employee Identification (pre-filled from the selected employee) */}
+                    <section>
+                      <h4 className={transferSectionHeadingClass}>
+                        <User className="w-4 h-4 text-indigo-600" />
+                        Employee Identification
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className={transferLabelClass}>Employee Full Name</label>
+                          <input type="text" value={empFullName} onChange={(e) => setEmpFullName(e.target.value)} className={transferFieldClass} />
                         </div>
-                        <div className="space-y-3">
-                          <div className="flex items-center gap-2 p-3 bg-white rounded-md border border-gray-200">
-                            <MapPin className="w-4 h-4 text-gray-400" />
-                            <div>
-                              <p className="text-xs text-gray-500">Branch</p>
-                              <p className="text-sm text-gray-900">{selectedEmployee.branch}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2 p-3 bg-white rounded-md border border-gray-200">
-                            <Building2 className="w-4 h-4 text-gray-400" />
-                            <div>
-                              <p className="text-xs text-gray-500">Department</p>
-                              <p className="text-sm text-gray-900">{selectedEmployee.department}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2 p-3 bg-white rounded-md border border-gray-200">
-                            <Briefcase className="w-4 h-4 text-gray-400" />
-                            <div>
-                              <p className="text-xs text-gray-500">Designation</p>
-                              <p className="text-sm text-gray-900">{selectedEmployee.designation}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2 p-3 bg-white rounded-md border border-gray-200">
-                            <Users className="w-4 h-4 text-gray-400" />
-                            <div>
-                              <p className="text-xs text-gray-500">Reporting Manager</p>
-                              <p className="text-sm text-gray-900">{selectedEmployee.reportingManager}</p>
-                            </div>
-                          </div>
+                        <div>
+                          <label className={transferLabelClass}>Employee ID</label>
+                          <input type="text" value={empId} onChange={(e) => setEmpId(e.target.value)} className={transferFieldClass} />
+                        </div>
+                        <div>
+                          <label className={transferLabelClass}>Designation / Job Title</label>
+                          <input type="text" value={empJobTitle} onChange={(e) => setEmpJobTitle(e.target.value)} className={transferFieldClass} />
+                        </div>
+                        <div>
+                          <label className={transferLabelClass}>Department</label>
+                          <select value={empDepartment} onChange={(e) => setEmpDepartment(e.target.value)} className={transferFieldClass}>
+                            <option value="">Select Department...</option>
+                            {departments.map((dept) =>
+                            <option key={dept.value} value={dept.value}>{dept.label}</option>
+                            )}
+                          </select>
+                        </div>
+                        <div>
+                          <label className={transferLabelClass}>Email Address</label>
+                          <input type="email" value={empEmail} onChange={(e) => setEmpEmail(e.target.value)} className={transferFieldClass} />
+                        </div>
+                        <div>
+                          <label className={transferLabelClass}>Mobile Number</label>
+                          <input type="tel" value={empMobile} onChange={(e) => setEmpMobile(e.target.value)} className={transferFieldClass} />
                         </div>
                       </div>
+                    </section>
 
-                      {/* New Assignment */}
-                      <div className="bg-indigo-50 rounded-lg p-5 border border-indigo-200">
-                        <div className="flex items-center gap-2 mb-4">
-                          <div className="w-8 h-8 rounded-full bg-indigo-200 flex items-center justify-center">
-                            <ArrowRight className="w-4 h-4 text-indigo-600" />
-                          </div>
-                          <h4 className="font-semibold text-indigo-700">New Assignment</h4>
+                    {/* Current Branch Details */}
+                    <section className="pt-6 border-t border-gray-200">
+                      <h4 className={transferSectionHeadingClass}>
+                        <MapPin className="w-4 h-4 text-indigo-600" />
+                        Current Branch Details
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className={transferLabelClass}>Current Branch / Location</label>
+                          <select value={currentBranch} onChange={(e) => setCurrentBranch(e.target.value)} className={transferFieldClass}>
+                            <option value="">Select Branch...</option>
+                            {branches.map((branch) =>
+                            <option key={branch.value} value={branch.value}>{branch.label}</option>
+                            )}
+                          </select>
                         </div>
-                        <div className="space-y-3">
-                          <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">
-                              New Branch <span className="text-red-500">*</span>
-                            </label>
-                            <select
-                          value={newBranch}
-                          onChange={(e) => setNewBranch(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white text-sm">
-
-                              <option value="">Select Branch...</option>
-                              {branches.
-                          filter((b) => b.label !== selectedEmployee.branch).
-                          map((branch) =>
-                          <option key={branch.value} value={branch.value}>
-                                    {branch.label}
-                                  </option>
-                          )}
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">
-                              New Department
-                            </label>
-                            <select
-                          value={newDepartment}
-                          onChange={(e) => setNewDepartment(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white text-sm">
-
-                              <option value="">Same as current</option>
-                              {departments.map((dept) =>
-                          <option key={dept.value} value={dept.value}>
-                                  {dept.label}
-                                </option>
-                          )}
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">
-                              New Designation
-                            </label>
-                            <select
-                          value={newDesignation}
-                          onChange={(e) => setNewDesignation(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white text-sm">
-
-                              <option value="">Same as current</option>
-                              {designations.map((desig) =>
-                          <option key={desig.value} value={desig.value}>
-                                  {desig.label}
-                                </option>
-                          )}
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">
-                              New Reporting Manager
-                            </label>
-                            <select
-                          value={newManager}
-                          onChange={(e) => setNewManager(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white text-sm">
-
-                              <option value="">Select Manager...</option>
-                              {managers.map((mgr) =>
-                          <option key={mgr.value} value={mgr.value}>
-                                  {mgr.label}
-                                </option>
-                          )}
-                            </select>
+                        <div>
+                          <label className={transferLabelClass}>Current Reporting Manager</label>
+                          <input type="text" value={currentManager} onChange={(e) => setCurrentManager(e.target.value)} className={transferFieldClass} />
+                        </div>
+                        <div className="md:col-span-2">
+                          <p className={transferLabelClass}>
+                            <Clock className="w-4 h-4 inline mr-1" />
+                            Current Work Schedule (Start & End Shift)
+                          </p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">Shift Start</label>
+                              <input type="time" value={shiftStart} onChange={(e) => setShiftStart(e.target.value)} className={transferFieldClass} />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">Shift End</label>
+                              <input type="time" value={shiftEnd} onChange={(e) => setShiftEnd(e.target.value)} className={transferFieldClass} />
+                            </div>
                           </div>
                         </div>
+                        <div>
+                          <label className={transferLabelClass}>Office / Floor / Room No.</label>
+                          <input type="text" value={officeRoomNo} onChange={(e) => setOfficeRoomNo(e.target.value)} className={transferFieldClass} />
+                        </div>
                       </div>
-                    </div>
+                    </section>
 
-                    {/* Additional Details */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-4 border-t border-gray-200">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          <span className="flex items-center gap-2">
-                            <Calendar className="w-4 h-4" />
-                            Effective Transfer Date <span className="text-red-500">*</span>
-                          </span>
-                        </label>
-                        <input
-                      type="date"
-                      value={effectiveDate}
-                      onChange={(e) => setEffectiveDate(e.target.value)}
-                      min={new Date().toISOString().split('T')[0]}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+                    {/* Transfer Details */}
+                    <section className="pt-6 border-t border-gray-200">
+                      <h4 className={transferSectionHeadingClass}>
+                        <ArrowRight className="w-4 h-4 text-indigo-600" />
+                        Transfer Details
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className={transferLabelClass}>
+                            New Branch / Location <span className="text-red-500">*</span>
+                          </label>
+                          <select value={newBranch} onChange={(e) => setNewBranch(e.target.value)} className={transferFieldClass}>
+                            <option value="">Select Branch...</option>
+                            {branches.
+                            filter((b) => b.label !== selectedEmployee.branch).
+                            map((branch) =>
+                            <option key={branch.value} value={branch.value}>{branch.label}</option>
+                            )}
+                          </select>
+                        </div>
+                        <div>
+                          <label className={transferLabelClass}>New Department</label>
+                          <select value={newDepartment} onChange={(e) => setNewDepartment(e.target.value)} className={transferFieldClass}>
+                            <option value="">Same as current</option>
+                            {departments.map((dept) =>
+                            <option key={dept.value} value={dept.value}>{dept.label}</option>
+                            )}
+                          </select>
+                        </div>
+                        <div>
+                          <label className={transferLabelClass}>New Job Title / Position</label>
+                          <select value={newDesignation} onChange={(e) => setNewDesignation(e.target.value)} className={transferFieldClass}>
+                            <option value="">Same as current</option>
+                            {designations.map((desig) =>
+                            <option key={desig.value} value={desig.value}>{desig.label}</option>
+                            )}
+                          </select>
+                        </div>
+                        <div>
+                          <label className={transferLabelClass}>
+                            <span className="inline-flex items-center gap-2">
+                              <Calendar className="w-4 h-4" />
+                              Transfer Effective Date <span className="text-red-500">*</span>
+                            </span>
+                          </label>
+                          <input
+                            type="date"
+                            value={effectiveDate}
+                            onChange={(e) => setEffectiveDate(e.target.value)}
+                            min={new Date().toISOString().split('T')[0]}
+                            className={transferFieldClass} />
+
+                        </div>
+                        <div>
+                          <label className={transferLabelClass}>Reporting Date at New Branch</label>
+                          <input type="date" value={reportingDateNewBranch} onChange={(e) => setReportingDateNewBranch(e.target.value)} className={transferFieldClass} />
+                        </div>
+                        <div>
+                          <label className={transferLabelClass}>New Reporting Manager</label>
+                          <select value={newManager} onChange={(e) => setNewManager(e.target.value)} className={transferFieldClass}>
+                            <option value="">Select Manager...</option>
+                            {managers.map((mgr) =>
+                            <option key={mgr.value} value={mgr.value}>{mgr.label}</option>
+                            )}
+                          </select>
+                        </div>
+                        <div className="md:col-span-2">
+                          <p className={transferLabelClass}>Transfer Type</p>
+                          <div className="flex flex-wrap gap-6">
+                            {['Permanent', 'Temporary', 'Provisional'].map((type) =>
+                            <label key={type} className="inline-flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                                <input
+                                  type="radio"
+                                  name="transferType"
+                                  value={type}
+                                  checked={transferType === type}
+                                  onChange={() => setTransferType(type)}
+                                  className="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500" />
+
+                                {type}
+                              </label>
+                            )}
+                          </div>
+                        </div>
+                        {transferType === 'Temporary' &&
+                        <div className="md:col-span-2 p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
+                            <p className={transferLabelClass}>Transfer Duration (if Temporary)</p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-xs font-medium text-gray-600 mb-1">From</label>
+                                <input type="date" value={durationFrom} onChange={(e) => setDurationFrom(e.target.value)} className={transferFieldClass} />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-gray-600 mb-1">To</label>
+                                <input type="date" value={durationTo} min={durationFrom || undefined} onChange={(e) => setDurationTo(e.target.value)} className={transferFieldClass} />
+                              </div>
+                            </div>
+                          </div>
+                        }
+                      </div>
+                    </section>
+
+                    {/* Reason for Transfer */}
+                    <section className="pt-6 border-t border-gray-200">
+                      <h4 className={transferSectionHeadingClass}>
+                        <FileText className="w-4 h-4 text-indigo-600" />
+                        Reason for Transfer
+                      </h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {TRANSFER_REASON_OPTIONS.map((reason) =>
+                        <label key={reason.value} className="inline-flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={transferReasons.includes(reason.value)}
+                              onChange={() => toggleTransferReason(reason.value)}
+                              className="h-4 w-4 rounded text-indigo-600 border-gray-300 focus:ring-indigo-500" />
+
+                            {reason.label}
+                          </label>
+                        )}
+                      </div>
+                      <div className="mt-4">
+                        <label className={transferLabelClass}>Additional Notes / Comments</label>
+                        <textarea
+                          value={remarks}
+                          onChange={(e) => setRemarks(e.target.value)}
+                          placeholder="Enter any additional notes or instructions..."
+                          rows={3}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none" />
 
                       </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          <span className="flex items-center gap-2">
-                            <FileText className="w-4 h-4" />
-                            Transfer Reason <span className="text-red-500">*</span>
-                          </span>
-                        </label>
-                        <select
-                      value={transferReason}
-                      onChange={(e) => setTransferReason(e.target.value)}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                    </section>
 
-                          <option value="">Select Reason...</option>
-                          <option value="promotion">Promotion</option>
-                          <option value="request">Employee Request</option>
-                          <option value="operational">Operational Requirement</option>
-                          <option value="restructuring">Organization Restructuring</option>
-                          <option value="performance">Performance Based</option>
-                          <option value="other">Other</option>
-                        </select>
+                    {/* Employment Condition Changes */}
+                    <section className="pt-6 border-t border-gray-200">
+                      <h4 className={transferSectionHeadingClass}>
+                        <DollarSign className="w-4 h-4 text-indigo-600" />
+                        Employment Condition Changes
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="p-4 border border-gray-200 rounded-lg space-y-3">
+                          <div className="flex items-center justify-between gap-4">
+                            <span className="text-sm font-medium text-gray-700">Salary Change?</span>
+                            <Toggle checked={salaryChange} onChange={(checked) => setSalaryChange(checked)} label={salaryChange ? 'Yes' : 'No'} />
+                          </div>
+                          {salaryChange &&
+                          <div>
+                              <label className={transferLabelClass}>New Salary (₹ per month)</label>
+                              <input type="number" min={0} value={newSalary} onChange={(e) => setNewSalary(e.target.value)} className={transferFieldClass} />
+                            </div>
+                          }
+                        </div>
+                        <div className="p-4 border border-gray-200 rounded-lg flex items-center justify-between gap-4">
+                          <span className="text-sm font-medium text-gray-700">Benefits Change?</span>
+                          <Toggle checked={benefitsChange} onChange={(checked) => setBenefitsChange(checked)} label={benefitsChange ? 'Yes' : 'No'} />
+                        </div>
+                        <div className="p-4 border border-gray-200 rounded-lg space-y-3 md:col-span-2">
+                          <div className="flex items-center justify-between gap-4">
+                            <span className="text-sm font-medium text-gray-700">Role / Responsibilities Change?</span>
+                            <Toggle checked={roleChange} onChange={(checked) => setRoleChange(checked)} label={roleChange ? 'Yes' : 'No'} />
+                          </div>
+                          {roleChange &&
+                          <textarea
+                            value={roleChangeDetails}
+                            onChange={(e) => setRoleChangeDetails(e.target.value)}
+                            placeholder="Describe the change in role or responsibilities..."
+                            rows={3}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none" />
+
+                          }
+                        </div>
+                        <div className="p-4 border border-gray-200 rounded-lg flex items-center justify-between gap-4 md:col-span-2">
+                          <span className="text-sm font-medium text-gray-700">Relocation Assistance Provided?</span>
+                          <Toggle checked={relocationAssistance} onChange={(checked) => setRelocationAssistance(checked)} label={relocationAssistance ? 'Yes' : 'No'} />
+                        </div>
                       </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        <span className="flex items-center gap-2">
-                          <MessageSquare className="w-4 h-4" />
-                          Additional Remarks
-                        </span>
-                      </label>
-                      <textarea
-                    value={remarks}
-                    onChange={(e) => setRemarks(e.target.value)}
-                    placeholder="Enter any additional notes or instructions..."
-                    rows={3}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none" />
-
-                    </div>
+                    </section>
 
                     {/* Validation Warning */}
                     {!isFormValid &&
@@ -921,7 +1068,8 @@ export function EmployeeTransfer() {
                 }
                   </div>
 
-                  {/* Transfer Process Steps Preview */}
+                  
+{/* Transfer Process Steps Preview */}
                   <div className="px-6 pb-6">
                     <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                       <h4 className="font-semibold text-gray-700 mb-4 flex items-center gap-2">

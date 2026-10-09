@@ -5,7 +5,7 @@ import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
 import { Modal } from '../../../components/ui/Modal';
 import { ACADEMIC_PLANNING_KEYS, ACADEMIC_YEARS, BLOOM_LEVELS, CLASSES, DEFAULT_CURRICULUM_CHAPTERS, DEFAULT_LESSON_PLANS, DEFAULT_LEARNING_OBJECTIVES, DEFAULT_MONTHLY_PLANS, MONTHS, QUESTION_TYPES, SUBJECTS, TEACHING_METHODS, TERMS, createBlankChapter, createBlankTopic, downloadPlanningCsv, loadPlanningCollection, newPlanningId, savePlanningCollection, type CurriculumChapter, type CurriculumSubTopic, type CurriculumTopic, type TopicLearningObjective } from './academicPlanningData';
-import { CheckField, EmptyState, PageHeader, PlanningField, PlanningPanel, planningInputClass, planningLabelClass, SelectField, StatusPill, TextAreaField, TextField } from './academicPlanningUi';
+import { CheckField, EmptyState, PageHeader, PlanningField, PlanningPanel, planningInputClass, planningLabelClass, SelectField, StatusPill, TextAreaField, TextField } from './academicPlanningData';
 
 const codeForChapter = (chapter: CurriculumChapter) => `CH-${chapter.className.replace(/\D/g, '') || '00'}-${chapter.subject.slice(0, 3).toUpperCase()}-${String(chapter.chapterNumber).padStart(2, '0')}`;
 const codeForTopic = (topic: CurriculumTopic) => `TP-${topic.number.trim().replace(/[^0-9.]+/g, '').replace(/\./g, '-') || 'NEW'}`;

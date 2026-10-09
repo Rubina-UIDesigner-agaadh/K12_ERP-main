@@ -472,6 +472,11 @@ const parseTime = (timeString: string): number | null => {
   return hours * 60 + minutes;
 };
 
+const getCurrentTimeStamp = (): string => {
+  const now = new Date();
+  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+};
+
 const formatMinutesToTime = (minutes: number): string => {
   const hours = Math.floor(minutes / 60);
   const mins = minutes % 60;
@@ -1223,11 +1228,15 @@ export function ManualAttendanceMarking() {
                       {/* Login Time */}
                       <td className="py-3 px-4 text-center">
                         {employee.isEditing && !isNonWorking ?
-                        <input
-                          type="time"
-                          value={employee.loginTime}
-                          onChange={(e) => handleUpdateField(employee.id, 'loginTime', e.target.value)}
-                          className="w-24 px-2 py-1.5 text-sm border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-center" /> :
+                        <div className="flex flex-col items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateField(employee.id, 'loginTime', getCurrentTimeStamp())}
+                            className="px-3 py-1.5 text-xs font-medium text-blue-700 bg-white border border-blue-300 rounded-lg hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors whitespace-nowrap">
+                            Login
+                          </button>
+                          {employee.loginTime && <span className="text-xs font-medium text-gray-600">{employee.loginTime}</span>}
+                        </div> :
 
                         employee.loginTime ?
                         <div>
@@ -1250,11 +1259,15 @@ export function ManualAttendanceMarking() {
                       {/* Logout Time */}
                       <td className="py-3 px-4 text-center">
                         {employee.isEditing && !isNonWorking ?
-                        <input
-                          type="time"
-                          value={employee.logoutTime}
-                          onChange={(e) => handleUpdateField(employee.id, 'logoutTime', e.target.value)}
-                          className="w-24 px-2 py-1.5 text-sm border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-center" /> :
+                        <div className="flex flex-col items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateField(employee.id, 'logoutTime', getCurrentTimeStamp())}
+                            className="px-3 py-1.5 text-xs font-medium text-blue-700 bg-white border border-blue-300 rounded-lg hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors whitespace-nowrap">
+                            Logout
+                          </button>
+                          {employee.logoutTime && <span className="text-xs font-medium text-gray-600">{employee.logoutTime}</span>}
+                        </div> :
 
                         employee.logoutTime ?
                         <span
@@ -1272,11 +1285,15 @@ export function ManualAttendanceMarking() {
                       {/* Break Start Time */}
                       <td className="py-3 px-4 text-center">
                         {employee.isEditing && !isNonWorking ?
-                        <input
-                          type="time"
-                          value={employee.breakStartTime}
-                          onChange={(e) => handleUpdateField(employee.id, 'breakStartTime', e.target.value)}
-                          className="w-24 px-2 py-1.5 text-sm border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-center" /> :
+                        <div className="flex flex-col items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateField(employee.id, 'breakStartTime', getCurrentTimeStamp())}
+                            className="px-3 py-1.5 text-xs font-medium text-blue-700 bg-white border border-blue-300 rounded-lg hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors whitespace-nowrap">
+                            Break In
+                          </button>
+                          {employee.breakStartTime && <span className="text-xs font-medium text-gray-600">{employee.breakStartTime}</span>}
+                        </div> :
 
                         employee.breakStartTime ?
                         <span className="text-sm font-medium text-gray-700">{employee.breakStartTime}</span> :
@@ -1288,11 +1305,15 @@ export function ManualAttendanceMarking() {
                       {/* Break End Time */}
                       <td className="py-3 px-4 text-center">
                         {employee.isEditing && !isNonWorking ?
-                        <input
-                          type="time"
-                          value={employee.breakEndTime}
-                          onChange={(e) => handleUpdateField(employee.id, 'breakEndTime', e.target.value)}
-                          className="w-24 px-2 py-1.5 text-sm border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-center" /> :
+                        <div className="flex flex-col items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateField(employee.id, 'breakEndTime', getCurrentTimeStamp())}
+                            className="px-3 py-1.5 text-xs font-medium text-blue-700 bg-white border border-blue-300 rounded-lg hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors whitespace-nowrap">
+                            Break Out
+                          </button>
+                          {employee.breakEndTime && <span className="text-xs font-medium text-gray-600">{employee.breakEndTime}</span>}
+                        </div> :
 
                         employee.breakEndTime ?
                         <span className="text-sm font-medium text-gray-700">{employee.breakEndTime}</span> :

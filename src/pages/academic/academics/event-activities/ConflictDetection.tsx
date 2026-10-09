@@ -65,14 +65,14 @@ const CONFLICT_TYPES: {value: ConflictType;label: string;icon: React.ElementType
 { value: 'consecutive_period_violation', label: 'Consecutive Period Limit', icon: AlertCircle, description: 'Teacher has too many consecutive periods' }];
 
 
-const SEVERITY_CONFIG: Record<ConflictSeverity, {label: string;variant: 'destructive' | 'warning' | 'default';bgColor: string;}> = {
-  critical: { label: 'Critical', variant: 'destructive', bgColor: 'bg-red-50 border-red-200' },
+const SEVERITY_CONFIG: Record<ConflictSeverity, {label: string;variant: 'danger' | 'warning' | 'default';bgColor: string;}> = {
+  critical: { label: 'Critical', variant: 'danger', bgColor: 'bg-red-50 border-red-200' },
   warning: { label: 'Warning', variant: 'warning', bgColor: 'bg-yellow-50 border-yellow-200' },
   info: { label: 'Info', variant: 'default', bgColor: 'bg-blue-50 border-blue-200' }
 };
 
-const STATUS_CONFIG: Record<ConflictStatus, {label: string;variant: 'destructive' | 'warning' | 'success' | 'default';}> = {
-  unresolved: { label: 'Unresolved', variant: 'destructive' },
+const STATUS_CONFIG: Record<ConflictStatus, {label: string;variant: 'danger' | 'warning' | 'success' | 'default';}> = {
+  unresolved: { label: 'Unresolved', variant: 'danger' },
   acknowledged: { label: 'Acknowledged', variant: 'warning' },
   resolved: { label: 'Resolved', variant: 'success' },
   ignored: { label: 'Ignored', variant: 'default' }

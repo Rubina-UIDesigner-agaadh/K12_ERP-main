@@ -264,7 +264,7 @@ const expensesSidebar: SidebarSection[] = [
 const employeeSidebar: SidebarSection[] = [
   { title: 'List Screens', items: [{ label: 'Employee Summary Dashboard', id: 'employee-summary-dashboard' }, { label: 'Employee Directory & Profile', id: 'employee-list-directory' }, { label: 'Probation & Confirmation', id: 'probation-confirmation-list' }, { label: 'Employee Exit & Separation', id: 'exit-relieved-employees' }] },
   { title: 'Transactions', items: [{ label: 'Add / Edit Employee Profile', id: 'add-edit-employee-profile' }, { label: 'Employee Letters & Document Generation', id: 'employee-service-register' }, { label: 'Employee Transfer', id: 'employee-transfer' }, { label: 'Shift View and Switch', id: 'shift-view-and-switch' }, { label: 'Document Upload & Verification', id: 'document-upload-verification' }, { label: 'Employee ID Card', id: 'employee-id-card' }, { label: 'Staff Achievement', id: 'staff-achievement' }, { label: 'Teacher Class / Subject Allocation', id: 'teacher-class-subject-allocation' }] },
-  { title: 'Report Criteria', items: [{ label: 'Employee Report (Advanced Search)', id: 'employee-report-advanced' }, { label: 'Staff Strength & Demographic Report', id: 'staff-strength-demographic-report' }, { label: 'Teaching Allocation Summary', id: 'teaching-allocation-summary' }] }
+  { title: 'Report Criteria', items: [{ label: 'Employee Reports', id: 'employee-reports' }] }
 ];
 
 const hrAttendanceSidebar: SidebarSection[] = [

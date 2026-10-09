@@ -406,9 +406,10 @@ export function CurriculumProgressTracker() {
     <div className="flex items-center gap-2">
           <span className="font-medium text-gray-900">{row.topic}</span>
           {row.isDelayed &&
-      <AlertTriangleIcon
-        className="w-3.5 h-3.5 text-red-500"
-        title="Delayed" />
+      <span title="Delayed" className="inline-flex">
+        <AlertTriangleIcon
+          className="w-3.5 h-3.5 text-red-500" />
+      </span>
 
       }
         </div>
@@ -940,9 +941,10 @@ export function CurriculumProgressTracker() {
                       {row.coverage}%
                     </span>
                     {row.delayed > 3 &&
-                  <FlagIcon
-                    className="w-4 h-4 text-red-500"
-                    title="High delay count" />
+                  <span title="High delay count" className="inline-flex">
+                    <FlagIcon
+                      className="w-4 h-4 text-red-500" />
+                  </span>
 
                   }
                   </div>
