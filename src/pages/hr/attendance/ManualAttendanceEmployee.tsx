@@ -1,10 +1,10 @@
 // File: ManualAttendanceMarking.tsx
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Modal } from '../../../components/ui/Modal';
 import {
-  AlertCircle, AlertTriangle, Calendar, CheckCircle, ChevronLeft, ChevronRight, Clock, Coffee,
-  Download, Edit3, FileSpreadsheet, Home, Lock, MessageSquare, Paperclip, Printer, Radio, RefreshCw,
+  AlertCircle, AlertTriangle, ArrowUpDown, Calendar, CheckCircle, ChevronLeft, ChevronRight, Clock, Coffee, RefreshCw,
+  Download, Edit3, FileSpreadsheet, Home, Lock, Printer, Radio,
   Save, Search, Send, UserCheck, Wifi, X, XCircle
 } from 'lucide-react';
 
@@ -43,16 +43,16 @@ interface Employee {
 type ChoiceValue = AttendanceStatus | 'late';
 type DisplayStatus = AttendanceStatus | 'late' | 'not_marked';
 type StaffType = 'Full-time' | 'Part-time' | 'Contract';
-type ModeId = 'auto' | 'manual' | 'hybrid';
 
+// Colours follow the status legend in the spec
 const DISPLAY_META: Record<DisplayStatus, { label: string; badge: string; dot: string; icon: React.ReactNode }> = {
   present: { label: 'Present', badge: 'bg-green-100 text-green-700', dot: 'bg-green-500', icon: <CheckCircle className="w-3.5 h-3.5" /> },
   late: { label: 'Late', badge: 'bg-yellow-100 text-yellow-800', dot: 'bg-yellow-400', icon: <AlertTriangle className="w-3.5 h-3.5" /> },
   absent: { label: 'Absent', badge: 'bg-red-100 text-red-700', dot: 'bg-red-500', icon: <XCircle className="w-3.5 h-3.5" /> },
   half_day: { label: 'Half Day', badge: 'bg-orange-100 text-orange-700', dot: 'bg-orange-500', icon: <Clock className="w-3.5 h-3.5" /> },
   leave: { label: 'On Leave', badge: 'bg-blue-100 text-blue-700', dot: 'bg-blue-500', icon: <Coffee className="w-3.5 h-3.5" /> },
-  on_duty: { label: 'On Duty', badge: 'bg-indigo-100 text-indigo-700', dot: 'bg-indigo-500', icon: <UserCheck className="w-3.5 h-3.5" /> },
-  wfh: { label: 'WFH', badge: 'bg-purple-100 text-purple-700', dot: 'bg-purple-500', icon: <Home className="w-3.5 h-3.5" /> },
+  on_duty: { label: 'On Duty', badge: 'bg-purple-100 text-purple-700', dot: 'bg-purple-500', icon: <UserCheck className="w-3.5 h-3.5" /> },
+  wfh: { label: 'WFH', badge: 'bg-teal-100 text-teal-700', dot: 'bg-teal-500', icon: <Home className="w-3.5 h-3.5" /> },
   week_off: { label: 'Week Off', badge: 'bg-gray-100 text-gray-700', dot: 'bg-gray-400', icon: <Calendar className="w-3.5 h-3.5" /> },
   not_marked: { label: 'Not Marked', badge: 'bg-slate-100 text-slate-600', dot: 'bg-slate-300', icon: <AlertCircle className="w-3.5 h-3.5" /> }
 };
@@ -442,10 +442,16 @@ breakEnd: string)
 
 // ==================== PAGE HELPERS ====================
 
-const PAGE_SIZE = 8;
+const ROSTER_SIZE = 85;
+const PENDING_TARGET = 24;
+const PAGE_SIZE = 6;
 const DEADLINE_MINUTES = 11 * 60;
+const SHIFT_START_MINUTES = 9 * 60;
 const DEVICE_METHODS = ['Fingerprint', 'Face Scan', 'RFID Card'];
-const DEVICE_GATES = ['Main Gate', 'Gate 2', 'Staff Entry'];
+const DEVICE_GATES = ['Gate 1', 'Gate 2', 'Staff Room'];
+const YESTERDAY_TOTAL = 85;
+// Yesterday's counts (mock) used for the "vs yesterday" trend arrows
+const YESTERDAY_COUNTS: Partial<Record<DisplayStatus, number>> = { present: 41, late: 2, absent: 9, half_day: 3, leave: 5, on_duty: 1 };
 const TIMED_CHOICES: ChoiceValue[] = ['present', 'late', 'half_day', 'on_duty', 'wfh'];
 const CHOICE_LABEL: Record<ChoiceValue, string> = {
   present: 'Present',
@@ -457,7 +463,7 @@ const CHOICE_LABEL: Record<ChoiceValue, string> = {
   wfh: 'WFH',
   week_off: 'Week Off'
 };
-const EDIT_CHOICES: ChoiceValue[] = ['present', 'late', 'absent', 'half_day', 'leave', 'on_duty', 'wfh', 'week_off'];
+const EDIT_CHOICES: ChoiceValue[] = ['present', 'absent', 'late', 'half_day', 'leave', 'on_duty', 'wfh', 'week_off'];
 const BULK_CHOICES: ChoiceValue[] = ['present', 'absent', 'late', 'half_day', 'leave', 'on_duty'];
 const QUICK_FILTERS: { key: 'all' | DisplayStatus; label: string }[] = [
   { key: 'all', label: 'All' },
@@ -474,29 +480,45 @@ const SUMMARY_CARDS: { key: 'all' | DisplayStatus; label: string; text: string }
   { key: 'late', label: 'Late', text: 'text-yellow-700' },
   { key: 'half_day', label: 'Half Day', text: 'text-orange-700' },
   { key: 'leave', label: 'On Leave', text: 'text-blue-700' },
-  { key: 'on_duty', label: 'On Duty', text: 'text-indigo-700' },
-  { key: 'not_marked', label: 'Not Marked', text: 'text-slate-600' }
+  { key: 'on_duty', label: 'On Duty', text: 'text-purple-700' }
 ];
-const MODES: { id: ModeId; label: string; description: string; icon: React.ReactNode }[] = [
-  { id: 'auto', label: 'Auto', description: 'Biometric / RFID only', icon: <Wifi className="w-4 h-4" /> },
-  { id: 'manual', label: 'Manual', description: 'HR marks each record', icon: <Edit3 className="w-4 h-4" /> },
-  { id: 'hybrid', label: 'Hybrid', description: 'Device first, HR corrects', icon: <RefreshCw className="w-4 h-4" /> }
-];
+const LEGEND_ORDER: DisplayStatus[] = ['present', 'absent', 'late', 'half_day', 'leave', 'on_duty', 'not_marked', 'wfh', 'week_off'];
 const FILTER_INPUT_CLASS = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500';
 const BUTTON_OUTLINE_CLASS = 'inline-flex items-center gap-2 px-3 py-2 border border-gray-300 bg-white rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed';
+const DEPARTMENT_LIST = departments.filter((item) => item.value !== 'all').map((item) => item.value);
+const GENERATED_FIRST = ['Aarav', 'Diya', 'Kabir', 'Anaya', 'Ishaan', 'Meera', 'Vihaan', 'Saanvi', 'Reyansh', 'Aditi', 'Dhruv', 'Kavya', 'Rohan', 'Nisha', 'Tanvi', 'Yash', 'Pooja', 'Karan', 'Riya', 'Harsh', 'Sneha', 'Manav', 'Ira', 'Vivaan'];
+const GENERATED_LAST = ['Sharma', 'Patel', 'Mehta', 'Iyer', 'Nair', 'Reddy', 'Gupta', 'Joshi', 'Rao', 'Verma', 'Shah', 'Menon', 'Kulkarni', 'Pillai', 'Desai', 'Bose'];
+const GENERATED_ROLES: Record<string, string[]> = {
+  'IT Department': ['Developer', 'QA Engineer', 'System Administrator'],
+  'Human Resources': ['HR Executive', 'Recruiter'],
+  'Finance': ['Accountant', 'Finance Analyst'],
+  'Marketing': ['Marketing Executive', 'Content Writer'],
+  'Operations': ['Operations Executive', 'Facilities Coordinator'],
+  'Sales': ['Sales Executive', 'Account Manager'],
+  'Administration': ['Office Administrator', 'Receptionist']
+};
 
 interface EditDraft {
   choice: ChoiceValue;
   inTime: string;
   outTime: string;
   reason: string;
-  proofName: string;
 }
 
 interface AttendanceRow extends Employee {
   staffType: StaffType;
   markSource?: 'auto' | 'manual';
-  proofName?: string;
+}
+
+interface DeviceEvent {
+  id: string;
+  name: string;
+  code: string;
+  time: string;
+  method: string;
+  gate: string;
+  late: boolean;
+  lateBy: number;
 }
 
 const toDateInput = (date: Date): string =>
@@ -504,10 +526,22 @@ const toDateInput = (date: Date): string =>
 
 const formatLongDate = (iso: string): string => {
   const [year, month, day] = iso.split('-').map(Number);
-  return new Date(year, month - 1, day).toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
+  return new Date(year, month - 1, day).toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
 };
 
-// Staff type is not in the mock records, so it is derived from the serial number for filtering
+const minutesToClock = (minutes: number): string =>
+`${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+
+// 24-hour "HH:MM" to "hh:mm AM/PM" for the device feed
+const formatClock12 = (hhmm: string): string => {
+  const minutes = parseTime(hhmm);
+  if (minutes === null) return '—';
+  const hours24 = Math.floor(minutes / 60);
+  const hours12 = hours24 % 12 === 0 ? 12 : hours24 % 12;
+  return `${String(hours12).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')} ${hours24 < 12 ? 'AM' : 'PM'}`;
+};
+
+// Staff type is not in the original mock records, so it is derived from the serial number for filtering
 const staffTypeOf = (serialNo: number): StaffType => (serialNo % 4 === 0 ? 'Contract' : serialNo % 3 === 0 ? 'Part-time' : 'Full-time');
 
 // Records with a biometric login are auto-marked. Present records without a login are not marked yet.
@@ -530,6 +564,105 @@ const computeOvertime = (row: AttendanceRow, netHours: number): number => {
   const shiftMinutes = (parseTime(row.shiftEnd) ?? 0) - (parseTime(row.shiftStart) ?? 0);
   const standardHours = shiftMinutes / 60 - 1;
   return Math.max(0, Math.round((netHours - standardHours) * 100) / 100);
+};
+
+// Seeded generator so the mock roster is the same on every load
+const seededRandom = (seed: number) => {
+  let state = seed >>> 0;
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+};
+
+const makeGeneratedRow = (serialNo: number, status: DisplayStatus, index: number): AttendanceRow => {
+  const department = DEPARTMENT_LIST[index % DEPARTMENT_LIST.length];
+  const roles = GENERATED_ROLES[department] ?? ['Executive'];
+  const firstName = GENERATED_FIRST[index % GENERATED_FIRST.length];
+  const lastName = GENERATED_LAST[(index * 5) % GENERATED_LAST.length];
+  const isLateStatus = status === 'late';
+  const hasLogin = status === 'present' || status === 'late' || status === 'half_day' || status === 'on_duty';
+  let loginMinutes = 0;
+  if (isLateStatus) loginMinutes = SHIFT_START_MINUTES + 25 + (index % 30);
+  else if (status === 'half_day') loginMinutes = SHIFT_START_MINUTES + (index % 20);
+  else if (status === 'on_duty') loginMinutes = 8 * 60 + 40 + (index % 20);
+  else if (status === 'present') loginMinutes = 8 * 60 + 30 + (index % 40);
+  const loginTime = hasLogin ? minutesToClock(loginMinutes) : '';
+  const logoutTime = status === 'half_day' ? '13:00' : status === 'present' && index % 4 === 0 ? '18:00' : '';
+  const hours = calculateWorkingHours(loginTime, logoutTime, '13:00', '13:45');
+  const dayStatus: AttendanceStatus = status === 'late' || status === 'not_marked' ? 'present' : status;
+  const employee: Employee = {
+    id: String(serialNo),
+    serialNo,
+    employeeId: `EMP${String(serialNo).padStart(3, '0')}`,
+    name: `${firstName} ${lastName}`,
+    avatar: `${firstName[0]}${lastName[0]}`,
+    department,
+    designation: roles[index % roles.length],
+    shift: 'General',
+    shiftStart: '09:00',
+    shiftEnd: '18:00',
+    loginTime,
+    logoutTime,
+    breakStartTime: '13:00',
+    breakEndTime: '13:45',
+    grossHours: hours.grossHours,
+    breakDuration: hours.breakDuration,
+    netWorkingHours: hours.netWorkingHours,
+    overtime: Math.max(0, Math.round((hours.netWorkingHours - 8) * 100) / 100),
+    status: dayStatus,
+    isLate: isLateStatus,
+    lateByMinutes: isLateStatus ? loginMinutes - SHIFT_START_MINUTES : 0,
+    isEarlyLeave: false,
+    earlyLeaveMinutes: 0,
+    remarks: '',
+    isEditing: false
+  };
+  return toAttendanceRow(employee);
+};
+
+// Today's roster: the 12 original mock records plus generated records up to ROSTER_SIZE
+const buildAttendanceRoster = (): AttendanceRow[] => {
+  const base = initialEmployees.map(toAttendanceRow);
+  const generatedCount = ROSTER_SIZE - base.length;
+  const basePending = base.filter((row) => displayStatusOf(row) === 'not_marked').length;
+  const plan: DisplayStatus[] = [];
+  for (let i = 0; i < Math.max(0, PENDING_TARGET - basePending); i++) plan.push('not_marked');
+  plan.push('late', 'absent', 'absent', 'absent', 'absent', 'absent', 'absent', 'absent', 'half_day', 'leave', 'leave', 'leave', 'leave', 'on_duty');
+  while (plan.length < generatedCount) plan.push('present');
+  const shuffled = plan.slice(0, generatedCount);
+  const random = seededRandom(20261009);
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  const generated = shuffled.map((status, index) => makeGeneratedRow(base.length + index + 1, status, index));
+  return [...base, ...generated];
+};
+
+// Device events are the biometric captures (one per auto-marked record), ordered by time
+const buildDeviceFeed = (rows: AttendanceRow[]): DeviceEvent[] => rows
+  .filter((row) => row.loginTime && row.markSource === 'auto')
+  .map((row) => ({
+    id: row.id,
+    name: row.name,
+    code: row.employeeId,
+    time: row.loginTime,
+    method: DEVICE_METHODS[row.serialNo % DEVICE_METHODS.length],
+    gate: DEVICE_GATES[row.serialNo % DEVICE_GATES.length],
+    late: row.isLate,
+    lateBy: row.lateByMinutes
+  }))
+  .sort((a, b) => a.time.localeCompare(b.time));
+
+const trendFor = (key: DisplayStatus, count: number, total: number): { arrow: string; delta: number; percent: number } => {
+  const today = total ? (count / total) * 100 : 0;
+  const yesterday = ((YESTERDAY_COUNTS[key] ?? 0) / YESTERDAY_TOTAL) * 100;
+  const delta = Math.round((today - yesterday) * 10) / 10;
+  return { arrow: delta > 0 ? '↑' : delta < 0 ? '↓' : '→', delta, percent: Math.round(today * 10) / 10 };
 };
 
 const downloadTextFile = (filename: string, content: string, mime: string) => {
@@ -570,30 +703,31 @@ export function ManualAttendanceMarking() {
   const today = toDateInput(now);
   const deadlinePassed = now.getHours() * 60 + now.getMinutes() > DEADLINE_MINUTES;
 
-  const [mode, setMode] = useState<ModeId>('hybrid');
+  const [initialRoster] = useState<AttendanceRow[]>(() => buildAttendanceRoster());
+  const [deviceFeed] = useState<DeviceEvent[]>(() => buildDeviceFeed(initialRoster));
   const [selectedDate, setSelectedDate] = useState(today);
   const [departmentFilter, setDepartmentFilter] = useState('all');
   const [staffTypeFilter, setStaffTypeFilter] = useState<'all' | StaffType>('all');
   const [searchDraft, setSearchDraft] = useState('');
   const [appliedSearch, setAppliedSearch] = useState('');
   const [quickFilter, setQuickFilter] = useState<'all' | DisplayStatus>('all');
-  const [rows, setRows] = useState<AttendanceRow[]>(() => initialEmployees.map(toAttendanceRow));
+  const [serialAsc, setSerialAsc] = useState(true);
+  const [rows, setRows] = useState<AttendanceRow[]>(initialRoster);
   const [unsavedChanges, setUnsavedChanges] = useState(0);
   const [locked, setLocked] = useState(false);
   const [page, setPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editDraft, setEditDraft] = useState<EditDraft>({ choice: 'present', inTime: '', outTime: '', reason: '', proofName: '' });
+  const [editDraft, setEditDraft] = useState<EditDraft>({ choice: 'present', inTime: '', outTime: '', reason: '' });
   const [editError, setEditError] = useState<string | null>(null);
-  const [commentId, setCommentId] = useState<string | null>(null);
-  const [commentDraft, setCommentDraft] = useState('');
   const [showFullLog, setShowFullLog] = useState(false);
   const [notice, setNotice] = useState<{ type: 'success' | 'info' | 'error'; text: string } | null>(null);
+  const feedRef = useRef<HTMLUListElement>(null);
 
   const isToday = selectedDate === today;
-  const canEdit = !locked && mode !== 'auto';
+  const canEdit = !locked;
 
-  // Scope = date + department + staff type. Summary cards and the quick filters work on this scope.
+  // Scope = date + department + staff type. Summary cards and the table work on this scope.
   const scopeRows = isToday
     ? rows.filter((row) =>
       (departmentFilter === 'all' || row.department === departmentFilter) &&
@@ -603,36 +737,33 @@ export function ManualAttendanceMarking() {
   const countFor = (key: 'all' | DisplayStatus) =>
     key === 'all' ? total : scopeRows.filter((row) => displayStatusOf(row) === key).length;
   const pct = (count: number) => (total ? Math.round((count / total) * 100) : 0);
-  const pendingCount = countFor('not_marked');
-  const autoCount = scopeRows.filter((row) => row.markSource === 'auto').length;
 
-  const tableRows = scopeRows.filter((row) =>
-    (quickFilter === 'all' || displayStatusOf(row) === quickFilter) &&
-    (!appliedSearch || [row.name, row.employeeId].some((value) => value.toLowerCase().includes(appliedSearch.toLowerCase()))));
+  // Device-wide counts for the feed panel and the bottom bar
+  const globalPending = isToday ? rows.filter((row) => displayStatusOf(row) === 'not_marked').length : 0;
+  const globalAuto = isToday ? rows.filter((row) => row.markSource === 'auto').length : 0;
+  const feedToday = isToday ? deviceFeed : [];
+
+  const tableRows = scopeRows
+    .filter((row) =>
+      (quickFilter === 'all' || displayStatusOf(row) === quickFilter) &&
+      (!appliedSearch || [row.name, row.employeeId].some((value) => value.toLowerCase().includes(appliedSearch.toLowerCase()))))
+    .sort((a, b) => (serialAsc ? a.serialNo - b.serialNo : b.serialNo - a.serialNo));
   const totalPages = Math.max(1, Math.ceil(tableRows.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const pageRows = tableRows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
   const pageAllSelected = pageRows.length > 0 && pageRows.every((row) => selectedIds.has(row.id));
-  const commentRow = rows.find((row) => row.id === commentId) ?? null;
-
-  // Live device feed (mock device events, one per employee with a biometric login)
-  const feed = useMemo(() => initialEmployees
-    .filter((employee) => employee.loginTime)
-    .map((employee, index) => ({
-      id: employee.id,
-      name: employee.name,
-      code: employee.employeeId,
-      time: employee.loginTime,
-      method: DEVICE_METHODS[index % DEVICE_METHODS.length],
-      gate: DEVICE_GATES[index % DEVICE_GATES.length],
-      late: employee.isLate
-    }))
-    .sort((a, b) => b.time.localeCompare(a.time)), []);
-  const feedToday = isToday ? feed : [];
+  const rangeStart = tableRows.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1;
+  const rangeEnd = Math.min(safePage * PAGE_SIZE, tableRows.length);
 
   useEffect(() => {
     setPage(1);
   }, [quickFilter, appliedSearch, departmentFilter, staffTypeFilter, selectedDate]);
+
+  // Keep the device feed scrolled to the latest event
+  useEffect(() => {
+    const list = feedRef.current;
+    if (list) list.scrollTop = list.scrollHeight;
+  }, [feedToday.length]);
 
   // Unsaved-changes guard: browser close / reload, and in-app navigation (BrowserRouter has no data-router blocker)
   useEffect(() => {
@@ -660,18 +791,6 @@ export function ManualAttendanceMarking() {
     setRows((prev) => prev.map((row) => (ids.includes(row.id) ? patch(row) : row)));
   };
 
-  const changeMode = (next: ModeId) => {
-    if (next === mode) return;
-    setMode(next);
-    setEditingId(null);
-    setSelectedIds(new Set());
-    showNotice('info', next === 'auto'
-      ? 'Auto mode: attendance comes from the biometric device only. Manual edits are disabled.'
-      : next === 'manual'
-        ? 'Manual mode: HR marks attendance by hand. Device entries are shown for reference.'
-        : 'Hybrid mode: device entries are used first, and HR can correct any record.');
-  };
-
   const openEdit = (row: AttendanceRow) => {
     const current = displayStatusOf(row);
     setEditingId(row.id);
@@ -679,14 +798,13 @@ export function ManualAttendanceMarking() {
       choice: current === 'not_marked' ? 'present' : current,
       inTime: row.loginTime,
       outTime: row.logoutTime,
-      reason: row.remarks,
-      proofName: row.proofName ?? ''
+      reason: row.remarks
     });
     setEditError(null);
   };
 
   const applyEdit = (row: AttendanceRow) => {
-    const { choice, inTime, outTime, reason, proofName } = editDraft;
+    const { choice, inTime, outTime, reason } = editDraft;
     if (TIMED_CHOICES.includes(choice) && !inTime) {
       setEditError('Enter an IN time for this status, or choose Absent, On Leave or Week Off.');
       return;
@@ -712,7 +830,6 @@ export function ManualAttendanceMarking() {
       netWorkingHours: hours.netWorkingHours,
       overtime: computeOvertime(current, hours.netWorkingHours),
       remarks: reason.trim() || current.remarks,
-      proofName: proofName || current.proofName,
       markSource: 'manual'
     }));
     setUnsavedChanges((count) => count + 1);
@@ -768,22 +885,6 @@ export function ManualAttendanceMarking() {
     });
   };
 
-  const openComment = (row: AttendanceRow) => {
-    setCommentId(row.id);
-    setCommentDraft(row.remarks);
-  };
-
-  const saveComment = () => {
-    if (!commentRow) return;
-    const nextText = commentDraft.trim();
-    if (nextText !== commentRow.remarks) {
-      updateRows([commentRow.id], (row) => ({ ...row, remarks: nextText }));
-      setUnsavedChanges((count) => count + 1);
-      showNotice('success', `Comment saved for ${commentRow.name}.`);
-    }
-    setCommentId(null);
-  };
-
   const saveAll = () => {
     if (!canEdit || unsavedChanges === 0) return;
     setUnsavedChanges(0);
@@ -792,7 +893,7 @@ export function ManualAttendanceMarking() {
 
   const submitDay = () => {
     if (locked || !isToday) return;
-    if (pendingCount > 0 && !window.confirm(`${pendingCount} employee(s) are still not marked. Submit anyway? Submitting locks the day's attendance.`)) return;
+    if (globalPending > 0 && !window.confirm(`${globalPending} employee(s) are still not marked. Submit anyway? Submitting locks the day's attendance.`)) return;
     setUnsavedChanges(0);
     setLocked(true);
     setEditingId(null);
@@ -839,8 +940,6 @@ export function ManualAttendanceMarking() {
   };
 
   const filtersActive = departmentFilter !== 'all' || staffTypeFilter !== 'all' || !!appliedSearch || quickFilter !== 'all';
-  const rangeStart = tableRows.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1;
-  const rangeEnd = Math.min(safePage * PAGE_SIZE, tableRows.length);
 
   return (
     <div className="space-y-6">
@@ -848,42 +947,24 @@ export function ManualAttendanceMarking() {
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Employee Attendance</h1>
-            <p className="text-sm text-gray-500 mt-1 flex items-center gap-2">
-              <Calendar className="w-4 h-4" />
-              Today: {formatLongDate(today)}
-            </p>
+            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+              <Calendar className="w-6 h-6 text-indigo-600" />
+              Employee Attendance
+            </h1>
+            <p className="text-sm text-gray-500 mt-1">Today: {formatLongDate(today)}</p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 xl:gap-3">
-            {MODES.map((item) => {
-              const active = mode === item.id;
-              return (
-                <div
-                  key={item.id}
-                  className={`flex items-center gap-3 rounded-lg border px-3 py-2 ${active ? 'border-green-500 bg-green-50' : 'border-gray-200 bg-white'}`}>
-                  <span className={active ? 'text-green-700' : 'text-gray-500'}>{item.icon}</span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-gray-900">{item.label}</p>
-                    <p className="text-[11px] text-gray-500 truncate">{item.description}</p>
-                  </div>
-                  {active ? (
-                    <span className="px-2 py-0.5 rounded-full bg-green-600 text-white text-[11px] font-medium whitespace-nowrap">Currently ON</span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => changeMode(item.id)}
-                      disabled={locked}
-                      className="px-2.5 py-1 text-xs font-medium rounded-md border border-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
-                      Switch
-                    </button>
-                  )}
-                </div>);
-            })}
+          <div className="flex items-center gap-3 rounded-lg border border-green-500 bg-green-50 px-4 py-2">
+            <RefreshCw className="w-4 h-4 text-green-700" />
+            <p className="text-sm font-semibold text-gray-900">Auto + Manual Together</p>
+            <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-green-600 px-2 py-0.5 text-[11px] font-medium text-white">
+              <CheckCircle className="w-3 h-3" /> Currently ON
+            </span>
           </div>
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-gray-100 pt-3 text-xs text-gray-600">
-          <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /> Biometric device connected</span>
-          <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-500" /> ERP sync: Live</span>
+          <span className="font-medium text-gray-700">Auto-Sync Status:</span>
+          <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /> Biometric Device Connected</span>
+          <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-500" /> ERP Sync: Live</span>
           {locked && (
             <span className="inline-flex items-center gap-1.5 text-amber-700 font-medium"><Lock className="w-3.5 h-3.5" /> Day submitted and locked</span>
           )}
@@ -927,7 +1008,7 @@ export function ManualAttendanceMarking() {
             </select>
           </div>
           <div className="md:col-span-2">
-            <label className="block text-xs font-medium text-gray-600 mb-1">Employee search</label>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Search Employee</label>
             <div className="flex gap-2">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -944,14 +1025,14 @@ export function ManualAttendanceMarking() {
               <button
                 type="button"
                 onClick={() => setAppliedSearch(searchDraft.trim())}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
-                Search
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
+                <Search className="w-4 h-4" /> Search
               </button>
             </div>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-medium text-gray-500 mr-1">Quick filter:</span>
+          <span className="text-xs font-medium text-gray-500 mr-1">Quick Filter:</span>
           {QUICK_FILTERS.map((item) => {
             const active = quickFilter === item.key;
             return (
@@ -970,10 +1051,11 @@ export function ManualAttendanceMarking() {
       </div>
 
       {/* Zone 3: clickable live summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
         {SUMMARY_CARDS.map((card) => {
           const count = countFor(card.key);
           const active = quickFilter === card.key;
+          const trend = card.key === 'all' || card.key === 'leave' || card.key === 'on_duty' ? null : trendFor(card.key, count, total);
           return (
             <button
               key={card.key}
@@ -982,7 +1064,15 @@ export function ManualAttendanceMarking() {
               className={`text-left bg-white rounded-xl border p-3 shadow-sm transition-colors ${active ? 'border-indigo-500 ring-2 ring-indigo-200' : 'border-gray-200 hover:border-gray-300'}`}>
               <p className="text-[11px] font-medium uppercase tracking-wide text-gray-500">{card.label}</p>
               <p className={`text-2xl font-bold mt-1 ${card.text}`}>{count}</p>
-              <p className="text-[11px] text-gray-500">{pct(count)}% of {total}</p>
+              {card.key === 'all' && <p className="text-[11px] text-gray-500">Staff</p>}
+              {card.key === 'leave' && <p className="text-[11px] text-gray-500">Approved</p>}
+              {card.key === 'on_duty' && <p className="text-[11px] text-gray-500">Official</p>}
+              {trend && (
+                <p className="text-[11px] text-gray-600" title="Compared with yesterday">
+                  {pct(count)}% <span className={trend.arrow === '↓' ? 'text-red-600' : trend.arrow === '↑' ? 'text-green-600' : 'text-gray-500'}>{trend.arrow}</span>
+                  <span className="text-gray-400"> {trend.delta > 0 ? '+' : ''}{trend.delta.toFixed(1)} pts vs yesterday</span>
+                </p>
+              )}
             </button>);
         })}
       </div>
@@ -990,39 +1080,47 @@ export function ManualAttendanceMarking() {
       <div className="flex flex-col xl:flex-row gap-6 items-start">
         <div className="flex-1 min-w-0 w-full space-y-4">
           {/* Zone 6: bulk action bar */}
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-3 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-            <div className="flex items-center gap-4">
-              <label className="inline-flex items-center gap-2 text-sm text-gray-700">
-                <input
-                  type="checkbox"
-                  checked={pageAllSelected}
-                  disabled={pageRows.length === 0}
-                  onChange={toggleSelectPage}
-                  className="rounded border-gray-300" />
-                Select all (this page)
-              </label>
-              <span className="text-xs text-gray-500">{selectedIds.size} selected</span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {BULK_CHOICES.map((choice) => (
-                <button
-                  key={choice}
-                  type="button"
-                  disabled={!canEdit || selectedIds.size === 0}
-                  onClick={() => applyBulk(choice)}
-                  className={BUTTON_OUTLINE_CLASS}>
-                  {CHOICE_LABEL[choice]}
-                </button>
-              ))}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-3 space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">Bulk Actions (select employees using the checkboxes, then apply a status)</p>
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+              <div className="flex items-center gap-4">
+                <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                  <span className="text-xs text-gray-500">{selectedIds.size} selected</span>
+                </label>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-gray-500 mr-1">Apply status to selected:</span>
+                {BULK_CHOICES.map((choice) => (
+                  <button
+                    key={choice}
+                    type="button"
+                    disabled={!canEdit || selectedIds.size === 0}
+                    onClick={() => applyBulk(choice)}
+                    className={BUTTON_OUTLINE_CLASS}>
+                    {CHOICE_LABEL[choice]}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
           {/* Zone 4: attendance table with inline edit (Zone 5) */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 px-5 py-4 border-b border-gray-200">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900">Attendance Register</h2>
-                <p className="text-xs text-gray-500">{formatLongDate(selectedDate)} · {total} employee(s) in scope</p>
+              <div className="flex items-start gap-3">
+                <label className="mt-1 inline-flex items-center gap-2 text-sm text-gray-700" title="Select all employees on this page">
+                  <input
+                    type="checkbox"
+                    checked={pageAllSelected}
+                    disabled={pageRows.length === 0}
+                    onChange={toggleSelectPage}
+                    className="rounded border-gray-300" />
+                  <span>Select All</span>
+                </label>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">Employee Attendance List</h2>
+                  <p className="text-xs text-gray-500">{formatLongDate(selectedDate)} · {total} employee(s) in scope</p>
+                </div>
               </div>
               <div className="flex flex-wrap gap-2">
                 <button type="button" onClick={exportCsv} disabled={tableRows.length === 0} className={BUTTON_OUTLINE_CLASS}>
@@ -1051,7 +1149,11 @@ export function ManualAttendanceMarking() {
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="w-10 px-4 py-3" />
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">#</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">
+                        <button type="button" onClick={() => setSerialAsc((value) => !value)} className="inline-flex items-center gap-1 hover:text-gray-800" title="Sort by #">
+                          # <ArrowUpDown className="w-3.5 h-3.5" />
+                        </button>
+                      </th>
                       <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Employee</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Dept</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Status</th>
@@ -1071,6 +1173,8 @@ export function ManualAttendanceMarking() {
                       const display = displayStatusOf(row);
                       const meta = DISPLAY_META[display];
                       const isEditing = editingId === row.id;
+                      const subLabel = display === 'late' ? `${row.lateByMinutes} min late` : display === 'leave' ? 'Approved' : display === 'not_marked' ? 'Pending' : '';
+                      const subLabelClass = display === 'late' ? 'text-yellow-700' : display === 'leave' ? 'text-blue-700' : 'text-slate-500';
                       return (
                         <React.Fragment key={row.id}>
                           <tr className={selectedIds.has(row.id) ? 'bg-indigo-50/50' : 'hover:bg-gray-50'}>
@@ -1088,7 +1192,7 @@ export function ManualAttendanceMarking() {
                                 <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${meta.dot}`} />
                                 <div>
                                   <p className="font-medium text-gray-900">{row.name}</p>
-                                  <p className="text-xs text-gray-500">{row.employeeId} · {row.staffType}</p>
+                                  <p className="text-xs text-gray-500">{row.employeeId}</p>
                                 </div>
                               </div>
                             </td>
@@ -1098,18 +1202,31 @@ export function ManualAttendanceMarking() {
                                 {meta.icon}
                                 {meta.label}
                               </span>
-                              {display === 'late' && <p className="mt-1 text-[11px] text-yellow-700">{row.lateByMinutes} min late</p>}
+                              {subLabel && <p className={`mt-1 text-[11px] ${subLabelClass}`}>{subLabel}</p>}
                             </td>
                             <td className="px-4 py-3">
-                              <p className="text-gray-900">{row.loginTime || '—'}</p>
-                              {row.markSource && (
+                              <p className="text-gray-900">{row.loginTime || '—:—'}</p>
+                              {row.loginTime && row.markSource && (
                                 <span className={`text-[10px] font-medium ${row.markSource === 'auto' ? 'text-green-700' : 'text-blue-700'}`}>
                                   {row.markSource === 'auto' ? 'Auto' : 'Manual'}
                                 </span>
                               )}
                             </td>
-                            <td className="px-4 py-3 text-gray-900">{row.logoutTime || '—'}</td>
-                            <td className="px-4 py-3 text-gray-900">{row.loginTime ? row.netWorkingHours.toFixed(2) : '—'}</td>
+                            <td className="px-4 py-3">
+                              <p className="text-gray-900">{row.logoutTime || '—:—'}</p>
+                              {row.logoutTime && row.markSource && (
+                                <span className={`text-[10px] font-medium ${row.markSource === 'auto' ? 'text-green-700' : 'text-blue-700'}`}>
+                                  {row.markSource === 'auto' ? 'Auto' : 'Manual'}
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3">
+                              {row.loginTime && !row.logoutTime
+                                ? <span className="font-medium text-green-700">Live</span>
+                                : row.loginTime
+                                  ? <span className="text-gray-900">{row.netWorkingHours.toFixed(2)} hrs</span>
+                                  : <span className="text-gray-400">—</span>}
+                            </td>
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-1">
                                 <button
@@ -1120,14 +1237,6 @@ export function ManualAttendanceMarking() {
                                   className={`p-1.5 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed ${isEditing ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:bg-gray-100'}`}>
                                   <Edit3 className="w-4 h-4" />
                                 </button>
-                                <button
-                                  type="button"
-                                  title="Comment"
-                                  onClick={() => openComment(row)}
-                                  className="relative p-1.5 rounded-lg text-gray-600 hover:bg-gray-100">
-                                  <MessageSquare className="w-4 h-4" />
-                                  {row.remarks && <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-indigo-600" />}
-                                </button>
                               </div>
                             </td>
                           </tr>
@@ -1136,14 +1245,16 @@ export function ManualAttendanceMarking() {
                               <td colSpan={9} className="px-5 py-4">
                                 <div className="space-y-4 rounded-xl border border-indigo-200 bg-white p-4 shadow-sm">
                                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
-                                    <div>
-                                      <p className="text-sm font-semibold text-gray-900">Edit attendance · {row.name}</p>
-                                      <p className="text-xs text-gray-500">{row.employeeId} · {row.department} · {formatLongDate(selectedDate)}</p>
-                                    </div>
-                                    <p className="text-xs text-gray-600">Current status: <span className="font-medium text-gray-900">{meta.label}</span></p>
+                                    <p className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                                      <Edit3 className="w-4 h-4 text-indigo-600" />
+                                      EDIT ATTENDANCE — {row.name} ({row.employeeId}) | {row.department} | {formatLongDate(selectedDate)}
+                                    </p>
+                                    <p className="text-xs text-gray-600">
+                                      Current Status: <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-medium ${meta.badge}`}>{meta.icon}{meta.label}</span>
+                                    </p>
                                   </div>
                                   <div>
-                                    <p className="mb-2 text-xs font-medium text-gray-600">Set status</p>
+                                    <p className="mb-2 text-xs font-medium text-gray-600">Change Status</p>
                                     <div className="flex flex-wrap gap-2">
                                       {EDIT_CHOICES.map((choice) => (
                                         <button
@@ -1158,7 +1269,7 @@ export function ManualAttendanceMarking() {
                                   </div>
                                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
                                     <div>
-                                      <label className="block text-xs font-medium text-gray-600 mb-1">IN time</label>
+                                      <label className="block text-xs font-medium text-gray-600 mb-1">IN Time</label>
                                       <div className="flex gap-2">
                                         <input
                                           type="time"
@@ -1172,7 +1283,7 @@ export function ManualAttendanceMarking() {
                                       </div>
                                     </div>
                                     <div>
-                                      <label className="block text-xs font-medium text-gray-600 mb-1">OUT time</label>
+                                      <label className="block text-xs font-medium text-gray-600 mb-1">OUT Time</label>
                                       <div className="flex gap-2">
                                         <input
                                           type="time"
@@ -1186,27 +1297,13 @@ export function ManualAttendanceMarking() {
                                       </div>
                                     </div>
                                     <div className="md:col-span-2">
-                                      <label className="block text-xs font-medium text-gray-600 mb-1">Reason / remark</label>
+                                      <label className="block text-xs font-medium text-gray-600 mb-1">Reason / Remark</label>
                                       <input
                                         type="text"
                                         value={editDraft.reason}
                                         onChange={(e) => setEditDraft((draft) => ({ ...draft, reason: e.target.value }))}
                                         placeholder="e.g. Biometric failed at Gate 2"
                                         className={FILTER_INPUT_CLASS} />
-                                    </div>
-                                    <div className="md:col-span-2">
-                                      <label className="block text-xs font-medium text-gray-600 mb-1">Proof attachment (optional)</label>
-                                      <div className="flex items-center gap-3">
-                                        <label className="inline-flex cursor-pointer items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">
-                                          <Paperclip className="w-4 h-4" /> Attach file
-                                          <input
-                                            type="file"
-                                            accept="image/*,application/pdf"
-                                            className="hidden"
-                                            onChange={(e) => setEditDraft((draft) => ({ ...draft, proofName: e.target.files?.[0]?.name ?? draft.proofName }))} />
-                                        </label>
-                                        <span className="truncate text-xs text-gray-500">{editDraft.proofName || 'No file attached'}</span>
-                                      </div>
                                     </div>
                                   </div>
                                   {editError && <p className="text-sm text-red-600">{editError}</p>}
@@ -1239,7 +1336,7 @@ export function ManualAttendanceMarking() {
             )}
 
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-3 border-t border-gray-200 text-sm">
-              <p className="text-gray-600">Showing {rangeStart}–{rangeEnd} of {tableRows.length}</p>
+              <p className="text-gray-600">Showing {rangeStart}-{rangeEnd} of {tableRows.length} employees</p>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -1259,7 +1356,7 @@ export function ManualAttendanceMarking() {
               </div>
             </div>
             <div className="flex flex-wrap gap-x-4 gap-y-2 px-5 py-3 border-t border-gray-100 bg-gray-50 text-xs text-gray-600">
-              {(Object.keys(DISPLAY_META) as DisplayStatus[]).map((key) => (
+              {LEGEND_ORDER.map((key) => (
                 <span key={key} className="inline-flex items-center gap-1.5">
                   <span className={`w-2.5 h-2.5 rounded-full ${DISPLAY_META[key].dot}`} />
                   {DISPLAY_META[key].label}
@@ -1272,44 +1369,46 @@ export function ManualAttendanceMarking() {
         {/* Zone 7: live auto-feed side panel */}
         <aside className="w-full xl:w-80 flex-shrink-0 xl:sticky xl:top-4 space-y-4">
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+            <div className="px-4 py-3 border-b border-gray-200">
               <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
                 <Radio className="w-4 h-4 text-green-600" />
-                Live Auto Feed
+                LIVE AUTO FEED — Biometric / RFID
               </h3>
-              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-green-700">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> LIVE
-              </span>
+              <p className="mt-1 flex items-center gap-1.5 text-xs text-green-700">
+                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /> Device: Connected | Syncing Live
+              </p>
             </div>
-            <div className="px-4 py-3 border-b border-gray-100 space-y-1.5 text-xs text-gray-600">
-              <div className="flex justify-between"><span>Biometric device</span><span className="font-medium text-green-700">Connected</span></div>
-              <div className="flex justify-between"><span>Gate readers</span><span className="font-medium text-gray-900">3 of 3 online</span></div>
-              <div className="flex justify-between"><span>Last event</span><span className="font-medium text-gray-900">{feedToday[0]?.time ?? '—'}</span></div>
-            </div>
-            <ul className="divide-y divide-gray-100 max-h-80 overflow-y-auto">
+            <ul ref={feedRef} className="divide-y divide-gray-100 max-h-80 overflow-y-auto">
               {feedToday.length === 0 && (
                 <li className="px-4 py-6 text-center text-sm text-gray-500">No device events for this date.</li>
               )}
-              {feedToday.slice(0, 6).map((entry) => (
+              {feedToday.map((entry) => (
                 <li key={entry.id} className="px-4 py-2.5 text-sm">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-mono text-xs font-semibold text-gray-900">{entry.time}</span>
-                    {entry.late && <span className="rounded bg-yellow-100 px-1.5 py-0.5 text-[10px] font-medium text-yellow-800">LATE</span>}
-                  </div>
-                  <p className="truncate text-gray-900">{entry.name} <span className="text-xs text-gray-500">({entry.code})</span></p>
-                  <p className="text-xs text-gray-500">{entry.method} · {entry.gate}</p>
+                  <p className="flex items-center gap-2 text-gray-900">
+                    <Clock className="w-3.5 h-3.5 text-gray-400" />
+                    <span className="font-mono text-xs font-semibold">{formatClock12(entry.time)}</span>
+                    <span className="text-gray-400">—</span>
+                    <CheckCircle className="w-3.5 h-3.5 text-green-600" />
+                    <span className="truncate">{entry.name} ({entry.code})</span>
+                  </p>
+                  <p className="ml-6 text-xs text-gray-500">{entry.method} ● {entry.gate}</p>
+                  {entry.late && (
+                    <p className="ml-6 flex items-center gap-1 text-xs font-medium text-yellow-700">
+                      <AlertTriangle className="w-3 h-3" /> {entry.lateBy} min late
+                    </p>
+                  )}
                 </li>
               ))}
             </ul>
-            <div className="grid grid-cols-2 gap-2 border-t border-gray-200 px-4 py-3 text-center">
-              <div className="rounded-lg bg-green-50 py-2">
-                <p className="text-lg font-bold text-green-700">{autoCount}</p>
-                <p className="text-[11px] text-green-800">Auto-marked</p>
-              </div>
-              <div className="rounded-lg bg-red-50 py-2">
-                <p className="text-lg font-bold text-red-700">{pendingCount}</p>
-                <p className="text-[11px] text-red-800">Pending</p>
-              </div>
+            <div className="space-y-1.5 border-t border-gray-200 px-4 py-3 text-sm">
+              <p className="flex justify-between">
+                <span className="text-gray-600">Auto-marked today:</span>
+                <span className="font-semibold text-green-700">{globalAuto} / {rows.length}</span>
+              </p>
+              <p className="flex justify-between">
+                <span className="text-gray-600">Still Pending:</span>
+                <span className="font-semibold text-red-600">{globalPending}</span>
+              </p>
             </div>
             <div className="px-4 pb-4">
               <button
@@ -1327,8 +1426,11 @@ export function ManualAttendanceMarking() {
       <div className="sticky bottom-0 z-30 rounded-xl border border-gray-200 bg-white/95 p-4 shadow-lg backdrop-blur">
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
-            <span className={`font-semibold ${pendingCount > 0 ? 'text-red-600' : 'text-green-700'}`}>Remaining unmarked: {pendingCount}</span>
-            <span className="text-gray-600">
+            <span className={`font-semibold ${globalPending > 0 ? 'text-red-600' : 'text-green-700'}`}>
+              REMAINING UNMARKED: {globalPending} employees
+            </span>
+            <span className="flex items-center gap-1 text-gray-700">
+              <AlertTriangle className="w-4 h-4 text-amber-600" />
               Deadline: Mark by 11:00 AM
               {deadlinePassed && <span className="ml-1 font-medium text-red-600">(passed)</span>}
             </span>
@@ -1350,33 +1452,11 @@ export function ManualAttendanceMarking() {
               onClick={submitDay}
               disabled={locked || !isToday}
               className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed">
-              <Lock className="w-4 h-4" /> Save &amp; Submit
+              <Save className="w-4 h-4" /> Save &amp; Submit
             </button>
           </div>
         </div>
       </div>
-
-      {/* Comment popup (💬) */}
-      <Modal
-        isOpen={!!commentRow}
-        onClose={() => setCommentId(null)}
-        title={commentRow ? `Comment: ${commentRow.name}` : 'Comment'}
-        size="sm"
-        footer={(
-          <div className="flex justify-end gap-2">
-            <button type="button" onClick={() => setCommentId(null)} className={BUTTON_OUTLINE_CLASS}>Cancel</button>
-            <button type="button" onClick={saveComment} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">Save Comment</button>
-          </div>)}>
-        <div className="space-y-2">
-          <p className="text-xs text-gray-500">{commentRow?.employeeId} · {commentRow?.department}</p>
-          <textarea
-            rows={4}
-            value={commentDraft}
-            onChange={(e) => setCommentDraft(e.target.value)}
-            placeholder="Add a note for this attendance record"
-            className={FILTER_INPUT_CLASS} />
-        </div>
-      </Modal>
 
       {/* Full auto log */}
       <Modal
@@ -1405,11 +1485,11 @@ export function ManualAttendanceMarking() {
               <tbody className="divide-y divide-gray-100">
                 {feedToday.map((entry) => (
                   <tr key={entry.id}>
-                    <td className="px-3 py-2 font-mono text-xs">{entry.time}</td>
+                    <td className="px-3 py-2 font-mono text-xs">{formatClock12(entry.time)}</td>
                     <td className="px-3 py-2">{entry.name} <span className="text-xs text-gray-500">({entry.code})</span></td>
                     <td className="px-3 py-2">{entry.method}</td>
                     <td className="px-3 py-2">{entry.gate}</td>
-                    <td className="px-3 py-2">{entry.late ? 'Yes' : 'No'}</td>
+                    <td className="px-3 py-2">{entry.late ? `Yes (${entry.lateBy} min)` : 'No'}</td>
                   </tr>
                 ))}
               </tbody>

@@ -599,10 +599,13 @@ export function TeacherClassSubjectAllocation() {
   const saved = savedStore[activeKey] ?? initialSaved;
   const auditRows = auditStore[activeKey] ?? [];
   const isDirty = !statesEqual(draft, saved);
+  const sessionChanged = yearDraft !== activeSession.year || termDraft !== activeSession.term;
 
   // UI state
   const [editingRows, setEditingRows] = useState<Set<string>>(new Set());
   const [expandedClasses, setExpandedClasses] = useState<Set<string>>(new Set([CLASS_LIST[0].id]));
+  const [editingSubjects, setEditingSubjects] = useState<Set<string>>(new Set());
+  const [activeTab, setActiveTab] = useState<'classTeachers' | 'subjectTeachers' | 'audit'>('classTeachers');
   const [auditFilters, setAuditFilters] = useState({ from: '', to: '', teacherId: '', classId: '', role: '' });
   const [toasts, setToasts] = useState<Toast[]>([]);
 
@@ -642,18 +645,31 @@ export function TeacherClassSubjectAllocation() {
     window.setTimeout(() => setToasts((prev) => prev.filter((toast) => toast.id !== id)), 5000);
   };
 
-  const handleLoadAssignments = () => {
-    if (isDirty && !window.confirm('Discard unsaved changes and load the selected session?')) return;
-    const key = sessionKeyOf(yearDraft, termDraft);
+  const loadSession = (year: string, term: string) => {
+    const key = sessionKeyOf(year, term);
     const nextSaved = savedStore[key] ?? buildInitialAssignments();
     if (!savedStore[key]) {
       setSavedStore((prev) => ({ ...prev, [key]: nextSaved }));
     }
     setDraft(nextSaved);
-    setActiveSession({ year: yearDraft, term: termDraft });
+    setActiveSession({ year, term });
     setEditingRows(new Set());
-    pushToast('info', `Loaded ${yearDraft} · ${termDraft}: ${totalClasses} classes with their curriculum mapping.`);
+    setEditingSubjects(new Set());
+    pushToast('info', `Loaded ${year} · ${term}: ${totalClasses} classes with their curriculum mapping.`);
   };
+
+  const handleLoadAssignments = () => {
+    if (isDirty && !window.confirm('Discard unsaved changes and load the selected session?')) return;
+    loadSession(yearDraft, termDraft);
+  };
+
+  // Filters drive the page: when nothing is unsaved, the newly selected session loads at once.
+  const handleSessionDraftChange = (year: string, term: string) => {
+    setYearDraft(year);
+    setTermDraft(term);
+    if (!isDirty) loadSession(year, term);
+  };
+
 
   // ----- Draft edits -----
   const setClassTeacher = (classId: string, teacherId: string) => {
@@ -679,6 +695,15 @@ export function TeacherClassSubjectAllocation() {
       const next = new Set(prev);
       if (next.has(classId)) next.delete(classId);
       else next.add(classId);
+      return next;
+    });
+  };
+
+  const toggleEditSubject = (key: string) => {
+    setEditingSubjects((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   };
@@ -824,24 +849,15 @@ export function TeacherClassSubjectAllocation() {
   };
 
   // ----- Render helpers -----
-  const subjectSelectOptions = (selectedId: string | null, exceptId?: string) => {
-    const selected = getTeacher(selectedId);
+  // Only active teachers are listed. A teacher who is class teacher elsewhere is flagged, not removed.
+  const subjectSelectOptions = () => offerableTeachers.map((teacher) => {
+    const elsewhere = classWhereClassTeacher(draft, teacher.id);
     return (
-      <>
-        {selected && !isOfferable(selected) && (
-          <option value={selected.id} disabled>{`${selected.name} — inactive / not offered`}</option>
-        )}
-        {offerableTeachers.filter((teacher) => teacher.id !== exceptId).map((teacher) => {
-          const elsewhere = classWhereClassTeacher(draft, teacher.id);
-          return (
-            <option key={teacher.id} value={teacher.id}>
-              {elsewhere ? `${teacher.name} · ⚑ Class Teacher of ${classShortLabel(elsewhere)}` : `${teacher.name} · ${teacher.department}`}
-            </option>
-          );
-        })}
-      </>
+      <option key={teacher.id} value={teacher.id}>
+        {elsewhere ? `${teacher.name} · ⚑ Class Teacher of ${classShortLabel(elsewhere)}` : `${teacher.name} · ${teacher.department}`}
+      </option>
     );
-  };
+  });
 
   const completionFor = (cls: ClassSection) => {
     const done = cls.subjects.filter((subject) => subjectOf(draft, cls.id, subject.id).primary).length;
@@ -878,12 +894,12 @@ export function TeacherClassSubjectAllocation() {
               label="Academic Year"
               options={academicYears}
               value={yearDraft}
-              onChange={(e: any) => setYearDraft(e.target.value)} />
+              onChange={(e: any) => handleSessionDraftChange(e.target.value, termDraft)} />
             <Select
               label="Term / Semester"
               options={TERM_OPTIONS.map((term) => ({ value: term, label: term }))}
               value={termDraft}
-              onChange={(e: any) => setTermDraft(e.target.value)} />
+              onChange={(e: any) => handleSessionDraftChange(yearDraft, e.target.value)} />
             <div className="flex items-end">
               <Button variant="primary" onClick={handleLoadAssignments} className="w-full">
                 <RotateCcw className="w-4 h-4 mr-2" />
@@ -893,6 +909,7 @@ export function TeacherClassSubjectAllocation() {
           </div>
           <div className="flex items-center gap-3 text-sm">
             <span className="text-gray-500">Showing: <span className="font-medium text-gray-900">{activeSession.year} · {activeSession.term}</span></span>
+            {sessionChanged && <span className="text-xs font-medium text-amber-700">Selection not loaded yet. Click Load Assignments.</span>}
             {isDirty ?
             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-medium">
                 <AlertTriangle className="w-3.5 h-3.5" /> Unsaved changes
@@ -924,6 +941,24 @@ export function TeacherClassSubjectAllocation() {
         </div>
       </div>
 
+      {/* Section tabs */}
+      <div className="flex flex-wrap gap-2 border-b border-gray-200">
+        {([
+          { id: 'classTeachers', label: 'Class Teachers', count: `${classTeachersAssigned}/${totalClasses}` },
+          { id: 'subjectTeachers', label: 'Subject Teachers', count: `${filledSlots}/${totalSlots}` },
+          { id: 'audit', label: 'Audit Log', count: `${auditRows.length}` }] as const).map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setActiveTab(tab.id)}
+            className={`-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${activeTab === tab.id ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-gray-500 hover:text-gray-800'}`}>
+            {tab.label}
+            <span className="ml-1.5 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">{tab.count}</span>
+          </button>
+        ))}
+      </div>
+      {activeTab === 'classTeachers' && (
+      <>
       {/* SECTION 1 — Class teacher assignment */}
       <Card className="p-0 overflow-hidden">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-4 border-b border-gray-200">
@@ -980,8 +1015,6 @@ export function TeacherClassSubjectAllocation() {
                         onChange={(e) => setClassTeacher(cls.id, e.target.value)}
                         className={selectClass}>
                         <option value="">— Select teacher —</option>
-                        {draftTeacher && !isOfferable(draftTeacher) &&
-                        <option value={draftTeacher.id} disabled>{`${draftTeacher.name} — inactive / not offered`}</option>}
                         {offerableTeachers.map((teacher) => {
                           const elsewhere = classWhereClassTeacher(draft, teacher.id, cls.id);
                           return (
@@ -1036,6 +1069,10 @@ export function TeacherClassSubjectAllocation() {
         </div>
       </Card>
 
+      </>
+      )}
+      {activeTab === 'subjectTeachers' && (
+      <>
       {/* SECTION 2 — Subject teacher assignment (Option A: class-wise expandable rows) */}
       <Card className="p-0 overflow-hidden">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-4 border-b border-gray-200">
@@ -1104,6 +1141,7 @@ export function TeacherClassSubjectAllocation() {
                             <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">Assigned Teacher</th>
                             <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">Co-teacher (optional)</th>
                             <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">Status</th>
+                            <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">Action</th>
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-100">
@@ -1116,6 +1154,7 @@ export function TeacherClassSubjectAllocation() {
                             const isDuplicate = !!a.primary && a.primary === a.co;
                             const isInactive = !!a.primary && !isOfferable(primaryTeacher);
                             const unsaved = a.primary !== b.primary || a.co !== b.co;
+                            const subjectLocked = !!a.primary && !editingSubjects.has(subjectKey(cls.id, subject.id));
                             return (
                               <tr key={subject.id} className={isEmpty || isDuplicate || isInactive ? 'bg-red-50/60' : ''}>
                                 <td className="px-4 py-2">
@@ -1125,19 +1164,21 @@ export function TeacherClassSubjectAllocation() {
                                 <td className="px-4 py-2">
                                   <select
                                     value={a.primary ?? ''}
+                                    disabled={subjectLocked}
                                     onChange={(e) => setSubjectTeacher(cls.id, subject.id, 'primary', e.target.value)}
                                     className={`${selectClass} ${isEmpty ? 'border-red-300' : ''}`}>
                                     <option value="">— Not assigned —</option>
-                                    {subjectSelectOptions(a.primary)}
+                                    {subjectSelectOptions()}
                                   </select>
                                 </td>
                                 <td className="px-4 py-2">
                                   <select
                                     value={a.co ?? ''}
+                                    disabled={subjectLocked}
                                     onChange={(e) => setSubjectTeacher(cls.id, subject.id, 'co', e.target.value)}
                                     className={selectClass}>
                                     <option value="">— None —</option>
-                                    {subjectSelectOptions(a.co, a.primary ?? undefined)}
+                                    {subjectSelectOptions()}
                                   </select>
                                 </td>
                                 <td className="px-4 py-2">
@@ -1165,6 +1206,15 @@ export function TeacherClassSubjectAllocation() {
                                     {unsaved && <span className="inline-flex px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-medium">Unsaved</span>}
                                   </div>
                                 </td>
+                                <td className="px-4 py-2">
+                                  <button
+                                    type="button"
+                                    title={subjectLocked ? 'Edit teacher' : 'Lock teacher'}
+                                    onClick={() => toggleEditSubject(subjectKey(cls.id, subject.id))}
+                                    className={`p-1.5 rounded-lg transition-colors ${editingSubjects.has(subjectKey(cls.id, subject.id)) ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500 hover:text-indigo-600 hover:bg-indigo-50'}`}>
+                                    <Pencil className="w-4 h-4" />
+                                  </button>
+                                </td>
                               </tr>);
 
                           })}
@@ -1185,6 +1235,10 @@ export function TeacherClassSubjectAllocation() {
         </div>
       </Card>
 
+      </>
+      )}
+      {activeTab === 'audit' && (
+      <>
       {/* SECTION 3 — Assignment records / audit log (read-only) */}
       <Card className="p-0 overflow-hidden">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 px-5 py-4 border-b border-gray-200">
@@ -1222,7 +1276,7 @@ export function TeacherClassSubjectAllocation() {
             <select value={auditFilters.teacherId} onChange={(e) => setAuditFilters({ ...auditFilters, teacherId: e.target.value })}
               className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white">
               <option value="">All teachers</option>
-              {mockTeachers.map((teacher) => <option key={teacher.id} value={teacher.id}>{teacher.name}</option>)}
+              {offerableTeachers.map((teacher) => <option key={teacher.id} value={teacher.id}>{teacher.name}</option>)}
             </select>
           </div>
           <div>
@@ -1282,6 +1336,8 @@ export function TeacherClassSubjectAllocation() {
         </div>
       </Card>
 
+      </>
+      )}
       {/* Bottom action bar */}
       <div className="sticky bottom-0 z-20 bg-white/95 backdrop-blur border border-gray-200 rounded-xl shadow-sm p-4">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
