@@ -1,3 +1,4 @@
+import { TeachingProgressDashboard } from './TeachingProgressDashboard';
 import React, { useState } from 'react';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
@@ -597,6 +598,10 @@ export function TeacherProgressDashboard() {
             shown is filtered based on your current role and assigned classes.
           </p>
         </div>
+      </div>
+      <div className="mt-10 border-t border-gray-200 pt-6">
+        <h2 className="mb-4 text-lg font-semibold text-gray-900">Teaching Progress by Class, Subject, Teacher and Department</h2>
+        <TeachingProgressDashboard />
       </div>
     </div>);
 

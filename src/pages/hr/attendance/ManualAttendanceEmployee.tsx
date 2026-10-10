@@ -473,15 +473,6 @@ const QUICK_FILTERS: { key: 'all' | DisplayStatus; label: string }[] = [
   { key: 'half_day', label: 'Half Day' },
   { key: 'leave', label: 'Leave' }
 ];
-const SUMMARY_CARDS: { key: 'all' | DisplayStatus; label: string; text: string }[] = [
-  { key: 'all', label: 'Total', text: 'text-gray-900' },
-  { key: 'present', label: 'Present', text: 'text-green-700' },
-  { key: 'absent', label: 'Absent', text: 'text-red-700' },
-  { key: 'late', label: 'Late', text: 'text-yellow-700' },
-  { key: 'half_day', label: 'Half Day', text: 'text-orange-700' },
-  { key: 'leave', label: 'On Leave', text: 'text-blue-700' },
-  { key: 'on_duty', label: 'On Duty', text: 'text-purple-700' }
-];
 const LEGEND_ORDER: DisplayStatus[] = ['present', 'absent', 'late', 'half_day', 'leave', 'on_duty', 'not_marked', 'wfh', 'week_off'];
 const FILTER_INPUT_CLASS = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500';
 const BUTTON_OUTLINE_CLASS = 'inline-flex items-center gap-2 px-3 py-2 border border-gray-300 bg-white rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed';
@@ -1050,37 +1041,10 @@ export function ManualAttendanceMarking() {
         </div>
       </div>
 
-      {/* Zone 3: clickable live summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
-        {SUMMARY_CARDS.map((card) => {
-          const count = countFor(card.key);
-          const active = quickFilter === card.key;
-          const trend = card.key === 'all' || card.key === 'leave' || card.key === 'on_duty' ? null : trendFor(card.key, count, total);
-          return (
-            <button
-              key={card.key}
-              type="button"
-              onClick={() => setQuickFilter(card.key)}
-              className={`text-left bg-white rounded-xl border p-3 shadow-sm transition-colors ${active ? 'border-indigo-500 ring-2 ring-indigo-200' : 'border-gray-200 hover:border-gray-300'}`}>
-              <p className="text-[11px] font-medium uppercase tracking-wide text-gray-500">{card.label}</p>
-              <p className={`text-2xl font-bold mt-1 ${card.text}`}>{count}</p>
-              {card.key === 'all' && <p className="text-[11px] text-gray-500">Staff</p>}
-              {card.key === 'leave' && <p className="text-[11px] text-gray-500">Approved</p>}
-              {card.key === 'on_duty' && <p className="text-[11px] text-gray-500">Official</p>}
-              {trend && (
-                <p className="text-[11px] text-gray-600" title="Compared with yesterday">
-                  {pct(count)}% <span className={trend.arrow === '↓' ? 'text-red-600' : trend.arrow === '↑' ? 'text-green-600' : 'text-gray-500'}>{trend.arrow}</span>
-                  <span className="text-gray-400"> {trend.delta > 0 ? '+' : ''}{trend.delta.toFixed(1)} pts vs yesterday</span>
-                </p>
-              )}
-            </button>);
-        })}
-      </div>
-
-      <div className="flex flex-col xl:flex-row gap-6 items-start">
-        <div className="flex-1 min-w-0 w-full space-y-4">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div>
           {/* Zone 6: bulk action bar */}
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-3 space-y-3">
+          <div className="px-5 py-3 bg-gray-50 border-b border-gray-200 space-y-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">Bulk Actions (select employees using the checkboxes, then apply a status)</p>
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
               <div className="flex items-center gap-4">
@@ -1105,7 +1069,7 @@ export function ManualAttendanceMarking() {
           </div>
 
           {/* Zone 4: attendance table with inline edit (Zone 5) */}
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="overflow-hidden">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 px-5 py-4 border-b border-gray-200">
               <div className="flex items-start gap-3">
                 <label className="mt-1 inline-flex items-center gap-2 text-sm text-gray-700" title="Select all employees on this page">
@@ -1366,9 +1330,9 @@ export function ManualAttendanceMarking() {
           </div>
         </div>
 
-        {/* Zone 7: live auto-feed side panel */}
-        <aside className="w-full xl:w-80 flex-shrink-0 xl:sticky xl:top-4 space-y-4">
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        {/* Zone 7: live auto-feed, part of the same panel */}
+        <div className="border-t border-gray-200">
+          <div>
             <div className="px-4 py-3 border-b border-gray-200">
               <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
                 <Radio className="w-4 h-4 text-green-600" />
@@ -1419,7 +1383,7 @@ export function ManualAttendanceMarking() {
               </button>
             </div>
           </div>
-        </aside>
+        </div>
       </div>
 
       {/* Zone 8: sticky bottom bar */}

@@ -154,7 +154,7 @@ export function AcademicPlanningDashboard() {
       action: 'View Plan',
       secondaryAction: 'Alert Teacher',
       tone: 'border-l-rose-500',
-      onClick: () => navigateTo('weekly-teaching-plan'),
+      onClick: () => navigateTo('teaching-plan'),
       onSecondaryClick: () => showMessage('Alert sent to the Class 10-A Science teacher.'),
     },
     {
@@ -169,7 +169,7 @@ export function AcademicPlanningDashboard() {
       description: 'Annual Teaching Plan missing for Mr. V. Patel — Class 9 Maths.',
       action: 'Create Now',
       tone: 'border-l-amber-500',
-      onClick: () => navigateTo('annual-teaching-plan'),
+      onClick: () => navigateTo('teaching-plan'),
     },
     {
       title: '12 teachers have not submitted weekly lesson plans',
@@ -235,7 +235,7 @@ export function AcademicPlanningDashboard() {
             <p className="mt-1 text-sm text-indigo-100/80">A real-time view of syllabus delivery, teaching plans, and approvals for {academicYear} · {term}.</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="secondary" leftIcon={<CalendarDays className="h-4 w-4" />} onClick={() => navigateTo('annual-teaching-plan')}>Create Annual Plan</Button>
+            <Button size="sm" variant="secondary" leftIcon={<CalendarDays className="h-4 w-4" />} onClick={() => navigateTo('teaching-plan')}>Create Annual Plan</Button>
             <Button size="sm" variant="secondary" leftIcon={<FilePlus2 className="h-4 w-4" />} onClick={() => navigateTo('lesson-plan-creation')}>New Lesson</Button>
             <Button size="sm" variant="secondary" leftIcon={<FileBarChart2 className="h-4 w-4" />} onClick={exportSyllabus}>Syllabus Report</Button>
             <Button size="sm" variant="outline" leftIcon={<Download className="h-4 w-4" />} onClick={exportSyllabus} className="border-white/30 bg-transparent text-white hover:bg-white/10 hover:text-white">Export</Button>
@@ -328,7 +328,7 @@ export function AcademicPlanningDashboard() {
               </div>;
             })}
           </div>
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-3"><span className="text-xs text-gray-500">Selected week · Class and subject progress</span><Button size="xs" variant="outline" leftIcon={<CalendarDays className="h-3.5 w-3.5" />} onClick={() => navigateTo('weekly-teaching-plan')}>Full Weekly Plan</Button></div>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-3"><span className="text-xs text-gray-500">Selected week · Class and subject progress</span><Button size="xs" variant="outline" leftIcon={<CalendarDays className="h-3.5 w-3.5" />} onClick={() => navigateTo('teaching-plan')}>Full Weekly Plan</Button></div>
         </Card>
 
         <Card title="Recent Lesson Plans Submitted" headerAction={<Button size="xs" variant="ghost" onClick={() => navigateTo('lesson-plan-creation')}>View All Lesson Plans →</Button>}>
