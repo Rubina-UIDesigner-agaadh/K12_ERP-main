@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { HrLeaveReport } from './HrLeaveReport';
+import { AbsenteeLatecomerReport } from './AbsenteeLatecomerReport';
 import {
   FileText,
   FileSpreadsheet,
@@ -943,7 +945,7 @@ function GenerateReportModal({
 
 }
 // ============ MAIN COMPONENT ============
-export function HrAttendanceReport() {
+function AttendanceReportTemplates() {
   const [activeTab, setActiveTab] = useState<
     'templates' | 'generated' | 'analytics'>(
     'templates');
@@ -1908,6 +1910,40 @@ export function HrAttendanceReport() {
         isOpen={showGenerateModal}
         onClose={() => setShowGenerateModal(false)} />
 
+    </div>);
+
+}
+
+type AttendanceReportView = 'attendance' | 'leave' | 'absentee';
+
+const ATTENDANCE_REPORT_VIEWS: {id: AttendanceReportView;label: string;}[] = [
+{ id: 'attendance', label: 'Attendance Report' },
+{ id: 'leave', label: 'Leave Report' },
+{ id: 'absentee', label: 'Absentee / Latecomer Report' }];
+
+// Single attendance report page: the three report criteria views are selected here.
+export function HrAttendanceReport() {
+  const [view, setView] = useState<AttendanceReportView>('attendance');
+
+  return (
+    <div className="bg-gray-50 min-h-screen">
+      <div className="px-6 pt-6">
+        <div className="inline-flex flex-wrap items-center gap-1 rounded-xl border border-gray-200 bg-white p-1.5 shadow-sm">
+          <span className="px-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Report type</span>
+          {ATTENDANCE_REPORT_VIEWS.map((item) =>
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => setView(item.id)}
+            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${view === item.id ? 'bg-teal-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'}`}>
+              {item.label}
+            </button>
+          )}
+        </div>
+      </div>
+      {view === 'attendance' && <AttendanceReportTemplates />}
+      {view === 'leave' && <HrLeaveReport />}
+      {view === 'absentee' && <AbsenteeLatecomerReport />}
     </div>);
 
 }

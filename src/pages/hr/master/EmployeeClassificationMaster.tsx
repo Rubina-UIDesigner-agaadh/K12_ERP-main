@@ -4,7 +4,6 @@ import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Select } from '../../../components/ui/Select';
 import { Badge } from '../../../components/ui/Badge';
-import { Tabs } from '../../../components/ui/Tabs';
 import {
   Plus,
   Edit,
@@ -44,6 +43,15 @@ interface GradeLevel {
   incrementStep: number;
   status: 'Active' | 'Inactive';
 }
+interface ExternalClassification {
+  id: string;
+  code: string;
+  name: string;
+  referenceBody: string;
+  referenceNo: string;
+  description: string;
+  status: 'Active' | 'Inactive';
+}
 const mockStaffTypes: StaffType[] = [
 {
   id: 'ST001',
@@ -80,6 +88,33 @@ const mockStaffTypes: StaffType[] = [
   isTeaching: false,
   isEligibleForPayroll: true,
   status: 'Active'
+},
+{
+  id: 'ST005',
+  code: 'VISIT',
+  name: 'Visiting Faculty',
+  description: 'Guest faculty engaged on a per-session or per-term basis',
+  isTeaching: true,
+  isEligibleForPayroll: true,
+  status: 'Active'
+},
+{
+  id: 'ST006',
+  code: 'MGMT',
+  name: 'Management Staff',
+  description: 'Principal, vice-principal and management-level officers',
+  isTeaching: false,
+  isEligibleForPayroll: true,
+  status: 'Active'
+},
+{
+  id: 'ST007',
+  code: 'HONY',
+  name: 'Honorary Staff',
+  description: 'Honorary office bearers with no salary component',
+  isTeaching: false,
+  isEligibleForPayroll: false,
+  status: 'Inactive'
 }];
 
 const mockCategories: EmploymentCategory[] = [
@@ -118,6 +153,36 @@ const mockCategories: EmploymentCategory[] = [
   code: 'PROB',
   name: 'Probation',
   minServiceForConfirmation: 6,
+  eligibleForPF: true,
+  eligibleForGratuity: false,
+  eligibleForLeaveEncashment: false,
+  status: 'Active'
+},
+{
+  id: 'EC005',
+  code: 'TEMP',
+  name: 'Temporary',
+  minServiceForConfirmation: 0,
+  eligibleForPF: false,
+  eligibleForGratuity: false,
+  eligibleForLeaveEncashment: false,
+  status: 'Active'
+},
+{
+  id: 'EC006',
+  code: 'APPR',
+  name: 'Apprentice / Intern',
+  minServiceForConfirmation: 0,
+  eligibleForPF: false,
+  eligibleForGratuity: false,
+  eligibleForLeaveEncashment: false,
+  status: 'Active'
+},
+{
+  id: 'EC007',
+  code: 'DEPU',
+  name: 'Deputation',
+  minServiceForConfirmation: 0,
   eligibleForPF: true,
   eligibleForGratuity: false,
   eligibleForLeaveEncashment: false,
@@ -174,6 +239,74 @@ const mockGrades: GradeLevel[] = [
   maxBasic: 30000,
   incrementStep: 1500,
   status: 'Active'
+},
+{
+  id: 'GL006',
+  code: 'G6',
+  name: 'Grade VI',
+  linkedPayScale: 'PS-E',
+  minBasic: 12000,
+  maxBasic: 25000,
+  incrementStep: 1000,
+  status: 'Active'
+},
+{
+  id: 'GL007',
+  code: 'LVL-L',
+  name: 'Leadership Level',
+  linkedPayScale: 'PS-A',
+  minBasic: 150000,
+  maxBasic: 220000,
+  incrementStep: 7500,
+  status: 'Active'
+},
+{
+  id: 'GL008',
+  code: 'PROB',
+  name: 'Probationary Grade',
+  linkedPayScale: 'PS-E',
+  minBasic: 15000,
+  maxBasic: 20000,
+  incrementStep: 0,
+  status: 'Active'
+}];
+
+const mockExternalTypes: ExternalClassification[] = [
+{
+  id: 'XC001',
+  code: 'UDISE-STF',
+  name: 'Government Reporting Category',
+  referenceBody: 'UDISE+',
+  referenceNo: 'UDISE-STAFF-01',
+  description: 'Category used for state and UDISE+ staff returns',
+  status: 'Active'
+},
+{
+  id: 'XC002',
+  code: 'NAAC-FAC',
+  name: 'NAAC Faculty Category',
+  referenceBody: 'NAAC',
+  referenceNo: 'NAAC-CRIT-3',
+  description: 'Faculty classification for accreditation (SSR) reports',
+  status: 'Active'
+},
+{
+  id: 'XC003',
+  code: 'AICTE-QB',
+  name: 'AICTE Qualification Band',
+  referenceBody: 'AICTE',
+  referenceNo: 'AICTE-QB-2',
+  description: 'Qualification band as per AICTE approval norms',
+  status: 'Active'
+},
+{
+  id: 'XC004',
+  code: 'ASSN-MEM',
+  name: 'Association Member Category',
+  referenceBody: 'Trade Union / Association',
+  referenceNo: '',
+  description: 'Membership class recorded for association dues tracking',
+  status: 'Inactive'
 }];
 
 export function EmployeeClassificationMaster() {
@@ -181,6 +314,7 @@ export function EmployeeClassificationMaster() {
   const [staffTypes, setStaffTypes] = useState(mockStaffTypes);
   const [categories, setCategories] = useState(mockCategories);
   const [grades, setGrades] = useState(mockGrades);
+  const [externalTypes, setExternalTypes] = useState(mockExternalTypes);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -207,7 +341,21 @@ export function EmployeeClassificationMaster() {
     maxBasic: 0,
     incrementStep: 0
   });
+  const [externalForm, setExternalForm] = useState({
+    code: '',
+    name: '',
+    referenceBody: '',
+    referenceNo: '',
+    description: ''
+  });
   const resetForms = () => {
+    setExternalForm({
+      code: '',
+      name: '',
+      referenceBody: '',
+      referenceNo: '',
+      description: ''
+    });
     setStaffTypeForm({
       code: '',
       name: '',
@@ -233,6 +381,41 @@ export function EmployeeClassificationMaster() {
     });
     setShowForm(false);
     setEditId(null);
+  };
+  const handleSaveExternal = () => {
+    if (editId) {
+      setExternalTypes((prev) =>
+      prev.map((x) =>
+      x.id === editId ?
+      {
+        ...x,
+        ...externalForm
+      } :
+      x
+      )
+      );
+    } else {
+      setExternalTypes((prev) => [
+      ...prev,
+      {
+        ...externalForm,
+        id: `XC${Date.now()}`,
+        status: 'Active' as const
+      }]
+      );
+    }
+    resetForms();
+  };
+  const handleEditExternal = (x: ExternalClassification) => {
+    setExternalForm({
+      code: x.code,
+      name: x.name,
+      referenceBody: x.referenceBody,
+      referenceNo: x.referenceNo,
+      description: x.description
+    });
+    setEditId(x.id);
+    setShowForm(true);
   };
   const handleSaveStaffType = () => {
     if (editId) {
@@ -347,6 +530,9 @@ export function EmployeeClassificationMaster() {
   const filteredCategories = categories.filter((c) =>
   c.name.toLowerCase().includes(search.toLowerCase())
   );
+  const filteredExternal = externalTypes.filter((x) =>
+  x.name.toLowerCase().includes(search.toLowerCase())
+  );
   const filteredGrades = grades.filter((g) =>
   g.name.toLowerCase().includes(search.toLowerCase())
   );
@@ -362,7 +548,12 @@ export function EmployeeClassificationMaster() {
   {
     id: 'grades-levels',
     label: 'Grades / Levels'
+  },
+  {
+    id: 'external-classification',
+    label: 'Non-ERP Classification'
   }];
+  const entityLabel = activeTab === 'staff-types' ? 'Staff Type' : activeTab === 'employment-categories' ? 'Employment Category' : activeTab === 'external-classification' ? 'Non-ERP Classification' : 'Grade/Level';
 
   return (
     <div className="space-y-6 p-6">
@@ -421,8 +612,8 @@ export function EmployeeClassificationMaster() {
       <Card
         title={
         editId ?
-        `Edit ${activeTab === 'staff-types' ? 'Staff Type' : activeTab === 'employment-categories' ? 'Employment Category' : 'Grade/Level'}` :
-        `Add New ${activeTab === 'staff-types' ? 'Staff Type' : activeTab === 'employment-categories' ? 'Employment Category' : 'Grade/Level'}`
+        `Edit ${entityLabel}` :
+        `Add New ${entityLabel}`
         }>
 
           {activeTab === 'staff-types' &&
@@ -715,18 +906,111 @@ export function EmployeeClassificationMaster() {
               </div>
             </>
         }
+          {activeTab === 'external-classification' &&
+          <>
+              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                Not connected to the ERP. This classification is maintained by an external body. Its information is saved in the ERP for reference only and does not drive payroll, leave or service rules.
+              </div>
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <Input
+              label="Code *"
+              value={externalForm.code}
+              onChange={(e) =>
+              setExternalForm({
+                ...externalForm,
+                code: e.target.value
+              })
+              }
+              placeholder="e.g., UDISE-STF" />
+
+                <Input
+              label="Name *"
+              value={externalForm.name}
+              onChange={(e) =>
+              setExternalForm({
+                ...externalForm,
+                name: e.target.value
+              })
+              }
+              placeholder="e.g., Government Reporting Category" />
+
+                <Select
+              label="Reference Body"
+              options={[
+              { value: '', label: 'Select body' },
+              { value: 'UDISE+', label: 'UDISE+' },
+              { value: 'NAAC', label: 'NAAC' },
+              { value: 'AICTE', label: 'AICTE' },
+              { value: 'UGC', label: 'UGC' },
+              { value: 'State Education Dept.', label: 'State Education Dept.' },
+              { value: 'Trade Union / Association', label: 'Trade Union / Association' },
+              { value: 'Other', label: 'Other' }]}
+              value={externalForm.referenceBody}
+              onChange={(e) =>
+              setExternalForm({
+                ...externalForm,
+                referenceBody: e.target.value
+              })
+              } />
+
+                <Input
+              label="Reference No."
+              value={externalForm.referenceNo}
+              onChange={(e) =>
+              setExternalForm({
+                ...externalForm,
+                referenceNo: e.target.value
+              })
+              }
+              placeholder="e.g., UDISE-STAFF-01" />
+
+                <Input
+              label="Description"
+              value={externalForm.description}
+              onChange={(e) =>
+              setExternalForm({
+                ...externalForm,
+                description: e.target.value
+              })
+              }
+              placeholder="Purpose of this classification" />
+
+              </div>
+              <div className="flex gap-2">
+                <Button variant="primary" onClick={handleSaveExternal} disabled={!externalForm.code.trim() || !externalForm.name.trim()}>
+                  <Save className="w-4 h-4 mr-2" />
+                  {editId ? 'Update' : 'Create'}
+                </Button>
+                <Button variant="outline" onClick={resetForms}>
+                  Cancel
+                </Button>
+              </div>
+            </>
+          }
         </Card>
       }
 
       <Card>
-        <Tabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
+        <div className="border-b border-gray-200">
+          <nav className="flex flex-wrap -mb-px">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === tab.id ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
+                {tab.label}
+              </button>
+            ))}
+          </nav>
+        </div>
 
         <div className="mt-4">
           <div className="relative mb-4">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
-              placeholder={`Search ${activeTab === 'staff-types' ? 'staff types' : activeTab === 'employment-categories' ? 'categories' : 'grades'}...`}
+              placeholder={`Search ${activeTab === 'staff-types' ? 'staff types' : activeTab === 'employment-categories' ? 'categories' : activeTab === 'external-classification' ? 'non-ERP classifications' : 'grades'}...`}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
@@ -811,6 +1095,7 @@ export function EmployeeClassificationMaster() {
                             <Edit className="w-4 h-4 text-blue-600" />
                           </button>
                           <button
+                        onClick={() => setStaffTypes((prev) => prev.filter((item) => item.id !== st.id))}
                         className="p-1.5 hover:bg-red-100 rounded-lg"
                         title="Delete">
 
@@ -917,6 +1202,7 @@ export function EmployeeClassificationMaster() {
                             <Edit className="w-4 h-4 text-blue-600" />
                           </button>
                           <button
+                        onClick={() => setCategories((prev) => prev.filter((item) => item.id !== c.id))}
                         className="p-1.5 hover:bg-red-100 rounded-lg"
                         title="Delete">
 
@@ -1005,6 +1291,91 @@ export function EmployeeClassificationMaster() {
                             <Edit className="w-4 h-4 text-blue-600" />
                           </button>
                           <button
+                        onClick={() => setGrades((prev) => prev.filter((item) => item.id !== g.id))}
+                        className="p-1.5 hover:bg-red-100 rounded-lg"
+                        title="Delete">
+
+                            <Trash2 className="w-4 h-4 text-red-500" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                )}
+                </tbody>
+              </table>
+            </div>
+          }
+          {activeTab === 'external-classification' &&
+          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              Not connected to the ERP. These classifications are maintained outside the ERP. Their information is saved in the ERP for reference only.
+            </div>
+          }
+          {activeTab === 'external-classification' &&
+          <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b-2 border-gray-200 bg-gray-50">
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase">
+                      Code
+                    </th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase">
+                      Name
+                    </th>
+                    <th className="text-center py-3 px-4 text-xs font-semibold text-gray-600 uppercase">
+                      Reference Body
+                    </th>
+                    <th className="text-center py-3 px-4 text-xs font-semibold text-gray-600 uppercase">
+                      Reference No.
+                    </th>
+                    <th className="text-center py-3 px-4 text-xs font-semibold text-gray-600 uppercase">
+                      Storage
+                    </th>
+                    <th className="text-center py-3 px-4 text-xs font-semibold text-gray-600 uppercase">
+                      Status
+                    </th>
+                    <th className="text-center py-3 px-4 text-xs font-semibold text-gray-600 uppercase">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredExternal.map((x, i) =>
+                <tr
+                  key={x.id}
+                  className={`border-b border-gray-100 hover:bg-gray-50 ${i % 2 ? 'bg-gray-50/30' : ''}`}>
+
+                      <td className="py-3 px-4 text-sm font-medium text-gray-900">
+                        {x.code}
+                      </td>
+                      <td className="py-3 px-4 text-sm font-semibold text-gray-900">
+                        {x.name}
+                        <div className="text-xs font-normal text-gray-500">{x.description}</div>
+                      </td>
+                      <td className="py-3 px-4 text-center text-sm text-gray-600">
+                        {x.referenceBody || '-'}
+                      </td>
+                      <td className="py-3 px-4 text-center text-sm text-gray-600">
+                        {x.referenceNo || '-'}
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <Badge variant="info">Saved in ERP</Badge>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <Badge variant={x.status === 'Active' ? 'success' : 'secondary'}>
+                          {x.status}
+                        </Badge>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                        onClick={() => handleEditExternal(x)}
+                        className="p-1.5 hover:bg-blue-100 rounded-lg"
+                        title="Edit">
+
+                            <Edit className="w-4 h-4 text-blue-600" />
+                          </button>
+                          <button
+                        onClick={() => setExternalTypes((prev) => prev.filter((item) => item.id !== x.id))}
                         className="p-1.5 hover:bg-red-100 rounded-lg"
                         title="Delete">
 

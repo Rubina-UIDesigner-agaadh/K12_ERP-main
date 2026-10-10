@@ -58,10 +58,6 @@ export const hrRegistry: Record<string, () => any> = {
     () => import('../hr/employee/StaffAchievement'),
     'StaffAchievement'
   ),
-  'document-upload-verification': rp(
-    () => import('../hr/employee/DocumentUploadVerification'),
-    'DocumentUploadVerification'
-  ),
   'employee-id-card': rp(
     () => import('../hr/employee/EmployeeIdCard'),
     'EmployeeIdCard'
@@ -149,10 +145,6 @@ export const hrRegistry: Record<string, () => any> = {
     () => import('../hr/attendance/LeaveBalanceListing'),
     'LeaveBalanceListing'
   ),
-  'leave-balance-adjust': rp(
-    () => import('../hr/attendance/LeaveBalanceAdjust'),
-    'LeaveBalanceAdjust'
-  ),
   'monthly-attendance-register-hr': rp(
     () => import('../hr/attendance/MonthlyAttendanceRegisterHr'),
     'MonthlyAttendanceRegisterHr'
@@ -160,10 +152,6 @@ export const hrRegistry: Record<string, () => any> = {
   'leave-entry-bulk': rp(
     () => import('../hr/attendance/LeaveEntryBulk'),
     'LeaveEntryBulk'
-  ),
-  'leave-single-application': rp(
-    () => import('../hr/attendance/LeaveSingleApplication'),
-    'LeaveSingleApplication'
   ),
   'monthly-attendance': rp(
     () => import('../hr/attendance/MonthlyAttendance'),
@@ -192,14 +180,6 @@ export const hrRegistry: Record<string, () => any> = {
   'hr-attendance-report': rp(
     () => import('../hr/attendance/HrAttendanceReport'),
     'HrAttendanceReport'
-  ),
-  'hr-leave-report': rp(
-    () => import('../hr/attendance/HrLeaveReport'),
-    'HrLeaveReport'
-  ),
-  'absentee-latecomer-report': rp(
-    () => import('../hr/attendance/AbsenteeLatecomerReport'),
-    'AbsenteeLatecomerReport'
   ),
 
   // Payroll
@@ -293,10 +273,6 @@ export const hrRegistry: Record<string, () => any> = {
   ),
 
   // Master
-  'department-master': rp(
-    () => import('../hr/master/DepartmentMaster'),
-    'DepartmentMaster'
-  ),
   'designation-master': rp(
     () => import('../hr/master/DesignationMaster'),
     'DesignationMaster'
@@ -314,10 +290,6 @@ export const hrRegistry: Record<string, () => any> = {
     'EmployeeGradeLevelMaster'
   ),
   'shift-master': rp(() => import('../hr/master/ShiftMaster'), 'ShiftMaster'),
-  'working-calendar-master': rp(
-    () => import('../hr/master/WorkingCalendarMaster'),
-    'WorkingCalendarMaster'
-  ),
   'weekly-off-work-pattern-master': rp(
     () => import('../hr/master/WeeklyOffWorkPatternMaster'),
     'WeeklyOffWorkPatternMaster'
@@ -342,21 +314,9 @@ export const hrRegistry: Record<string, () => any> = {
     () => import('../hr/master/SeparationExitReasonMaster'),
     'SeparationExitReasonMaster'
   ),
-  'on-duty-travel-type-master': rp(
-    () => import('../hr/master/OnDutyTravelTypeMaster'),
-    'OnDutyTravelTypeMaster'
-  ),
-  'role-responsibility-master': rp(
-    () => import('../hr/master/RoleResponsibilityMaster'),
-    'RoleResponsibilityMaster'
-  ),
   'qualification-subject-master': rp(
     () => import('../hr/master/QualificationSubjectMaster'),
     'QualificationSubjectMaster'
-  ),
-  'service-event-type-master': rp(
-    () => import('../hr/master/ServiceEventTypeMaster'),
-    'ServiceEventTypeMaster'
   ),
 
   // Appraisal

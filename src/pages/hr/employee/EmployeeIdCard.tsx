@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Search, Printer, FileDown, CheckSquare, Square, User, CreditCard, Building2, Briefcase, Eye, Phone, Mail, MapPin, Calendar, Droplets, Shield, Smartphone, RefreshCw, Download, Filter, MoreHorizontal, X, AlertCircle, Clock, CheckCircle, XCircle, Edit, Trash2, Plus, Upload, Image, Type, QrCode, Palette, Layout, Save, RotateCcw, Move, AlignLeft, AlignCenter, AlignRight, Bold, Italic, ChevronDown, ChevronUp, Settings, Layers, Copy, FileText, AlertTriangle, Send, History, Barcode, UserPlus } from 'lucide-react';
+import { Search, Printer, FileDown, CheckSquare, Square, User, CreditCard, Building2, Briefcase, Eye, Phone, Mail, MapPin, Calendar, Droplets, Shield, Smartphone, RefreshCw, Download, Filter, MoreHorizontal, X, AlertCircle, Clock, CheckCircle, XCircle, Edit, Trash2, Plus, Upload, Image, Type, QrCode, Palette, Layout, Save, RotateCcw, Move, AlignLeft, AlignCenter, AlignRight, Bold, Italic, ChevronDown, ChevronUp, Settings, Layers, Copy, FileText, AlertTriangle, Send, History, Barcode, UserPlus, Hash, Heading, Pilcrow, RectangleHorizontal, Circle, Minus, PenTool, Maximize2, Underline } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 // Types
@@ -48,6 +48,9 @@ interface CardElement {
   style: {
     fontSize?: number;
     fontWeight?: string;
+    fontStyle?: string;
+    textDecoration?: string;
+    fontFamily?: string;
     color?: string;
     backgroundColor?: string;
     borderRadius?: number;
@@ -57,7 +60,10 @@ interface CardElement {
   };
   fieldMapping?: string;
   content?: string;
+  noBackground?: boolean;
   imageSrc?: string;
+  imageName?: string;
+  imageBytes?: number;
   imageFit?: 'cover' | 'contain' | 'fill';
 }
 
@@ -381,23 +387,69 @@ const DESIGN_LABEL_CLASS = 'block text-xs font-medium text-gray-600 mb-1';
 const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
 const PHONE_PATTERN = /^(\+91)?[6-9]\d{9}$/;
 
-const ELEMENT_PALETTE: { type: CardElementType; label: string; description: string; icon: React.ElementType }[] = [
-  { type: 'text', label: 'Text', description: 'Fixed text, e.g. a title', icon: Type },
-  { type: 'field', label: 'Employee Field', description: 'Name, ID, dates, etc.', icon: FileText },
-  { type: 'image', label: 'Image / Photo', description: 'Upload any picture or logo', icon: Image },
-  { type: 'qr', label: 'QR Code', description: 'Encodes a chosen field', icon: QrCode },
-  { type: 'barcode', label: 'Barcode', description: 'Linear code for scanners', icon: Barcode },
-  { type: 'shape', label: 'Shape', description: 'Box, band or divider', icon: Square }
+// Canva-style element presets. Each preset creates an element of one of the base types.
+type PresetGroup = 'Text' | 'Employee data' | 'Media' | 'Codes' | 'Shapes';
+interface ElementPreset {
+  key: string;
+  group: PresetGroup;
+  label: string;
+  description: string;
+  icon: React.ElementType;
+  type: CardElementType;
+  size: { width: number; height: number };
+  fieldMapping?: string;
+  content?: string;
+  style?: CardElement['style'];
+  fullWidth?: boolean;
+  fullCard?: boolean;
+}
+const PRESET_GROUPS: PresetGroup[] = ['Text', 'Employee data', 'Media', 'Codes', 'Shapes'];
+const whiteText = (fontSize: number, fontWeight = 'normal'): CardElement['style'] => ({
+  fontSize,
+  fontWeight,
+  color: '#ffffff',
+  textAlign: 'center'
+});
+const glassFill = 'rgba(255,255,255,0.25)';
+const ELEMENT_PRESETS: ElementPreset[] = [
+  { key: 'heading', group: 'Text', label: 'Heading', description: 'Large title line', icon: Heading, type: 'text', size: { width: 200, height: 30 }, content: 'ID CARD', style: whiteText(18, 'bold') },
+  { key: 'subheading', group: 'Text', label: 'Subheading', description: 'Smaller secondary line', icon: Pilcrow, type: 'text', size: { width: 180, height: 22 }, content: 'Staff Identity Card', style: whiteText(11) },
+  { key: 'body-text', group: 'Text', label: 'Body text', description: 'Plain fixed text', icon: Type, type: 'text', size: { width: 140, height: 28 }, content: 'Your text', style: whiteText(14) },
+  { key: 'text-box', group: 'Text', label: 'Text box', description: 'Text on a tinted panel', icon: RectangleHorizontal, type: 'text', size: { width: 160, height: 28 }, content: 'Text box', style: { ...whiteText(11), backgroundColor: 'rgba(0,0,0,0.35)', borderRadius: 6 } },
+  { key: 'field-name', group: 'Employee data', label: 'Full name', description: 'Employee name', icon: User, type: 'field', size: { width: 200, height: 26 }, fieldMapping: 'name', style: whiteText(15, 'bold') },
+  { key: 'field-designation', group: 'Employee data', label: 'Designation', description: 'Job title', icon: Briefcase, type: 'field', size: { width: 180, height: 22 }, fieldMapping: 'designation', style: whiteText(11) },
+  { key: 'field-department', group: 'Employee data', label: 'Department', description: 'Department name', icon: Building2, type: 'field', size: { width: 180, height: 22 }, fieldMapping: 'department', style: whiteText(11) },
+  { key: 'field-employee-id', group: 'Employee data', label: 'Employee ID', description: 'Staff ID number', icon: Hash, type: 'field', size: { width: 160, height: 22 }, fieldMapping: 'employeeId', style: whiteText(11, 'bold') },
+  { key: 'field-blood-group', group: 'Employee data', label: 'Blood group', description: 'Blood type', icon: Droplets, type: 'field', size: { width: 120, height: 22 }, fieldMapping: 'bloodGroup', style: whiteText(11) },
+  { key: 'field-joining', group: 'Employee data', label: 'Date of joining', description: 'Joining date', icon: Calendar, type: 'field', size: { width: 160, height: 22 }, fieldMapping: 'joiningDate', style: whiteText(11) },
+  { key: 'field-valid-until', group: 'Employee data', label: 'Valid until', description: 'Card expiry date', icon: Clock, type: 'field', size: { width: 160, height: 22 }, fieldMapping: 'expiryDate', style: whiteText(11) },
+  { key: 'field-phone', group: 'Employee data', label: 'Phone', description: 'Mobile number', icon: Phone, type: 'field', size: { width: 160, height: 22 }, fieldMapping: 'phone', style: whiteText(11) },
+  { key: 'field-email', group: 'Employee data', label: 'Email', description: 'Official email', icon: Mail, type: 'field', size: { width: 200, height: 22 }, fieldMapping: 'email', style: whiteText(10) },
+  { key: 'field-emergency', group: 'Employee data', label: 'Emergency contact', description: 'Emergency number', icon: AlertCircle, type: 'field', size: { width: 180, height: 22 }, fieldMapping: 'emergencyContact', style: whiteText(11) },
+  { key: 'field-card-number', group: 'Employee data', label: 'Card number', description: 'Issued card number', icon: CreditCard, type: 'field', size: { width: 160, height: 22 }, fieldMapping: 'cardNumber', style: whiteText(11) },
+  { key: 'photo', group: 'Media', label: 'Photo', description: 'Employee photo', icon: User, type: 'image', size: { width: 80, height: 100 }, fieldMapping: 'photo' },
+  { key: 'picture', group: 'Media', label: 'Logo / picture', description: 'Upload any image', icon: Image, type: 'image', size: { width: 80, height: 80 } },
+  { key: 'signature', group: 'Media', label: 'Signature', description: 'Upload a signature', icon: PenTool, type: 'image', size: { width: 120, height: 40 } },
+  { key: 'full-card-picture', group: 'Media', label: 'Full-card picture', description: 'Fills the whole card', icon: Maximize2, type: 'image', size: { width: 0, height: 0 }, fullCard: true },
+  { key: 'qr', group: 'Codes', label: 'QR code', description: 'Encodes a chosen field', icon: QrCode, type: 'qr', size: { width: 60, height: 60 }, fieldMapping: 'employeeId' },
+  { key: 'barcode', group: 'Codes', label: 'Barcode', description: 'Linear code for scanners', icon: Barcode, type: 'barcode', size: { width: 140, height: 40 }, fieldMapping: 'employeeId' },
+  { key: 'rectangle', group: 'Shapes', label: 'Rectangle', description: 'Plain filled box', icon: Square, type: 'shape', size: { width: 120, height: 40 }, style: { backgroundColor: glassFill, borderRadius: 0 } },
+  { key: 'rounded-box', group: 'Shapes', label: 'Rounded box', description: 'Soft-cornered panel', icon: RectangleHorizontal, type: 'shape', size: { width: 140, height: 50 }, style: { backgroundColor: glassFill, borderRadius: 12 } },
+  { key: 'circle', group: 'Shapes', label: 'Circle', description: 'Round badge or stamp', icon: Circle, type: 'shape', size: { width: 64, height: 64 }, style: { backgroundColor: glassFill, borderRadius: 999 } },
+  { key: 'divider', group: 'Shapes', label: 'Divider line', description: 'Thin separator', icon: Minus, type: 'shape', size: { width: 160, height: 3 }, style: { backgroundColor: '#ffffff', borderRadius: 2 } },
+  { key: 'colour-band', group: 'Shapes', label: 'Colour band', description: 'Full-width strip', icon: Palette, type: 'shape', size: { width: 0, height: 56 }, fullWidth: true, style: { backgroundColor: '#facc15', borderRadius: 0 } }
 ];
 
-const ELEMENT_SIZE: Record<CardElementType, { width: number; height: number }> = {
-  text: { width: 140, height: 28 },
-  field: { width: 160, height: 24 },
-  image: { width: 80, height: 80 },
-  qr: { width: 60, height: 60 },
-  barcode: { width: 140, height: 40 },
-  shape: { width: 120, height: 40 }
-};
+const FONT_FAMILIES: { value: string; label: string }[] = [
+  { value: '', label: 'Default (system)' },
+  { value: 'Arial, Helvetica, sans-serif', label: 'Arial' },
+  { value: 'Verdana, Geneva, sans-serif', label: 'Verdana' },
+  { value: 'Trebuchet MS, sans-serif', label: 'Trebuchet MS' },
+  { value: 'Georgia, serif', label: 'Georgia' },
+  { value: 'Times New Roman, Times, serif', label: 'Times New Roman' },
+  { value: 'Courier New, Courier, monospace', label: 'Courier New' },
+  { value: 'Impact, Haettenschweiler, sans-serif', label: 'Impact' }
+];
 
 const FIELD_OPTIONS: { value: string; label: string }[] = [
   { value: 'name', label: 'Full Name' },
@@ -415,6 +467,24 @@ const FIELD_OPTIONS: { value: string; label: string }[] = [
 
 const getCardDims = (orientation: 'vertical' | 'horizontal') =>
   orientation === 'vertical' ? VERTICAL_DIMS : HORIZONTAL_DIMS;
+
+// Resolution presets. Output size is the CR80 card (85.6 mm long edge) at the chosen DPI.
+const CARD_DPI_OPTIONS: { value: number; label: string }[] = [
+  { value: 96, label: 'Screen - 96 DPI' },
+  { value: 300, label: 'Print - 300 DPI (recommended)' },
+  { value: 600, label: 'High print - 600 DPI' }
+];
+const CARD_MM = { long: 85.6, short: 54 };
+const getOutputPixels = (orientation: 'vertical' | 'horizontal', dpi: number) => {
+  const toPx = (mm: number) => Math.round((mm / 25.4) * dpi);
+  return orientation === 'vertical'
+    ? { width: toPx(CARD_MM.short), height: toPx(CARD_MM.long) }
+    : { width: toPx(CARD_MM.long), height: toPx(CARD_MM.short) };
+};
+const formatBytes = (bytes: number): string =>
+  bytes < 1024 ? `${bytes} B` : bytes < 1024 * 1024 ? `${Math.round(bytes / 1024)} KB` : `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+const styleToggleClass = (active: boolean) =>
+  `flex-1 py-1.5 px-2 rounded-lg border text-sm ${active ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'}`;
 
 // Keeps element placement proportional when the card orientation changes
 const scaleElements = (
@@ -632,7 +702,8 @@ const CardFace: React.FC<CardFaceProps> = ({
       case 'field':
         return <span style={{ width: '100%', textAlign }}>{getFieldValue(employee, el.fieldMapping)}</span>;
       case 'image': {
-        const src = el.imageSrc || (el.id === 'photo' ? employee.photo : '');
+        const isPhoto = el.id === 'photo' || el.fieldMapping === 'photo';
+        const src = el.imageSrc || (isPhoto ? employee.photo : '');
         if (src) {
           return (
             <img
@@ -642,7 +713,7 @@ const CardFace: React.FC<CardFaceProps> = ({
               style={{ width: '100%', height: '100%', objectFit: el.imageFit ?? 'cover', display: 'block' }} />);
 
         }
-        const Icon = el.id === 'photo' ? User : Building2;
+        const Icon = isPhoto ? User : Building2;
         return (
           <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', background: 'rgba(255,255,255,0.7)' }}>
             <Icon width="45%" height="45%" />
@@ -653,7 +724,7 @@ const CardFace: React.FC<CardFaceProps> = ({
         const seed = `${employee.employeeId}|${el.id}|${getFieldValue(employee, el.fieldMapping ?? 'employeeId')}`;
         return (
           <svg viewBox="0 0 21 21" width="100%" height="100%" shapeRendering="crispEdges">
-            <rect width="21" height="21" fill="#ffffff" />
+            <rect width="21" height="21" fill="#ffffff" fillOpacity={el.noBackground ? 0 : 1} />
             <path d={buildQrPath(seed)} fill="#111827" />
           </svg>);
 
@@ -662,7 +733,7 @@ const CardFace: React.FC<CardFaceProps> = ({
         const seed = getFieldValue(employee, el.fieldMapping ?? 'employeeId');
         return (
           <svg viewBox="0 0 100 40" width="100%" height="100%" preserveAspectRatio="none">
-            <rect width="100" height="40" fill="#ffffff" />
+            <rect width="100" height="40" fill="#ffffff" fillOpacity={el.noBackground ? 0 : 1} />
             {buildBarcodeBars(seed).map((bar) => (
               <rect key={bar.x} x={bar.x} y={3} width={bar.w} height={34} fill="#111827" />
             ))}
@@ -705,8 +776,11 @@ const CardFace: React.FC<CardFaceProps> = ({
           justifyContent: justify,
           fontSize: el.style.fontSize,
           fontWeight: el.style.fontWeight as React.CSSProperties['fontWeight'],
+          fontStyle: el.style.fontStyle as React.CSSProperties['fontStyle'],
+          textDecoration: el.style.textDecoration,
+          fontFamily: el.style.fontFamily,
           color: el.style.color,
-          backgroundColor: el.style.backgroundColor,
+          backgroundColor: el.noBackground ? 'transparent' : el.style.backgroundColor,
           borderRadius: el.style.borderRadius,
           borderWidth: el.style.borderWidth ?? 0,
           borderStyle: el.style.borderWidth ? 'solid' : undefined,
@@ -742,7 +816,7 @@ const CardFace: React.FC<CardFaceProps> = ({
 
 };
 
-const readSavedDesign = (): { elements: CardElement[]; background: string; orientation: 'vertical' | 'horizontal' } | null => {
+const readSavedDesign = (): { elements: CardElement[]; background: string; orientation: 'vertical' | 'horizontal'; dpi: number } | null => {
   try {
     const raw = window.localStorage.getItem(DESIGN_STORAGE_KEY);
     if (!raw) return null;
@@ -751,7 +825,8 @@ const readSavedDesign = (): { elements: CardElement[]; background: string; orien
     return {
       elements: parsed.elements as CardElement[],
       background: typeof parsed.background === 'string' ? parsed.background : DEFAULT_CARD_BACKGROUND,
-      orientation: parsed.orientation === 'horizontal' ? 'horizontal' : 'vertical'
+      orientation: parsed.orientation === 'horizontal' ? 'horizontal' : 'vertical',
+      dpi: CARD_DPI_OPTIONS.some((option) => option.value === parsed.dpi) ? parsed.dpi : 300
     };
   } catch {
     return null;
@@ -821,6 +896,7 @@ export function EmployeeIDCardGenerator() {
   const [selectedElement, setSelectedElement] = useState<string | null>(null);
   const [cardOrientation, setCardOrientation] = useState<'vertical' | 'horizontal'>(savedDesign?.orientation ?? 'vertical');
   const [cardBackground, setCardBackground] = useState(savedDesign?.background ?? DEFAULT_CARD_BACKGROUND);
+  const [cardDpi, setCardDpi] = useState<number>(savedDesign?.dpi ?? 300);
   const [showElementPanel, setShowElementPanel] = useState(true);
 
   // Pagination
@@ -834,6 +910,10 @@ export function EmployeeIDCardGenerator() {
   const [previewEmployeeId, setPreviewEmployeeId] = useState<string>(mockEmployees[0].id);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const selectedEl = cardElements.find((el) => el.id === selectedElement) ?? null;
+  const outputPixels = getOutputPixels(cardOrientation, cardDpi);
+  const selectedBold = selectedEl?.style.fontWeight === 'bold';
+  const selectedItalic = selectedEl?.style.fontStyle === 'italic';
+  const selectedUnderline = selectedEl?.style.textDecoration === 'underline';
   const selectedCards = employees.filter((emp) => selectedEmployees.has(emp.id));
   const previewEmployee = employees.find((emp) => emp.id === previewEmployeeId) ?? employees[0];
   const clampNumber = (raw: string, min: number, max: number) => Math.min(Math.max(Number(raw) || 0, min), Math.max(min, max));
@@ -966,27 +1046,24 @@ export function EmployeeIDCardGenerator() {
     setSelectedEmployee(null);
   };
 
-  const handleAddElement = (type: CardElementType) => {
+  const handleAddPreset = (preset: ElementPreset) => {
     const dims = getCardDims(cardOrientation);
-    const size = ELEMENT_SIZE[type];
-    const id = `${type}-${Date.now()}`;
-    const typeLabel = ELEMENT_PALETTE.find((item) => item.type === type)?.label ?? type;
+    const id = `${preset.type}-${Date.now()}`;
+    const fills = Boolean(preset.fullCard || preset.fullWidth);
+    const width = preset.fullCard || preset.fullWidth ? dims.width : preset.size.width;
+    const height = preset.fullCard ? dims.height : preset.size.height;
     const newElement: CardElement = {
       id,
-      type,
-      label: `${typeLabel} ${cardElements.filter((el) => el.type === type).length + 1}`,
-      x: Math.round((dims.width - size.width) / 2),
-      y: Math.round((dims.height - size.height) / 2),
-      width: size.width,
-      height: size.height,
+      type: preset.type,
+      label: `${preset.label} ${cardElements.filter((el) => el.label.startsWith(preset.label)).length + 1}`,
+      x: fills ? 0 : Math.round((dims.width - width) / 2),
+      y: preset.fullCard ? 0 : fills ? 0 : Math.round((dims.height - height) / 2),
+      width,
+      height,
       visible: true,
-      style: type === 'text' || type === 'field'
-        ? { fontSize: 14, fontWeight: 'normal', color: '#ffffff', textAlign: 'center' }
-        : type === 'shape'
-          ? { backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 8 }
-          : {},
-      fieldMapping: type === 'field' ? 'name' : type === 'qr' || type === 'barcode' ? 'employeeId' : undefined,
-      content: type === 'text' ? 'Your text' : undefined
+      style: { ...(preset.style ?? {}) },
+      fieldMapping: preset.fieldMapping,
+      content: preset.content
     };
     setCardElements((prev) => [...prev, newElement]);
     setSelectedElement(id);
@@ -1004,6 +1081,21 @@ export function EmployeeIDCardGenerator() {
 
   const resizeElement = (elementId: string, width: number, height: number) => updateElement(elementId, { width, height });
 
+  const placeElement = (elementId: string, placement: 'top-left' | 'centre-h' | 'centre-v' | 'fill') => {
+    const el = cardElements.find((item) => item.id === elementId);
+    if (!el) return;
+    const dims = getCardDims(cardOrientation);
+    if (placement === 'fill') {
+      updateElement(elementId, { x: 0, y: 0, width: dims.width, height: dims.height });
+    } else if (placement === 'centre-h') {
+      updateElement(elementId, { x: Math.round((dims.width - el.width) / 2) });
+    } else if (placement === 'centre-v') {
+      updateElement(elementId, { y: Math.round((dims.height - el.height) / 2) });
+    } else {
+      updateElement(elementId, { x: 10, y: 10 });
+    }
+  };
+
   const changeOrientation = (next: 'vertical' | 'horizontal') => {
     if (next === cardOrientation) return;
     setCardElements((prev) => scaleElements(prev, getCardDims(cardOrientation), getCardDims(next)));
@@ -1014,6 +1106,18 @@ export function EmployeeIDCardGenerator() {
     setCardElements(cardOrientation === 'vertical' ? defaultCardElements : scaleElements(defaultCardElements, VERTICAL_DIMS, HORIZONTAL_DIMS));
     setSelectedElement(null);
     setNotice({ type: 'success', text: 'Design reset to the default layout. Click Save Design to keep it.' });
+  };
+
+  // Layer order: later elements are drawn on top of earlier ones
+  const moveLayer = (elementId: string, step: 1 | -1) => {
+    setCardElements((prev) => {
+      const index = prev.findIndex((el) => el.id === elementId);
+      const target = index + step;
+      if (index < 0 || target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
   };
 
   const handleImageUpload = (elementId: string, file: File | undefined) => {
@@ -1027,7 +1131,7 @@ export function EmployeeIDCardGenerator() {
       return;
     }
     const reader = new FileReader();
-    reader.onload = () => updateElement(elementId, { imageSrc: String(reader.result) });
+    reader.onload = () => updateElement(elementId, { imageSrc: String(reader.result), imageName: file.name, imageBytes: file.size });
     reader.readAsDataURL(file);
   };
 
@@ -1037,6 +1141,7 @@ export function EmployeeIDCardGenerator() {
         elements: cardElements,
         background: cardBackground,
         orientation: cardOrientation,
+        dpi: cardDpi,
         savedAt: new Date().toISOString()
       }));
       setNotice({ type: 'success', text: 'Card design saved. The layout is kept in this browser and is used for previews and printing.' });
@@ -1198,8 +1303,11 @@ export function EmployeeIDCardGenerator() {
             if (design.orientation) {
               setCardOrientation(design.orientation);
             }
+            if (CARD_DPI_OPTIONS.some((option) => option.value === Number(design.dpi))) {
+              setCardDpi(Number(design.dpi));
+            }
           } catch (error) {
-            console.error('Invalid design file');
+            setNotice({ type: 'error', text: 'That file is not a valid card design export.' });
           }
         };
         reader.readAsText(file);
@@ -1212,7 +1320,8 @@ export function EmployeeIDCardGenerator() {
     const design = {
       elements: cardElements,
       background: cardBackground,
-      orientation: cardOrientation
+      orientation: cardOrientation,
+      dpi: cardDpi
     };
     const blob = new Blob([JSON.stringify(design, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -1693,8 +1802,8 @@ export function EmployeeIDCardGenerator() {
             {/* CARD DESIGN EDITOR TAB */}
             {activeTab === 'design' &&
             <div className="flex flex-col xl:flex-row gap-6">
-                {/* Left panel: card settings, element palette, layers and element properties */}
-                <div className="w-full xl:w-96 flex-shrink-0 space-y-4">
+                {/* Left panel: card settings, element palette and layers */}
+                <div className="w-full xl:w-80 flex-shrink-0 space-y-4">
                   <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                     <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
                       <Settings className="w-4 h-4" />
@@ -1737,6 +1846,20 @@ export function EmployeeIDCardGenerator() {
                           ))}
                         </div>
                       </div>
+                      <div>
+                        <label className={DESIGN_LABEL_CLASS}>Resolution</label>
+                        <select
+                          value={cardDpi}
+                          onChange={(e) => setCardDpi(Number(e.target.value))}
+                          className={DESIGN_INPUT_CLASS}>
+                          {CARD_DPI_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>{option.label}</option>
+                          ))}
+                        </select>
+                        <p className="text-[11px] text-gray-500 mt-1">
+                          Output {outputPixels.width} × {outputPixels.height} px ({cardOrientation === 'vertical' ? '54 × 85.6' : '85.6 × 54'} mm card)
+                        </p>
+                      </div>
                     </div>
                   </div>
 
@@ -1745,23 +1868,29 @@ export function EmployeeIDCardGenerator() {
                       <Plus className="w-4 h-4" />
                       Add Element
                     </h3>
-                    <div className="grid grid-cols-2 gap-2">
-                      {ELEMENT_PALETTE.map((item) => {
-                        const Icon = item.icon;
-                        return (
-                          <button
-                            key={item.type}
-                            type="button"
-                            onClick={() => handleAddElement(item.type)}
-                            className="flex items-start gap-2 p-2.5 bg-white border border-gray-200 rounded-lg hover:bg-indigo-50 hover:border-indigo-200 text-left transition-colors">
-                            <Icon className="w-4 h-4 text-indigo-600 mt-0.5 flex-shrink-0" />
-                            <span className="min-w-0">
-                              <span className="block text-sm font-medium text-gray-900">{item.label}</span>
-                              <span className="block text-[11px] leading-tight text-gray-500">{item.description}</span>
-                            </span>
-                          </button>);
-
-                      })}
+                    <div className="space-y-4 max-h-[460px] overflow-y-auto pr-1">
+                      {PRESET_GROUPS.map((group) => (
+                        <div key={group}>
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 mb-1.5">{group}</p>
+                          <div className="grid grid-cols-2 gap-2">
+                            {ELEMENT_PRESETS.filter((preset) => preset.group === group).map((preset) => {
+                              const Icon = preset.icon;
+                              return (
+                                <button
+                                  key={preset.key}
+                                  type="button"
+                                  onClick={() => handleAddPreset(preset)}
+                                  className="flex items-start gap-2 p-2 bg-white border border-gray-200 rounded-lg hover:bg-indigo-50 hover:border-indigo-200 text-left transition-colors">
+                                  <Icon className="w-4 h-4 text-indigo-600 mt-0.5 flex-shrink-0" />
+                                  <span className="min-w-0">
+                                    <span className="block text-sm font-medium text-gray-900">{preset.label}</span>
+                                    <span className="block text-[11px] leading-tight text-gray-500">{preset.description}</span>
+                                  </span>
+                                </button>);
+                            })}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
 
@@ -1805,7 +1934,85 @@ export function EmployeeIDCardGenerator() {
                     </div>
                   </div>
 
-                  {selectedEl &&
+                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 flex gap-2">
+                    <button
+                      onClick={handleImportDesign}
+                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm hover:bg-gray-50">
+                      <Upload className="w-4 h-4" />
+                      Import
+                    </button>
+                    <button
+                      onClick={handleExportDesign}
+                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm hover:bg-gray-50">
+                      <Download className="w-4 h-4" />
+                      Export
+                    </button>
+                  </div>
+                </div>
+
+                {/* Right panel: live card preview (editable on the front) */}
+                <div className="flex-1 min-w-0">
+                  <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
+                    <div className="flex flex-col md:flex-row md:items-start justify-between gap-3 mb-4">
+                      <div>
+                        <h3 className="font-semibold text-gray-900">Card Preview</h3>
+                        <p className="text-xs text-gray-500 mt-1">Click an element to select it. Drag it to move. Drag the corner handle to resize.</p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <select
+                          value={previewEmployee.id}
+                          onChange={(e) => setPreviewEmployeeId(e.target.value)}
+                          className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white max-w-[220px]">
+                          {employees.map((emp) => (
+                            <option key={emp.id} value={emp.id}>{emp.name}</option>
+                          ))}
+                        </select>
+                        <div className="flex rounded-lg border border-gray-200 overflow-hidden">
+                          {(['front', 'back'] as const).map((side) => (
+                            <button
+                              key={side}
+                              type="button"
+                              onClick={() => setCardView(side)}
+                              className={`px-4 py-2 text-sm capitalize ${cardView === side ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}>
+                              {side}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-center min-h-[520px] bg-gradient-to-br from-gray-100 via-gray-50 to-gray-100 rounded-xl p-8 overflow-auto">
+                      {cardView === 'front' ?
+                      <CardFace
+                        employee={previewEmployee}
+                        elements={cardElements}
+                        background={cardBackground}
+                        orientation={cardOrientation}
+                        editable
+                        selectedId={selectedElement}
+                        onSelect={(id) => setSelectedElement(id || null)}
+                        onMove={moveElement}
+                        onResize={resizeElement} /> :
+                      <IDCardPreview employee={previewEmployee} view="back" />}
+                    </div>
+                    <div className="flex flex-wrap justify-end gap-3 mt-6">
+                      <button
+                        onClick={resetDesign}
+                        className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50">
+                        <RotateCcw className="w-4 h-4" />
+                        Reset to Default
+                      </button>
+                      <button
+                        onClick={saveDesign}
+                        className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+                        <Save className="w-4 h-4" />
+                        Save Design
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                {/* Right panel: element properties, beside the live preview */}
+                <div className="w-full xl:w-80 flex-shrink-0 space-y-4 xl:sticky xl:top-4 self-start">
+                  {selectedEl ? (
                   <div className="bg-white rounded-lg p-4 border border-indigo-200 shadow-sm space-y-3">
                       <div className="flex items-center justify-between">
                         <h3 className="font-semibold text-gray-900 flex items-center gap-2">
@@ -1904,15 +2111,25 @@ export function EmployeeIDCardGenerator() {
                               onChange={(e) => updateElementStyle(selectedEl.id, { fontSize: clampNumber(e.target.value, 6, 48) })}
                               className={DESIGN_INPUT_CLASS} />
                           </div>
-                          <div>
-                            <label className={DESIGN_LABEL_CLASS}>Weight</label>
+                          <div className="col-span-2">
+                            <label className={DESIGN_LABEL_CLASS}>Font family</label>
                             <select
-                              value={selectedEl.style.fontWeight ?? 'normal'}
-                              onChange={(e) => updateElementStyle(selectedEl.id, { fontWeight: e.target.value })}
+                              value={selectedEl.style.fontFamily ?? ''}
+                              onChange={(e) => updateElementStyle(selectedEl.id, { fontFamily: e.target.value || undefined })}
                               className={DESIGN_INPUT_CLASS}>
-                              <option value="normal">Normal</option>
-                              <option value="bold">Bold</option>
+                              {FONT_FAMILIES.map((option) => (
+                                <option key={option.label} value={option.value}>{option.label}</option>
+                              ))}
                             </select>
+                          </div>
+                          <div className="col-span-2">
+                            <label className={DESIGN_LABEL_CLASS}>Style</label>
+                            <div className="flex gap-1">
+                              <button type="button" onClick={() => updateElementStyle(selectedEl.id, { fontWeight: 'normal', fontStyle: 'normal', textDecoration: 'none' })} className={styleToggleClass(!selectedBold && !selectedItalic && !selectedUnderline)}>Normal</button>
+                              <button type="button" title="Bold" aria-pressed={selectedBold} onClick={() => updateElementStyle(selectedEl.id, { fontWeight: selectedBold ? 'normal' : 'bold' })} className={styleToggleClass(selectedBold)}><Bold className="w-4 h-4 mx-auto" /></button>
+                              <button type="button" title="Italic" aria-pressed={selectedItalic} onClick={() => updateElementStyle(selectedEl.id, { fontStyle: selectedItalic ? 'normal' : 'italic' })} className={styleToggleClass(selectedItalic)}><Italic className="w-4 h-4 mx-auto" /></button>
+                              <button type="button" title="Underline" aria-pressed={selectedUnderline} onClick={() => updateElementStyle(selectedEl.id, { textDecoration: selectedUnderline ? 'none' : 'underline' })} className={styleToggleClass(selectedUnderline)}><Underline className="w-4 h-4 mx-auto" /></button>
+                            </div>
                           </div>
                           <div>
                             <label className={DESIGN_LABEL_CLASS}>Text colour</label>
@@ -1965,7 +2182,16 @@ export function EmployeeIDCardGenerator() {
                           </div>
                         </div>}
 
-                      {selectedEl.type !== 'qr' && selectedEl.type !== 'barcode' &&
+                      {(selectedEl.type === 'text' || selectedEl.type === 'field' || selectedEl.type === 'qr' || selectedEl.type === 'barcode') &&
+                      <label className="flex items-center gap-2 text-sm text-gray-700">
+                          <input
+                            type="checkbox"
+                            checked={!!selectedEl.noBackground}
+                            onChange={(e) => updateElement(selectedEl.id, { noBackground: e.target.checked })} />
+                          Remove background
+                        </label>}
+
+                      {(selectedEl.type === 'text' || selectedEl.type === 'field' || selectedEl.type === 'shape' || selectedEl.type === 'image') &&
                       <div className="flex items-end gap-2">
                           <div className="flex-1">
                             <label className={DESIGN_LABEL_CLASS}>Background colour</label>
@@ -2021,8 +2247,45 @@ export function EmployeeIDCardGenerator() {
                             </select>
                           </div>
                           <p className="text-[11px] text-gray-500">PNG, JPG, SVG or WebP up to 2 MB. Use width and height above to size it.</p>
+                          {selectedEl.imageSrc &&
+                          <p className="text-[11px] text-gray-600">
+                            {selectedEl.imageName ?? 'Uploaded image'}{selectedEl.imageBytes ? ` · ${formatBytes(selectedEl.imageBytes)}` : ''} · frame {selectedEl.width} × {selectedEl.height} px
+                          </p>}
+                          <div>
+                            <label className={DESIGN_LABEL_CLASS}>Placement</label>
+                            <div className="grid grid-cols-2 gap-2">
+                              {([
+                              { id: 'top-left', label: 'Top-left corner' },
+                              { id: 'centre-h', label: 'Centre horizontally' },
+                              { id: 'centre-v', label: 'Centre vertically' },
+                              { id: 'fill', label: 'Fill card' }] as const).map((option) => (
+                                <button
+                                  key={option.id}
+                                  type="button"
+                                  onClick={() => placeElement(selectedEl.id, option.id)}
+                                  className="px-2 py-1.5 text-xs border border-gray-200 rounded-lg bg-white hover:bg-gray-50">
+                                  {option.label}
+                                </button>))}
+                            </div>
+                          </div>
                         </div>}
 
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => moveLayer(selectedEl.id, 1)}
+                          className="flex items-center justify-center gap-2 px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50">
+                          <ChevronUp className="w-4 h-4" />
+                          Bring forward
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveLayer(selectedEl.id, -1)}
+                          className="flex items-center justify-center gap-2 px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50">
+                          <ChevronDown className="w-4 h-4" />
+                          Send backward
+                        </button>
+                      </div>
                       <button
                         type="button"
                         onClick={() => handleDeleteElement(selectedEl.id)}
@@ -2030,83 +2293,14 @@ export function EmployeeIDCardGenerator() {
                         <Trash2 className="w-4 h-4" />
                         Delete element
                       </button>
-                    </div>}
+                    </div>
+                  ) : (
+                    <div className="bg-gray-50 rounded-lg p-4 border border-dashed border-gray-300 text-sm text-gray-500 space-y-2">
+                      <h3 className="font-semibold text-gray-900 flex items-center gap-2"><Edit className="w-4 h-4" />Element Properties</h3>
+                      <p>Select an element on the card to edit its position, font, colour, background, image or placement.</p>
+                    </div>
+                  )}
 
-                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 flex gap-2">
-                    <button
-                      onClick={handleImportDesign}
-                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm hover:bg-gray-50">
-                      <Upload className="w-4 h-4" />
-                      Import
-                    </button>
-                    <button
-                      onClick={handleExportDesign}
-                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm hover:bg-gray-50">
-                      <Download className="w-4 h-4" />
-                      Export
-                    </button>
-                  </div>
-                </div>
-
-                {/* Right panel: live card preview (editable on the front) */}
-                <div className="flex-1 min-w-0">
-                  <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
-                    <div className="flex flex-col md:flex-row md:items-start justify-between gap-3 mb-4">
-                      <div>
-                        <h3 className="font-semibold text-gray-900">Card Preview</h3>
-                        <p className="text-xs text-gray-500 mt-1">Click an element to select it. Drag it to move. Drag the corner handle to resize.</p>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <select
-                          value={previewEmployee.id}
-                          onChange={(e) => setPreviewEmployeeId(e.target.value)}
-                          className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white max-w-[220px]">
-                          {employees.map((emp) => (
-                            <option key={emp.id} value={emp.id}>{emp.name}</option>
-                          ))}
-                        </select>
-                        <div className="flex rounded-lg border border-gray-200 overflow-hidden">
-                          {(['front', 'back'] as const).map((side) => (
-                            <button
-                              key={side}
-                              type="button"
-                              onClick={() => setCardView(side)}
-                              className={`px-4 py-2 text-sm capitalize ${cardView === side ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}>
-                              {side}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-center min-h-[520px] bg-gradient-to-br from-gray-100 via-gray-50 to-gray-100 rounded-xl p-8 overflow-auto">
-                      {cardView === 'front' ?
-                      <CardFace
-                        employee={previewEmployee}
-                        elements={cardElements}
-                        background={cardBackground}
-                        orientation={cardOrientation}
-                        editable
-                        selectedId={selectedElement}
-                        onSelect={(id) => setSelectedElement(id || null)}
-                        onMove={moveElement}
-                        onResize={resizeElement} /> :
-                      <IDCardPreview employee={previewEmployee} view="back" />}
-                    </div>
-                    <div className="flex flex-wrap justify-end gap-3 mt-6">
-                      <button
-                        onClick={resetDesign}
-                        className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50">
-                        <RotateCcw className="w-4 h-4" />
-                        Reset to Default
-                      </button>
-                      <button
-                        onClick={saveDesign}
-                        className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
-                        <Save className="w-4 h-4" />
-                        Save Design
-                      </button>
-                    </div>
-                  </div>
                 </div>
               </div>}
 
