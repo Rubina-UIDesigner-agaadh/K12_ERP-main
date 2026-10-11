@@ -10,7 +10,6 @@ export { DutyMaster } from './DutyMaster';
 export { DutyRoster } from './DutyRoster';
 export { DutyAttendance } from './DutyAttendance';
 export { ReportsAnalytics } from './ReportsAnalytics';
-export { SmartEventCalendar } from './SmartEventCalendar';
 export { MediaGalleryManagement } from './MediaGalleryManagement';
 export { CompetitionManagement } from './CompetitionManagement';
 export { ClubsActivities } from './ClubsActivities';

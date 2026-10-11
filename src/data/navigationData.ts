@@ -398,7 +398,6 @@ const communicationsSidebar: SidebarSection[] = [{ title: 'Communications', item
 const eventActivitiesSidebar: SidebarSection[] = [
   { title: 'Event Management', items: [
     { label: 'Event Management', id: 'event-management' },
-    { label: 'Smart Event Calendar', id: 'smart-event-calendar' },
     { label: 'Media & Gallery Management', id: 'media-gallery-management' },
     { label: 'Event Participation Report', id: 'event-participation-report' }
   ] },
@@ -423,12 +422,9 @@ const eventActivitiesSidebar: SidebarSection[] = [
     { label: 'Planner Dashboard', id: 'planner-dashboard' },
     { label: 'Activity Management', id: 'activity-management' },
     { label: 'Activity Calendar', id: 'activity-calendar' },
-    { label: 'Monthly Activity Calendar', id: 'monthly-activity-calendar' },
     { label: 'Activity Types & Settings', id: 'activity-types-settings' },
     { label: 'Recurring Activities', id: 'recurring-activities' },
     { label: 'Bulk Planning', id: 'bulk-planning' },
-    { label: 'Conflict Detection', id: 'conflict-detection' },
-    { label: 'Notifications & Reminders', id: 'notifications-reminders' }
   ] },
   { title: 'Teacher & Department Coordination', items: [
     { label: 'Department Duty Allocation', id: 'department-duty-allocation' },
@@ -461,11 +457,10 @@ const administrationSidebar: SidebarSection[] = [
 ];
 const academicsSidebar: SidebarSection[] = [
   { title: 'Planning & Tracking', items: [{ label: 'Academic Planning & Execution', id: 'academic-planning-execution' }] },
-  { title: 'Operations', items: [{ label: 'Academic Attendance', id: 'academic-attendance' }, { label: 'Classroom Operations', id: 'classroom-operations' }, { label: 'Teacher Progress Dashboard', id: 'teacher-progress-dashboard' }, { label: 'School Diary', id: 'school-diary' }] }
+  { title: 'Operations', items: [{ label: 'Classroom Operations', id: 'classroom-operations' }, { label: 'Teacher Progress Dashboard', id: 'teacher-progress-dashboard' }, { label: 'School Diary', id: 'school-diary' }] }
 ];
 const curriculumSidebar: SidebarSection[] = [{ title: 'Curriculum', items: [
   { label: 'Curriculum Progress Tracker', id: 'curriculum-progress-tracker' },
-  { label: 'Skill Development Assessment', id: 'skill-development-assessment' },
   { label: 'Classwork', id: 'classwork' },
   { label: 'Homework & Assignments', id: 'homework-assignments' },
   { label: 'Study Material', id: 'study-material' }
@@ -476,10 +471,13 @@ const curriculumAcademicPlanningSidebar: SidebarSection[] = [
     { label: 'Curriculum Master', id: 'curriculum-master' },
     { label: 'Learning Objectives Master', id: 'learning-objectives-master' },
     { label: 'Textbook & Resource Master', id: 'textbook-resource-master' },
-    { label: 'Annual Teaching Plan', id: 'annual-teaching-plan' },
-    { label: 'Monthly Teaching Plan', id: 'monthly-teaching-plan' },
-    { label: 'Weekly Teaching Plan', id: 'weekly-teaching-plan' },
-    { label: 'Lesson Plan Creation', id: 'lesson-plan-creation' }
+    { label: 'Teaching Plan', id: 'teaching-plan' },
+    { label: 'Lesson Plan Creation', id: 'lesson-plan-creation' },
+    { label: 'HOD Lesson Plan Review', id: 'lesson-plan-review' },
+    { label: 'Syllabus Completion Tracker', id: 'syllabus-completion-tracker' },
+    { label: 'Teaching Progress Dashboard', id: 'teaching-progress-dashboard' },
+    { label: 'Question Bank', id: 'question-bank' },
+    { label: 'Curriculum & Academic Planning Reports', id: 'curriculum-academic-reports' }
   ] },
   ...academicsSidebar,
   ...curriculumSidebar

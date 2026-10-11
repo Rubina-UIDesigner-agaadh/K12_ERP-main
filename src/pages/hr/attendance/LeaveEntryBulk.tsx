@@ -147,8 +147,8 @@ const STATUS_STYLE: Record<LeaveStatus, string> = {
 
 const inputClass = 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-sm';
 
-export function LeaveEntryBulk() {
-  const [mode, setMode] = useState<'bulk' | 'single'>('bulk');
+export function LeaveEntryBulk({ lockedMode }: { lockedMode?: 'bulk' | 'single' } = {}) {
+  const [mode, setMode] = useState<'bulk' | 'single'>(lockedMode ?? 'bulk');
   const [notice, setNotice] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [records, setRecords] = useState<LeaveRecord[]>(SEED_RECORDS);
   const [nextId, setNextId] = useState(100);
@@ -376,7 +376,7 @@ export function LeaveEntryBulk() {
         }
       </div>
 
-      <div className="flex gap-2 border-b border-gray-200">
+      {!lockedMode && <div className="flex gap-2 border-b border-gray-200">
         {([
         { id: 'bulk', label: 'Bulk Leave Entry (multiple employees)' },
         { id: 'single', label: 'Single Employee & History' }] as const).map((tab) =>
@@ -388,7 +388,7 @@ export function LeaveEntryBulk() {
             {tab.label}
           </button>
         )}
-      </div>
+      </div>}
 
       {notice &&
       <div className={`flex items-start justify-between gap-3 rounded-lg border px-4 py-3 text-sm ${notice.type === 'success' ? 'bg-green-50 border-green-200 text-green-800' : notice.type === 'error' ? 'bg-red-50 border-red-200 text-red-800' : 'bg-blue-50 border-blue-200 text-blue-800'}`}>
@@ -711,4 +711,3 @@ export function LeaveEntryBulk() {
     </div>);
 
 }
-  

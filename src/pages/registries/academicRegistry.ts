@@ -10,17 +10,9 @@ export const academicRegistry: Record<string, () => any> = {
     () => import('../academic/academics/AcademicPlanningDashboard'),
     'AcademicPlanningDashboard'
   ),
-  'annual-teaching-plan': rp(
-    () => import('../academic/academics/AnnualTeachingPlan'),
-    'AnnualTeachingPlan'
-  ),
-  'monthly-teaching-plan': rp(
-    () => import('../academic/academics/MonthlyTeachingPlan'),
-    'MonthlyTeachingPlan'
-  ),
-  'weekly-teaching-plan': rp(
-    () => import('../academic/academics/WeeklyTeachingPlan'),
-    'WeeklyTeachingPlan'
+  'teaching-plan': rp(
+    () => import('../academic/academics/TeachingPlan'),
+    'TeachingPlan'
   ),
   'curriculum-master': rp(
     () => import('../academic/academics/CurriculumMaster'),
@@ -29,6 +21,26 @@ export const academicRegistry: Record<string, () => any> = {
   'lesson-plan-creation': rp(
     () => import('../academic/academics/LessonPlanCreation'),
     'LessonPlanCreation'
+  ),
+  'lesson-plan-review': rp(
+    () => import('../academic/academics/LessonPlanReview'),
+    'LessonPlanReview'
+  ),
+  'syllabus-completion-tracker': rp(
+    () => import('../academic/academics/SyllabusCompletionTracker'),
+    'SyllabusCompletionTracker'
+  ),
+  'teaching-progress-dashboard': rp(
+    () => import('../academic/academics/TeachingProgressDashboard'),
+    'TeachingProgressDashboard'
+  ),
+  'question-bank': rp(
+    () => import('../academic/academics/QuestionBank'),
+    'QuestionBank'
+  ),
+  'curriculum-academic-reports': rp(
+    () => import('../academic/academics/CurriculumReports'),
+    'CurriculumReports'
   ),
   'learning-objectives-master': rp(
     () => import('../academic/academics/LearningObjectivesMaster'),
@@ -46,10 +58,6 @@ export const academicRegistry: Record<string, () => any> = {
     () => import('../academic/academics/CurriculumProgressTracker'),
     'CurriculumProgressTracker'
   ),
-  'skill-development-assessment': rp(
-    () => import('../academic/academics/SkillDevelopmentAssessment'),
-    'SkillDevelopmentAssessment'
-  ),
   'classroom-operations': rp(
     () => import('../academic/academics/ClassroomOperations'),
     'ClassroomOperations'
@@ -65,10 +73,6 @@ export const academicRegistry: Record<string, () => any> = {
   'study-material': rp(
     () => import('../academic/academics/StudyMaterial'),
     'StudyMaterial'
-  ),
-  'academic-attendance': rp(
-    () => import('../academic/academics/AcademicAttendance'),
-    'AcademicAttendance'
   ),
   classwork: rp(() => import('../academic/academics/Classwork'), 'Classwork'),
   'school-diary': rp(
@@ -92,10 +96,6 @@ export const academicRegistry: Record<string, () => any> = {
   'substitution-management': rp(
     () => import('../more/timetable/SubstitutionManagement'),
     'SubstitutionManagement'
-  ),
-  'room-resource-allocation': rp(
-    () => import('../more/timetable/RoomResourceAllocation'),
-    'RoomResourceAllocation'
   ),
 
   // Event/Activities — legacy routes retained alongside the new pages
@@ -147,10 +147,6 @@ export const academicRegistry: Record<string, () => any> = {
     () => import('../academic/academics/event-activities/ReportsAnalytics'),
     'ReportsAnalytics'
   ),
-  'smart-event-calendar': rp(
-    () => import('../academic/academics/event-activities/SmartEventCalendar'),
-    'SmartEventCalendar'
-  ),
   'media-gallery-management': rp(
     () => import('../academic/academics/event-activities/MediaGalleryManagement'),
     'MediaGalleryManagement'
@@ -195,10 +191,6 @@ export const academicRegistry: Record<string, () => any> = {
     () => import('../academic/academics/event-activities/ActivityCalendar'),
     'ActivityCalendar'
   ),
-  'monthly-activity-calendar': rp(
-    () => import('../academic/academics/event-activities/MonthlyActivityCalendar'),
-    'MonthlyActivityCalendar'
-  ),
   'activity-types-settings': rp(
     () => import('../academic/academics/event-activities/ActivityTypesSettings'),
     'ActivityTypesSettings'
@@ -211,10 +203,6 @@ export const academicRegistry: Record<string, () => any> = {
     () => import('../academic/academics/event-activities/BulkPlanning'),
     'BulkPlanning'
   ),
-  'conflict-detection': rp(
-    () => import('../academic/academics/event-activities/ConflictDetection'),
-    'ConflictDetection'
-  ),
   'department-duty-allocation': rp(
     () => import('../academic/academics/event-activities/DepartmentDutyAllocation'),
     'DepartmentDutyAllocation'
@@ -222,10 +210,6 @@ export const academicRegistry: Record<string, () => any> = {
   'event-participation-report': rp(
     () => import('../academic/academics/event-activities/EventParticipationReport'),
     'EventParticipationReport'
-  ),
-  'notifications-reminders': rp(
-    () => import('../academic/academics/event-activities/NotificationsReminders'),
-    'NotificationsReminders'
   ),
   'teacher-duty-report': rp(
     () => import('../academic/academics/event-activities/TeacherDutyReport'),

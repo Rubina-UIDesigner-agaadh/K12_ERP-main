@@ -1,5 +1,6 @@
 import React, { useState, Component } from 'react';
 import { Card } from '../../../components/ui/Card';
+import { SyllabusCompletionTracker } from './SyllabusCompletionTracker';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Select } from '../../../components/ui/Select';
@@ -819,6 +820,7 @@ export function CurriculumProgressTracker() {
             <TabsTrigger value="milestones">Monthly Milestones</TabsTrigger>
             <TabsTrigger value="skills">Skill Tracking</TabsTrigger>
             <TabsTrigger value="summary">Class Summary</TabsTrigger>
+            <TabsTrigger value="syllabus">Syllabus Completion</TabsTrigger>
           </TabsList>
 
           {/* TOPIC COVERAGE */}
@@ -951,6 +953,9 @@ export function CurriculumProgressTracker() {
                 )}
               </div>
             </Card>
+          </TabsContent>
+          <TabsContent value="syllabus" className="p-0">
+            <SyllabusCompletionTracker />
           </TabsContent>
         </Tabs>
       </Card>

@@ -1,6 +1,5 @@
 export { AcademicPlanningExecution } from './AcademicPlanningExecution';
 export { CurriculumProgressTracker } from './CurriculumProgressTracker';
-export { SkillDevelopmentAssessment } from './SkillDevelopmentAssessment';
 export { ClassroomOperations } from './ClassroomOperations';
 export { TeacherProgressDashboard } from './TeacherProgressDashboard';
 export { HomeworkAssignments } from './HomeworkAssignments';

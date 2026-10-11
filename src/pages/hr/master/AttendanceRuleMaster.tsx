@@ -507,54 +507,6 @@ export function AttendanceRuleMaster() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-4 gap-4">
-        <div className="bg-white rounded-lg border p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-            <Settings className="w-5 h-5 text-blue-600" />
-          </div>
-          <div>
-            <p className="text-xl font-bold">{rules.length}</p>
-            <p className="text-xs text-gray-500">Total Rule Sets</p>
-          </div>
-        </div>
-        <div className="bg-white rounded-lg border p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
-            <Settings className="w-5 h-5 text-green-600" />
-          </div>
-          <div>
-            <p className="text-xl font-bold">
-              {rules.filter((r) => r.status === 'Active').length}
-            </p>
-            <p className="text-xs text-gray-500">Active Rules</p>
-          </div>
-        </div>
-        <div className="bg-white rounded-lg border p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
-            <Settings className="w-5 h-5 text-purple-600" />
-          </div>
-          <div>
-            <p className="text-xl font-bold">
-              {new Set(rules.flatMap((r) => r.applicableStaffTypes)).size}
-            </p>
-            <p className="text-xs text-gray-500">Staff Types Covered</p>
-          </div>
-        </div>
-        <div className="bg-white rounded-lg border p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
-            <Settings className="w-5 h-5 text-amber-600" />
-          </div>
-          <div>
-            <p className="text-xl font-bold">
-              {(
-              rules.reduce((sum, r) => sum + r.overtimeThreshold, 0) /
-              rules.filter((r) => r.overtimeEligible).length).
-              toFixed(1)}
-            </p>
-            <p className="text-xs text-gray-500">Avg OT Threshold</p>
-          </div>
-        </div>
-      </div>
-
       {showForm &&
       <Card title={editId ? 'Edit Rule Set' : 'Create New Rule Set'}>
           <div className="space-y-6">

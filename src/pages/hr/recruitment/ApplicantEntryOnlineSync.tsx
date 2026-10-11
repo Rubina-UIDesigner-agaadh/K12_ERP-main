@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import {
   Building,
   X,
@@ -602,6 +602,63 @@ export function ApplicantEntryOnlineSync() {
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
+
+  // MOCK DATA: simulated applicant feed from other platforms, delivered on page load.
+  // Each mock application is added to the applicant list automatically (duplicates by email are skipped).
+  const mockFeedRanRef = useRef(false);
+  useEffect(() => {
+    if (mockFeedRanRef.current) return;
+    mockFeedRanRef.current = true;
+    setTimeout(() => {
+      const today = new Date().toISOString().split('T')[0];
+      const feed = [
+      { name: 'Riya Mehta', email: 'riya.mehta.mock@example.com', phone: '+91 90000 11122', position: 'Science Teacher', source: 'LinkedIn', qualification: 'M.Sc Chemistry', experience: '3 years' },
+      { name: 'Arjun Patel', email: 'arjun.patel.mock@example.com', phone: '+91 90000 33344', position: 'Mathematics Teacher', source: 'Indeed', qualification: 'M.Sc Mathematics', experience: '5 years' }];
+
+      const known = new Set(applicants.map((a) => a.email.toLowerCase()));
+      const fresh = feed.filter((f) => !known.has(f.email.toLowerCase()));
+      if (fresh.length > 0) {
+        const added: Applicant[] = fresh.map((f, index) => {
+          const parts = f.name.split(' ');
+          return {
+            id: `MOCK-${Date.now()}-${index}`,
+            firstName: parts[0],
+            lastName: parts.slice(1).join(' '),
+            email: f.email,
+            phone: f.phone,
+            position: f.position,
+            subject: '',
+            qualification: f.qualification,
+            experience: f.experience.replace(' years', ''),
+            source: f.source,
+            expectedSalary: '',
+            tags: ['Auto-synced', 'MOCK DATA', f.source],
+            branch: selectedBranches[0] || 'main',
+            status: 'New',
+            certifications: [],
+            createdAt: today,
+            updatedAt: today
+          } as Applicant;
+        });
+        setOnlineApplications((list) => [
+          ...fresh.map((f, index) => ({
+            id: `OA-MOCK-${index + 1}`,
+            name: f.name,
+            email: f.email,
+            phone: f.phone,
+            position: f.position,
+            source: f.source,
+            date: today,
+            status: 'Synced' as const,
+            qualification: f.qualification,
+            experience: f.experience
+          })),
+          ...list]);
+        setApplicants((prev) => [...added, ...prev]);
+        addToast('success', `Mock feed: ${added.length} applicant(s) auto-added from other platforms (mock data)`);
+      }
+    }, 1200);
+  }, []);
 
   // Online sync functionality
   const handleSyncNow = async () => {
@@ -1615,6 +1672,7 @@ export function ApplicantEntryOnlineSync() {
           <div className="flex items-center justify-between mb-4">
             <p className="text-sm text-gray-500">
               {newApplicationsCount} new application(s) pending sync
+              <span className="ml-2 inline-block rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">MOCK DATA: simulated feed</span>
             </p>
             <Button variant="primary" size="sm" onClick={handleSyncNow} disabled={isSyncing}>
               {isSyncing ?
