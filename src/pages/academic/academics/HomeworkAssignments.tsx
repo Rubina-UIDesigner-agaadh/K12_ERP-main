@@ -662,10 +662,10 @@ function SectionPanel({ type, data, label }: SectionPanelProps) {
                 <Button
                   variant="outline"
                   size="xs"
-                  rightIcon={<ChevronRightIcon className="w-3 h-3" />}
                   onClick={() => setActionsPanelItem(row)}>
 
                       Actions
+                      <ChevronRightIcon className="w-3 h-3 ml-1" />
                     </Button>
 
               }]

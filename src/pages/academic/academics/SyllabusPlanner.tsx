@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { Card } from '../../../../components/ui/Card';
-import { Button } from '../../../../components/ui/Button';
-import { Select } from '../../../../components/ui/Select';
-import { Badge } from '../../../../components/ui/Badge';
-import { Input } from '../../../../components/ui/Input';
+import { Card } from '../../../components/ui/Card';
+import { Button } from '../../../components/ui/Button';
+import { Select } from '../../../components/ui/Select';
+import { Badge } from '../../../components/ui/Badge';
+import { Input } from '../../../components/ui/Input';
 import {
   CalendarIcon,
   DownloadIcon,

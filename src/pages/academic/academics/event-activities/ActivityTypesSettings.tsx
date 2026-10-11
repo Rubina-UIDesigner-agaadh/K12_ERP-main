@@ -407,7 +407,7 @@ export function ActivityTypesSettings() {
   }, []);
 
   const getStatusBadge = (status: string) => {
-    const variants: Record<string, 'success' | 'warning' | 'error' | 'outline'> = { Active: 'success', Inactive: 'warning', Deprecated: 'error' };
+    const variants: Record<string, 'success' | 'warning' | 'danger' | 'outline'> = { Active: 'success', Inactive: 'warning', Deprecated: 'danger' };
     return variants[status] || 'outline';
   };
 

@@ -163,7 +163,7 @@ const STATUS_CONFIG: Record<
   ActivityStatus,
   {
     label: string;
-    variant: 'success' | 'warning' | 'error' | 'info' | 'default';
+    variant: 'success' | 'warning' | 'danger' | 'info' | 'default';
   }> =
 {
   scheduled: {
@@ -180,7 +180,7 @@ const STATUS_CONFIG: Record<
   },
   cancelled: {
     label: 'Cancelled',
-    variant: 'error'
+    variant: 'danger'
   },
   rescheduled: {
     label: 'Rescheduled',

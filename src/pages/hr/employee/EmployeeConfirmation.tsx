@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
@@ -388,6 +389,7 @@ const RatingStars: React.FC<{rating: number;}> = ({ rating }) => {
 
 // Main Component
 export function EmployeeConfirmation() {
+  const navigate = useNavigate();
   // State
   const [employees] = useState<Employee[]>(mockEmployees);
   const [searchQuery, setSearchQuery] = useState('');
@@ -570,14 +572,11 @@ export function EmployeeConfirmation() {
     setSelectedEmployee(null);
   };
 
-  // Submit termination
+  // Termination continues through the shared exit and separation workflow.
   const handleSubmitTermination = () => {
     setShowTerminateModal(false);
-    setSuccessMessage(
-      `Employment termination for ${selectedEmployee?.name} has been processed.`
-    );
-    setShowSuccessModal(true);
     setSelectedEmployee(null);
+    navigate('/hr/employee/employee-separation-exit');
   };
 
   // Close all modals
@@ -1732,7 +1731,7 @@ export function EmployeeConfirmation() {
               className="px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors flex items-center gap-2">
 
                 <XCircleIcon className="w-4 h-4" />
-                Terminate Employment
+                Continue to Exit &amp; Separation
               </button>
             </div>
           </div>

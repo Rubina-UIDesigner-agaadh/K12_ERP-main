@@ -589,14 +589,14 @@ excludeHolidays: boolean)
 };
 const getStatusVariant = (
 status: AssignmentStatus)
-: 'success' | 'warning' | 'destructive' | 'default' => {
+: 'success' | 'warning' | 'danger' | 'default' => {
   const map: Record<
     AssignmentStatus,
-    'success' | 'warning' | 'destructive' | 'default'> =
+    'success' | 'warning' | 'danger' | 'default'> =
   {
     Pending: 'warning',
     Confirmed: 'success',
-    Conflict: 'destructive',
+    Conflict: 'danger',
     Reassigned: 'default'
   };
   return map[status];
@@ -764,7 +764,7 @@ const TeacherSelectionList = ({
                 {t.department} • {t.currentWorkload}/{t.maxWorkload}h
               </p>
             </div>
-            {t.onLeave && <Badge variant="destructive">On Leave</Badge>}
+            {t.onLeave && <Badge variant="danger">On Leave</Badge>}
             {!t.onLeave && t.currentWorkload >= t.maxWorkload &&
           <Badge variant="warning">Overloaded</Badge>
           }

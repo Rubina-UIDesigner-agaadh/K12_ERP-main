@@ -262,26 +262,26 @@ const expensesSidebar: SidebarSection[] = [
 ];
 
 const employeeSidebar: SidebarSection[] = [
-  { title: 'List Screens', items: [{ label: 'Employee Summary Dashboard', id: 'employee-summary-dashboard' }, { label: 'Employee List / Directory', id: 'employee-list-directory' }, { label: 'Employee Profile View', id: 'employee-profile-view' }, { label: 'Probation / Confirmation List', id: 'probation-confirmation-list' }, { label: 'Exit / Relieved Employees', id: 'exit-relieved-employees' }] },
-  { title: 'Transactions', items: [{ label: 'Add / Edit Employee Profile', id: 'add-edit-employee-profile' }, { label: 'Employee Letters & Document Generation', id: 'employee-service-register' }, { label: 'Employee Confirmation', id: 'employee-confirmation' }, { label: 'Employee Transfer', id: 'employee-transfer' }, { label: 'Staff Workload Management', id: 'role-responsibility-assignment' }, { label: 'Employee Separation / Exit', id: 'employee-separation-exit' }, { label: 'Document Upload & Verification', id: 'document-upload-verification' }, { label: 'Employee ID Card', id: 'employee-id-card' }, { label: 'Teacher Class / Subject Allocation', id: 'teacher-class-subject-allocation' }, { label: 'Staff Advance Issue', id: 'staff-advance-issue' }, { label: 'Staff Advance Settlement', id: 'staff-advance-settlement' }] },
-  { title: 'Report Criteria', items: [{ label: 'Employee Report (Advanced Search)', id: 'employee-report-advanced' }, { label: 'Staff Strength & Demographic Report', id: 'staff-strength-demographic-report' }, { label: 'Teaching Allocation Summary', id: 'teaching-allocation-summary' }] }
+  { title: 'List Screens', items: [{ label: 'Employee Summary Dashboard', id: 'employee-summary-dashboard' }, { label: 'Employee Directory & Profile', id: 'employee-list-directory' }, { label: 'Probation & Confirmation', id: 'probation-confirmation-list' }, { label: 'Employee Exit & Separation', id: 'exit-relieved-employees' }] },
+  { title: 'Transactions', items: [{ label: 'Add / Edit Employee Profile', id: 'add-edit-employee-profile' }, { label: 'Employee Letters & Document Generation', id: 'employee-service-register' }, { label: 'Employee Transfer', id: 'employee-transfer' }, { label: 'Shift View and Switch', id: 'shift-view-and-switch' }, { label: 'Employee ID Card', id: 'employee-id-card' }, { label: 'Staff Achievement', id: 'staff-achievement' }, { label: 'Teacher Class / Subject Allocation', id: 'teacher-class-subject-allocation' }] },
+  { title: 'Report Criteria', items: [{ label: 'Employee Reports', id: 'employee-reports' }] }
 ];
 
 const hrAttendanceSidebar: SidebarSection[] = [
   { title: 'List Screen', items: [{ label: 'Employee Attendance Summary', id: 'employee-attendance-summary' }, { label: 'Daily Attendance Log', id: 'daily-attendance-log' }, { label: 'Late / Early Arrival Register', id: 'late-early-arrival-register' }, { label: 'Overtime Register', id: 'overtime-register' }] },
-  { title: 'Transaction', items: [{ label: 'Employee Attendance Admin', id: 'employee-attendance-admin' }, { label: 'Manual Attendance (Employee)', id: 'manual-attendance-employee' }, { label: 'Leave Balance Adjust Bulk', id: 'leave-balance-adjust-bulk' }, { label: 'Leave Balance Add', id: 'leave-balance-add' }, { label: 'Leave Balance Listing', id: 'leave-balance-listing' }, { label: 'Leave Balance Adjust', id: 'leave-balance-adjust' }, { label: 'Monthly Attendance Register', id: 'monthly-attendance-register-hr' }, { label: 'Leave Entry Bulk', id: 'leave-entry-bulk' }, { label: 'Leave (Single Application)', id: 'leave-single-application' }, { label: 'Leave Listing', id: 'leave-listing' }] },
-  { title: 'Report Criteria', items: [{ label: 'Attendance Report', id: 'hr-attendance-report' }, { label: 'Leave Report', id: 'hr-leave-report' }, { label: 'Absentee / Latecomer Report', id: 'absentee-latecomer-report' }] }
+  { title: 'Transaction', items: [{ label: 'Employee Attendance Admin', id: 'employee-attendance-admin' }, { label: 'Manual Attendance (Employee)', id: 'manual-attendance-employee' }, { label: 'Leave Balance Adjust', id: 'leave-balance-adjust-bulk' }, { label: 'Leave Balance Add', id: 'leave-balance-add' }, { label: 'Leave Balance Listing', id: 'leave-balance-listing' }, { label: 'Monthly Attendance Register', id: 'monthly-attendance-register-hr' }, { label: 'Leave Entry (Bulk & Single)', id: 'leave-entry-bulk' }, { label: 'Leave Listing', id: 'leave-listing' }] },
+  { title: 'Report Criteria', items: [{ label: 'Attendance Report', id: 'hr-attendance-report' }] }
 ];
 
 const payrollSidebar: SidebarSection[] = [
   { title: 'List Screens', items: [{ label: 'Payroll Summary Dashboard', id: 'payroll-summary-dashboard' }, { label: 'Salary Register View', id: 'salary-register-view' }, { label: 'Employee Payslip List', id: 'employee-payslip-list' }, { label: 'Payroll Exception List', id: 'payroll-exception-list' }] },
-  { title: 'Transactions', items: [{ label: 'Employee Pay Structure', id: 'employee-pay-structure' }, { label: 'Payroll Process', id: 'payroll-process' }, { label: 'Supplementary / Arrear Payroll', id: 'supplementary-arrear-payroll' }, { label: 'Overtime & Additional Earnings', id: 'overtime-additional-earnings' }, { label: 'Manual Deduction / Adjustment', id: 'manual-deduction-adjustment' }, { label: 'Bulk Increment / Pay Revision', id: 'bulk-increment-pay-revision' }, { label: 'Payslip Lock & Release', id: 'payslip-lock-release' }, { label: 'Salary Disbursement & Bank Advice', id: 'salary-disbursement-bank-advice' }, { label: 'Payroll Reversal / Re-process', id: 'payroll-reversal-reprocess' }] },
+  { title: 'Transactions', items: [{ label: 'Employee Pay Structure', id: 'employee-pay-structure' }, { label: 'Staff Advance Issue', id: 'staff-advance-issue' }, { label: 'Staff Advance Settlement', id: 'staff-advance-settlement' }, { label: 'Payroll Process', id: 'payroll-process' }, { label: 'Supplementary / Arrear Payroll', id: 'supplementary-arrear-payroll' }, { label: 'Overtime & Additional Earnings', id: 'overtime-additional-earnings' }, { label: 'Manual Deduction / Adjustment', id: 'manual-deduction-adjustment' }, { label: 'Bulk Increment / Pay Revision', id: 'bulk-increment-pay-revision' }, { label: 'Payslip Lock & Release', id: 'payslip-lock-release' }, { label: 'Salary Disbursement & Bank Advice', id: 'salary-disbursement-bank-advice' }, { label: 'Payroll Reversal / Re-process', id: 'payroll-reversal-reprocess' }] },
   { title: 'Report Criteria', items: [{ label: 'Payroll Report', id: 'payroll-report' }, { label: 'Earnings & Deduction Summary', id: 'earnings-deduction-summary' }, { label: 'Department / Cost Center Salary', id: 'department-cost-center-salary' }, { label: 'Payroll Audit & Variance Report', id: 'payroll-audit-variance-report' }] }
 ];
 
 const hrMasterSidebar: SidebarSection[] = [
-  { title: 'Employee Masters', items: [{ label: 'Department Master', id: 'department-master' }, { label: 'Designation Master', id: 'designation-master' }, { label: 'Employee Classification Master', id: 'employee-classification-master' }, { label: 'Employee Document Type Master', id: 'employee-document-type-master' }, { label: 'Separation / Exit Reason Master', id: 'separation-exit-reason-master' }, { label: 'On-Duty / Travel Type Master', id: 'on-duty-travel-type-master' }, { label: 'Role & Responsibility Master', id: 'role-responsibility-master' }, { label: 'Qualification & Subject Master', id: 'qualification-subject-master' }, { label: 'Service Event Type Master', id: 'service-event-type-master' }] },
-  { title: 'Employee Attendance Master', items: [{ label: 'Shift Master', id: 'shift-master' }, { label: 'Working Calendar Master', id: 'working-calendar-master' }, { label: 'Leave Type Master', id: 'leave-type-master' }, { label: 'Attendance Rule Master', id: 'attendance-rule-master' }] },
+  { title: 'Employee Masters', items: [{ label: 'Designation Master', id: 'designation-master' }, { label: 'Employee Classification Master', id: 'employee-classification-master' }, { label: 'Employee Document Type Master', id: 'employee-document-type-master' }, { label: 'Separation / Exit Reason Master', id: 'separation-exit-reason-master' }, { label: 'Qualification & Subject Master', id: 'qualification-subject-master' }] },
+  { title: 'Employee Attendance Master', items: [{ label: 'Shift Master', id: 'shift-master' }, { label: 'Leave Type Master', id: 'leave-type-master' }, { label: 'Attendance Rule Master', id: 'attendance-rule-master' }] },
   { title: 'Recruitment Master', items: [{ label: 'Recruitment Stage & Status Master', id: 'recruitment-stage-status-master' }] },
   { title: 'Payroll Master', items: [{ label: 'Pay Head Master', id: 'pay-head-master' }, { label: 'Salary Grade / Pay Scale Master', id: 'salary-grade-pay-scale-master' }, { label: 'Payroll Calendar / Period Master', id: 'payroll-calendar-period-master' }, { label: 'Payroll Setup', id: 'payroll-setup' }, { label: 'Disbursement Mode / Bank Setup', id: 'disbursement-mode-bank-setup' }] },
   { title: 'Appraisal Master', items: [{ label: 'Appraisal Cycle Master', id: 'appraisal-cycle-master' }, { label: 'Appraisal Template Master', id: 'appraisal-template-master' }, { label: 'Competency & KPI Master', id: 'competency-kpi-master' }, { label: 'Rating Scale Master', id: 'rating-scale-master' }, { label: 'Appraisal Role & Workflow Master', id: 'appraisal-role-workflow-master' }] },
@@ -398,7 +398,6 @@ const communicationsSidebar: SidebarSection[] = [{ title: 'Communications', item
 const eventActivitiesSidebar: SidebarSection[] = [
   { title: 'Event Management', items: [
     { label: 'Event Management', id: 'event-management' },
-    { label: 'Smart Event Calendar', id: 'smart-event-calendar' },
     { label: 'Media & Gallery Management', id: 'media-gallery-management' },
     { label: 'Event Participation Report', id: 'event-participation-report' }
   ] },
@@ -408,16 +407,24 @@ const eventActivitiesSidebar: SidebarSection[] = [
     { label: 'Event Execution', id: 'event-execution' },
     { label: 'Event Feedback & Review', id: 'event-feedback-review' }
   ] },
+  { title: 'TEACHER ACTIVITIES SECTION', items: [
+    { label: 'Teacher Activity Master', id: 'teacher-activity-master' },
+    { label: 'Professional Development', id: 'professional-development' },
+    { label: 'Teacher Achievements', id: 'teacher-achievements' }
+  ] },
+  { title: 'TEACHER DUTIES SECTION', items: [
+    { label: 'Duty Master', id: 'duty-master' },
+    { label: 'Duty Roster', id: 'duty-roster' },
+    { label: 'Duty Attendance', id: 'duty-attendance' },
+    { label: 'Reports & Analytics', id: 'reports-analytics' }
+  ] },
   { title: 'Activity Planning', items: [
     { label: 'Planner Dashboard', id: 'planner-dashboard' },
     { label: 'Activity Management', id: 'activity-management' },
     { label: 'Activity Calendar', id: 'activity-calendar' },
-    { label: 'Monthly Activity Calendar', id: 'monthly-activity-calendar' },
     { label: 'Activity Types & Settings', id: 'activity-types-settings' },
     { label: 'Recurring Activities', id: 'recurring-activities' },
     { label: 'Bulk Planning', id: 'bulk-planning' },
-    { label: 'Conflict Detection', id: 'conflict-detection' },
-    { label: 'Notifications & Reminders', id: 'notifications-reminders' }
   ] },
   { title: 'Teacher & Department Coordination', items: [
     { label: 'Department Duty Allocation', id: 'department-duty-allocation' },
@@ -450,15 +457,31 @@ const administrationSidebar: SidebarSection[] = [
 ];
 const academicsSidebar: SidebarSection[] = [
   { title: 'Planning & Tracking', items: [{ label: 'Academic Planning & Execution', id: 'academic-planning-execution' }] },
-  { title: 'Operations', items: [{ label: 'Academic Attendance', id: 'academic-attendance' }, { label: 'Classroom Operations', id: 'classroom-operations' }, { label: 'Teacher Progress Dashboard', id: 'teacher-progress-dashboard' }, { label: 'School Diary', id: 'school-diary' }] }
+  { title: 'Operations', items: [{ label: 'Classroom Operations', id: 'classroom-operations' }, { label: 'Teacher Progress Dashboard', id: 'teacher-progress-dashboard' }, { label: 'School Diary', id: 'school-diary' }] }
 ];
 const curriculumSidebar: SidebarSection[] = [{ title: 'Curriculum', items: [
   { label: 'Curriculum Progress Tracker', id: 'curriculum-progress-tracker' },
-  { label: 'Skill Development Assessment', id: 'skill-development-assessment' },
   { label: 'Classwork', id: 'classwork' },
   { label: 'Homework & Assignments', id: 'homework-assignments' },
   { label: 'Study Material', id: 'study-material' }
 ] }];
+const curriculumAcademicPlanningSidebar: SidebarSection[] = [
+  { title: 'Curriculum & Academic Planning', items: [
+    { label: 'Academic Planning Dashboard', id: 'academic-planning-dashboard' },
+    { label: 'Curriculum Master', id: 'curriculum-master' },
+    { label: 'Learning Objectives Master', id: 'learning-objectives-master' },
+    { label: 'Textbook & Resource Master', id: 'textbook-resource-master' },
+    { label: 'Teaching Plan', id: 'teaching-plan' },
+    { label: 'Lesson Plan Creation', id: 'lesson-plan-creation' },
+    { label: 'HOD Lesson Plan Review', id: 'lesson-plan-review' },
+    { label: 'Syllabus Completion Tracker', id: 'syllabus-completion-tracker' },
+    { label: 'Teaching Progress Dashboard', id: 'teaching-progress-dashboard' },
+    { label: 'Question Bank', id: 'question-bank' },
+    { label: 'Curriculum & Academic Planning Reports', id: 'curriculum-academic-reports' }
+  ] },
+  ...academicsSidebar,
+  ...curriculumSidebar
+];
 const healthSidebar: SidebarSection[] = [{ title: 'Health', items: [{ label: 'Health Records', id: 'health-records' }, { label: 'Health Checkups', id: 'health-checkups' }, { label: 'Incident Management', id: 'incident-management' }, { label: 'Vaccination Tracking', id: 'vaccination-tracking' }] }];
 const misSidebar: SidebarSection[] = [{ title: 'Dashboards', items: [{ label: 'Executive Dashboards', id: 'executive-dashboards' }, { label: 'Academic Analytics', id: 'academic-analytics' }, { label: 'Attendance Analytics', id: 'attendance-analytics' }, { label: 'Financial Overview', id: 'financial-overview' }] }, { title: 'Reports', items: [{ label: 'Compliance & Government Data', id: 'compliance-government-data' }, { label: 'Custom Report Builder', id: 'custom-report-builder-mis' }] }];
 const projectManagementSidebar: SidebarSection[] = [{ title: 'Project Management', items: [{ label: 'Project Setup', id: 'project-setup' }, { label: 'Task Management', id: 'task-management' }, { label: 'Resource Management', id: 'resource-management' }, { label: 'Milestone Tracking', id: 'milestone-tracking' }, { label: 'Project Reports', id: 'project-reports' }] }];
@@ -497,12 +520,7 @@ export const modules: Module[] = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, subModules: createSubModules(['User Dashboard', 'EIS Consolidate Dashboard', 'MIS Consolidate Dashboard', 'SMS Predefine Alert']) },
   { id: 'student', label: 'Student', icon: Users, subModules: [{ id: 'student-management', label: 'Student Management', sidebarConfig: studentManagementSidebar }, { id: 'student-settings', label: 'Student Settings', sidebarConfig: studentSettingsSidebar }, { id: 'admissions', label: 'Admissions', sidebarConfig: admissionSidebar }, { id: 'attendance', label: 'Attendance', sidebarConfig: attendanceSidebar }, { id: 'certificates', label: 'Certificates', sidebarConfig: certificateSidebar }] },
   { id: 'academic', label: 'Academic', icon: GraduationCap, subModules: [{ id: 'academics', label: 'Academics', sidebarConfig: academicsSidebar }, { id: 'curriculum', label: 'Curriculum', sidebarConfig: curriculumSidebar }, { id: 'timetable', label: 'Timetable', sidebarConfig: timetableSidebar }, { id: 'event-activities', label: 'Event/Activities', sidebarConfig: eventActivitiesSidebar }] },
-  { id: 'finance', label: 'Finance', icon: Wallet,
-     subModules: [{ id: 'ledgers', label: 'Ledgers', sidebarConfig: ledgersSidebar }, 
-      { id: 'fees', label: 'Fees', sidebarConfig: feesSidebar }, 
-      { id: 'charge', label: 'Charge', sidebarConfig: chargeSidebar },
-       { id: 'scholarship', label: 'Scholarship', sidebarConfig: scholarshipSidebar }, 
-       { id: 'expenses', label: 'Expenses', sidebarConfig: expensesSidebar }] },
+  { id: 'finance', label: 'Finance', icon: Wallet, subModules: [{ id: 'ledgers', label: 'Ledgers', sidebarConfig: ledgersSidebar }, { id: 'fees', label: 'Fees', sidebarConfig: feesSidebar }, { id: 'charge', label: 'Charge', sidebarConfig: chargeSidebar }, { id: 'scholarship', label: 'Scholarship', sidebarConfig: scholarshipSidebar }, { id: 'expenses', label: 'Expenses', sidebarConfig: expensesSidebar }] },
   { id: 'hr', label: 'HR', icon: Briefcase, subModules: [{ id: 'employee', label: 'Employee', sidebarConfig: employeeSidebar }, { id: 'attendance', label: 'Attendance', sidebarConfig: hrAttendanceSidebar }, { id: 'payroll', label: 'Payroll', sidebarConfig: payrollSidebar }, { id: 'master', label: 'Master', sidebarConfig: hrMasterSidebar }, { id: 'appraisal', label: 'Appraisal', sidebarConfig: appraisalSidebar }, { id: 'recruitment', label: 'Recruitment', sidebarConfig: recruitmentSidebar }, { id: 'income-tax', label: 'Income Tax', sidebarConfig: incomeTaxSidebar }] },
   { id: 'assessment', label: 'Assessment', icon: ClipboardList, subModules: [{ id: 'general', label: 'Assessment Setup', sidebarConfig: generalAssessmentSidebar }, { id: 'preschool-assessment', label: 'Preschool Assessment', sidebarConfig: preschoolAssessmentSidebar }, { id: 'cce-management', label: 'CCE Management', sidebarConfig: ccemanagementSidebar }, { id: 'result-card-management', label: 'Result Card Management', sidebarConfig: resultCardManagementSidebar }, { id: 'gseb', label: 'GSEB', sidebarConfig: gsebSidebar }, { id: 'cbse', label: 'CBSE', sidebarConfig: cbseSidebar }, { id: 'cisce', label: 'CISCE', sidebarConfig: cisceSidebar }] },
   { id: 'admin-tools', label: 'Admin Tools', icon: Shield, 

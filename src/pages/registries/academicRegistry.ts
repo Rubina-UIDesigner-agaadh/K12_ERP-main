@@ -6,6 +6,50 @@ import { rp } from './registryHelper';
  */
 export const academicRegistry: Record<string, () => any> = {
   // Academics — planning and classroom operations
+  'academic-planning-dashboard': rp(
+    () => import('../academic/academics/AcademicPlanningDashboard'),
+    'AcademicPlanningDashboard'
+  ),
+  'teaching-plan': rp(
+    () => import('../academic/academics/TeachingPlan'),
+    'TeachingPlan'
+  ),
+  'curriculum-master': rp(
+    () => import('../academic/academics/CurriculumMaster'),
+    'CurriculumMaster'
+  ),
+  'lesson-plan-creation': rp(
+    () => import('../academic/academics/LessonPlanCreation'),
+    'LessonPlanCreation'
+  ),
+  'lesson-plan-review': rp(
+    () => import('../academic/academics/LessonPlanReview'),
+    'LessonPlanReview'
+  ),
+  'syllabus-completion-tracker': rp(
+    () => import('../academic/academics/SyllabusCompletionTracker'),
+    'SyllabusCompletionTracker'
+  ),
+  'teaching-progress-dashboard': rp(
+    () => import('../academic/academics/TeachingProgressDashboard'),
+    'TeachingProgressDashboard'
+  ),
+  'question-bank': rp(
+    () => import('../academic/academics/QuestionBank'),
+    'QuestionBank'
+  ),
+  'curriculum-academic-reports': rp(
+    () => import('../academic/academics/CurriculumReports'),
+    'CurriculumReports'
+  ),
+  'learning-objectives-master': rp(
+    () => import('../academic/academics/LearningObjectivesMaster'),
+    'LearningObjectivesMaster'
+  ),
+  'textbook-resource-master': rp(
+    () => import('../academic/academics/TextbookResourceMaster'),
+    'TextbookResourceMaster'
+  ),
   'academic-planning-execution': rp(
     () => import('../academic/academics/AcademicPlanningExecution'),
     'AcademicPlanningExecution'
@@ -13,10 +57,6 @@ export const academicRegistry: Record<string, () => any> = {
   'curriculum-progress-tracker': rp(
     () => import('../academic/academics/CurriculumProgressTracker'),
     'CurriculumProgressTracker'
-  ),
-  'skill-development-assessment': rp(
-    () => import('../academic/academics/SkillDevelopmentAssessment'),
-    'SkillDevelopmentAssessment'
   ),
   'classroom-operations': rp(
     () => import('../academic/academics/ClassroomOperations'),
@@ -33,10 +73,6 @@ export const academicRegistry: Record<string, () => any> = {
   'study-material': rp(
     () => import('../academic/academics/StudyMaterial'),
     'StudyMaterial'
-  ),
-  'academic-attendance': rp(
-    () => import('../academic/academics/AcademicAttendance'),
-    'AcademicAttendance'
   ),
   classwork: rp(() => import('../academic/academics/Classwork'), 'Classwork'),
   'school-diary': rp(
@@ -61,14 +97,10 @@ export const academicRegistry: Record<string, () => any> = {
     () => import('../more/timetable/SubstitutionManagement'),
     'SubstitutionManagement'
   ),
-  'room-resource-allocation': rp(
-    () => import('../more/timetable/RoomResourceAllocation'),
-    'RoomResourceAllocation'
-  ),
 
   // Event/Activities — legacy routes retained alongside the new pages
   'event-management': rp(
-    () => import('../academic/academics/event-activities/EventManagement.tsx'),
+    () => import('../academic/academics/event-activities/EventManagement'),
     'EventManagement'
   ),
   'event-master': rp(
@@ -87,9 +119,33 @@ export const academicRegistry: Record<string, () => any> = {
     () => import('../academic/academics/event-activities/EventFeedbackReview'),
     'EventFeedbackReview'
   ),
-  'smart-event-calendar': rp(
-    () => import('../academic/academics/event-activities/SmartEventCalendar'),
-    'SmartEventCalendar'
+  'teacher-activity-master': rp(
+    () => import('../academic/academics/event-activities/TeacherActivityMaster'),
+    'TeacherActivityMaster'
+  ),
+  'professional-development': rp(
+    () => import('../academic/academics/event-activities/ProfessionalDevelopment'),
+    'ProfessionalDevelopment'
+  ),
+  'teacher-achievements': rp(
+    () => import('../academic/academics/event-activities/TeacherAchievements'),
+    'TeacherAchievements'
+  ),
+  'duty-master': rp(
+    () => import('../academic/academics/event-activities/DutyMaster'),
+    'DutyMaster'
+  ),
+  'duty-roster': rp(
+    () => import('../academic/academics/event-activities/DutyRoster'),
+    'DutyRoster'
+  ),
+  'duty-attendance': rp(
+    () => import('../academic/academics/event-activities/DutyAttendance'),
+    'DutyAttendance'
+  ),
+  'reports-analytics': rp(
+    () => import('../academic/academics/event-activities/ReportsAnalytics'),
+    'ReportsAnalytics'
   ),
   'media-gallery-management': rp(
     () => import('../academic/academics/event-activities/MediaGalleryManagement'),
@@ -135,10 +191,6 @@ export const academicRegistry: Record<string, () => any> = {
     () => import('../academic/academics/event-activities/ActivityCalendar'),
     'ActivityCalendar'
   ),
-  'monthly-activity-calendar': rp(
-    () => import('../academic/academics/event-activities/MonthlyActivityCalendar'),
-    'MonthlyActivityCalendar'
-  ),
   'activity-types-settings': rp(
     () => import('../academic/academics/event-activities/ActivityTypesSettings'),
     'ActivityTypesSettings'
@@ -151,10 +203,6 @@ export const academicRegistry: Record<string, () => any> = {
     () => import('../academic/academics/event-activities/BulkPlanning'),
     'BulkPlanning'
   ),
-  'conflict-detection': rp(
-    () => import('../academic/academics/event-activities/ConflictDetection'),
-    'ConflictDetection'
-  ),
   'department-duty-allocation': rp(
     () => import('../academic/academics/event-activities/DepartmentDutyAllocation'),
     'DepartmentDutyAllocation'
@@ -162,10 +210,6 @@ export const academicRegistry: Record<string, () => any> = {
   'event-participation-report': rp(
     () => import('../academic/academics/event-activities/EventParticipationReport'),
     'EventParticipationReport'
-  ),
-  'notifications-reminders': rp(
-    () => import('../academic/academics/event-activities/NotificationsReminders'),
-    'NotificationsReminders'
   ),
   'teacher-duty-report': rp(
     () => import('../academic/academics/event-activities/TeacherDutyReport'),

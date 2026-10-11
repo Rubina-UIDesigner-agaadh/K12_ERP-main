@@ -43,6 +43,7 @@ import {
   Bus,
   Smartphone,
   Bell,
+  Layers,
 } from 'lucide-react'
 
 // ============================================
@@ -54,6 +55,13 @@ interface FeeHead {
   amount: number
   discountAmount: number
   netAmount: number
+}
+
+interface FeeStructure {
+  id: string
+  name: string
+  description?: string
+  feeHeads: FeeHead[]
 }
 
 interface ReceiptHistory {
@@ -73,7 +81,7 @@ interface ReceiptHistory {
     fineAmount: number
   }
   status: 'completed' | 'cancelled' | 'refunded'
-  time?: string // ISO timestamp for receipts collected in this session (orders same-day payments)
+  time?: string
   generatedBy: string
   remarks?: string
   smsSent: boolean
@@ -84,7 +92,8 @@ interface ReceiptHistory {
 }
 
 interface StudentFeeData {
-  feeHeads: FeeHead[]
+  feeStructures: FeeStructure[]
+  feeHeads: FeeHead[] // flattened for easy lookups
   totalAmount: number
   totalDiscount: number
   netAmount: number
@@ -185,23 +194,47 @@ const getMockStudentsList = (): StudentData[] => {
     return Math.min(effectiveDays * 50, amount * 0.1)
   }
 
-  // Date of each student's latest receipt (matches receiptHistory below)
   const LAST_PAID_ON: Record<string, string> = { '1': '2024-07-20', '2': '2024-04-08', '4': '2024-08-12', '5': '2024-09-03' }
 
   const createFeeData = (studentId: string): StudentFeeData => {
-    const prefix = studentId === '1' ? 'fh' : studentId === '2' ? 'fh2_' : 'fh3_'
+    const prefix = studentId === '1' ? 'fh' : studentId === '2' ? 'fh2_' : studentId === '3' ? 'fh3_' : studentId === '4' ? 'fh4_' : 'fh5_'
+    const sPrefix = studentId === '1' ? 'st' : studentId === '2' ? 'st2_' : studentId === '3' ? 'st3_' : studentId === '4' ? 'st4_' : 'st5_'
     const hasConcession = studentId === '1'
 
-    const feeHeads: FeeHead[] = [
-      { id: `${prefix}1`, name: 'Tuition Fee', amount: 100000, discountAmount: hasConcession ? 15000 : 0, netAmount: hasConcession ? 85000 : 100000 },
-      { id: `${prefix}2`, name: 'Development Fee', amount: 20000, discountAmount: hasConcession ? 3000 : 0, netAmount: hasConcession ? 17000 : 20000 },
-      { id: `${prefix}3`, name: 'Computer Lab Fee', amount: 10000, discountAmount: hasConcession ? 1500 : 0, netAmount: hasConcession ? 8500 : 10000 },
-      { id: `${prefix}4`, name: 'Science Lab Fee', amount: 8000, discountAmount: hasConcession ? 1200 : 0, netAmount: hasConcession ? 6800 : 8000 },
-      { id: `${prefix}5`, name: 'Library Fee', amount: 4000, discountAmount: 0, netAmount: 4000 },
-      { id: `${prefix}6`, name: 'Examination Fee', amount: 6000, discountAmount: 0, netAmount: 6000 },
-      { id: `${prefix}7`, name: 'Sports Fee', amount: 5000, discountAmount: 0, netAmount: 5000 },
-      { id: `${prefix}8`, name: 'Annual Day Fee', amount: 3000, discountAmount: 0, netAmount: 3000 },
+    // Build structures with their fee heads nested inside
+    const feeStructures: FeeStructure[] = [
+      {
+        id: `${sPrefix}1`,
+        name: 'Academic Fee Structure',
+        description: 'Core tuition and institutional development fees',
+        feeHeads: [
+          { id: `${prefix}1`, name: 'Tuition Fee', amount: 100000, discountAmount: hasConcession ? 15000 : 0, netAmount: hasConcession ? 85000 : 100000 },
+          { id: `${prefix}2`, name: 'Development Fee', amount: 20000, discountAmount: hasConcession ? 3000 : 0, netAmount: hasConcession ? 17000 : 20000 },
+        ],
+      },
+      {
+        id: `${sPrefix}2`,
+        name: 'Laboratory Fee Structure',
+        description: 'Science and computer laboratory charges',
+        feeHeads: [
+          { id: `${prefix}3`, name: 'Computer Lab Fee', amount: 10000, discountAmount: hasConcession ? 1500 : 0, netAmount: hasConcession ? 8500 : 10000 },
+          { id: `${prefix}4`, name: 'Science Lab Fee', amount: 8000, discountAmount: hasConcession ? 1200 : 0, netAmount: hasConcession ? 6800 : 8000 },
+        ],
+      },
+      {
+        id: `${sPrefix}3`,
+        name: 'General Fee Structure',
+        description: 'Library, examination, sports and events',
+        feeHeads: [
+          { id: `${prefix}5`, name: 'Library Fee', amount: 4000, discountAmount: 0, netAmount: 4000 },
+          { id: `${prefix}6`, name: 'Examination Fee', amount: 6000, discountAmount: 0, netAmount: 6000 },
+          { id: `${prefix}7`, name: 'Sports Fee', amount: 5000, discountAmount: 0, netAmount: 5000 },
+          { id: `${prefix}8`, name: 'Annual Day Fee', amount: 3000, discountAmount: 0, netAmount: 3000 },
+        ],
+      },
     ]
+
+    const feeHeads: FeeHead[] = feeStructures.flatMap((s) => s.feeHeads)
 
     const totalAmount = feeHeads.reduce((s, fh) => s + fh.amount, 0)
     const totalDiscount = feeHeads.reduce((s, fh) => s + fh.discountAmount, 0)
@@ -255,6 +288,7 @@ const getMockStudentsList = (): StudentData[] => {
     else status = daysOverdue > 7 ? 'overdue' : 'unpaid'
 
     return {
+      feeStructures,
       feeHeads,
       totalAmount,
       totalDiscount,
@@ -730,7 +764,7 @@ const getTodayDisplay = (): string => {
 }
 
 // ============================================
-// STUDENT LIST: FILTERS + "MOST RECENT PAYMENT FIRST" ORDERING
+// STUDENT LIST FILTERING / SORTING
 // ============================================
 const DEFAULT_FILTERS: SearchFilters = {
   academicYear: '2024-25',
@@ -745,17 +779,14 @@ const DEFAULT_FILTERS: SearchFilters = {
   term: '',
 }
 
-// All mock branches belong to the "Main Campus" master franchise
 const BRANCH_FRANCHISE: Record<string, string> = { 'Main Campus': 'main', 'East Wing': 'main', 'West Wing': 'main' }
 
-// Term windows inside an academic year (e.g. 2024-25 → Term 1 = Apr–Jul 2024)
 const TERM_WINDOWS: Record<string, { from: string; to: string; nextYear?: boolean; label: string }> = {
   'Term 1': { from: '04-01', to: '07-31', label: 'Apr–Jul' },
   'Term 2': { from: '08-01', to: '11-30', label: 'Aug–Nov' },
   'Term 3': { from: '12-01', to: '03-31', nextYear: true, label: 'Dec–Mar' },
 }
 
-// true when the student has a completed (not cancelled) payment inside the term window
 const paidInTerm = (student: StudentData, academicYear: string, term: string): boolean => {
   const w = TERM_WINDOWS[term]
   if (!w) return true
@@ -790,7 +821,6 @@ const applyStudentFilters = (list: StudentData[], f: SearchFilters): StudentData
 
 const paymentSortKey = (r: ReceiptHistory) => r.time || r.date
 
-// Latest completed (non-cancelled) receipt of a student
 const getLastPayment = (student: StudentData): ReceiptHistory | null =>
   student.receiptHistory.reduce<ReceiptHistory | null>(
     (latest, r) =>
@@ -798,7 +828,6 @@ const getLastPayment = (student: StudentData): ReceiptHistory | null =>
     null
   )
 
-// Most recent fee payment first; students who have never paid go last (A–Z)
 const sortByRecentPayment = (list: StudentData[]): StudentData[] =>
   [...list].sort((a, b) => {
     const la = getLastPayment(a)
@@ -813,7 +842,7 @@ const formatDate = (iso: string) =>
   new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
 
 // ============================================
-// RECEIPT PRINT / DOWNLOAD (client-side HTML document)
+// RECEIPT PRINT / DOWNLOAD
 // ============================================
 interface PrintableReceipt {
   receiptNo: string
@@ -885,7 +914,6 @@ ${r.narration ? `<p class="words">Remarks: ${escapeHtml(r.narration)}</p>` : ''}
 </div></body></html>`
 }
 
-// Prints only the given document (hidden iframe) instead of the whole page
 const printDocument = (html: string) => {
   document.querySelectorAll('iframe[data-print-frame]').forEach((f) => f.remove())
   const frame = document.createElement('iframe')
@@ -941,9 +969,7 @@ export function FeeReceipt() {
   const [filters, setFilters] = useState<SearchFilters>(DEFAULT_FILTERS)
   const [appliedFilters, setAppliedFilters] = useState<SearchFilters>(DEFAULT_FILTERS)
   const [isSearching, setIsSearching] = useState(false)
-  // Master student list in state: receipts collected / cancelled on this page update it
   const [allStudents, setAllStudents] = useState<StudentData[]>(() => getMockStudentsList())
-  // Shown list = filters applied, then sorted with the most recent fee payment first
   const studentsList = useMemo(
     () => sortByRecentPayment(applyStudentFilters(allStudents, appliedFilters)),
     [allStudents, appliedFilters]
@@ -977,6 +1003,9 @@ export function FeeReceipt() {
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [cancellingReceipt, setCancellingReceipt] = useState<ReceiptHistory | null>(null)
   const [cancelReason, setCancelReason] = useState('')
+
+  // Fee structure expand/collapse state
+  const [collapsedStructures, setCollapsedStructures] = useState<Record<string, boolean>>({})
 
   const todayDate = getTodayFormatted()
   const todayDisplay = getTodayDisplay()
@@ -1012,7 +1041,6 @@ export function FeeReceipt() {
   )
 
   // ---- Handlers ----
-
   const handleSearch = () => {
     setIsSearching(true)
     setTimeout(() => {
@@ -1035,6 +1063,7 @@ export function FeeReceipt() {
     setActiveTab('payment')
     setPaymentEntries({})
     setFinePayingAmount(0)
+    setCollapsedStructures({})
   }
 
   const handleBackToList = () => {
@@ -1111,6 +1140,29 @@ export function FeeReceipt() {
   const handleDeselectAllFeeHeads = () => {
     setPaymentEntries({})
     setFinePayingAmount(0)
+  }
+
+  // Select/deselect all fee heads inside a specific fee structure
+  const handleStructureSelect = (structure: FeeStructure, checked: boolean) => {
+    if (!feeData) return
+    setPaymentEntries((prev) => {
+      const next = { ...prev }
+      structure.feeHeads.forEach((fh) => {
+        const balance = getFeeHeadBalance(feeData, fh)
+        if (balance > 0) {
+          next[fh.id] = {
+            selected: checked,
+            payingAmount: checked ? balance : 0,
+            balanceAmount: balance,
+          }
+        }
+      })
+      return next
+    })
+  }
+
+  const toggleStructureCollapse = (structureId: string) => {
+    setCollapsedStructures((prev) => ({ ...prev, [structureId]: !prev[structureId] }))
   }
 
   const handleFineAmountChange = (value: number) => {
@@ -1190,13 +1242,11 @@ export function FeeReceipt() {
     setIsGenerating(false)
   }
 
-  // Replace a student in the master list and in the open detail view
   const commitStudent = (updated: StudentData) => {
     setAllStudents((prev) => prev.map((s) => (s.id === updated.id ? updated : s)))
     setSelectedStudent(updated)
   }
 
-  // Recalculate paid / balance / status after fee-head paid amounts change
   const recalcFeeData = (
     fd: StudentFeeData,
     headPaid: Record<string, number>,
@@ -1315,7 +1365,6 @@ export function FeeReceipt() {
     alert(`Receipt ${cancelledNo || ''} cancelled — paid amounts reversed.`)
   }
 
-  // Receipt print / download helpers
   const historyToPrintable = (r: ReceiptHistory, st: StudentData): PrintableReceipt => ({
     receiptNo: r.receiptNo,
     date: r.date,
@@ -1486,165 +1535,149 @@ export function FeeReceipt() {
           </div>
         </Card>
 
-          <Card
-            title={`Students (${studentsList.length}) — most recent fee payment first`}
-            subtitle={`Sorted by latest fee received${
-              appliedFilters.term
-                ? ` · paid in ${appliedFilters.term} (${TERM_WINDOWS[appliedFilters.term]?.label || ''})`
-                : ''
-            } · click a student to view fee details and collect payment`}
-          >
-            {studentsList.length === 0 ? (
-              <div className="p-8 text-center text-gray-500">
-                <Users className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                <p className="text-sm font-medium">No students found</p>
-                <p className="text-xs mt-1">Try adjusting your search filters</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead className="bg-gray-50 border-b">
-                    <tr>
-                      <th className="px-3 py-2.5 text-left font-semibold text-gray-600">Student</th>
-                      <th className="px-3 py-2.5 text-left font-semibold text-gray-600">
-                        Adm No / GR No
-                      </th>
-                      <th className="px-3 py-2.5 text-left font-semibold text-gray-600">Class</th>
-                      <th className="px-3 py-2.5 text-left font-semibold text-gray-600">Branch</th>
-                      <th className="px-3 py-2.5 text-left font-semibold text-gray-600">
-                        Parent / Phone
-                      </th>
-                      <th className="px-3 py-2.5 text-left font-semibold text-gray-600">Category</th>
-                      <th className="px-3 py-2.5 text-left font-semibold text-gray-600">
-                        Last Paid
-                      </th>
-                      <th className="px-3 py-2.5 text-right font-semibold text-gray-600">
-                        Total Paid
-                      </th>
-                      <th className="px-3 py-2.5 text-right font-semibold text-gray-600">
-                        Balance Due
-                      </th>
-                      <th className="px-3 py-2.5 text-center font-semibold text-gray-600">Status</th>
-                      <th className="px-3 py-2.5 text-center font-semibold text-gray-600">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {studentsList.map((student, index) => {
-                      const due = getStudentTotalDue(student)
-                      const paid = getStudentTotalPaid(student)
-                      const last = getLastPayment(student)
-                      return (
-                        <tr
-                          key={student.id}
-                          className="hover:bg-blue-50/50 cursor-pointer transition-colors"
-                          onClick={() => handleSelectStudent(student)}
-                        >
-                          <td className="px-3 py-3">
-                            <div className="flex items-center gap-2.5">
-                              <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-xs font-bold">
-                                {student.firstName[0]}
-                                {student.lastName[0]}
+        <Card
+          title={`Students (${studentsList.length}) — most recent fee payment first`}
+          subtitle={`Sorted by latest fee received${
+            appliedFilters.term
+              ? ` · paid in ${appliedFilters.term} (${TERM_WINDOWS[appliedFilters.term]?.label || ''})`
+              : ''
+          } · click a student to view fee details and collect payment`}
+        >
+          {studentsList.length === 0 ? (
+            <div className="p-8 text-center text-gray-500">
+              <Users className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+              <p className="text-sm font-medium">No students found</p>
+              <p className="text-xs mt-1">Try adjusting your search filters</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead className="bg-gray-50 border-b">
+                  <tr>
+                    <th className="px-3 py-2.5 text-left font-semibold text-gray-600">Student</th>
+                    <th className="px-3 py-2.5 text-left font-semibold text-gray-600">Adm No / GR No</th>
+                    <th className="px-3 py-2.5 text-left font-semibold text-gray-600">Class</th>
+                    <th className="px-3 py-2.5 text-left font-semibold text-gray-600">Branch</th>
+                    <th className="px-3 py-2.5 text-left font-semibold text-gray-600">Parent / Phone</th>
+                    <th className="px-3 py-2.5 text-left font-semibold text-gray-600">Category</th>
+                    <th className="px-3 py-2.5 text-left font-semibold text-gray-600">Last Paid</th>
+                    <th className="px-3 py-2.5 text-right font-semibold text-gray-600">Total Paid</th>
+                    <th className="px-3 py-2.5 text-right font-semibold text-gray-600">Balance Due</th>
+                    <th className="px-3 py-2.5 text-center font-semibold text-gray-600">Status</th>
+                    <th className="px-3 py-2.5 text-center font-semibold text-gray-600">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {studentsList.map((student, index) => {
+                    const due = getStudentTotalDue(student)
+                    const paid = getStudentTotalPaid(student)
+                    const last = getLastPayment(student)
+                    return (
+                      <tr
+                        key={student.id}
+                        className="hover:bg-blue-50/50 cursor-pointer transition-colors"
+                        onClick={() => handleSelectStudent(student)}
+                      >
+                        <td className="px-3 py-3">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-xs font-bold">
+                              {student.firstName[0]}
+                              {student.lastName[0]}
+                            </div>
+                            <div>
+                              <div className="font-semibold text-gray-900">
+                                {student.firstName} {student.middleName} {student.lastName}
                               </div>
-                              <div>
-                                <div className="font-semibold text-gray-900">
-                                  {student.firstName} {student.middleName} {student.lastName}
-                                </div>
-                                <div className="text-[10px] text-gray-500">
-                                  Roll: {student.rollNo} | {student.gender}
-                                </div>
+                              <div className="text-[10px] text-gray-500">
+                                Roll: {student.rollNo} | {student.gender}
                               </div>
                             </div>
-                          </td>
-                          <td className="px-3 py-3">
-                            <div className="font-medium">{student.admissionNo}</div>
-                            <div className="text-[10px] text-gray-500">{student.grNo}</div>
-                          </td>
-                          <td className="px-3 py-3">
-                            <div className="font-medium">
-                              Class {student.class}-{student.section}
-                            </div>
-                            <div className="text-[10px] text-gray-500">{student.department}</div>
-                          </td>
-                          <td className="px-3 py-3">
-                            <div className="font-medium">{student.branch}</div>
-                          </td>
-                          <td className="px-3 py-3">
-                            <div className="font-medium">{student.parentName}</div>
-                            <div className="text-[10px] text-gray-500">{student.parentPhone}</div>
-                          </td>
-                          <td className="px-3 py-3">
-                            <div className="flex flex-wrap gap-1">
-                              <Badge variant="gray" size="xs">
-                                {student.feeCategory}
-                              </Badge>
-                              {student.hasConcession && (
-                                <Badge variant="success" size="xs">
-                                  {student.concessionPercentage}% Off
-                                </Badge>
-                              )}
-                              {student.hasScholarship && (
-                                <Badge variant="warning" size="xs">
-                                  Scholar
-                                </Badge>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-3 py-3">
-                            {last ? (
-                              <div>
-                                <div className="font-medium text-gray-900 flex items-center gap-1">
-                                  {formatDate(last.date)}
-                                  {index === 0 && (
-                                    <Badge variant="success" size="xs">
-                                      Latest
-                                    </Badge>
-                                  )}
-                                </div>
-                                <div className="text-[10px] text-gray-500">
-                                  {formatCurrency(last.totalAmount)} · {last.paymentMode} · {last.receiptNo}
-                                </div>
-                              </div>
-                            ) : (
-                              <span className="text-[10px] text-gray-400 italic">No payment yet</span>
-                            )}
-                          </td>
-                          <td className="px-3 py-3 text-right font-medium text-green-600">
-                            {formatCurrency(paid)}
-                          </td>
-                          <td className="px-3 py-3 text-right font-bold text-red-600">
-                            {due > 0 ? (
-                              formatCurrency(due)
-                            ) : (
-                              <span className="text-green-600">Nil</span>
-                            )}
-                          </td>
-                          <td className="px-3 py-3 text-center">
-                            <Badge
-                              variant={
-                                due === 0 ? 'success' : due > 50000 ? 'danger' : 'warning'
-                              }
-                              size="xs"
-                            >
-                              {due === 0 ? 'Clear' : 'Due'}
+                          </div>
+                        </td>
+                        <td className="px-3 py-3">
+                          <div className="font-medium">{student.admissionNo}</div>
+                          <div className="text-[10px] text-gray-500">{student.grNo}</div>
+                        </td>
+                        <td className="px-3 py-3">
+                          <div className="font-medium">
+                            Class {student.class}-{student.section}
+                          </div>
+                          <div className="text-[10px] text-gray-500">{student.department}</div>
+                        </td>
+                        <td className="px-3 py-3">
+                          <div className="font-medium">{student.branch}</div>
+                        </td>
+                        <td className="px-3 py-3">
+                          <div className="font-medium">{student.parentName}</div>
+                          <div className="text-[10px] text-gray-500">{student.parentPhone}</div>
+                        </td>
+                        <td className="px-3 py-3">
+                          <div className="flex flex-wrap gap-1">
+                            <Badge variant="gray" size="xs">
+                              {student.feeCategory}
                             </Badge>
-                          </td>
-                          <td className="px-3 py-3 text-center">
-                            <Button
-                              variant="primary"
-                              size="xs"
-                              onClick={() => handleSelectStudent(student)}
-                            >
-                              <CreditCard className="w-3 h-3 mr-1" /> Collect
-                            </Button>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </Card>
+                            {student.hasConcession && (
+                              <Badge variant="success" size="xs">
+                                {student.concessionPercentage}% Off
+                              </Badge>
+                            )}
+                            {student.hasScholarship && (
+                              <Badge variant="warning" size="xs">
+                                Scholar
+                              </Badge>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-3 py-3">
+                          {last ? (
+                            <div>
+                              <div className="font-medium text-gray-900 flex items-center gap-1">
+                                {formatDate(last.date)}
+                                {index === 0 && (
+                                  <Badge variant="success" size="xs">
+                                    Latest
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="text-[10px] text-gray-500">
+                                {formatCurrency(last.totalAmount)} · {last.paymentMode} · {last.receiptNo}
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-gray-400 italic">No payment yet</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-3 text-right font-medium text-green-600">
+                          {formatCurrency(paid)}
+                        </td>
+                        <td className="px-3 py-3 text-right font-bold text-red-600">
+                          {due > 0 ? formatCurrency(due) : <span className="text-green-600">Nil</span>}
+                        </td>
+                        <td className="px-3 py-3 text-center">
+                          <Badge
+                            variant={due === 0 ? 'success' : due > 50000 ? 'danger' : 'warning'}
+                            size="xs"
+                          >
+                            {due === 0 ? 'Clear' : 'Due'}
+                          </Badge>
+                        </td>
+                        <td className="px-3 py-3 text-center">
+                          <Button
+                            variant="primary"
+                            size="xs"
+                            onClick={() => handleSelectStudent(student)}
+                          >
+                            <CreditCard className="w-3 h-3 mr-1" /> Collect
+                          </Button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
       </div>
     )
   }
@@ -1726,58 +1759,18 @@ export function FeeReceipt() {
                 Personal
               </div>
               <div className="grid grid-cols-2 gap-x-2 gap-y-0.5">
-                <CompactRow
-                  icon={<IdCard className="w-3 h-3" />}
-                  label="Adm No"
-                  value={selectedStudent.admissionNo}
-                />
-                <CompactRow
-                  icon={<Hash className="w-3 h-3" />}
-                  label="GR No"
-                  value={selectedStudent.grNo}
-                />
-                <CompactRow
-                  icon={<Hash className="w-3 h-3" />}
-                  label="SU ID"
-                  value={selectedStudent.suId}
-                />
-                <CompactRow
-                  icon={<Calendar className="w-3 h-3" />}
-                  label="DOB"
-                  value={new Date(selectedStudent.dateOfBirth).toLocaleDateString('en-IN')}
-                />
-                <CompactRow
-                  icon={<Heart className="w-3 h-3" />}
-                  label="Blood"
-                  value={selectedStudent.bloodGroup}
-                />
-                <CompactRow
-                  icon={<Globe className="w-3 h-3" />}
-                  label="Nationality"
-                  value={selectedStudent.nationality}
-                />
-                <CompactRow
-                  icon={<User className="w-3 h-3" />}
-                  label="Religion"
-                  value={selectedStudent.religion}
-                />
-                <CompactRow
-                  icon={<Shield className="w-3 h-3" />}
-                  label="Category"
-                  value={selectedStudent.category}
-                />
+                <CompactRow icon={<IdCard className="w-3 h-3" />} label="Adm No" value={selectedStudent.admissionNo} />
+                <CompactRow icon={<Hash className="w-3 h-3" />} label="GR No" value={selectedStudent.grNo} />
+                <CompactRow icon={<Hash className="w-3 h-3" />} label="SU ID" value={selectedStudent.suId} />
+                <CompactRow icon={<Calendar className="w-3 h-3" />} label="DOB" value={new Date(selectedStudent.dateOfBirth).toLocaleDateString('en-IN')} />
+                <CompactRow icon={<Heart className="w-3 h-3" />} label="Blood" value={selectedStudent.bloodGroup} />
+                <CompactRow icon={<Globe className="w-3 h-3" />} label="Nationality" value={selectedStudent.nationality} />
+                <CompactRow icon={<User className="w-3 h-3" />} label="Religion" value={selectedStudent.religion} />
+                <CompactRow icon={<Shield className="w-3 h-3" />} label="Category" value={selectedStudent.category} />
               </div>
               <div className="mt-0.5">
-                <CompactRow
-                  icon={<IdCard className="w-3 h-3" />}
-                  label="Aadhar"
-                  value={selectedStudent.aadharNo}
-                />
-                <CompactRow
-                  icon={<MapPin className="w-3 h-3" />}
-                  label="Address"
-                  value={`${selectedStudent.address}, ${selectedStudent.city} - ${selectedStudent.pincode}`}
-                />
+                <CompactRow icon={<IdCard className="w-3 h-3" />} label="Aadhar" value={selectedStudent.aadharNo} />
+                <CompactRow icon={<MapPin className="w-3 h-3" />} label="Address" value={`${selectedStudent.address}, ${selectedStudent.city} - ${selectedStudent.pincode}`} />
               </div>
             </div>
 
@@ -1786,33 +1779,13 @@ export function FeeReceipt() {
               <div className="text-[9px] font-semibold text-gray-500 uppercase tracking-wider mb-1 border-b pb-0.5">
                 Parents
               </div>
-              <CompactRow
-                icon={<User className="w-3 h-3" />}
-                label="Father"
-                value={selectedStudent.parentName}
-              />
+              <CompactRow icon={<User className="w-3 h-3" />} label="Father" value={selectedStudent.parentName} />
               <div className="grid grid-cols-2 gap-x-2">
-                <CompactRow
-                  icon={<Phone className="w-3 h-3" />}
-                  label="Phone"
-                  value={selectedStudent.parentPhone}
-                />
-                <CompactRow
-                  icon={<Mail className="w-3 h-3" />}
-                  label="Email"
-                  value={selectedStudent.parentEmail}
-                />
+                <CompactRow icon={<Phone className="w-3 h-3" />} label="Phone" value={selectedStudent.parentPhone} />
+                <CompactRow icon={<Mail className="w-3 h-3" />} label="Email" value={selectedStudent.parentEmail} />
               </div>
-              <CompactRow
-                icon={<User className="w-3 h-3" />}
-                label="Mother"
-                value={selectedStudent.motherName}
-              />
-              <CompactRow
-                icon={<Phone className="w-3 h-3" />}
-                label="Mother's Phone"
-                value={selectedStudent.motherPhone}
-              />
+              <CompactRow icon={<User className="w-3 h-3" />} label="Mother" value={selectedStudent.motherName} />
+              <CompactRow icon={<Phone className="w-3 h-3" />} label="Mother's Phone" value={selectedStudent.motherPhone} />
             </div>
 
             {/* Academic Section */}
@@ -1821,80 +1794,34 @@ export function FeeReceipt() {
                 Academic
               </div>
               <div className="grid grid-cols-2 gap-x-2 gap-y-0.5">
-                <CompactRow
-                  icon={<GraduationCap className="w-3 h-3" />}
-                  label="Class"
-                  value={`${selectedStudent.class}-${selectedStudent.section}`}
-                />
-                <CompactRow
-                  icon={<Building className="w-3 h-3" />}
-                  label="Branch"
-                  value={selectedStudent.branch}
-                />
-                <CompactRow
-                  icon={<BookOpen className="w-3 h-3" />}
-                  label="Stream"
-                  value={selectedStudent.stream}
-                />
-                <CompactRow
-                  icon={<BookOpen className="w-3 h-3" />}
-                  label="Medium"
-                  value={selectedStudent.medium}
-                />
-                <CompactRow
-                  icon={<Calendar className="w-3 h-3" />}
-                  label="Year"
-                  value={selectedStudent.academicYear}
-                />
-                <CompactRow
-                  icon={<Calendar className="w-3 h-3" />}
-                  label="Adm Date"
-                  value={new Date(selectedStudent.admissionDate).toLocaleDateString('en-IN')}
-                />
+                <CompactRow icon={<GraduationCap className="w-3 h-3" />} label="Class" value={`${selectedStudent.class}-${selectedStudent.section}`} />
+                <CompactRow icon={<Building className="w-3 h-3" />} label="Branch" value={selectedStudent.branch} />
+                <CompactRow icon={<BookOpen className="w-3 h-3" />} label="Stream" value={selectedStudent.stream} />
+                <CompactRow icon={<BookOpen className="w-3 h-3" />} label="Medium" value={selectedStudent.medium} />
+                <CompactRow icon={<Calendar className="w-3 h-3" />} label="Year" value={selectedStudent.academicYear} />
+                <CompactRow icon={<Calendar className="w-3 h-3" />} label="Adm Date" value={new Date(selectedStudent.admissionDate).toLocaleDateString('en-IN')} />
               </div>
             </div>
 
             {/* Benefits */}
-            {(selectedStudent.hasConcession ||
-              selectedStudent.hasScholarship ||
-              selectedStudent.hasHostel) && (
+            {(selectedStudent.hasConcession || selectedStudent.hasScholarship || selectedStudent.hasHostel) && (
               <div className="px-3 pt-2 pb-2">
                 <div className="text-[9px] font-semibold text-gray-500 uppercase tracking-wider mb-1 border-b pb-0.5">
                   Benefits
                 </div>
                 {selectedStudent.hasHostel && (
-                  <CompactRow
-                    icon={<Home className="w-3 h-3" />}
-                    label="Hostel Room"
-                    value={selectedStudent.hostelRoom || '-'}
-                  />
+                  <CompactRow icon={<Home className="w-3 h-3" />} label="Hostel Room" value={selectedStudent.hostelRoom || '-'} />
                 )}
                 {selectedStudent.hasConcession && (
                   <div className="grid grid-cols-2 gap-x-2">
-                    <CompactRow
-                      icon={<Percent className="w-3 h-3" />}
-                      label="Concession"
-                      value={selectedStudent.concessionType || '-'}
-                    />
-                    <CompactRow
-                      icon={<BadgePercent className="w-3 h-3" />}
-                      label="Percent"
-                      value={`${selectedStudent.concessionPercentage}%`}
-                    />
+                    <CompactRow icon={<Percent className="w-3 h-3" />} label="Concession" value={selectedStudent.concessionType || '-'} />
+                    <CompactRow icon={<BadgePercent className="w-3 h-3" />} label="Percent" value={`${selectedStudent.concessionPercentage}%`} />
                   </div>
                 )}
                 {selectedStudent.hasScholarship && (
                   <div className="grid grid-cols-2 gap-x-2">
-                    <CompactRow
-                      icon={<Award className="w-3 h-3" />}
-                      label="Scholarship"
-                      value={selectedStudent.scholarshipName || '-'}
-                    />
-                    <CompactRow
-                      icon={<Banknote className="w-3 h-3" />}
-                      label="Amount"
-                      value={formatCurrency(selectedStudent.scholarshipAmount || 0)}
-                    />
+                    <CompactRow icon={<Award className="w-3 h-3" />} label="Scholarship" value={selectedStudent.scholarshipName || '-'} />
+                    <CompactRow icon={<Banknote className="w-3 h-3" />} label="Amount" value={formatCurrency(selectedStudent.scholarshipAmount || 0)} />
                   </div>
                 )}
               </div>
@@ -1907,35 +1834,25 @@ export function FeeReceipt() {
               <tbody className="divide-y divide-gray-100">
                 <tr className="hover:bg-gray-50">
                   <td className="px-3 py-2 text-gray-600">Total Fee</td>
-                  <td className="px-3 py-2 text-right font-semibold">
-                    {formatCurrency(feeData.netAmount)}
-                  </td>
+                  <td className="px-3 py-2 text-right font-semibold">{formatCurrency(feeData.netAmount)}</td>
                 </tr>
                 <tr className="hover:bg-gray-50">
                   <td className="px-3 py-2 text-gray-600">Total Paid</td>
-                  <td className="px-3 py-2 text-right font-semibold text-green-600">
-                    {formatCurrency(feeData.paidAmount)}
-                  </td>
+                  <td className="px-3 py-2 text-right font-semibold text-green-600">{formatCurrency(feeData.paidAmount)}</td>
                 </tr>
                 <tr className="hover:bg-gray-50">
                   <td className="px-3 py-2 text-gray-600">Balance</td>
-                  <td className="px-3 py-2 text-right font-semibold text-red-600">
-                    {formatCurrency(feeData.balanceAmount)}
-                  </td>
+                  <td className="px-3 py-2 text-right font-semibold text-red-600">{formatCurrency(feeData.balanceAmount)}</td>
                 </tr>
                 {feeData.fineBalance > 0 && (
                   <tr className="bg-amber-50">
                     <td className="px-3 py-2 text-amber-700">Late Fine</td>
-                    <td className="px-3 py-2 text-right font-semibold text-amber-700">
-                      {formatCurrency(feeData.fineBalance)}
-                    </td>
+                    <td className="px-3 py-2 text-right font-semibold text-amber-700">{formatCurrency(feeData.fineBalance)}</td>
                   </tr>
                 )}
                 <tr className="bg-red-50">
                   <td className="px-3 py-2 text-red-700 font-medium">Total Due</td>
-                  <td className="px-3 py-2 text-right font-bold text-red-700">
-                    {formatCurrency(feeData.totalDue)}
-                  </td>
+                  <td className="px-3 py-2 text-right font-bold text-red-700">{formatCurrency(feeData.totalDue)}</td>
                 </tr>
               </tbody>
             </table>
@@ -1955,16 +1872,12 @@ export function FeeReceipt() {
                     {finePayingAmount > 0 && (
                       <tr>
                         <td className="text-blue-700 py-0.5">Fine</td>
-                        <td className="text-right font-medium">
-                          {formatCurrency(finePayingAmount)}
-                        </td>
+                        <td className="text-right font-medium">{formatCurrency(finePayingAmount)}</td>
                       </tr>
                     )}
                     <tr className="border-t border-blue-200">
                       <td className="text-blue-900 font-semibold pt-1">Grand Total</td>
-                      <td className="text-right font-bold text-blue-900 text-sm pt-1">
-                        {formatCurrency(grandTotal)}
-                      </td>
+                      <td className="text-right font-bold text-blue-900 text-sm pt-1">{formatCurrency(grandTotal)}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -1974,9 +1887,7 @@ export function FeeReceipt() {
                     .map((fh) => (
                       <div key={fh.id} className="flex justify-between text-[10px]">
                         <span className="text-blue-800 truncate max-w-[140px]">{fh.name}</span>
-                        <span className="font-medium">
-                          {formatCurrency(paymentEntries[fh.id].payingAmount)}
-                        </span>
+                        <span className="font-medium">{formatCurrency(paymentEntries[fh.id].payingAmount)}</span>
                       </div>
                     ))}
                 </div>
@@ -1990,27 +1901,15 @@ export function FeeReceipt() {
           <div className="flex gap-1 bg-gray-200 p-1 rounded-lg">
             {(
               [
-                {
-                  key: 'payment',
-                  label: 'Make Payment',
-                  icon: CreditCard,
-                  count: unpaidFeeHeads.length,
-                },
-                {
-                  key: 'history',
-                  label: 'Receipt History',
-                  icon: History,
-                  count: selectedStudent.receiptHistory.length,
-                },
+                { key: 'payment', label: 'Make Payment', icon: CreditCard, count: unpaidFeeHeads.length },
+                { key: 'history', label: 'Receipt History', icon: History, count: selectedStudent.receiptHistory.length },
               ] as const
             ).map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
                 className={`flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                  activeTab === tab.key
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
+                  activeTab === tab.key ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-600 hover:text-gray-900'
                 }`}
               >
                 <tab.icon className="w-3.5 h-3.5 inline mr-1" />
@@ -2033,9 +1932,7 @@ export function FeeReceipt() {
                       onChange={(e) => setPaymentMode(e.target.value)}
                     />
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
-                        Receipt Date
-                      </label>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Receipt Date</label>
                       <div className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50 text-gray-700 flex items-center gap-2">
                         <Calendar className="w-4 h-4 text-gray-400" />
                         {todayDisplay}
@@ -2043,53 +1940,25 @@ export function FeeReceipt() {
                     </div>
                   </div>
 
-                  {/* Cheque / DD fields */}
                   {['cheque', 'dd'].includes(paymentMode) && (
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-3 p-3 bg-gray-50 rounded-lg border">
-                      <Input
-                        label={`${paymentMode === 'cheque' ? 'Cheque' : 'DD'} Number *`}
-                        value={chequeNo}
-                        onChange={(e) => setChequeNo(e.target.value)}
-                      />
-                      <Input
-                        label="Date *"
-                        type="date"
-                        value={chequeDate}
-                        onChange={(e) => setChequeDate(e.target.value)}
-                      />
-                      <Input
-                        label="Bank *"
-                        value={bankName}
-                        onChange={(e) => setBankName(e.target.value)}
-                      />
+                      <Input label={`${paymentMode === 'cheque' ? 'Cheque' : 'DD'} Number *`} value={chequeNo} onChange={(e) => setChequeNo(e.target.value)} />
+                      <Input label="Date *" type="date" value={chequeDate} onChange={(e) => setChequeDate(e.target.value)} />
+                      <Input label="Bank *" value={bankName} onChange={(e) => setBankName(e.target.value)} />
                     </div>
                   )}
 
-                  {/* UPI / NEFT / Card fields */}
                   {['upi', 'neft', 'card'].includes(paymentMode) && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3 p-3 bg-gray-50 rounded-lg border">
-                      <Input
-                        label="Reference / Transaction ID *"
-                        value={referenceNo}
-                        onChange={(e) => setReferenceNo(e.target.value)}
-                      />
+                      <Input label="Reference / Transaction ID *" value={referenceNo} onChange={(e) => setReferenceNo(e.target.value)} />
                       {paymentMode === 'card' && <Input label="Card Last 4 Digits" maxLength={4} />}
                     </div>
                   )}
 
-                  {/* Bank Transfer fields - no date */}
                   {paymentMode === 'bank_transfer' && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3 p-3 bg-gray-50 rounded-lg border">
-                      <Input
-                        label="Bank Name *"
-                        value={bankName}
-                        onChange={(e) => setBankName(e.target.value)}
-                      />
-                      <Input
-                        label="Transaction ID *"
-                        value={transactionId}
-                        onChange={(e) => setTransactionId(e.target.value)}
-                      />
+                      <Input label="Bank Name *" value={bankName} onChange={(e) => setBankName(e.target.value)} />
+                      <Input label="Transaction ID *" value={transactionId} onChange={(e) => setTransactionId(e.target.value)} />
                     </div>
                   )}
 
@@ -2104,56 +1973,31 @@ export function FeeReceipt() {
                     />
                   </div>
 
-                  {/* Notifications */}
                   <div className="flex items-center gap-4 mt-3 pt-3 border-t flex-wrap">
                     <label className="flex items-center gap-2 text-xs cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={sendSMS}
-                        onChange={(e) => setSendSMS(e.target.checked)}
-                        className="w-3.5 h-3.5 rounded"
-                      />
-                      <MessageSquare className="w-3.5 h-3.5 text-gray-500" />
-                      SMS
+                      <input type="checkbox" checked={sendSMS} onChange={(e) => setSendSMS(e.target.checked)} className="w-3.5 h-3.5 rounded" />
+                      <MessageSquare className="w-3.5 h-3.5 text-gray-500" />SMS
                     </label>
                     <label className="flex items-center gap-2 text-xs cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={sendEmail}
-                        onChange={(e) => setSendEmail(e.target.checked)}
-                        className="w-3.5 h-3.5 rounded"
-                      />
-                      <Mail className="w-3.5 h-3.5 text-gray-500" />
-                      Email
+                      <input type="checkbox" checked={sendEmail} onChange={(e) => setSendEmail(e.target.checked)} className="w-3.5 h-3.5 rounded" />
+                      <Mail className="w-3.5 h-3.5 text-gray-500" />Email
                     </label>
                     <label className="flex items-center gap-2 text-xs cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={sendWhatsApp}
-                        onChange={(e) => setSendWhatsApp(e.target.checked)}
-                        className="w-3.5 h-3.5 rounded"
-                      />
-                      <Smartphone className="w-3.5 h-3.5 text-green-600" />
-                      WhatsApp
+                      <input type="checkbox" checked={sendWhatsApp} onChange={(e) => setSendWhatsApp(e.target.checked)} className="w-3.5 h-3.5 rounded" />
+                      <Smartphone className="w-3.5 h-3.5 text-green-600" />WhatsApp
                     </label>
                     <label className="flex items-center gap-2 text-xs cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={sendInApp}
-                        onChange={(e) => setSendInApp(e.target.checked)}
-                        className="w-3.5 h-3.5 rounded"
-                      />
-                      <Bell className="w-3.5 h-3.5 text-purple-500" />
-                      In-App
+                      <input type="checkbox" checked={sendInApp} onChange={(e) => setSendInApp(e.target.checked)} className="w-3.5 h-3.5 rounded" />
+                      <Bell className="w-3.5 h-3.5 text-purple-500" />In-App
                     </label>
                   </div>
                 </div>
               </Card>
 
-              {/* Fee Heads Selection */}
+              {/* Fee Structures grouping fee heads */}
               <Card
-                title="Fee Structure"
-                subtitle={`Fee heads assigned to this student · Class ${selectedStudent.class} · ${selectedStudent.academicYear}`}
+                title="Fee Structures"
+                subtitle={`${feeData.feeStructures.length} fee structure(s) assigned · Class ${selectedStudent.class} · ${selectedStudent.academicYear}`}
                 action={
                   <div className="flex gap-1">
                     <Button variant="ghost" size="xs" onClick={handleDeselectAllFeeHeads}>
@@ -2169,143 +2013,208 @@ export function FeeReceipt() {
                   <table className="w-full text-xs">
                     <thead className="bg-gray-50 border-b">
                       <tr>
-                        <th className="px-3 py-2 text-left w-8">
-                          <input
-                            type="checkbox"
-                            checked={
-                              selectedFeeHeadCount === unpaidFeeHeads.length &&
-                              unpaidFeeHeads.length > 0
-                            }
-                            onChange={(e) =>
-                              e.target.checked
-                                ? handleSelectAllFeeHeads()
-                                : handleDeselectAllFeeHeads()
-                            }
-                            className="w-3.5 h-3.5 rounded"
-                          />
-                        </th>
-                        <th className="px-3 py-2 text-left font-semibold text-gray-600">
-                          Fee Head
-                        </th>
+                        <th className="px-3 py-2 text-left w-8"></th>
+                        <th className="px-3 py-2 text-left font-semibold text-gray-600">Fee Head</th>
                         <th className="px-3 py-2 text-right font-semibold text-gray-600">Gross</th>
-                        <th className="px-3 py-2 text-right font-semibold text-gray-600">
-                          Concession
-                        </th>
+                        <th className="px-3 py-2 text-right font-semibold text-gray-600">Concession</th>
                         <th className="px-3 py-2 text-right font-semibold text-gray-600">Net</th>
                         <th className="px-3 py-2 text-right font-semibold text-gray-600">Paid</th>
-                        <th className="px-3 py-2 text-right font-semibold text-gray-600">
-                          Balance
-                        </th>
-                        <th className="px-3 py-2 text-right font-semibold text-gray-600">
-                          Paying
-                        </th>
-                        <th className="px-3 py-2 text-center font-semibold text-gray-600">
-                          Status
-                        </th>
+                        <th className="px-3 py-2 text-right font-semibold text-gray-600">Balance</th>
+                        <th className="px-3 py-2 text-right font-semibold text-gray-600">Paying</th>
+                        <th className="px-3 py-2 text-center font-semibold text-gray-600">Status</th>
                         <th className="px-3 py-2 w-12"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {feeData.feeHeads.map((fh) => {
-                        const balance = getFeeHeadBalance(feeData, fh)
-                        const alreadyPaid = feeData.feeHeadPaidAmounts[fh.id] || 0
-                        const entry = paymentEntries[fh.id]
-                        const isFullyPaid = balance === 0
-                        const isSelected = entry?.selected || false
+                      {feeData.feeStructures.map((structure) => {
+                        const isCollapsed = !!collapsedStructures[structure.id]
+
+                        // Structure-level aggregates
+                        const structureGross = structure.feeHeads.reduce((s, fh) => s + fh.amount, 0)
+                        const structureConcession = structure.feeHeads.reduce((s, fh) => s + fh.discountAmount, 0)
+                        const structureNet = structure.feeHeads.reduce((s, fh) => s + fh.netAmount, 0)
+                        const structurePaid = structure.feeHeads.reduce(
+                          (s, fh) => s + (feeData.feeHeadPaidAmounts[fh.id] || 0),
+                          0
+                        )
+                        const structureBalance = structure.feeHeads.reduce(
+                          (s, fh) => s + getFeeHeadBalance(feeData, fh),
+                          0
+                        )
+                        const structurePaying = structure.feeHeads.reduce(
+                          (s, fh) => s + (paymentEntries[fh.id]?.selected ? paymentEntries[fh.id].payingAmount : 0),
+                          0
+                        )
+
+                        const unpaidInStructure = structure.feeHeads.filter(
+                          (fh) => getFeeHeadBalance(feeData, fh) > 0
+                        )
+                        const allUnpaidSelected =
+                          unpaidInStructure.length > 0 &&
+                          unpaidInStructure.every((fh) => paymentEntries[fh.id]?.selected)
+                        const isStructureFullyPaid = structureBalance === 0
+
                         return (
-                          <tr
-                            key={fh.id}
-                            className={`${
-                              isFullyPaid
-                                ? 'bg-green-50/50 opacity-60'
-                                : isSelected
-                                ? 'bg-blue-50/50'
-                                : 'hover:bg-gray-50'
-                            }`}
-                          >
-                            <td className="px-3 py-2.5">
-                              <input
-                                type="checkbox"
-                                checked={isSelected}
-                                onChange={(e) => handleFeeHeadSelect(fh.id, e.target.checked)}
-                                disabled={isFullyPaid}
-                                className="w-3.5 h-3.5 rounded disabled:opacity-40"
-                              />
-                            </td>
-                            <td className="px-3 py-2.5">
-                              <span className="font-medium text-gray-900">{fh.name}</span>
-                              {isFullyPaid && (
-                                <span className="ml-1">
-                                  <Badge variant="success" size="xs">
-                                    <CheckCircle className="w-2.5 h-2.5" />
-                                    Paid
-                                  </Badge>
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-3 py-2.5 text-right text-gray-600">
-                              {formatCurrency(fh.amount)}
-                            </td>
-                            <td className="px-3 py-2.5 text-right text-green-600">
-                              {fh.discountAmount > 0
-                                ? `-${formatCurrency(fh.discountAmount)}`
-                                : '-'}
-                            </td>
-                            <td className="px-3 py-2.5 text-right font-medium">
-                              {formatCurrency(fh.netAmount)}
-                            </td>
-                            <td className="px-3 py-2.5 text-right text-green-600">
-                              {alreadyPaid > 0 ? formatCurrency(alreadyPaid) : '-'}
-                            </td>
-                            <td className="px-3 py-2.5 text-right font-semibold text-red-600">
-                              {balance > 0 ? formatCurrency(balance) : '-'}
-                            </td>
-                            <td className="px-3 py-2.5 text-right">
-                              {isSelected && !isFullyPaid ? (
+                          <Fragment key={structure.id}>
+                            {/* Structure header row */}
+                            <tr className="bg-indigo-50 border-t-2 border-indigo-200">
+                              <td className="px-3 py-2.5">
                                 <input
-                                  type="number"
-                                  value={entry?.payingAmount || 0}
-                                  onChange={(e) =>
-                                    handleFeeHeadAmountChange(
-                                      fh.id,
-                                      parseFloat(e.target.value) || 0
-                                    )
-                                  }
-                                  min={0}
-                                  max={balance}
-                                  className="w-24 px-2 py-1 text-xs border rounded text-right"
+                                  type="checkbox"
+                                  checked={allUnpaidSelected}
+                                  disabled={isStructureFullyPaid}
+                                  onChange={(e) => handleStructureSelect(structure, e.target.checked)}
+                                  className="w-3.5 h-3.5 rounded disabled:opacity-40"
+                                  title="Select all unpaid fee heads in this structure"
                                 />
-                              ) : (
-                                <span className="text-gray-400">-</span>
-                              )}
-                            </td>
-                            <td className="px-3 py-2.5 text-center">
-                              {isFullyPaid ? (
-                                <Badge variant="success" size="xs">
-                                  Paid
-                                </Badge>
-                              ) : alreadyPaid > 0 ? (
-                                <Badge variant="warning" size="xs">
-                                  Partial
-                                </Badge>
-                              ) : (
-                                <Badge variant="gray" size="xs">
-                                  Unpaid
-                                </Badge>
-                              )}
-                            </td>
-                            <td className="px-3 py-2.5 text-center">
-                              {isSelected && !isFullyPaid && (
-                                <Button
-                                  variant="ghost"
-                                  size="xs"
-                                  onClick={() => handlePayFullFeeHead(fh.id)}
+                              </td>
+                              <td className="px-3 py-2.5" colSpan={4}>
+                                <button
+                                  type="button"
+                                  onClick={() => toggleStructureCollapse(structure.id)}
+                                  className="inline-flex items-center gap-1.5 text-left"
                                 >
-                                  Full
-                                </Button>
-                              )}
-                            </td>
-                          </tr>
+                                  {isCollapsed ? (
+                                    <ChevronRight className="w-3.5 h-3.5 text-indigo-700" />
+                                  ) : (
+                                    <ChevronDown className="w-3.5 h-3.5 text-indigo-700" />
+                                  )}
+                                  <Layers className="w-3.5 h-3.5 text-indigo-700" />
+                                  <span className="font-semibold text-indigo-900 text-xs">
+                                    {structure.name}
+                                  </span>
+                                  <Badge variant="info" size="xs">
+                                    {structure.feeHeads.length} head{structure.feeHeads.length !== 1 ? 's' : ''}
+                                  </Badge>
+                                  {isStructureFullyPaid && (
+                                    <Badge variant="success" size="xs">
+                                      <CheckCircle className="w-2.5 h-2.5" /> Fully Paid
+                                    </Badge>
+                                  )}
+                                </button>
+                                {structure.description && (
+                                  <div className="text-[10px] text-indigo-700/70 ml-6 mt-0.5">
+                                    {structure.description}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="px-3 py-2.5 text-right font-semibold text-green-700">
+                                {structurePaid > 0 ? formatCurrency(structurePaid) : '-'}
+                              </td>
+                              <td className="px-3 py-2.5 text-right font-semibold text-red-700">
+                                {structureBalance > 0 ? formatCurrency(structureBalance) : '-'}
+                              </td>
+                              <td className="px-3 py-2.5 text-right font-semibold text-blue-700">
+                                {structurePaying > 0 ? formatCurrency(structurePaying) : '-'}
+                              </td>
+                              <td className="px-3 py-2.5 text-center">
+                                <Badge
+                                  variant={
+                                    isStructureFullyPaid
+                                      ? 'success'
+                                      : structurePaid > 0
+                                      ? 'warning'
+                                      : 'gray'
+                                  }
+                                  size="xs"
+                                >
+                                  {isStructureFullyPaid ? 'Paid' : structurePaid > 0 ? 'Partial' : 'Unpaid'}
+                                </Badge>
+                              </td>
+                              <td></td>
+                            </tr>
+
+                            {/* Fee head rows under this structure */}
+                            {!isCollapsed &&
+                              structure.feeHeads.map((fh) => {
+                                const balance = getFeeHeadBalance(feeData, fh)
+                                const alreadyPaid = feeData.feeHeadPaidAmounts[fh.id] || 0
+                                const entry = paymentEntries[fh.id]
+                                const isFullyPaid = balance === 0
+                                const isSelected = entry?.selected || false
+                                return (
+                                  <tr
+                                    key={fh.id}
+                                    className={`${
+                                      isFullyPaid
+                                        ? 'bg-green-50/50 opacity-60'
+                                        : isSelected
+                                        ? 'bg-blue-50/50'
+                                        : 'hover:bg-gray-50'
+                                    }`}
+                                  >
+                                    <td className="px-3 py-2.5 pl-6">
+                                      <input
+                                        type="checkbox"
+                                        checked={isSelected}
+                                        onChange={(e) => handleFeeHeadSelect(fh.id, e.target.checked)}
+                                        disabled={isFullyPaid}
+                                        className="w-3.5 h-3.5 rounded disabled:opacity-40"
+                                      />
+                                    </td>
+                                    <td className="px-3 py-2.5 pl-6">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="text-gray-400">↳</span>
+                                        <span className="font-medium text-gray-900">{fh.name}</span>
+                                        {isFullyPaid && (
+                                          <Badge variant="success" size="xs">
+                                            <CheckCircle className="w-2.5 h-2.5" />
+                                            Paid
+                                          </Badge>
+                                        )}
+                                      </div>
+                                    </td>
+                                    <td className="px-3 py-2.5 text-right text-gray-600">
+                                      {formatCurrency(fh.amount)}
+                                    </td>
+                                    <td className="px-3 py-2.5 text-right text-green-600">
+                                      {fh.discountAmount > 0 ? `-${formatCurrency(fh.discountAmount)}` : '-'}
+                                    </td>
+                                    <td className="px-3 py-2.5 text-right font-medium">
+                                      {formatCurrency(fh.netAmount)}
+                                    </td>
+                                    <td className="px-3 py-2.5 text-right text-green-600">
+                                      {alreadyPaid > 0 ? formatCurrency(alreadyPaid) : '-'}
+                                    </td>
+                                    <td className="px-3 py-2.5 text-right font-semibold text-red-600">
+                                      {balance > 0 ? formatCurrency(balance) : '-'}
+                                    </td>
+                                    <td className="px-3 py-2.5 text-right">
+                                      {isSelected && !isFullyPaid ? (
+                                        <input
+                                          type="number"
+                                          value={entry?.payingAmount || 0}
+                                          onChange={(e) =>
+                                            handleFeeHeadAmountChange(fh.id, parseFloat(e.target.value) || 0)
+                                          }
+                                          min={0}
+                                          max={balance}
+                                          className="w-24 px-2 py-1 text-xs border rounded text-right"
+                                        />
+                                      ) : (
+                                        <span className="text-gray-400">-</span>
+                                      )}
+                                    </td>
+                                    <td className="px-3 py-2.5 text-center">
+                                      {isFullyPaid ? (
+                                        <Badge variant="success" size="xs">Paid</Badge>
+                                      ) : alreadyPaid > 0 ? (
+                                        <Badge variant="warning" size="xs">Partial</Badge>
+                                      ) : (
+                                        <Badge variant="gray" size="xs">Unpaid</Badge>
+                                      )}
+                                    </td>
+                                    <td className="px-3 py-2.5 text-center">
+                                      {isSelected && !isFullyPaid && (
+                                        <Button variant="ghost" size="xs" onClick={() => handlePayFullFeeHead(fh.id)}>
+                                          Full
+                                        </Button>
+                                      )}
+                                    </td>
+                                  </tr>
+                                )
+                              })}
+                          </Fragment>
                         )
                       })}
                     </tbody>
@@ -2326,9 +2235,7 @@ export function FeeReceipt() {
                             <input
                               type="number"
                               value={finePayingAmount}
-                              onChange={(e) =>
-                                handleFineAmountChange(parseFloat(e.target.value) || 0)
-                              }
+                              onChange={(e) => handleFineAmountChange(parseFloat(e.target.value) || 0)}
                               min={0}
                               max={feeData.fineBalance}
                               className="w-24 px-2 py-1 text-xs border rounded text-right"
@@ -2344,12 +2251,8 @@ export function FeeReceipt() {
                     <tfoot className="bg-blue-50 border-t-2 border-blue-200">
                       <tr>
                         <td className="px-3 py-2.5"></td>
-                        <td
-                          className="px-3 py-2.5 text-sm font-semibold text-blue-800"
-                          colSpan={6}
-                        >
-                          Total Paying ({selectedFeeHeadCount} fee head
-                          {selectedFeeHeadCount !== 1 ? 's' : ''})
+                        <td className="px-3 py-2.5 text-sm font-semibold text-blue-800" colSpan={6}>
+                          Total Paying ({selectedFeeHeadCount} fee head{selectedFeeHeadCount !== 1 ? 's' : ''})
                         </td>
                         <td className="px-3 py-2.5 text-right text-sm font-bold text-blue-900">
                           {formatCurrency(grandTotal)}
@@ -2368,16 +2271,13 @@ export function FeeReceipt() {
                       <>
                         <span className="font-medium">{selectedFeeHeadCount} fee head(s)</span>
                         <span className="mx-2">•</span>
-                        <span className="font-semibold text-blue-600">
-                          Total: {formatCurrency(grandTotal)}
-                        </span>
+                        <span className="font-semibold text-blue-600">Total: {formatCurrency(grandTotal)}</span>
                       </>
                     )}
                   </div>
                   <div className="flex gap-2">
                     <Button variant="outline" size="sm" onClick={resetPaymentForm}>
-                      <X className="w-3.5 h-3.5 mr-1" />
-                      Cancel
+                      <X className="w-3.5 h-3.5 mr-1" /> Cancel
                     </Button>
                     <Button
                       variant="success"
@@ -2386,8 +2286,7 @@ export function FeeReceipt() {
                       disabled={selectedFeeHeadCount === 0 && finePayingAmount <= 0}
                       loading={isGenerating}
                     >
-                      <Receipt className="w-3.5 h-3.5 mr-1" />
-                      Generate Receipt
+                      <Receipt className="w-3.5 h-3.5 mr-1" /> Generate Receipt
                     </Button>
                   </div>
                 </div>
@@ -2408,32 +2307,20 @@ export function FeeReceipt() {
                   <table className="w-full text-xs">
                     <thead className="bg-gray-50 border-b">
                       <tr>
-                        <th className="px-3 py-2 text-left font-semibold text-gray-600">
-                          Receipt No
-                        </th>
+                        <th className="px-3 py-2 text-left font-semibold text-gray-600">Receipt No</th>
                         <th className="px-3 py-2 text-left font-semibold text-gray-600">Date</th>
-                        <th className="px-3 py-2 text-left font-semibold text-gray-600">
-                          Details
-                        </th>
+                        <th className="px-3 py-2 text-left font-semibold text-gray-600">Details</th>
                         <th className="px-3 py-2 text-left font-semibold text-gray-600">Mode</th>
-                        <th className="px-3 py-2 text-right font-semibold text-gray-600">
-                          Amount
-                        </th>
-                        <th className="px-3 py-2 text-center font-semibold text-gray-600">
-                          Status
-                        </th>
-                        <th className="px-3 py-2 text-center font-semibold text-gray-600">
-                          Actions
-                        </th>
+                        <th className="px-3 py-2 text-right font-semibold text-gray-600">Amount</th>
+                        <th className="px-3 py-2 text-center font-semibold text-gray-600">Status</th>
+                        <th className="px-3 py-2 text-center font-semibold text-gray-600">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y">
                       {selectedStudent.receiptHistory.map((receipt) => (
                         <tr
                           key={receipt.id}
-                          className={
-                            receipt.status === 'cancelled' ? 'bg-red-50/50' : 'hover:bg-gray-50'
-                          }
+                          className={receipt.status === 'cancelled' ? 'bg-red-50/50' : 'hover:bg-gray-50'}
                         >
                           <td className="px-3 py-2">
                             <div className="font-medium text-blue-600">{receipt.receiptNo}</div>
@@ -2447,10 +2334,7 @@ export function FeeReceipt() {
                           </td>
                           <td className="px-3 py-2">
                             {receipt.feeHeads.map((fh, i) => (
-                              <div
-                                key={i}
-                                className="text-[10px] text-gray-600 flex justify-between max-w-[250px]"
-                              >
+                              <div key={i} className="text-[10px] text-gray-600 flex justify-between max-w-[250px]">
                                 <span>{fh.feeHeadName}</span>
                                 <span className="ml-2">{formatCurrency(fh.feeAmount)}</span>
                               </div>
@@ -2458,53 +2342,28 @@ export function FeeReceipt() {
                           </td>
                           <td className="px-3 py-2">{receipt.paymentMode}</td>
                           <td className="px-3 py-2 text-right font-semibold">
-                            <span
-                              className={
-                                receipt.status === 'cancelled'
-                                  ? 'line-through text-gray-400'
-                                  : ''
-                              }
-                            >
+                            <span className={receipt.status === 'cancelled' ? 'line-through text-gray-400' : ''}>
                               {formatCurrency(receipt.totalAmount)}
                             </span>
                           </td>
                           <td className="px-3 py-2 text-center">
-                            <Badge
-                              variant={receipt.status === 'completed' ? 'success' : 'danger'}
-                              size="xs"
-                            >
+                            <Badge variant={receipt.status === 'completed' ? 'success' : 'danger'} size="xs">
                               {receipt.status}
                             </Badge>
                           </td>
                           <td className="px-3 py-2">
                             <div className="flex items-center justify-center gap-1">
-                              <button
-                                className="p-1 hover:bg-gray-200 rounded"
-                                title="View"
-                                onClick={() => setViewingReceipt(receipt)}
-                              >
+                              <button className="p-1 hover:bg-gray-200 rounded" title="View" onClick={() => setViewingReceipt(receipt)}>
                                 <Eye className="w-3.5 h-3.5 text-gray-500" />
                               </button>
-                              <button
-                                className="p-1 hover:bg-gray-200 rounded"
-                                title="Print"
-                                onClick={() => printHistoryReceipt(receipt)}
-                              >
+                              <button className="p-1 hover:bg-gray-200 rounded" title="Print" onClick={() => printHistoryReceipt(receipt)}>
                                 <Printer className="w-3.5 h-3.5 text-gray-500" />
                               </button>
-                              <button
-                                className="p-1 hover:bg-gray-200 rounded"
-                                title="Download"
-                                onClick={() => downloadHistoryReceipt(receipt)}
-                              >
+                              <button className="p-1 hover:bg-gray-200 rounded" title="Download" onClick={() => downloadHistoryReceipt(receipt)}>
                                 <Download className="w-3.5 h-3.5 text-gray-500" />
                               </button>
                               {receipt.status === 'completed' && (
-                                <button
-                                  className="p-1 hover:bg-red-100 rounded"
-                                  title="Cancel receipt"
-                                  onClick={() => handleCancelReceipt(receipt)}
-                                >
+                                <button className="p-1 hover:bg-red-100 rounded" title="Cancel receipt" onClick={() => handleCancelReceipt(receipt)}>
                                   <XCircle className="w-3.5 h-3.5 text-red-500" />
                                 </button>
                               )}
@@ -2522,58 +2381,28 @@ export function FeeReceipt() {
       </div>
 
       {/* ==================== RECEIPT PREVIEW MODAL ==================== */}
-      <Modal
-        isOpen={showReceiptPreview}
-        onClose={() => setShowReceiptPreview(false)}
-        title="Receipt Preview"
-        size="xl"
-      >
+      <Modal isOpen={showReceiptPreview} onClose={() => setShowReceiptPreview(false)} title="Receipt Preview" size="xl">
         {generatedReceipt && (
           <div className="p-4">
             <div className="border rounded-lg p-6 bg-white">
               <div className="text-center border-b pb-4 mb-4">
                 <h2 className="text-xl font-bold text-gray-900">ABC International School</h2>
-                <p className="text-xs text-gray-500">
-                  123 Education Street, Knowledge City - 123456
-                </p>
+                <p className="text-xs text-gray-500">123 Education Street, Knowledge City - 123456</p>
                 <div className="mt-2 inline-block px-4 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-semibold">
                   FEE RECEIPT
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4 text-sm mb-4">
                 <div>
-                  <p>
-                    <span className="text-gray-500">Receipt No:</span>{' '}
-                    <strong className="text-blue-600">{generatedReceipt.receiptNo}</strong>
-                  </p>
-                  <p>
-                    <span className="text-gray-500">Date:</span>{' '}
-                    <strong>{todayDisplay}</strong>
-                  </p>
-                  <p>
-                    <span className="text-gray-500">Mode:</span>{' '}
-                    <strong>
-                      {paymentModeOptions.find((p) => p.value === paymentMode)?.label}
-                    </strong>
-                  </p>
+                  <p><span className="text-gray-500">Receipt No:</span> <strong className="text-blue-600">{generatedReceipt.receiptNo}</strong></p>
+                  <p><span className="text-gray-500">Date:</span> <strong>{todayDisplay}</strong></p>
+                  <p><span className="text-gray-500">Mode:</span> <strong>{paymentModeOptions.find((p) => p.value === paymentMode)?.label}</strong></p>
                 </div>
                 <div>
-                  <p>
-                    <span className="text-gray-500">Student:</span>{' '}
-                    <strong>{generatedReceipt.student.name}</strong>
-                  </p>
-                  <p>
-                    <span className="text-gray-500">Adm No:</span>{' '}
-                    <strong>{generatedReceipt.student.admissionNo}</strong>
-                  </p>
-                  <p>
-                    <span className="text-gray-500">Class:</span>{' '}
-                    <strong>{generatedReceipt.student.class}</strong>
-                  </p>
-                  <p>
-                    <span className="text-gray-500">Branch:</span>{' '}
-                    <strong>{generatedReceipt.student.branch}</strong>
-                  </p>
+                  <p><span className="text-gray-500">Student:</span> <strong>{generatedReceipt.student.name}</strong></p>
+                  <p><span className="text-gray-500">Adm No:</span> <strong>{generatedReceipt.student.admissionNo}</strong></p>
+                  <p><span className="text-gray-500">Class:</span> <strong>{generatedReceipt.student.class}</strong></p>
+                  <p><span className="text-gray-500">Branch:</span> <strong>{generatedReceipt.student.branch}</strong></p>
                 </div>
               </div>
 
@@ -2588,26 +2417,20 @@ export function FeeReceipt() {
                   {generatedReceipt.feeHeads.map((fh: any, i: number) => (
                     <tr key={i}>
                       <td className="px-3 py-2 border">{fh.feeHeadName}</td>
-                      <td className="px-3 py-2 text-right border">
-                        {formatCurrency(fh.feeAmount)}
-                      </td>
+                      <td className="px-3 py-2 text-right border">{formatCurrency(fh.feeAmount)}</td>
                     </tr>
                   ))}
                   {generatedReceipt.fineAmount > 0 && (
                     <tr className="bg-amber-50">
                       <td className="px-3 py-2 border text-amber-700 font-medium">Late Fine</td>
-                      <td className="px-3 py-2 text-right border text-amber-700">
-                        {formatCurrency(generatedReceipt.fineAmount)}
-                      </td>
+                      <td className="px-3 py-2 text-right border text-amber-700">{formatCurrency(generatedReceipt.fineAmount)}</td>
                     </tr>
                   )}
                 </tbody>
                 <tfoot className="bg-green-50">
                   <tr>
                     <td className="px-3 py-3 border font-bold">Grand Total</td>
-                    <td className="px-3 py-3 text-right border font-bold text-green-700 text-lg">
-                      {formatCurrency(generatedReceipt.grandTotal)}
-                    </td>
+                    <td className="px-3 py-3 text-right border font-bold text-green-700 text-lg">{formatCurrency(generatedReceipt.grandTotal)}</td>
                   </tr>
                 </tfoot>
               </table>
@@ -2624,41 +2447,11 @@ export function FeeReceipt() {
               )}
               <div className="flex justify-between items-end pt-4 border-t text-xs text-gray-500">
                 <div>
-                  <p>
-                    Ledger: <CheckCircle className="w-3 h-3 inline text-green-500" />
-                  </p>
-                  <p>
-                    SMS:{' '}
-                    {generatedReceipt.sendSMS ? (
-                      <CheckCircle className="w-3 h-3 inline text-green-500" />
-                    ) : (
-                      <X className="w-3 h-3 inline text-gray-400" />
-                    )}
-                  </p>
-                  <p>
-                    Email:{' '}
-                    {generatedReceipt.sendEmail ? (
-                      <CheckCircle className="w-3 h-3 inline text-green-500" />
-                    ) : (
-                      <X className="w-3 h-3 inline text-gray-400" />
-                    )}
-                  </p>
-                  <p>
-                    WhatsApp:{' '}
-                    {generatedReceipt.sendWhatsApp ? (
-                      <CheckCircle className="w-3 h-3 inline text-green-500" />
-                    ) : (
-                      <X className="w-3 h-3 inline text-gray-400" />
-                    )}
-                  </p>
-                  <p>
-                    In-App:{' '}
-                    {generatedReceipt.sendInApp ? (
-                      <CheckCircle className="w-3 h-3 inline text-green-500" />
-                    ) : (
-                      <X className="w-3 h-3 inline text-gray-400" />
-                    )}
-                  </p>
+                  <p>Ledger: <CheckCircle className="w-3 h-3 inline text-green-500" /></p>
+                  <p>SMS: {generatedReceipt.sendSMS ? <CheckCircle className="w-3 h-3 inline text-green-500" /> : <X className="w-3 h-3 inline text-gray-400" />}</p>
+                  <p>Email: {generatedReceipt.sendEmail ? <CheckCircle className="w-3 h-3 inline text-green-500" /> : <X className="w-3 h-3 inline text-gray-400" />}</p>
+                  <p>WhatsApp: {generatedReceipt.sendWhatsApp ? <CheckCircle className="w-3 h-3 inline text-green-500" /> : <X className="w-3 h-3 inline text-gray-400" />}</p>
+                  <p>In-App: {generatedReceipt.sendInApp ? <CheckCircle className="w-3 h-3 inline text-green-500" /> : <X className="w-3 h-3 inline text-gray-400" />}</p>
                 </div>
                 <div className="text-center">
                   <div className="w-32 border-t border-gray-300 pt-1">Authorized Signatory</div>
@@ -2667,12 +2460,10 @@ export function FeeReceipt() {
             </div>
             <div className="flex justify-center gap-3 mt-4 pt-4 border-t">
               <Button variant="outline" onClick={() => setShowReceiptPreview(false)}>
-                <X className="w-3.5 h-3.5 mr-1" />
-                Cancel
+                <X className="w-3.5 h-3.5 mr-1" />Cancel
               </Button>
               <Button variant="success" onClick={handleConfirmReceipt}>
-                <Check className="w-3.5 h-3.5 mr-1" />
-                Confirm & Save
+                <Check className="w-3.5 h-3.5 mr-1" />Confirm & Save
               </Button>
             </div>
           </div>
@@ -2697,10 +2488,7 @@ export function FeeReceipt() {
             Receipt: <strong className="text-blue-600">{generatedReceipt?.receiptNo}</strong>
           </p>
           <p className="text-sm text-gray-600 mb-4">
-            Amount:{' '}
-            <strong className="text-green-600">
-              {formatCurrency(generatedReceipt?.grandTotal || 0)}
-            </strong>
+            Amount: <strong className="text-green-600">{formatCurrency(generatedReceipt?.grandTotal || 0)}</strong>
           </p>
           <div className="flex justify-center gap-2">
             <Button
@@ -2714,8 +2502,7 @@ export function FeeReceipt() {
                 )
               }
             >
-              <Download className="w-3.5 h-3.5 mr-1" />
-              Download
+              <Download className="w-3.5 h-3.5 mr-1" />Download
             </Button>
             <Button
               variant="primary"
@@ -2724,8 +2511,7 @@ export function FeeReceipt() {
                 generatedReceipt && printDocument(receiptDocument(generatedToPrintable(generatedReceipt)))
               }
             >
-              <Printer className="w-3.5 h-3.5 mr-1" />
-              Print
+              <Printer className="w-3.5 h-3.5 mr-1" />Print
             </Button>
           </div>
           <Button
@@ -2742,7 +2528,7 @@ export function FeeReceipt() {
         </div>
       </Modal>
 
-      {/* ==================== RECEIPT DETAILS MODAL (history "View") ==================== */}
+      {/* ==================== RECEIPT DETAILS MODAL ==================== */}
       <Modal
         isOpen={!!viewingReceipt}
         onClose={() => setViewingReceipt(null)}
@@ -2752,28 +2538,17 @@ export function FeeReceipt() {
         {viewingReceipt && (
           <div className="p-4 space-y-3 text-sm">
             <div className="grid grid-cols-2 gap-2 text-xs">
-              <div>
-                <span className="text-gray-500">Date:</span> <strong>{formatDate(viewingReceipt.date)}</strong>
-              </div>
+              <div><span className="text-gray-500">Date:</span> <strong>{formatDate(viewingReceipt.date)}</strong></div>
               <div className="flex items-center gap-1">
                 <span className="text-gray-500">Status:</span>
                 <Badge variant={viewingReceipt.status === 'completed' ? 'success' : 'danger'} size="xs">
                   {viewingReceipt.status}
                 </Badge>
               </div>
-              <div>
-                <span className="text-gray-500">Mode:</span> <strong>{viewingReceipt.paymentMode}</strong>
-              </div>
-              <div>
-                <span className="text-gray-500">Reference:</span> <strong>{viewingReceipt.referenceNo || '—'}</strong>
-              </div>
-              <div>
-                <span className="text-gray-500">Generated by:</span> <strong>{viewingReceipt.generatedBy}</strong>
-              </div>
-              <div>
-                <span className="text-gray-500">Ledger:</span>{' '}
-                <strong>{viewingReceipt.ledgerPosted ? 'Posted' : 'Not posted'}</strong>
-              </div>
+              <div><span className="text-gray-500">Mode:</span> <strong>{viewingReceipt.paymentMode}</strong></div>
+              <div><span className="text-gray-500">Reference:</span> <strong>{viewingReceipt.referenceNo || '—'}</strong></div>
+              <div><span className="text-gray-500">Generated by:</span> <strong>{viewingReceipt.generatedBy}</strong></div>
+              <div><span className="text-gray-500">Ledger:</span> <strong>{viewingReceipt.ledgerPosted ? 'Posted' : 'Not posted'}</strong></div>
             </div>
             <table className="w-full text-xs border border-gray-200">
               <thead className="bg-gray-50">
@@ -2820,12 +2595,7 @@ export function FeeReceipt() {
       </Modal>
 
       {/* ==================== CANCEL MODAL ==================== */}
-      <Modal
-        isOpen={showCancelModal}
-        onClose={() => setShowCancelModal(false)}
-        title="Cancel Receipt"
-        size="sm"
-      >
+      <Modal isOpen={showCancelModal} onClose={() => setShowCancelModal(false)} title="Cancel Receipt" size="sm">
         <div className="p-4">
           <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
             <div className="flex items-center gap-2 text-red-700 text-sm">
@@ -2833,12 +2603,8 @@ export function FeeReceipt() {
               <span className="font-medium">This will reverse all ledger entries</span>
             </div>
           </div>
-          <p className="text-sm text-gray-600 mb-3">
-            Receipt: <strong>{cancellingReceipt?.receiptNo}</strong>
-          </p>
-          <p className="text-sm text-gray-600 mb-4">
-            Amount: <strong>{formatCurrency(cancellingReceipt?.totalAmount || 0)}</strong>
-          </p>
+          <p className="text-sm text-gray-600 mb-3">Receipt: <strong>{cancellingReceipt?.receiptNo}</strong></p>
+          <p className="text-sm text-gray-600 mb-4">Amount: <strong>{formatCurrency(cancellingReceipt?.totalAmount || 0)}</strong></p>
           <div className="mb-4">
             <label className="block text-xs font-medium text-gray-700 mb-1">Reason *</label>
             <textarea
@@ -2850,12 +2616,8 @@ export function FeeReceipt() {
             />
           </div>
           <div className="flex justify-end gap-2">
-            <Button variant="outline" size="sm" onClick={() => setShowCancelModal(false)}>
-              Close
-            </Button>
-            <Button variant="danger" size="sm" onClick={confirmCancelReceipt}>
-              Confirm Cancel
-            </Button>
+            <Button variant="outline" size="sm" onClick={() => setShowCancelModal(false)}>Close</Button>
+            <Button variant="danger" size="sm" onClick={confirmCancelReceipt}>Confirm Cancel</Button>
           </div>
         </div>
       </Modal>

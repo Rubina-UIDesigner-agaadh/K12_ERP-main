@@ -1,5 +1,6 @@
 import React, { useState, Component } from 'react';
 import { Card } from '../../../components/ui/Card';
+import { SyllabusCompletionTracker } from './SyllabusCompletionTracker';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Select } from '../../../components/ui/Select';
@@ -406,9 +407,10 @@ export function CurriculumProgressTracker() {
     <div className="flex items-center gap-2">
           <span className="font-medium text-gray-900">{row.topic}</span>
           {row.isDelayed &&
-      <AlertTriangleIcon
-        className="w-3.5 h-3.5 text-red-500"
-        title="Delayed" />
+      <span title="Delayed" className="inline-flex">
+        <AlertTriangleIcon
+          className="w-3.5 h-3.5 text-red-500" />
+      </span>
 
       }
         </div>
@@ -818,6 +820,7 @@ export function CurriculumProgressTracker() {
             <TabsTrigger value="milestones">Monthly Milestones</TabsTrigger>
             <TabsTrigger value="skills">Skill Tracking</TabsTrigger>
             <TabsTrigger value="summary">Class Summary</TabsTrigger>
+            <TabsTrigger value="syllabus">Syllabus Completion</TabsTrigger>
           </TabsList>
 
           {/* TOPIC COVERAGE */}
@@ -940,15 +943,19 @@ export function CurriculumProgressTracker() {
                       {row.coverage}%
                     </span>
                     {row.delayed > 3 &&
-                  <FlagIcon
-                    className="w-4 h-4 text-red-500"
-                    title="High delay count" />
+                  <span title="High delay count" className="inline-flex">
+                    <FlagIcon
+                      className="w-4 h-4 text-red-500" />
+                  </span>
 
                   }
                   </div>
                 )}
               </div>
             </Card>
+          </TabsContent>
+          <TabsContent value="syllabus" className="p-0">
+            <SyllabusCompletionTracker />
           </TabsContent>
         </Tabs>
       </Card>

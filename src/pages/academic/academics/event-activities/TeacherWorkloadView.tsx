@@ -15,7 +15,7 @@ import {
 
 type Department = 'Mathematics' | 'Science' | 'English' | 'Hindi' | 'Social Studies' | 'Computer Science' | 'Physical Education' | 'Arts' | 'Commerce' | 'Physics' | 'Chemistry' | 'Biology';
 type WorkloadStatus = 'Overloaded' | 'Balanced' | 'Underloaded' | 'Critical' | 'Optimal';
-type Designation = 'Principal' | 'Vice Principal' | 'HOD' | 'Senior Teacher' | 'Teacher' | 'Junior Teacher' | 'Guest Faculty';
+type Designation = 'Principal' | 'Vice Principal' | 'HOD' | 'Senior Teacher' | 'Teacher' | 'Junior Teacher' | 'Guest Faculty' | 'Sports Teacher';
 type DutyType = 'Assembly' | 'Corridor' | 'Cafeteria' | 'Bus' | 'Gate' | 'Library' | 'Lab' | 'Exam' | 'Event' | 'Substitution';
 
 type TeachingAssignment = {class: string;section: string;subject: string;periodsPerWeek: number;students: number;};
@@ -255,9 +255,9 @@ const teachersData: Teacher[] = [
 
 // ==================== UTILITIES ====================
 
-const getStatusVariant = (status: WorkloadStatus): 'destructive' | 'warning' | 'success' | 'default' => {
-  const map: Record<WorkloadStatus, 'destructive' | 'warning' | 'success' | 'default'> = {
-    Critical: 'destructive', Overloaded: 'destructive', Balanced: 'success', Optimal: 'success', Underloaded: 'warning'
+const getStatusVariant = (status: WorkloadStatus): 'danger' | 'warning' | 'success' | 'default' => {
+  const map: Record<WorkloadStatus, 'danger' | 'warning' | 'success' | 'default'> = {
+    Critical: 'danger', Overloaded: 'danger', Balanced: 'success', Optimal: 'success', Underloaded: 'warning'
   };
   return map[status];
 };

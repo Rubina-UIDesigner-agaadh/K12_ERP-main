@@ -311,7 +311,7 @@ export function DepartmentDutyAllocation({
         const value = department[column.key as keyof Department];
         return (
           <td key={String(column.key)} className={`py-3 px-4 text-${column.align}`}>
-                {column.render ? column.render(value, department) : value}
+                {column.render ? column.render(value, department) : (value as React.ReactNode)}
               </td>);
 
       })}
