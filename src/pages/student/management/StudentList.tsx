@@ -17,6 +17,7 @@ import { Card } from '../../../components/ui/Card';
 import { Input } from '../../../components/ui/Input';
 import { Select } from '../../../components/ui/Select';
 import { Badge } from '../../../components/ui/Badge';
+import { StudentDetail } from './StudentDetail';
 
 // --- Types ---
 interface Student {
@@ -379,6 +380,7 @@ export function StudentListPage() {
   const [hasSearched, setHasSearched] = useState(false);
   const [results, setResults] = useState<Student[]>([]);
   const [dynamicColumns, setDynamicColumns] = useState<string[]>([]);
+  const [viewingStudent, setViewingStudent] = useState<Student | null>(null);
 
   const handleInputChange = (field: keyof FilterState, value: any) => {
     setFilters((prev) => ({
@@ -393,6 +395,15 @@ export function StudentListPage() {
     setResults([]);
     setDynamicColumns([]);
   };
+
+  if (viewingStudent) {
+    return (
+      <StudentDetail
+        onBack={() => setViewingStudent(null)}
+        overlayName={`${viewingStudent.firstName} ${viewingStudent.lastName}`}
+      />
+    );
+  }
 
   const handleSearch = () => {
     const newDynamicCols: string[] = [];
@@ -941,7 +952,7 @@ export function StudentListPage() {
                         </td>
 
                         <td className="px-4 py-3 text-right whitespace-nowrap">
-                          <Button variant="ghost" size="sm">
+                          <Button variant="ghost" size="sm" onClick={() => setViewingStudent(student)} title="View student details">
                             <Eye className="w-4 h-4 text-gray-500" />
                           </Button>
                         </td>

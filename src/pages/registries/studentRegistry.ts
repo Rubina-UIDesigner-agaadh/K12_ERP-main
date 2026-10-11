@@ -87,6 +87,78 @@ export const studentRegistry: Record<string, () => any> = {
     () => import('../student/management/DivisionBatchChangeApproval'),
     'DivisionBatchChangeApproval'
   ),
+  'applications-dashboard': rp(
+    () => import('../student/management/ApplicationsDashboard'),
+    'ApplicationsDashboard'
+  ),
+  'student-application-detail': rp(
+    () => import('../student/management/StudentApplicationDetail'),
+    'StudentApplicationDetail'
+  ),
+  'eligibility-check-results': rp(
+    () => import('../student/management/EligibilityCheckResults'),
+    'EligibilityCheckResults'
+  ),
+  'allotment-control-panel': rp(
+    () => import('../student/management/AllotmentControlPanel'),
+    'AllotmentControlPanel'
+  ),
+  'manual-counselling-allotment': rp(
+    () => import('../student/management/ManualCounsellingAllotment'),
+    'ManualCounsellingAllotment'
+  ),
+  'waitlist-manager': rp(
+    () => import('../student/management/WaitlistManager'),
+    'WaitlistManager'
+  ),
+  'document-verification': rp(
+    () => import('../student/management/DocumentVerification'),
+    'DocumentVerification'
+  ),
+  'stream-reports-analytics': rp(
+    () => import('../student/management/StreamReportsAnalytics'),
+    'StreamReportsAnalytics'
+  ),
+  'stream-audit-log': rp(
+    () => import('../student/management/StreamAuditLog'),
+    'StreamAuditLog'
+  ),
+  'student-stream-dashboard': rp(
+    () => import('../student/management/StudentStreamDashboard'),
+    'StudentStreamDashboard'
+  ),
+  'stream-explorer': rp(
+    () => import('../student/management/StreamExplorer'),
+    'StreamExplorer'
+  ),
+  'personal-eligibility-checker': rp(
+    () => import('../student/management/PersonalEligibilityChecker'),
+    'PersonalEligibilityChecker'
+  ),
+  'preference-submission-form': rp(
+    () => import('../student/management/PreferenceSubmissionForm'),
+    'PreferenceSubmissionForm'
+  ),
+  'application-status-tracker': rp(
+    () => import('../student/management/ApplicationStatusTracker'),
+    'ApplicationStatusTracker'
+  ),
+  'allotment-result': rp(
+    () => import('../student/management/AllotmentResult'),
+    'AllotmentResult'
+  ),
+  'document-upload-portal': rp(
+    () => import('../student/management/DocumentUploadPortal'),
+    'DocumentUploadPortal'
+  ),
+  'notification-centre': rp(
+    () => import('../student/management/NotificationCentre'),
+    'NotificationCentre'
+  ),
+  'allotment-letter': rp(
+    () => import('../student/management/AllotmentLetter'),
+    'AllotmentLetter'
+  ),
 
   // Settings
   'gr-no-rules': rp(() => import('../student/settings/GrNoRules'), 'GrNoRules'),

@@ -662,6 +662,8 @@ const EMPLOYEE_SEED: MusterEmployee[] = [
 export function MonthlyAttendanceRegisterHr() {
   const [selectedMonth, setSelectedMonth] = useState('01');
   const [selectedYear, setSelectedYear] = useState('2024');
+  const [viewMode, setViewMode] = useState<'daily' | 'weekly' | 'monthly'>('monthly');
+  const [anchorDay, setAnchorDay] = useState(1);
   const [records, setRecords] = useState<MusterEmployee[]>(cloneSeed);
   const [searchBy, setSearchBy] = useState('all');
   const [searchText, setSearchText] = useState('');
@@ -691,7 +693,16 @@ export function MonthlyAttendanceRegisterHr() {
   const monthNum = Number(selectedMonth);
   const yearNum = Number(selectedYear);
   const daysInMonth = new Date(yearNum, monthNum, 0).getDate();
-  const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+  const allDays = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+  const safeAnchor = Math.min(Math.max(anchorDay, 1), daysInMonth);
+  const weekStartDay = (() => {
+    const weekday = new Date(yearNum, monthNum - 1, safeAnchor).getDay();
+    return Math.max(1, safeAnchor - weekday);
+  })();
+  const days =
+    viewMode === 'daily' ? [safeAnchor] :
+    viewMode === 'weekly' ? allDays.filter((day) => day >= weekStartDay && day < weekStartDay + 7) :
+    allDays;
   const isSampleMonth = selectedYear === SAMPLE_YEAR && selectedMonth === SAMPLE_MONTH;
   const monthLabel = `${MONTHS[monthNum - 1].label} ${selectedYear}`;
 
@@ -950,10 +961,10 @@ export function MonthlyAttendanceRegisterHr() {
       <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
-            Monthly Attendance Register
+            Attendance Registry
           </h1>
           <p className="text-sm text-gray-500">
-            Muster roll view with daily attendance for all employees
+            Daily, weekly and monthly attendance register for all employees
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -996,6 +1007,28 @@ export function MonthlyAttendanceRegisterHr() {
 
       <Card>
         <div className="space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            {([{ id: 'daily', label: 'Daily' }, { id: 'weekly', label: 'Weekly' }, { id: 'monthly', label: 'Monthly' }] as const).map((item) =>
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => { setViewMode(item.id); setPage(1); }}
+                className={`px-4 py-1.5 rounded-full text-sm font-medium border ${viewMode === item.id ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}>
+                {item.label}
+              </button>
+            )}
+            {viewMode !== 'monthly' &&
+              <div className="flex items-center gap-2 ml-2">
+                <label className="text-xs text-gray-500">{viewMode === 'daily' ? 'Day' : 'Week of'}</label>
+                <select
+                  value={safeAnchor}
+                  onChange={(e) => { setAnchorDay(Number(e.target.value)); setPage(1); }}
+                  className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm bg-white">
+                  {allDays.map((day) => <option key={day} value={day}>{day} {MONTHS[monthNum - 1].label}</option>)}
+                </select>
+              </div>
+            }
+          </div>
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
@@ -1275,11 +1308,10 @@ export function MonthlyAttendanceRegisterHr() {
               </Button>
             </div>
           </div>
-        </div>
-      </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card title="Attendance Code Legend">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-4 border-t border-gray-100">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900 mb-3">Attendance Code Legend</h3>
           <div className="grid grid-cols-2 gap-2">
             {Object.entries(attendanceCodes).map(([code, { label, color }]) =>
             <div key={code} className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50">
@@ -1290,9 +1322,10 @@ export function MonthlyAttendanceRegisterHr() {
               </div>
             )}
           </div>
-        </Card>
+        </div>
 
-        <Card title="Monthly Statistics">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900 mb-3">Period Statistics</h3>
           <div className="space-y-4">
             <div>
               <div className="flex items-center justify-between mb-1">
@@ -1334,9 +1367,10 @@ export function MonthlyAttendanceRegisterHr() {
               </div>
             </div>
           </div>
-        </Card>
+        </div>
 
-        <Card title="Quick Actions">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900 mb-3">Quick Actions</h3>
           <div className="space-y-3">
             <Button variant="outline" className="w-full justify-start" onClick={openImport}>
               <Upload className="w-4 h-4 mr-2" />
@@ -1364,10 +1398,11 @@ export function MonthlyAttendanceRegisterHr() {
               </div>
             </div>
           </div>
-        </Card>
+        </div>
       </div>
 
-      <Card title="Department-wise Attendance Summary">
+      <div className="pt-4 border-t border-gray-100">
+          <h3 className="text-sm font-semibold text-gray-900 mb-3">Department-wise Attendance Summary</h3>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -1416,6 +1451,8 @@ export function MonthlyAttendanceRegisterHr() {
               )}
             </tbody>
           </table>
+        </div>
+      </div>
         </div>
       </Card>
 

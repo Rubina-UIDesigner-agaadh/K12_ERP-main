@@ -683,8 +683,39 @@ export function ApplicantEntryOnlineSync() {
       }];
 
 
-      setOnlineApplications((prev) => [...newApps, ...prev]);
-      addToast('success', `Sync complete! ${newApps.length} new application(s) found`);
+      const known = new Set(applicants.map((a) => a.email.toLowerCase()));
+      const uniqueApps = newApps.filter((app) => !known.has(app.email.toLowerCase()));
+      const today = new Date().toISOString().split('T')[0];
+      const added: Applicant[] = uniqueApps.map((app, index) => {
+        const parts = app.name.split(' ');
+        return {
+          id: `AUTO-${Date.now()}-${index}`,
+          firstName: parts[0],
+          lastName: parts.slice(1).join(' '),
+          email: app.email,
+          phone: app.phone,
+          position: app.position,
+          subject: '',
+          qualification: app.qualification,
+          experience: app.experience.replace(' years', ''),
+          source: app.source,
+          expectedSalary: '',
+          tags: ['Auto-synced', app.source],
+          branch: selectedBranches[0] || 'main',
+          status: 'New',
+          certifications: [],
+          createdAt: today,
+          updatedAt: today
+        } as Applicant;
+      });
+      setOnlineApplications((prev) => [
+        ...uniqueApps.map((app) => ({ ...app, status: 'Synced' as const })),
+        ...prev
+      ]);
+      if (added.length > 0) {
+        setApplicants((prev) => [...added, ...prev]);
+      }
+      addToast('success', `Sync complete. ${added.length} applicant(s) from other platforms were added automatically.`);
     } catch (error) {
       addToast('error', 'Sync failed. Please try again.');
     } finally {

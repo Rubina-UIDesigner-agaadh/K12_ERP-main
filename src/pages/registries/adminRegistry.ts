@@ -114,6 +114,18 @@ export const adminRegistry: Record<string, () => any> = {
     () => import('../admin/masters/StreamSubjectGroupMaster'),
     'StreamSubjectGroupMaster'
   ),
+  'seat-matrix-configuration': rp(
+    () => import('../admin/masters/SeatMatrixConfiguration'),
+    'SeatMatrixConfiguration'
+  ),
+  'eligibility-rules-builder': rp(
+    () => import('../admin/masters/EligibilityRulesBuilder'),
+    'EligibilityRulesBuilder'
+  ),
+  'application-schedule-manager': rp(
+    () => import('../admin/masters/ApplicationScheduleManager'),
+    'ApplicationScheduleManager'
+  ),
   'academic-term-exam-type-master': rp(
     () => import('../admin/masters/AcademicTermExamTypeMaster'),
     'AcademicTermExamTypeMaster'

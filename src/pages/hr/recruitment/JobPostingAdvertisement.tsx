@@ -108,11 +108,11 @@ const platforms = [
 
 
 const REQUISITIONS = [
-{ id: 'REQ-2024-001', title: 'Math Teacher', department: 'Mathematics', positions: 2 },
-{ id: 'REQ-2024-002', title: 'Physics Teacher', department: 'Science', positions: 1 },
-{ id: 'REQ-2024-003', title: 'English Teacher', department: 'English', positions: 3 },
-{ id: 'REQ-2024-004', title: 'Admin Officer', department: 'Administration', positions: 1 },
-{ id: 'REQ-2024-005', title: 'CS Teacher', department: 'Computer Science', positions: 2 }];
+{ id: 'REQ-2024-001', title: 'Math Teacher', department: 'Mathematics', positions: 2, roleType: 'Teaching', subject: 'Mathematics', empType: 'Full-time', qualifications: 'M.Sc Mathematics, B.Ed', experience: '5+ years', salaryMin: '50000', salaryMax: '70000', branch: 'main', expectedJoining: '2025-01-15', priority: 'High', reportingManager: 'HOD Mathematics', justification: 'Two senior math vacancies for higher secondary', certifications: 'B.Ed, CTET', description: 'Senior mathematics teacher for higher secondary classes' },
+{ id: 'REQ-2024-002', title: 'Physics Teacher', department: 'Science', positions: 1, roleType: 'Teaching', subject: 'Physics', empType: 'Full-time', qualifications: 'M.Sc Physics, B.Ed', experience: '3+ years', salaryMin: '45000', salaryMax: '60000', branch: 'main', expectedJoining: '2025-01-20', priority: 'High', reportingManager: 'HOD Science', justification: 'Physics teacher for classes 11 and 12', certifications: 'B.Ed', description: 'Physics teacher for classes 11 and 12' },
+{ id: 'REQ-2024-003', title: 'English Teacher', department: 'English', positions: 3, roleType: 'Teaching', subject: 'English Literature', empType: 'Full-time', qualifications: 'M.A English, B.Ed', experience: '2+ years', salaryMin: '40000', salaryMax: '55000', branch: 'north', expectedJoining: '2025-02-01', priority: 'Medium', reportingManager: 'HOD English', justification: 'Additional English faculty for new sections', certifications: 'B.Ed, CTET', description: 'English teacher for middle and secondary classes' },
+{ id: 'REQ-2024-004', title: 'Admin Officer', department: 'Administration', positions: 1, roleType: 'Non-Teaching', subject: '', empType: 'Full-time', qualifications: 'Graduate with administrative experience', experience: '2+ years', salaryMin: '30000', salaryMax: '40000', branch: 'north', expectedJoining: '2025-02-01', priority: 'Medium', reportingManager: 'Office Superintendent', justification: 'Campus administration support', certifications: '', description: 'Administrative officer for North Wing campus' },
+{ id: 'REQ-2024-005', title: 'CS Teacher', department: 'Computer Science', positions: 2, roleType: 'Teaching', subject: 'Computer Science', empType: 'Full-time', qualifications: 'M.Tech / MCA, B.Ed', experience: '3+ years', salaryMin: '45000', salaryMax: '65000', branch: 'main', expectedJoining: '2025-01-10', priority: 'High', reportingManager: 'HOD Computer Science', justification: 'Computer science expansion', certifications: 'B.Ed', description: 'Computer science teacher for secondary classes' }];
 
 
 type PostingStatus = 'Draft' | 'Active' | 'Paused' | 'Closed' | 'Expired';
@@ -354,7 +354,7 @@ export function JobPostingAdvertisement() {
   const [postings, setPostings] = useState<JobPosting[]>(initialPostings);
   const [selectedBranches, setSelectedBranches] = useState<string[]>(['all']);
   const [academicYear, setAcademicYear] = useState('2024-2025');
-  const [activeTab, setActiveTab] = useState<'list' | 'create' | 'drafts' | 'closed'>('list');
+  const [activeTab, setActiveTab] = useState<'list' | 'create' | 'drafts' | 'closed' | 'requisitions'>('list');
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['website']);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -395,7 +395,17 @@ export function JobPostingAdvertisement() {
     location: '',
     vacancies: '1',
     featured: false,
-    urgent: false
+    urgent: false,
+    roleType: 'Teaching',
+    subject: '',
+    qualifications: '',
+    experience: '',
+    expectedJoining: '',
+    priority: 'Medium',
+    reportingManager: '',
+    justification: '',
+    certifications: '',
+    requestedBy: ''
   });
 
   const handleBranchToggle = (branchId: string) => {
@@ -485,7 +495,17 @@ export function JobPostingAdvertisement() {
       location: '',
       vacancies: '1',
       featured: false,
-      urgent: false
+      urgent: false,
+      roleType: 'Teaching',
+      subject: '',
+      qualifications: '',
+      experience: '',
+      expectedJoining: '',
+      priority: 'Medium',
+      reportingManager: '',
+      justification: '',
+      certifications: '',
+      requestedBy: ''
     });
     setSelectedPlatforms(['website']);
   };
@@ -990,7 +1010,21 @@ export function JobPostingAdvertisement() {
         requisitionId: reqId,
         jobTitle: requisition.title,
         dept: requisition.department,
-        vacancies: requisition.positions.toString()
+        vacancies: requisition.positions.toString(),
+        roleType: requisition.roleType,
+        subject: requisition.subject,
+        jobType: requisition.empType === 'Full-time' ? 'full-time' : requisition.empType === 'Part-time' ? 'part-time' : 'contract',
+        qualifications: requisition.qualifications,
+        experience: requisition.experience,
+        salaryMin: requisition.salaryMin,
+        salaryMax: requisition.salaryMax,
+        branch: requisition.branch,
+        expectedJoining: requisition.expectedJoining,
+        priority: requisition.priority,
+        reportingManager: requisition.reportingManager,
+        justification: requisition.justification,
+        certifications: requisition.certifications,
+        description: requisition.description
       }));
     }
   };
@@ -1123,6 +1157,7 @@ export function JobPostingAdvertisement() {
           { key: 'list', label: 'Active Postings', count: stats.active },
           { key: 'drafts', label: 'Drafts', count: stats.drafts },
           { key: 'closed', label: 'Closed', count: stats.closed },
+          { key: 'requisitions', label: 'Created Requisitions', count: REQUISITIONS.length },
           { key: 'create', label: 'Create New', count: null }].
           map((tab) =>
           <button
@@ -1143,7 +1178,51 @@ export function JobPostingAdvertisement() {
         </div>
       </Card>
 
-      {activeTab === 'list' || activeTab === 'drafts' || activeTab === 'closed' ?
+      {activeTab === 'requisitions' ?
+      <Card className="p-4">
+          <h2 className="text-lg font-semibold text-gray-900 mb-1">Created Requisitions</h2>
+          <p className="text-sm text-gray-500 mb-4">Reuse an approved requisition to create a job posting with the same details.</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-gray-50 text-left text-xs uppercase text-gray-500">
+                  <th className="px-3 py-2">ID</th>
+                  <th className="px-3 py-2">Position</th>
+                  <th className="px-3 py-2">Department</th>
+                  <th className="px-3 py-2">Role</th>
+                  <th className="px-3 py-2">Vacancies</th>
+                  <th className="px-3 py-2">Experience</th>
+                  <th className="px-3 py-2">Salary</th>
+                  <th className="px-3 py-2">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {REQUISITIONS.map((req) =>
+                <tr key={req.id} className="border-b hover:bg-gray-50">
+                    <td className="px-3 py-2 font-mono text-xs text-orange-700">{req.id}</td>
+                    <td className="px-3 py-2 font-medium">{req.title}</td>
+                    <td className="px-3 py-2">{req.department}</td>
+                    <td className="px-3 py-2">{req.roleType}{req.subject ? ` · ${req.subject}` : ''}</td>
+                    <td className="px-3 py-2">{req.positions}</td>
+                    <td className="px-3 py-2">{req.experience}</td>
+                    <td className="px-3 py-2">₹{req.salaryMin} - ₹{req.salaryMax}</td>
+                    <td className="px-3 py-2">
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          fillFormFromRequisition(req.id);
+                          setActiveTab('create');
+                        }}>
+                        Reuse for Job Posting
+                      </Button>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card> :
+      activeTab === 'list' || activeTab === 'drafts' || activeTab === 'closed' ?
       <>
           {/* Stats */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -1403,6 +1482,85 @@ export function JobPostingAdvertisement() {
                 }
                 value={form.requisitionId}
                 onChange={(e) => fillFormFromRequisition(e.target.value)} />
+
+                <div className="grid grid-cols-2 gap-4">
+                  <Select
+                    label="Role Type"
+                    options={[{ value: 'Teaching', label: 'Teaching' }, { value: 'Non-Teaching', label: 'Non-Teaching' }]}
+                    value={form.roleType}
+                    onChange={(e) => setForm((f) => ({ ...f, roleType: e.target.value }))} />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+                    <input
+                      type="text"
+                      value={form.subject}
+                      onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))}
+                      placeholder="Required for teaching roles"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Qualifications</label>
+                    <input
+                      type="text"
+                      value={form.qualifications}
+                      onChange={(e) => setForm((f) => ({ ...f, qualifications: e.target.value }))}
+                      placeholder="e.g., M.Sc, B.Ed"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Experience</label>
+                    <input
+                      type="text"
+                      value={form.experience}
+                      onChange={(e) => setForm((f) => ({ ...f, experience: e.target.value }))}
+                      placeholder="e.g., 3+ years"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Reporting Manager</label>
+                    <input
+                      type="text"
+                      value={form.reportingManager}
+                      onChange={(e) => setForm((f) => ({ ...f, reportingManager: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Expected Joining</label>
+                    <input
+                      type="date"
+                      value={form.expectedJoining}
+                      onChange={(e) => setForm((f) => ({ ...f, expectedJoining: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Certifications</label>
+                    <input
+                      type="text"
+                      value={form.certifications}
+                      onChange={(e) => setForm((f) => ({ ...f, certifications: e.target.value }))}
+                      placeholder="e.g., B.Ed, CTET"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent" />
+                  </div>
+                  <Select
+                    label="Priority"
+                    options={[{ value: 'High', label: 'High' }, { value: 'Medium', label: 'Medium' }, { value: 'Low', label: 'Low' }]}
+                    value={form.priority}
+                    onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Justification / Reason for Hire</label>
+                  <textarea
+                    value={form.justification}
+                    onChange={(e) => setForm((f) => ({ ...f, justification: e.target.value }))}
+                    rows={2}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none" />
+                </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>

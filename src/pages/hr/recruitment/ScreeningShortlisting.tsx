@@ -92,6 +92,10 @@ interface Candidate {
   decision: 'Pending' | 'Shortlisted' | 'Rejected' | 'Hold' | 'Move to Interview';
   evaluatedAt?: string;
   evaluatedBy?: string;
+  email?: string;
+  phone?: string;
+  cvFile?: string;
+  cvSummary?: string;
 }
 
 interface EvaluationHistory {
@@ -122,7 +126,11 @@ const initialCandidates: Candidate[] = [
   },
   demoRequired: true,
   comments: 'Strong academic background',
-  decision: 'Shortlisted'
+  decision: 'Shortlisted',
+  email: 'priya.sharma@email.com',
+  phone: '+91 98765 11101',
+  cvFile: 'Priya_Sharma_CV.pdf',
+  cvSummary: 'M.Sc Mathematics, B.Ed. 5 years teaching Grades 8–12. Strong board-result record and olympiad mentoring.'
 },
 {
   id: 'APP-2024-002',
@@ -141,7 +149,11 @@ const initialCandidates: Candidate[] = [
   },
   demoRequired: false,
   comments: 'Excellent profile',
-  decision: 'Move to Interview'
+  decision: 'Move to Interview',
+  email: 'rahul.verma@email.com',
+  phone: '+91 98765 11102',
+  cvFile: 'Rahul_Verma_CV.pdf',
+  cvSummary: 'M.Sc + PhD. 12 years including HOD roles. Published papers in science education.'
 },
 {
   id: 'APP-2024-003',
@@ -939,6 +951,16 @@ export function ScreeningShortlisting() {
                 </div>
             }
 
+              <Card title="Curriculum Vitae">
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{selectedCandidate.cvFile || 'CV not uploaded'}</p>
+                    <p className="text-sm text-gray-600 mt-2">{selectedCandidate.cvSummary || 'No CV summary available for this applicant.'}</p>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => setNotification({ type: 'success', message: `Opened ${selectedCandidate.cvFile || 'CV'} for ${selectedCandidate.name}` })}>View CV</Button>
+                </div>
+              </Card>
+
               <Card title="Evaluation Scorecard">
                 <div className="flex items-center gap-4 mb-6 pb-4 border-b">
                   <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center font-bold">
@@ -952,6 +974,9 @@ export function ScreeningShortlisting() {
                     <p className="text-xs text-gray-400">
                       {selectedCandidate.qualification} · {selectedCandidate.experience} years exp.
                     </p>
+                    {(selectedCandidate.email || selectedCandidate.phone) && (
+                      <p className="text-xs text-gray-500 mt-1">{selectedCandidate.email}{selectedCandidate.phone ? ` · ${selectedCandidate.phone}` : ''}</p>
+                    )}
                   </div>
                   <div className="ml-auto text-center">
                     <p className="text-3xl font-bold text-indigo-600">{calcAutoScore(editedScores)}%</p>

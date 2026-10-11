@@ -1,6 +1,4 @@
 import React, { useState } from 'react';
-import { HrLeaveReport } from './HrLeaveReport';
-import { AbsenteeLatecomerReport } from './AbsenteeLatecomerReport';
 import {
   FileText,
   FileSpreadsheet,
@@ -1914,6 +1912,122 @@ function AttendanceReportTemplates() {
 
 }
 
+const EMBEDDED_LEAVE_ROWS = [
+  { id: 'EMP001', name: 'John Doe', department: 'Engineering', cl: 8, sl: 2, pl: 5, el: 0, lop: 0, total: 15 },
+  { id: 'EMP002', name: 'Jane Smith', department: 'HR', cl: 5, sl: 3, pl: 4, el: 2, lop: 0, total: 14 },
+  { id: 'EMP003', name: 'Robert Johnson', department: 'Finance', cl: 3, sl: 1, pl: 6, el: 0, lop: 1, total: 11 },
+  { id: 'EMP004', name: 'Emily Davis', department: 'Marketing', cl: 6, sl: 4, pl: 2, el: 1, lop: 0, total: 13 },
+  { id: 'EMP005', name: 'Michael Brown', department: 'Engineering', cl: 2, sl: 0, pl: 8, el: 3, lop: 0, total: 13 }
+];
+
+const EMBEDDED_ABSENTEE_ROWS = [
+  { id: 'EMP006', name: 'Sarah Wilson', department: 'Operations', type: 'Absent', date: '2026-10-08', inTime: '—', remark: 'No punch' },
+  { id: 'EMP007', name: 'David Lee', department: 'IT Support', type: 'Late', date: '2026-10-08', inTime: '09:42', remark: '42 min late' },
+  { id: 'EMP008', name: 'Lisa Anderson', department: 'Sales', type: 'Late', date: '2026-10-07', inTime: '09:18', remark: '18 min late' },
+  { id: 'EMP009', name: 'James Taylor', department: 'Engineering', type: 'Absent', date: '2026-10-07', inTime: '—', remark: 'Uninformed' },
+  { id: 'EMP010', name: 'Jennifer Martinez', department: 'HR', type: 'Early Exit', date: '2026-10-06', inTime: '09:02', remark: 'Left 16:10' }
+];
+
+function EmbeddedLeaveReport() {
+  const [search, setSearch] = useState('');
+  const rows = EMBEDDED_LEAVE_ROWS.filter((row) =>
+    `${row.name} ${row.id} ${row.department}`.toLowerCase().includes(search.trim().toLowerCase())
+  );
+  return (
+    <div className="p-6 space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-bold text-gray-900">Leave Report</h2>
+          <p className="text-sm text-gray-500">Leave taken by type for the current year</p>
+        </div>
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search employee..."
+          className="px-3 py-2 border border-gray-300 rounded-lg text-sm w-64"
+        />
+      </div>
+      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <table className="min-w-full divide-y divide-gray-200 text-sm">
+          <thead className="bg-gray-50">
+            <tr>
+              {['Emp ID', 'Employee', 'Department', 'CL', 'SL', 'PL', 'EL', 'LOP', 'Total'].map((h) =>
+                <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">{h}</th>
+              )}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {rows.map((row) =>
+              <tr key={row.id} className="hover:bg-gray-50">
+                <td className="px-4 py-3 font-medium text-blue-600">{row.id}</td>
+                <td className="px-4 py-3 text-gray-900">{row.name}</td>
+                <td className="px-4 py-3 text-gray-600">{row.department}</td>
+                <td className="px-4 py-3">{row.cl}</td>
+                <td className="px-4 py-3">{row.sl}</td>
+                <td className="px-4 py-3">{row.pl}</td>
+                <td className="px-4 py-3">{row.el}</td>
+                <td className="px-4 py-3 text-red-600">{row.lop}</td>
+                <td className="px-4 py-3 font-semibold">{row.total}</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function EmbeddedAbsenteeReport() {
+  const [search, setSearch] = useState('');
+  const rows = EMBEDDED_ABSENTEE_ROWS.filter((row) =>
+    `${row.name} ${row.id} ${row.department} ${row.type}`.toLowerCase().includes(search.trim().toLowerCase())
+  );
+  return (
+    <div className="p-6 space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-bold text-gray-900">Absentee / Latecomer Report</h2>
+          <p className="text-sm text-gray-500">Employees marked absent, late, or early exit</p>
+        </div>
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search employee..."
+          className="px-3 py-2 border border-gray-300 rounded-lg text-sm w-64"
+        />
+      </div>
+      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <table className="min-w-full divide-y divide-gray-200 text-sm">
+          <thead className="bg-gray-50">
+            <tr>
+              {['Emp ID', 'Employee', 'Department', 'Type', 'Date', 'In Time', 'Remark'].map((h) =>
+                <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">{h}</th>
+              )}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {rows.map((row) =>
+              <tr key={`${row.id}-${row.date}`} className="hover:bg-gray-50">
+                <td className="px-4 py-3 font-medium text-blue-600">{row.id}</td>
+                <td className="px-4 py-3 text-gray-900">{row.name}</td>
+                <td className="px-4 py-3 text-gray-600">{row.department}</td>
+                <td className="px-4 py-3">
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${row.type === 'Absent' ? 'bg-red-100 text-red-700' : row.type === 'Late' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>{row.type}</span>
+                </td>
+                <td className="px-4 py-3">{row.date}</td>
+                <td className="px-4 py-3 font-mono text-xs">{row.inTime}</td>
+                <td className="px-4 py-3 text-gray-600">{row.remark}</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 type AttendanceReportView = 'attendance' | 'leave' | 'absentee';
 
 const ATTENDANCE_REPORT_VIEWS: {id: AttendanceReportView;label: string;}[] = [
@@ -1942,8 +2056,8 @@ export function HrAttendanceReport() {
         </div>
       </div>
       {view === 'attendance' && <AttendanceReportTemplates />}
-      {view === 'leave' && <HrLeaveReport />}
-      {view === 'absentee' && <AbsenteeLatecomerReport />}
+      {view === 'leave' && <EmbeddedLeaveReport />}
+      {view === 'absentee' && <EmbeddedAbsenteeReport />}
     </div>);
 
 }

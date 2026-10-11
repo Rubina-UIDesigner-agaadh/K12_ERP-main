@@ -401,7 +401,11 @@ export function ApplicantList() {
     address: '',
     expectedSalary: '',
     noticePeriod: '',
-    skills: ''
+    skills: '',
+    cvFile: '',
+    certifications: '',
+    tags: '',
+    sourceUrl: ''
   });
 
   // Schedule interview form state
@@ -1202,6 +1206,9 @@ export function ApplicantList() {
         size="lg">
 
         <div className="space-y-4">
+          <div className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs text-violet-800">
+            Manual entry and online-application fields live on this panel. Upload a CV and add source URL when syncing from a job portal.
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1362,6 +1369,46 @@ export function ApplicantList() {
               rows={2}
               placeholder="Enter address" />
 
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Certifications</label>
+              <input
+                type="text"
+                value={newApplicant.certifications}
+                onChange={(e) => setNewApplicant((p) => ({ ...p, certifications: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                placeholder="CTET, NET, ..." />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Tags</label>
+              <input
+                type="text"
+                value={newApplicant.tags}
+                onChange={(e) => setNewApplicant((p) => ({ ...p, tags: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                placeholder="Mathematics, Board results" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Source / portal URL</label>
+              <input
+                type="text"
+                value={newApplicant.sourceUrl}
+                onChange={(e) => setNewApplicant((p) => ({ ...p, sourceUrl: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                placeholder="https://naukri.com/..." />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">CV / Resume</label>
+              <input
+                type="file"
+                accept=".pdf,.doc,.docx"
+                onChange={(e) => setNewApplicant((p) => ({ ...p, cvFile: e.target.files?.[0]?.name || '' }))}
+                className="w-full text-sm"
+              />
+              {newApplicant.cvFile && <p className="text-xs text-gray-500 mt-1">{newApplicant.cvFile}</p>}
+            </div>
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t">
