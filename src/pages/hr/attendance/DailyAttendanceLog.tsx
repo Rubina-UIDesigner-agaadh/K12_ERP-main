@@ -656,9 +656,10 @@ export function DailyAttendanceLog() {
         </div>
       </div>
 
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-6">
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
               <Users className="w-5 h-5 text-blue-600" />
@@ -670,7 +671,7 @@ export function DailyAttendanceLog() {
           </div>
         </div>
         
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
               <UserCheck className="w-5 h-5 text-green-600" />
@@ -682,7 +683,7 @@ export function DailyAttendanceLog() {
           </div>
         </div>
         
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center">
               <UserX className="w-5 h-5 text-red-600" />
@@ -694,7 +695,7 @@ export function DailyAttendanceLog() {
           </div>
         </div>
         
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-yellow-100 flex items-center justify-center">
               <Clock className="w-5 h-5 text-yellow-600" />
@@ -706,7 +707,7 @@ export function DailyAttendanceLog() {
           </div>
         </div>
         
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
               <Timer className="w-5 h-5 text-amber-600" />
@@ -718,7 +719,7 @@ export function DailyAttendanceLog() {
           </div>
         </div>
         
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center">
               <AlertTriangle className="w-5 h-5 text-orange-600" />
@@ -730,7 +731,7 @@ export function DailyAttendanceLog() {
           </div>
         </div>
         
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center">
               <Activity className="w-5 h-5 text-indigo-600" />
@@ -743,8 +744,8 @@ export function DailyAttendanceLog() {
         </div>
       </div>
 
-      {/* Filters */}
-      <Card title="Filters">
+      <div>
+        <h3 className="font-semibold text-gray-900 mb-3">Filters</h3>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Select
             label="Department"
@@ -779,10 +780,10 @@ export function DailyAttendanceLog() {
             </Button>
           </div>
         </div>
-      </Card>
+      </div>
 
-      {/* Data Table */}
-      <Card title="Attendance Records">
+      <div>
+        <h3 className="font-semibold text-gray-900 mb-3">Attendance Records</h3>
         {/* Info Banner */}
         <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg mb-4">
           <Info className="w-4 h-4 text-blue-600" />
@@ -984,7 +985,8 @@ export function DailyAttendanceLog() {
             </div>
           </div>
         </div>
-      </Card>
+      </div>
+      </div>
 
       {/* Punch History Drawer */}
       {showDrawer && selectedEmployee &&

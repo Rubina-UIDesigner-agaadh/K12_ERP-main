@@ -273,6 +273,9 @@ export function ApplyLeave() {
           <h1 className="text-2xl font-bold text-gray-900">Apply Leave</h1>
           <p className="text-sm text-gray-500">Submit a leave request and review how many days you have taken each month</p>
         </div>
+        <button type="button" onClick={resetForm} className="inline-flex items-center px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-medium">
+          <Plus className="w-4 h-4 mr-2" /> New Leave Request
+        </button>
       </div>
 
       {notice && (
@@ -282,7 +285,8 @@ export function ApplyLeave() {
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="space-y-4">
           <p className="text-sm font-medium text-gray-700">Employee</p>
           <div className="flex items-center gap-4 bg-teal-50 border border-teal-200 rounded-lg p-4">
@@ -311,8 +315,8 @@ export function ApplyLeave() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
-        <div className="xl:col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm">
+      <div className="grid grid-cols-1 xl:grid-cols-5 gap-6 pt-2 border-t border-gray-100">
+        <div className="xl:col-span-2">
           <div className="px-6 py-4 border-b border-gray-100">
             <h3 className="font-semibold text-gray-900">Apply for leave</h3>
             <p className="text-xs text-gray-500">Weekends are excluded from working-day count</p>
@@ -376,7 +380,7 @@ export function ApplyLeave() {
           </div>
         </div>
 
-        <div className="xl:col-span-3 bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div className="xl:col-span-3">
           <div className="px-6 py-4 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
             <div>
               <h3 className="font-semibold text-gray-900 flex items-center gap-2"><Calendar className="w-4 h-4 text-teal-600" /> Leave history</h3>
@@ -474,6 +478,7 @@ export function ApplyLeave() {
             </table>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

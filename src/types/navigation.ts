@@ -8,6 +8,7 @@ export interface SidebarItem {
 export interface SidebarSection {
   title: string;
   items: SidebarItem[];
+  hidden?: boolean;
 }
 
 export interface SubModule {

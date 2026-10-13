@@ -499,6 +499,10 @@ export const hrRegistry: Record<string, () => any> = {
     () => import('../hr/recruitment/RecruitmentStageStatusMaster'),
     'RecruitmentStageStatusMaster'
   ),
+  'evaluation-criteria-competency-master': rp(
+    () => import('../hr/recruitment/EvaluationCriteriaCompetencyMaster'),
+    'EvaluationCriteriaCompetencyMaster'
+  ), // HR Master → Evaluation Scorecard Master (full page, not UnderConstruction)
   'interview-round-panel-master': rp(
     () => import('../hr/recruitment/InterviewRoundPanelMaster'),
     'InterviewRoundPanelMaster'
@@ -506,10 +510,6 @@ export const hrRegistry: Record<string, () => any> = {
   'recruitment-source-channel-master': rp(
     () => import('../hr/recruitment/RecruitmentSourceChannelMaster'),
     'RecruitmentSourceChannelMaster'
-  ),
-  'evaluation-criteria-competency-master': rp(
-    () => import('../hr/recruitment/EvaluationCriteriaCompetencyMaster'),
-    'EvaluationCriteriaCompetencyMaster'
   ),
   'recruitment-template-master': rp(
     () => import('../hr/recruitment/RecruitmentTemplateMaster'),

@@ -246,9 +246,30 @@ const subjectColors: Record<string, string> = {
   Activity: 'bg-red-100 text-red-800'
 };
 type ViewMode = 'grid' | 'list' | 'day';
+const TEACHERS = ['Mrs. Sharma', 'Mr. Patel', 'Mrs. Verma', 'Mrs. Gupta', 'Mr. Kumar', 'Ms. Reddy', 'Mr. Suresh', 'Mrs. Iyer'];
+const SUBJECTS = Object.keys(subjectColors);
+
 export function ClassTimetable() {
   const [tab, setTab] = useState('classwise');
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
+  const [grid, setGrid] = useState(() => JSON.parse(JSON.stringify(timetableData)) as typeof timetableData);
+  const [editCell, setEditCell] = useState<{ day: string; period: string } | null>(null);
+  const [editSubject, setEditSubject] = useState('');
+  const [editTeacher, setEditTeacher] = useState('');
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const saveCell = () => {
+    if (!editCell) return;
+    setGrid((prev) => ({
+      ...prev,
+      [editCell.day]: {
+        ...prev[editCell.day],
+        [editCell.period]: { subject: editSubject, teacher: editTeacher }
+      }
+    }));
+    setNotice(`${editCell.day} ${editCell.period.split('\\n')[0]} updated.`);
+    setEditCell(null);
+  };
   const [selectedBranches, setSelectedBranches] = useState<string[]>(['all']);
   const [selectedYear, setSelectedYear] = useState('2025-26');
   const [selectedClass, setSelectedClass] = useState('class-8');
@@ -273,7 +294,7 @@ export function ClassTimetable() {
   periods.
   filter((p) => p !== 'Break' && p !== 'Lunch').
   map((period) => {
-    const cell = timetableData[day]?.[period];
+    const cell = grid[day]?.[period];
     return {
       id: `${day}-${period}`,
       day,
@@ -300,12 +321,13 @@ export function ClassTimetable() {
   map((b) => b.label).
   join(', ');
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6 p-6 bg-gray-50 min-h-full">
+      {notice && <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm text-indigo-800 flex justify-between"><span>{notice}</span><button type="button" onClick={() => setNotice(null)}>×</button></div>}
       <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Class Timetable</h1>
           <p className="text-sm text-gray-500 mt-1">
-            View and manage class-wise and section-wise timetables
+            Click a period cell to add or change teacher and subject
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
@@ -587,7 +609,7 @@ export function ClassTimetable() {
                                   {period}
                                 </td>);
 
-                        const cell = timetableData[day]?.[period];
+                        const cell = grid[day]?.[period];
                         const subject = cell?.subject || '';
                         const teacher = cell?.teacher || '';
                         const isHighlighted =
@@ -595,12 +617,29 @@ export function ClassTimetable() {
                         subject.
                         toLowerCase().
                         includes(selectedSubject.toLowerCase());
+                        const editing = editCell?.day === day && editCell?.period === period;
                         return (
                           <td
                             key={period}
                             className={`border border-gray-200 px-1 py-1.5 text-center ${isHighlighted ? 'ring-2 ring-blue-400 ring-inset' : ''}`}>
-
-                                {subject &&
+                                {editing ? (
+                                  <div className="space-y-1 p-1">
+                                    <select className="w-full border rounded text-[10px] px-1 py-0.5" value={editSubject} onChange={(e) => setEditSubject(e.target.value)}>
+                                      <option value="">Subject</option>
+                                      {SUBJECTS.map((s) => <option key={s}>{s}</option>)}
+                                    </select>
+                                    <select className="w-full border rounded text-[10px] px-1 py-0.5" value={editTeacher} onChange={(e) => setEditTeacher(e.target.value)}>
+                                      <option value="">Teacher</option>
+                                      {TEACHERS.map((t) => <option key={t}>{t}</option>)}
+                                    </select>
+                                    <div className="flex gap-1">
+                                      <button type="button" className="flex-1 bg-indigo-600 text-white rounded text-[10px] py-0.5" onClick={saveCell}>Save</button>
+                                      <button type="button" className="flex-1 border rounded text-[10px] py-0.5" onClick={() => setEditCell(null)}>×</button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                <button type="button" className="w-full" onClick={() => { setEditCell({ day, period }); setEditSubject(subject); setEditTeacher(teacher === '—' ? '' : teacher); }}>
+                                {subject ?
                             <div
                               className={`px-1.5 py-1 rounded text-xs ${subjectColors[subject] || 'bg-gray-100 text-gray-700'}`}>
 
@@ -611,7 +650,9 @@ export function ClassTimetable() {
                                       </div>
                               }
                                   </div>
-                            }
+                            : <span className="text-[10px] text-indigo-500">+ Add</span>}
+                                </button>
+                                )}
                               </td>);
 
                       })}
@@ -726,7 +767,7 @@ export function ClassTimetable() {
                           </span>
                         </div>);
 
-                  const cell = timetableData[selectedDay]?.[period];
+                  const cell = grid[selectedDay]?.[period];
                   const [periodId, time] = period.split('\n');
                   return (
                     <div

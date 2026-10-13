@@ -24,7 +24,9 @@ import {
   Check,
   Loader2,
   Download,
-  EyeOff } from
+  EyeOff,
+  Search,
+  ChevronLeft } from
 'lucide-react';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
@@ -227,7 +229,9 @@ export function InterviewFeedbackScoring() {
   const [scores, setScores] = useState<Scores>({});
   const [recommendation, setRecommendation] = useState<Recommendation | null>(null);
   const [remarks, setRemarks] = useState('');
-  const [selectedCandidate, setSelectedCandidate] = useState('APP-2024-001');
+  const [selectedCandidate, setSelectedCandidate] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [hasSearched, setHasSearched] = useState(false);
   const [selectedRound, setSelectedRound] = useState('round1');
   const [panelMembers, setPanelMembers] = useState<PanelMember[]>(INITIAL_PANEL_MEMBERS);
 
@@ -259,6 +263,18 @@ export function InterviewFeedbackScoring() {
   // Computed Values
   const currentCandidate = CANDIDATES.find((c) => c.id === selectedCandidate);
   const currentRound = INTERVIEW_ROUNDS.find((r) => r.value === selectedRound);
+  const filteredCandidates = CANDIDATES.filter((c) => {
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return true;
+    return (
+      c.name.toLowerCase().includes(q) ||
+      c.id.toLowerCase().includes(q) ||
+      c.position.toLowerCase().includes(q) ||
+      c.qualifications.toLowerCase().includes(q) ||
+      c.email.toLowerCase().includes(q) ||
+      c.campus.toLowerCase().includes(q)
+    );
+  });
   const totalScore = Object.values(scores).reduce((a, b) => a + b, 0);
   const maxScore = evaluationCriteria.length * 5;
   const percentage = maxScore > 0 ? Math.round(totalScore / maxScore * 100) : 0;
@@ -450,6 +466,9 @@ export function InterviewFeedbackScoring() {
 
   // Load saved feedback
   const loadSavedFeedback = async () => {
+    if (!selectedCandidate) {
+      return;
+    }
     setIsLoadingFeedback(true);
     const storageKey = `feedback_${selectedCandidate}_${selectedRound}`;
 
@@ -960,6 +979,52 @@ export function InterviewFeedbackScoring() {
             </button>
           )}
         </div>
+
+        <div className="mt-5 pt-5 border-t space-y-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative flex-1 min-w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search by name, ID, position, or qualification..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    if (selectedCandidate && isDirty && !isFormEmpty) {
+                      setConfirmUnsavedChanges({ show: true, action: 'candidate', value: '' });
+                      setHasSearched(true);
+                      return;
+                    }
+                    setHasSearched(true);
+                    setSelectedCandidate('');
+                  }
+                }}
+                className="w-full pl-10 pr-4 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent" />
+              {searchQuery &&
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <X className="w-4 h-4 text-gray-400 hover:text-gray-600" />
+                </button>
+              }
+            </div>
+            <Button
+              variant="primary"
+              onClick={() => {
+                if (selectedCandidate && isDirty && !isFormEmpty) {
+                  setConfirmUnsavedChanges({ show: true, action: 'candidate', value: '' });
+                  setHasSearched(true);
+                  return;
+                }
+                setHasSearched(true);
+                setSelectedCandidate('');
+              }}>
+              <Search className="w-4 h-4 mr-1" />
+              Search
+            </Button>
+          </div>
+        </div>
       </Card>
 
       {/* Unsaved Changes Confirmation */}
@@ -1063,6 +1128,67 @@ export function InterviewFeedbackScoring() {
           </div>
         </Card>
       }
+
+      {!hasSearched && !selectedCandidate &&
+      <Card className="p-10">
+          <div className="text-center text-gray-400 max-w-md mx-auto">
+            <Search className="w-12 h-12 mx-auto mb-3 opacity-40" />
+            <p className="font-medium text-gray-600">Search applicants to begin scoring</p>
+            <p className="text-sm mt-1">Use name, ID, position, or qualification, then click Search to see the applicant list.</p>
+          </div>
+        </Card>
+      }
+
+      {hasSearched && !selectedCandidate &&
+      <Card title={`Applicants (${filteredCandidates.length})`}>
+        <div className="space-y-2">
+          {filteredCandidates.length === 0 ?
+          <div className="text-center py-8 text-gray-400">
+              <Users className="w-12 h-12 mx-auto mb-3 opacity-40" />
+              <p>No applicants found</p>
+            </div> :
+
+          filteredCandidates.map((candidate) =>
+          <div
+            key={candidate.id}
+            onClick={() => performCandidateChange(candidate.id)}
+            className="p-4 rounded-xl cursor-pointer transition-all border border-gray-100 bg-gray-50 hover:bg-amber-50 hover:border-amber-200">
+
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 text-white flex items-center justify-center text-xs font-bold flex-shrink-0">
+                  {candidate.initials}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-gray-900 truncate">{candidate.name}</p>
+                  <p className="text-xs text-gray-500 truncate">{candidate.position} · {candidate.campus} · {candidate.experience}</p>
+                  <p className="text-xs text-gray-400">{candidate.id} · Interview {candidate.interviewDate} · {candidate.interviewTime}</p>
+                </div>
+                <span className="text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-700 flex-shrink-0">{candidate.interviewType}</span>
+              </div>
+            </div>
+          )
+          }
+        </div>
+      </Card>
+      }
+
+      {selectedCandidate && currentCandidate &&
+      <>
+      <div className="flex items-center justify-between">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            if (isDirty && !isFormEmpty) {
+              setConfirmUnsavedChanges({ show: true, action: 'candidate', value: '' });
+              return;
+            }
+            setSelectedCandidate('');
+          }}>
+          <ChevronLeft className="w-4 h-4 mr-1" />
+          Back to Applicants
+        </Button>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
@@ -1830,6 +1956,9 @@ export function InterviewFeedbackScoring() {
           </Card>
         </div>
       </div>
+
+      </>
+      }
 
       {/* History Detail Modal */}
       {showHistoryModal && selectedHistoryRecord &&

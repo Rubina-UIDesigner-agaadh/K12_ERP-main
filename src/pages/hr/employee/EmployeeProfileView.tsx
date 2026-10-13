@@ -24,6 +24,7 @@ import {
   Download,
   Printer,
   ChevronRight,
+  ChevronDown,
   Home,
   Users,
   Heart,
@@ -1650,6 +1651,18 @@ const mockEmployees: Employee[] = [
     fileSize: '220 KB',
     fileType: 'PDF',
     mandatory: true
+  },
+  {
+    id: 'DOC012',
+    name: 'PAN Card',
+    type: 'Identity Proof',
+    category: 'Identity',
+    uploadDate: '2019-06-25',
+    status: 'Pending',
+    fileSize: '180 KB',
+    fileType: 'PDF',
+    mandatory: true,
+    remarks: 'Awaiting verification'
   }],
 
   leaveBalance: [
@@ -2152,6 +2165,41 @@ const InfoBlock = ({
     <p className="text-sm font-medium text-gray-900">{value || '—'}</p>
   </div>;
 
+const getPendingDocuments = (employee: Employee) =>
+  (employee.documents || []).filter((document) => document.status === 'Pending' || document.status === 'Rejected' || document.status === 'Expired');
+
+const getProfileCompletion = (employee: Employee) => {
+  const values = [
+    employee.firstName,
+    employee.lastName,
+    employee.code,
+    employee.designation,
+    employee.department,
+    employee.personal.dateOfBirth,
+    employee.personal.gender,
+    employee.personal.aadhaar,
+    employee.personal.pan,
+    employee.personal.bloodGroup,
+    employee.contact.mobile,
+    employee.contact.officialEmail,
+    employee.contact.personalEmail,
+    employee.employment.dateOfJoining,
+    employee.employment.reportingManager,
+    employee.employment.campus,
+    employee.qualification.highest,
+    employee.bank.bankName,
+    employee.bank.accountNumber,
+    employee.bank.ifsc,
+    employee.statutory.pfNumber,
+    employee.statutory.uanNumber
+  ];
+  const total = values.length;
+  const filled = values.filter((value) => value !== undefined && value !== null && String(value).trim() !== '').length;
+  const pendingDocs = getPendingDocuments(employee).length;
+  const pct = Math.round(filled / total * 100);
+  return { filled, total, pending: total - filled, pendingDocs, pct };
+};
+
 const ProgressBar = ({
   value,
   max,
@@ -2467,6 +2515,7 @@ export function EmployeeProfileView() {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalSection, setModalSection] = useState<string | null>(null);
   const [documentOverrides, setDocumentOverrides] = useState<Record<string, Employee['documents']>>({});
+  const [showPendingDocsDropdown, setShowPendingDocsDropdown] = useState(false);
   const [reviewDocumentId, setReviewDocumentId] = useState<string | null>(null);
   const [documentChecks, setDocumentChecks] = useState<Record<string, boolean>>({});
   const [documentRemarks, setDocumentRemarks] = useState('');
@@ -3005,16 +3054,7 @@ export function EmployeeProfileView() {
               </Button>
               <Button variant="outline" onClick={returnToDirectory}>Back to Employee List</Button>
               <Button variant="outline" className="flex items-center gap-2">
-                <RefreshCw className="w-4 h-4" />Sync
-              </Button>
-              <Button variant="outline" className="flex items-center gap-2">
-                <Printer className="w-4 h-4" />Print
-              </Button>
-              <Button variant="outline" className="flex items-center gap-2">
                 <Download className="w-4 h-4" />Export
-              </Button>
-              <Button variant="outline" className="flex items-center gap-2">
-                <Share2 className="w-4 h-4" />Share
               </Button>
             </div>
           }
@@ -3098,7 +3138,47 @@ export function EmployeeProfileView() {
               <input id="employee-joining-to" type="date" value={filters.joiningTo} onChange={(event) => { setFilters((current) => ({ ...current, joiningTo: event.target.value })); setSelectedId(''); }} className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
           </div>
-          <div className="mt-4 flex justify-end">
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="relative">
+              <Button variant="outline" onClick={() => setShowPendingDocsDropdown((open) => !open)}>
+                <FileText className="w-4 h-4 mr-1" />
+                Pending documents
+                <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
+                  {mockEmployees.reduce((count, emp) => count + getPendingDocuments({ ...emp, documents: documentOverrides[emp.id] ?? emp.documents }).length, 0)}
+                </span>
+                <ChevronDown className="w-4 h-4 ml-1" />
+              </Button>
+              {showPendingDocsDropdown &&
+              <div className="absolute left-0 z-20 mt-2 w-[min(28rem,90vw)] rounded-lg border bg-white p-3 shadow-lg">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Pending documents</p>
+                  {(() => {
+                    const docs = mockEmployees.flatMap((emp) =>
+                      getPendingDocuments({ ...emp, documents: documentOverrides[emp.id] ?? emp.documents }).map((doc) => ({
+                        empId: emp.id,
+                        empName: emp.fullName,
+                        docName: doc.name,
+                        status: doc.status
+                      }))
+                    );
+                    if (docs.length === 0) return <p className="text-sm text-gray-500">No pending documents.</p>;
+                    const uniqueNames = Array.from(new Set(docs.map((d) => d.docName)));
+                    return uniqueNames.map((name) => {
+                      const rows = docs.filter((d) => d.docName === name);
+                      return (
+                        <button
+                          key={name}
+                          type="button"
+                          onClick={() => { setShowPendingDocsDropdown(false); selectEmployee(rows[0].empId); }}
+                          className="mb-2 w-full rounded-lg bg-amber-50 p-2 text-left last:mb-0 hover:bg-amber-100">
+                          <p className="text-sm font-semibold text-gray-900">{name}</p>
+                          <p className="text-xs text-amber-800">{rows.length} pending · {rows.map((r) => r.empName).join(', ')}</p>
+                        </button>
+                      );
+                    });
+                  })()}
+                </div>
+              }
+            </div>
             <Button variant="outline" onClick={() => { setSearch(''); clearFilters(); setSelectedId(''); }}>
               Clear search &amp; filters
             </Button>
@@ -3126,6 +3206,8 @@ export function EmployeeProfileView() {
                     <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Branch / Campus</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Staff Type</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Status</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Form progress</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Pending documents</th>
                     <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">Action</th>
                   </tr>
                 </thead>
@@ -3144,6 +3226,23 @@ export function EmployeeProfileView() {
                       <td className="px-4 py-3 text-sm text-gray-700">{candidate.employment.campus} · {candidate.employment.location}</td>
                       <td className="px-4 py-3 text-sm text-gray-700">{candidate.staffType}</td>
                       <td className="px-4 py-3">{getStatusBadge(candidate.status)}</td>
+                      <td className="px-4 py-3">
+                        {(() => {
+                          const completion = getProfileCompletion({ ...candidate, documents: documentOverrides[candidate.id] ?? candidate.documents });
+                          return (
+                            <div className="min-w-[140px]">
+                              <ProgressBar value={completion.pct} max={100} color={completion.pct >= 80 ? 'green' : completion.pct >= 50 ? 'yellow' : 'red'} />
+                              <p className="mt-1 text-xs text-gray-500">{completion.filled}/{completion.total} filled · {completion.pending} pending</p>
+                            </div>);
+                        })()}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-700">
+                        {(() => {
+                          const pending = getPendingDocuments({ ...candidate, documents: documentOverrides[candidate.id] ?? candidate.documents });
+                          if (pending.length === 0) return <span className="text-xs text-green-700">None pending</span>;
+                          return <span className="text-xs text-amber-800">{pending.map((doc) => doc.name).join(', ')}</span>;
+                        })()}
+                      </td>
                       <td className="px-4 py-3 text-right"><Button variant={selectedId === candidate.id ? 'primary' : 'outline'} size="sm" onClick={() => selectEmployee(candidate.id)}>{selectedId === candidate.id ? 'Selected' : 'View Profile'}</Button></td>
                     </tr>
                   ))}
@@ -3175,6 +3274,15 @@ export function EmployeeProfileView() {
                   <div className="flex flex-wrap items-center gap-3 mb-2">
                     <h2 className="text-2xl font-bold">{employee.fullName}</h2>
                     {getStatusBadge(employee.status)}
+                    {(() => {
+                      const completion = getProfileCompletion({ ...employee, documents: documentOverrides[employee.id] ?? employee.documents });
+                      const pending = getPendingDocuments({ ...employee, documents: documentOverrides[employee.id] ?? employee.documents });
+                      return (
+                        <span className="rounded-full bg-white/20 px-3 py-1 text-xs">
+                          Form {completion.pct}% filled · {completion.pending} pending · {pending.length} pending doc{pending.length === 1 ? '' : 's'}
+                        </span>
+                      );
+                    })()}
                     {disabledEmployeeIds.includes(employee.id) && <Badge variant="danger">Disabled</Badge>}
                     <Badge
                     variant="secondary"

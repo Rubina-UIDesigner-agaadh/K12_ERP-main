@@ -1,18 +1,15 @@
 import React, { useMemo, useState } from 'react';
 import {
   AlertTriangle,
-  Bell,
   BookOpen,
   CalendarDays,
   CheckCircle2,
-  ChevronDown,
   ClipboardCheck,
   Clock3,
   Download,
   FileBarChart2,
   FilePlus2,
   FileText,
-  GraduationCap,
   RefreshCw,
   Users,
 } from 'lucide-react';
@@ -188,58 +185,23 @@ export function AcademicPlanningDashboard() {
   };
 
   return (
-    <div className="space-y-5 p-4 md:p-6">
-      <header className="overflow-hidden rounded-2xl bg-gradient-to-r from-slate-950 via-indigo-950 to-indigo-900 text-white shadow-lg">
-        <div className="flex flex-col gap-4 border-b border-white/10 px-5 py-4 xl:flex-row xl:items-center xl:justify-between xl:px-7">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/15">
-              <GraduationCap className="h-6 w-6" />
-            </div>
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2 text-xs text-indigo-200">
-                <span>School ERP</span><span className="text-white/40">/</span><span>Academic</span><span className="text-white/40">/</span><span className="text-white">Curriculum &amp; Academic Planning</span>
-              </div>
-              <h1 className="mt-1 truncate text-xl font-semibold tracking-tight md:text-2xl">Academic Planning</h1>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <label className="flex items-center gap-2 rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-sm">
-              <span className="text-indigo-100">AY</span>
-              <select aria-label="Academic year" value={academicYear} onChange={(event) => setAcademicYear(event.target.value)} className="bg-transparent font-medium text-white outline-none [&>option]:text-gray-900">
-                <option value="2025-26">2025-26</option><option value="2026-27">2026-27</option><option value="2024-25">2024-25</option>
-              </select>
-              <ChevronDown className="h-4 w-4 text-indigo-200" />
-            </label>
-            <label className="flex items-center gap-2 rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-sm">
-              <span className="text-indigo-100">Term</span>
-              <select aria-label="Term" value={term} onChange={(event) => setTerm(event.target.value)} className="bg-transparent font-medium text-white outline-none [&>option]:text-gray-900">
-                <option>Term 1</option><option>Term 2</option><option>Full year</option>
-              </select>
-              <ChevronDown className="h-4 w-4 text-indigo-200" />
-            </label>
-            <button type="button" onClick={() => showMessage('You are all caught up on notifications.')} aria-label="Notifications" className="relative rounded-lg p-2.5 text-indigo-100 transition hover:bg-white/10 hover:text-white">
-              <Bell className="h-5 w-5" /><span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-400 ring-2 ring-indigo-950" />
-            </button>
-            <button type="button" onClick={() => showMessage('Signed in as Academic Administrator.')} className="flex items-center gap-2 rounded-lg border border-white/15 bg-white/10 px-2 py-1.5 text-left hover:bg-white/15">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-300 font-semibold text-indigo-950">AD</span>
-              <span className="hidden pr-1 text-sm sm:block"><span className="block font-medium">Admin</span><span className="block text-xs text-indigo-200">Academic Office</span></span>
-            </button>
-          </div>
+    <div className="space-y-5 p-4 md:p-6 bg-gray-50 min-h-full">
+      <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p className="text-xs text-gray-500">Home → Academic → Curriculum & Academic Planning</p>
+          <h1 className="mt-1 text-xl font-bold text-gray-900">Academic Planning Dashboard</h1>
+          <p className="text-sm text-gray-500">Syllabus delivery, teaching plans and approvals for {academicYear} · {term}</p>
         </div>
-
-        <div className="flex flex-col gap-4 px-5 py-5 md:flex-row md:items-end md:justify-between md:px-7">
-          <div>
-            <p className="text-sm text-indigo-200">Curriculum &amp; Academic Planning <span className="mx-1 text-white/40">›</span> Dashboard</p>
-            <h2 className="mt-1 text-2xl font-semibold md:text-3xl">Academic Planning Dashboard</h2>
-            <p className="mt-1 text-sm text-indigo-100/80">A real-time view of syllabus delivery, teaching plans, and approvals for {academicYear} · {term}.</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="secondary" leftIcon={<CalendarDays className="h-4 w-4" />} onClick={() => navigateTo('teaching-plan')}>Create Annual Plan</Button>
-            <Button size="sm" variant="secondary" leftIcon={<FilePlus2 className="h-4 w-4" />} onClick={() => navigateTo('lesson-plan-creation')}>New Lesson</Button>
-            <Button size="sm" variant="secondary" leftIcon={<FileBarChart2 className="h-4 w-4" />} onClick={exportSyllabus}>Syllabus Report</Button>
-            <Button size="sm" variant="outline" leftIcon={<Download className="h-4 w-4" />} onClick={exportSyllabus} className="border-white/30 bg-transparent text-white hover:bg-white/10 hover:text-white">Export</Button>
-          </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <select aria-label="Academic year" value={academicYear} onChange={(event) => setAcademicYear(event.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
+            <option value="2025-26">2025-26</option><option value="2026-27">2026-27</option><option value="2024-25">2024-25</option>
+          </select>
+          <select aria-label="Term" value={term} onChange={(event) => setTerm(event.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
+            <option>Term 1</option><option>Term 2</option><option>Full year</option>
+          </select>
+          <Button size="sm" variant="outline" leftIcon={<CalendarDays className="h-4 w-4" />} onClick={() => navigateTo('teaching-plan')}>Create Annual Plan</Button>
+          <Button size="sm" variant="outline" leftIcon={<FilePlus2 className="h-4 w-4" />} onClick={() => navigateTo('lesson-plan-creation')}>New Lesson</Button>
+          <Button size="sm" variant="primary" leftIcon={<Download className="h-4 w-4" />} onClick={exportSyllabus}>Export</Button>
         </div>
       </header>
 

@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { StudentCustomSearchPage } from './StudentCustomSearch';
 import {
   FileText, Download, PieChart, BarChart, TrendingUp, Users, GraduationCap, Filter, X, Search, Eye, Printer, Mail, RefreshCw, CheckCircle, Clock, AlertCircle, ArrowUpRight, Award, Layers, Activity, UserCheck, Globe, Star, Copy, Shield, Heart, Home, Bus, Percent, UserPlus, FileSpreadsheet, Settings, ChevronDown, ChevronUp, Check, Building } from
 'lucide-react';
@@ -168,6 +169,7 @@ export function StudentAcademicReports() {
   const [typeFilter, setTypeFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [hubTab, setHubTab] = useState<'reports' | 'search'>('reports');
   const [activeTab, setActiveTab] = useState<'templates' | 'generated' | 'data'>('templates');
   const [reportCategoryFilter, setReportCategoryFilter] = useState('all');
   const [showReportModal, setShowReportModal] = useState(false);
@@ -249,8 +251,8 @@ export function StudentAcademicReports() {
       <div className="flex-shrink-0 bg-white border-b px-6 py-4">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><FileSpreadsheet className="w-7 h-7 text-blue-600" />Student Reports & Analytics</h1>
-            <p className="text-gray-500 text-sm mt-1">Generate reports by branch and batch</p>
+            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><FileSpreadsheet className="w-7 h-7 text-blue-600" />Student Reports & Search</h1>
+            <p className="text-gray-500 text-sm mt-1">All student reports in one tab; custom search on the other</p>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
             <MultiSelect options={BRANCHES} selected={selectedBranches} onChange={setSelectedBranches} />
@@ -262,6 +264,21 @@ export function StudentAcademicReports() {
         </div>
       </div>
 
+      <div className="flex-shrink-0 bg-white border-b px-6">
+        <div className="flex gap-1">
+          {[{ id: 'reports' as const, label: 'Reports' }, { id: 'search' as const, label: 'Custom Search' }].map((t) =>
+            <button key={t.id} type="button" onClick={() => setHubTab(t.id)} className={`px-4 py-2.5 text-sm font-medium border-b-2 ${hubTab === t.id ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500'}`}>{t.label}</button>
+          )}
+        </div>
+      </div>
+
+      {hubTab === 'search' &&
+        <div className="flex-1 overflow-auto">
+          <StudentCustomSearchPage />
+        </div>
+      }
+
+      {hubTab === 'reports' && <>
       {/* Branch Filter Display */}
       {selectedBranches.length > 0 &&
       <div className="flex-shrink-0 bg-white border-b px-6 py-2">
@@ -568,6 +585,7 @@ export function StudentAcademicReports() {
           </div>
         }
       </Modal>
+      </>}
     </div>);
 
 }

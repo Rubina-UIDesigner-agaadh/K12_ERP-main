@@ -349,12 +349,21 @@ const initialPostings: JobPosting[] = [
   activityLog: []
 }];
 
+const ONLINE_APPLICATIONS = [
+  { id: 'OL-101', name: 'Kavya Menon', portal: 'Naukri', job: 'Mathematics Teacher', email: 'kavya.menon@email.com', phone: '+91 98765 10101', applied: '12-01-2026', experience: 4, qualification: 'M.Sc + B.Ed', cv: 'Kavya_Menon_CV.pdf', status: 'New' as 'New' | 'Rejected' },
+  { id: 'OL-102', name: 'Arjun Desai', portal: 'Indeed', job: 'Science Teacher', email: 'arjun.desai@email.com', phone: '+91 98765 10102', applied: '11-01-2026', experience: 6, qualification: 'M.Sc Physics', cv: 'Arjun_Desai_CV.pdf', status: 'New' as 'New' | 'Rejected' },
+  { id: 'OL-103', name: 'Sneha Iyer', portal: 'LinkedIn', job: 'English Teacher', email: 'sneha.iyer@email.com', phone: '+91 98765 10103', applied: '10-01-2026', experience: 3, qualification: 'M.A English + B.Ed', cv: 'Sneha_Iyer_CV.pdf', status: 'New' as 'New' | 'Rejected' },
+  { id: 'OL-104', name: 'Rohit Banerjee', portal: 'School Website', job: 'Computer Science Teacher', email: 'rohit.b@email.com', phone: '+91 98765 10104', applied: '09-01-2026', experience: 5, qualification: 'MCA + B.Ed', cv: 'Rohit_Banerjee_CV.pdf', status: 'New' as 'New' | 'Rejected' }
+];
 
 export function JobPostingAdvertisement() {
   const [postings, setPostings] = useState<JobPosting[]>(initialPostings);
   const [selectedBranches, setSelectedBranches] = useState<string[]>(['all']);
   const [academicYear, setAcademicYear] = useState('2024-2025');
-  const [activeTab, setActiveTab] = useState<'list' | 'create' | 'drafts' | 'closed' | 'requisitions'>('list');
+  const [activeTab, setActiveTab] = useState<'list' | 'create' | 'drafts' | 'closed' | 'requisitions' | 'online'>('list');
+  const [showNewPanel, setShowNewPanel] = useState(false);
+  const [onlineApps, setOnlineApps] = useState(ONLINE_APPLICATIONS);
+  const [onlineView, setOnlineView] = useState<(typeof ONLINE_APPLICATIONS)[0] | null>(null);
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['website']);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -560,6 +569,7 @@ export function JobPostingAdvertisement() {
     setPostings((prev) => [...prev, newPosting]);
     resetForm();
     setActiveTab('list');
+    setShowNewPanel(false);
     alert(`Job posting ${status === 'Draft' ? 'saved as draft' : 'published'} successfully!`);
   };
 
@@ -1117,7 +1127,7 @@ export function JobPostingAdvertisement() {
               <Download className="w-4 h-4 mr-1" />
               Export
             </Button>
-            <Button variant="primary" size="sm" onClick={() => setActiveTab('create')}>
+            <Button variant="primary" size="sm" onClick={() => setShowNewPanel(true)}>
               <Plus className="w-4 h-4 mr-1" />
               New Posting
             </Button>
@@ -1155,14 +1165,13 @@ export function JobPostingAdvertisement() {
         <div className="mt-4 flex gap-1 border-b border-gray-200">
           {[
           { key: 'list', label: 'Active Postings', count: stats.active },
-          { key: 'drafts', label: 'Drafts', count: stats.drafts },
           { key: 'closed', label: 'Closed', count: stats.closed },
           { key: 'requisitions', label: 'Created Requisitions', count: REQUISITIONS.length },
-          { key: 'create', label: 'Create New', count: null }].
+          { key: 'online', label: 'Online Applications', count: onlineApps.filter((a) => a.status !== 'Rejected').length }].
           map((tab) =>
           <button
             key={tab.key}
-            onClick={() => setActiveTab(tab.key as any)}
+            onClick={() => { setShowNewPanel(false); setActiveTab(tab.key as any); }}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
             activeTab === tab.key ?
             'border-orange-600 text-orange-600' :
@@ -1178,7 +1187,78 @@ export function JobPostingAdvertisement() {
         </div>
       </Card>
 
-      {activeTab === 'requisitions' ?
+      {activeTab === 'online' && !showNewPanel ?
+      <Card className="p-4">
+          <h2 className="text-lg font-semibold text-gray-900 mb-1">Online applications received</h2>
+          <p className="text-sm text-gray-500 mb-4">Applicants who applied through job portals. View profile, CV, or reject from here.</p>
+          {onlineView ?
+          <div className="space-y-4">
+            <Button variant="outline" size="sm" onClick={() => setOnlineView(null)}>Back to applications</Button>
+            <div className="flex flex-col md:flex-row gap-5">
+              <div className="w-44 h-60 shrink-0 rounded-lg border bg-white shadow-sm p-3 text-[9px] leading-tight text-gray-700">
+                <p className="text-center font-bold text-[11px] text-gray-900">{onlineView.name}</p>
+                <p className="text-center text-gray-500 mb-2">{onlineView.job}</p>
+                <div className="h-px bg-gray-200 mb-2" />
+                <p className="font-semibold">Education</p>
+                <p className="mb-1">{onlineView.qualification}</p>
+                <p className="font-semibold">Experience</p>
+                <p className="mb-1">{onlineView.experience} years</p>
+                <p className="font-semibold">Portal</p>
+                <p>{onlineView.portal}</p>
+              </div>
+              <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                <div><p className="text-xs text-gray-500">Name</p><p className="font-semibold">{onlineView.name}</p></div>
+                <div><p className="text-xs text-gray-500">Application ID</p><p className="font-medium">{onlineView.id}</p></div>
+                <div><p className="text-xs text-gray-500">Job portal</p><p className="font-medium">{onlineView.portal}</p></div>
+                <div><p className="text-xs text-gray-500">Job applied</p><p className="font-medium">{onlineView.job}</p></div>
+                <div><p className="text-xs text-gray-500">Email</p><p className="font-medium">{onlineView.email}</p></div>
+                <div><p className="text-xs text-gray-500">Phone</p><p className="font-medium">{onlineView.phone}</p></div>
+                <div><p className="text-xs text-gray-500">Applied on</p><p className="font-medium">{onlineView.applied}</p></div>
+                <div><p className="text-xs text-gray-500">CV file</p><p className="font-medium">{onlineView.cv}</p></div>
+                <div className="md:col-span-2 flex gap-2 mt-2">
+                  <Button variant="outline" size="sm" onClick={() => window.alert(`Opening ${onlineView.cv}`)}>View CV</Button>
+                  {onlineView.status !== 'Rejected' &&
+                    <Button variant="danger" size="sm" onClick={() => { setOnlineApps((prev) => prev.map((a) => a.id === onlineView.id ? { ...a, status: 'Rejected' } : a)); setOnlineView((v) => v ? { ...v, status: 'Rejected' } : v); }}>Reject applicant</Button>
+                  }
+                </div>
+              </div>
+            </div>
+          </div> :
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-gray-50 text-left text-xs uppercase text-gray-500">
+                  {['ID', 'Applicant', 'Job portal', 'Job', 'Qualification', 'Exp.', 'Applied', 'Status', 'Actions'].map((h) => <th key={h} className="px-3 py-2">{h}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {onlineApps.map((app) =>
+                  <tr key={app.id} className="border-b">
+                    <td className="px-3 py-2 font-mono text-xs">{app.id}</td>
+                    <td className="px-3 py-2 font-medium">{app.name}<p className="text-xs text-gray-400">{app.email}</p></td>
+                    <td className="px-3 py-2">{app.portal}</td>
+                    <td className="px-3 py-2">{app.job}</td>
+                    <td className="px-3 py-2">{app.qualification}</td>
+                    <td className="px-3 py-2">{app.experience}y</td>
+                    <td className="px-3 py-2">{app.applied}</td>
+                    <td className="px-3 py-2"><span className={`text-xs px-2 py-0.5 rounded-full ${app.status === 'Rejected' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>{app.status}</span></td>
+                    <td className="px-3 py-2">
+                      <div className="flex flex-wrap gap-1">
+                        <Button size="sm" variant="outline" onClick={() => setOnlineView(app)}>View profile</Button>
+                        <Button size="sm" variant="outline" onClick={() => window.alert(`Opening ${app.cv}`)}>View CV</Button>
+                        {app.status !== 'Rejected' &&
+                          <Button size="sm" variant="danger" onClick={() => setOnlineApps((prev) => prev.map((a) => a.id === app.id ? { ...a, status: 'Rejected' } : a))}>Reject</Button>
+                        }
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          }
+        </Card> :
+      activeTab === 'requisitions' && !showNewPanel ?
       <Card className="p-4">
           <h2 className="text-lg font-semibold text-gray-900 mb-1">Created Requisitions</h2>
           <p className="text-sm text-gray-500 mb-4">Reuse an approved requisition to create a job posting with the same details.</p>
@@ -1211,7 +1291,7 @@ export function JobPostingAdvertisement() {
                         size="sm"
                         onClick={() => {
                           fillFormFromRequisition(req.id);
-                          setActiveTab('create');
+                          setShowNewPanel(true);
                         }}>
                         Reuse for Job Posting
                       </Button>
@@ -1222,7 +1302,7 @@ export function JobPostingAdvertisement() {
             </table>
           </div>
         </Card> :
-      activeTab === 'list' || activeTab === 'drafts' || activeTab === 'closed' ?
+      !showNewPanel && (activeTab === 'list' || activeTab === 'closed') ?
       <>
           {/* Stats */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -1314,7 +1394,7 @@ export function JobPostingAdvertisement() {
           <Card className="p-12 text-center">
                 <Globe className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                 <p className="text-gray-500">No job postings found</p>
-                <Button variant="outline" size="sm" className="mt-4" onClick={() => setActiveTab('create')}>
+                <Button variant="outline" size="sm" className="mt-4" onClick={() => setShowNewPanel(true)}>
                   <Plus className="w-4 h-4 mr-1" />
                   Create New Posting
                 </Button>
@@ -1469,8 +1549,12 @@ export function JobPostingAdvertisement() {
           </div>
         </> : (
 
-      /* Create Form */
+      /* New Posting panel */
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-3 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-900">New Posting</h2>
+            <Button variant="outline" size="sm" onClick={() => setShowNewPanel(false)}>Close panel</Button>
+          </div>
           <div className="lg:col-span-2 space-y-6">
             <Card title="Job Details">
               <div className="space-y-4">

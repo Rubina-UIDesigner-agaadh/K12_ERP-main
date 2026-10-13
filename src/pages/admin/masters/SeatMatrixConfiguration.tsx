@@ -1,216 +1,390 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Badge } from '../../../components/ui/Badge';
 import { Button } from '../../../components/ui/Button';
-import { Card } from '../../../components/ui/Card';
-import { Input } from '../../../components/ui/Input';
 import { Modal } from '../../../components/ui/Modal';
-import { Select } from '../../../components/ui/Select';
-import { Download, Lock, Plus, Save, Search, Unlock } from 'lucide-react';
+import { Download, Printer, Save, RotateCcw, Pencil, X } from 'lucide-react';
 
-type QuotaKey = 'general' | 'obc' | 'sc' | 'st' | 'ews' | 'minority' | 'staffWard' | 'management' | 'nri' | 'cwsn';
-interface SeatRow {
-  id: string;
-  year: string;
-  board: string;
-  program: string;
-  className: string;
+type CatKey = 'general' | 'sc' | 'st' | 'obc' | 'ews' | 'sports' | 'mgmt';
+const CATS: { key: CatKey; label: string }[] = [
+  { key: 'general', label: 'General' },
+  { key: 'sc', label: 'SC' },
+  { key: 'st', label: 'ST' },
+  { key: 'obc', label: 'OBC' },
+  { key: 'ews', label: 'EWS' },
+  { key: 'sports', label: 'Sports' },
+  { key: 'mgmt', label: 'Mgmt' }
+];
+const STREAMS = ['Science', 'Commerce', 'Arts', 'Vocational'];
+const YEARS = ['2025-26', '2026-27', '2027-28'];
+const STORE = 'k12-seat-matrix-v1';
+
+type CatMap = Record<CatKey, number>;
+interface StreamRow {
   stream: string;
-  shift: string;
-  campus: string;
+  cats: CatMap;
   total: number;
-  male: number;
-  female: number;
-  other: number;
-  quotas: Record<QuotaKey, number>;
-  occupied: number;
-  waitlist: number;
-  overAllot: boolean;
-  frozen: boolean;
-  remarks: string;
 }
 
-const YEARS = ['2025-26', '2026-27', '2027-28'];
-const BOARDS = ['CBSE', 'ICSE', 'State', 'IB', 'Cambridge'];
-const PROGRAMS = ['Day School', 'Boarding', 'Pre-Primary', 'Senior Secondary'];
-const CLASSES = ['Nursery', 'LKG', 'UKG', ...Array.from({ length: 12 }, (_, i) => String(i + 1))];
-const STREAMS = ['N/A', 'Science', 'Commerce', 'Arts', 'Vocational'];
-const SHIFTS = ['Morning', 'Afternoon', 'Full Day'];
-const CAMPUSES = ['Main Campus', 'North Campus', 'East Campus', 'West Campus'];
-const QUOTAS: { key: QuotaKey; label: string }[] = [
-  { key: 'general', label: 'General' }, { key: 'obc', label: 'OBC' }, { key: 'sc', label: 'SC' },
-  { key: 'st', label: 'ST' }, { key: 'ews', label: 'EWS' }, { key: 'minority', label: 'Minority' },
-  { key: 'staffWard', label: 'Staff Ward' }, { key: 'management', label: 'Management' },
-  { key: 'nri', label: 'NRI / PIO' }, { key: 'cwsn', label: 'CWSN' }
-];
-const emptyQuotas = (): Record<QuotaKey, number> => QUOTAS.reduce((acc, q) => ({ ...acc, [q.key]: 0 }), {} as Record<QuotaKey, number>);
-const inputClass = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
+const emptyCats = (): CatMap => CATS.reduce((a, c) => ({ ...a, [c.key]: 0 }), {} as CatMap);
+const sumCats = (c: CatMap) => CATS.reduce((s, x) => s + (Number(c[x.key]) || 0), 0);
 
-const SEED: SeatRow[] = [
-  { id: 'SM-001', year: '2026-27', board: 'CBSE', program: 'Day School', className: '1', stream: 'N/A', shift: 'Morning', campus: 'Main Campus', total: 40, male: 20, female: 20, other: 0, quotas: { ...emptyQuotas(), general: 20, obc: 8, sc: 4, st: 2, ews: 4, staffWard: 2 }, occupied: 28, waitlist: 6, overAllot: false, frozen: false, remarks: 'Standard section A' },
-  { id: 'SM-002', year: '2026-27', board: 'CBSE', program: 'Day School', className: '11', stream: 'Science', shift: 'Morning', campus: 'Main Campus', total: 36, male: 18, female: 18, other: 0, quotas: { ...emptyQuotas(), general: 18, obc: 6, sc: 4, ews: 4, management: 2, nri: 2 }, occupied: 36, waitlist: 12, overAllot: true, frozen: true, remarks: 'Science closed after cutoff' },
-  { id: 'SM-003', year: '2026-27', board: 'CBSE', program: 'Pre-Primary', className: 'Nursery', stream: 'N/A', shift: 'Morning', campus: 'North Campus', total: 30, male: 15, female: 15, other: 0, quotas: { ...emptyQuotas(), general: 16, staffWard: 4, ews: 4, minority: 4, cwsn: 2 }, occupied: 11, waitlist: 0, overAllot: false, frozen: false, remarks: '' }
-];
+const DEFAULT_YEAR: Record<string, StreamRow[]> = {
+  '2025-26': STREAMS.map((stream, i) => {
+    const cats: CatMap = { general: [36, 30, 24, 12][i], sc: [8, 8, 6, 4][i], st: [4, 4, 4, 2][i], obc: [12, 12, 8, 4][i], ews: [8, 6, 6, 2][i], sports: [2, 2, 2, 1][i], mgmt: [2, 2, 2, 0][i] };
+    return { stream, cats, total: sumCats(cats) };
+  }),
+  '2026-27': STREAMS.map((stream, i) => {
+    const cats: CatMap = { general: [40, 32, 28, 12][i], sc: [10, 10, 8, 4][i], st: [5, 4, 4, 2][i], obc: [15, 14, 10, 5][i], ews: [8, 8, 5, 2][i], sports: [1, 1, 0, 0][i], mgmt: [1, 1, 0, 0][i] };
+    return { stream, cats, total: sumCats(cats) };
+  }),
+  '2027-28': STREAMS.map((stream) => ({ stream, cats: emptyCats(), total: 0 }))
+};
+
+const loadYear = (year: string): StreamRow[] => {
+  try {
+    const raw = window.localStorage.getItem(STORE);
+    const all = raw ? JSON.parse(raw) : {};
+    if (all[year]?.length) return all[year];
+  } catch { /* seed */ }
+  return (DEFAULT_YEAR[year] || DEFAULT_YEAR['2026-27']).map((r) => ({ stream: r.stream, total: r.total, cats: { ...r.cats } }));
+};
+
+const saveYear = (year: string, rows: StreamRow[]) => {
+  try {
+    const raw = window.localStorage.getItem(STORE);
+    const all = raw ? JSON.parse(raw) : {};
+    all[year] = rows;
+    window.localStorage.setItem(STORE, JSON.stringify(all));
+  } catch { /* ignore */ }
+};
+
+const downloadCsv = (grid: (string | number)[][], name: string) => {
+  const blob = new Blob(['\uFEFF' + grid.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name; a.click();
+  URL.revokeObjectURL(url);
+};
+
+const liveUsage = (stream: string) => {
+  try {
+    const store = JSON.parse(window.localStorage.getItem('k12-stream-selection-v1') || '{}');
+    const apps = Array.isArray(store.applications) ? store.applications : [];
+    const wait = Array.isArray(store.waitlist) ? store.waitlist : [];
+    const allotted = apps.filter((a: { allotted?: string; status?: string }) => a.allotted === stream && (a.status === 'Allotted' || a.status === 'Accepted' || a.status === 'Joined')).length;
+    const accepted = apps.filter((a: { allotted?: string; status?: string }) => a.allotted === stream && (a.status === 'Accepted' || a.status === 'Joined')).length;
+    const released = apps.filter((a: { allotted?: string; status?: string }) => a.status === 'Rejected' && a.allotted === stream).length;
+    const waitlisted = wait.filter((w: { stream?: string }) => w.stream === stream).length;
+    const byCat = (cat: string) => apps.filter((a: { allotted?: string; category?: string; status?: string }) => a.allotted === stream && a.category === cat && (a.status === 'Allotted' || a.status === 'Accepted')).length;
+    return { allotted, accepted, released, waitlisted, byCat };
+  } catch {
+    return { allotted: 0, accepted: 0, released: 0, waitlisted: 0, byCat: () => 0 };
+  }
+};
+
+const FALLBACK_LIVE: Record<string, { allotted: number; accepted: number; released: number; waitlisted: number }> = {
+  Science: { allotted: 70, accepted: 62, released: 4, waitlisted: 18 },
+  Commerce: { allotted: 62, accepted: 55, released: 3, waitlisted: 12 },
+  Arts: { allotted: 48, accepted: 40, released: 2, waitlisted: 8 },
+  Vocational: { allotted: 20, accepted: 16, released: 1, waitlisted: 4 }
+};
 
 export function SeatMatrixConfiguration() {
-  const [rows, setRows] = useState<SeatRow[]>(SEED);
-  const [q, setQ] = useState('');
   const [year, setYear] = useState('2026-27');
-  const [campus, setCampus] = useState('All');
-  const [klass, setKlass] = useState('All');
-  const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<SeatRow | null>(null);
-  const [errors, setErrors] = useState<string[]>([]);
+  const [rows, setRows] = useState<StreamRow[]>(() => loadYear('2026-27'));
+  const [saved, setSaved] = useState<StreamRow[]>(() => loadYear('2026-27'));
+  const [editing, setEditing] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [errors, setErrors] = useState<string[]>([]);
+  const [drawer, setDrawer] = useState<string | null>(null);
+  const [confirmSave, setConfirmSave] = useState(false);
+  const dirty = JSON.stringify(rows) !== JSON.stringify(saved);
 
-  const blank = (): SeatRow => ({
-    id: '', year: '2026-27', board: 'CBSE', program: 'Day School', className: '1', stream: 'N/A',
-    shift: 'Morning', campus: 'Main Campus', total: 40, male: 20, female: 20, other: 0,
-    quotas: { ...emptyQuotas(), general: 40 }, occupied: 0, waitlist: 0, overAllot: false, frozen: false, remarks: ''
-  });
+  useEffect(() => {
+    const onLeave = (e: BeforeUnloadEvent) => {
+      if (!dirty) return;
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onLeave);
+    return () => window.removeEventListener('beforeunload', onLeave);
+  }, [dirty]);
 
-  const filtered = rows.filter((r) =>
-    (year === 'All' || r.year === year) &&
-    (campus === 'All' || r.campus === campus) &&
-    (klass === 'All' || r.className === klass) &&
-    (!q || `${r.className} ${r.stream} ${r.campus} ${r.program}`.toLowerCase().includes(q.toLowerCase()))
-  );
-
-  const remaining = (r: SeatRow) => Math.max(0, r.total - r.occupied);
-  const quotaSum = (r: SeatRow) => QUOTAS.reduce((s, q) => s + (r.quotas[q.key] || 0), 0);
-  const genderSum = (r: SeatRow) => r.male + r.female + r.other;
-
-  const validate = (r: SeatRow) => {
-    const e: string[] = [];
-    if (!r.year || !r.board || !r.program || !r.className || !r.campus) e.push('Academic year, board, program, class and campus are required.');
-    if (r.total <= 0) e.push('Total sanctioned seats must be greater than 0.');
-    if (genderSum(r) > r.total) e.push('Male + Female + Other cannot exceed total seats.');
-    if (quotaSum(r) > r.total) e.push('Quota seats cannot exceed total sanctioned seats.');
-    if (r.occupied > r.total && !r.overAllot) e.push('Occupied seats exceed total. Enable over-allotment or reduce occupied.');
-    if (r.frozen) e.push('Frozen matrices cannot be edited. Unfreeze first.');
-    return e;
+  const setCell = (stream: string, key: CatKey | 'total', value: number) => {
+    setRows((list) => list.map((r) => {
+      if (r.stream !== stream) return r;
+      if (key === 'total') return { ...r, total: value };
+      const cats = { ...r.cats, [key]: value };
+      return { ...r, cats, total: sumCats(cats) === r.total ? r.total : sumCats(cats) };
+    }));
   };
 
-  const save = () => {
-    if (!editing) return;
-    const e = validate(editing);
-    if (e.length) { setErrors(e); return; }
+  const loadMatrix = (y = year) => {
+    const data = loadYear(y);
+    setRows(data);
+    setSaved(data);
+    setEditing(false);
     setErrors([]);
-    if (editing.id) setRows((list) => list.map((r) => r.id === editing.id ? editing : r));
-    else setRows((list) => [{ ...editing, id: `SM-${String(list.length + 1).padStart(3, '0')}` }, ...list]);
-    setOpen(false);
+    setNotice(`Loaded seat matrix for ${y}.`);
+  };
+
+  const copyLastYear = () => {
+    const idx = YEARS.indexOf(year);
+    const prev = idx > 0 ? YEARS[idx - 1] : null;
+    if (!prev) { setNotice('No previous year available to copy.'); return; }
+    const data = loadYear(prev).map((r) => ({ stream: r.stream, total: r.total, cats: { ...r.cats } }));
+    setRows(data);
+    setEditing(true);
+    setNotice(`Copied ${prev} numbers into ${year}. Adjust differences, then save.`);
+  };
+
+  const startFresh = () => {
+    setRows(STREAMS.map((stream) => ({ stream, cats: emptyCats(), total: 0 })));
+    setEditing(true);
+    setNotice('Matrix cleared. Enter seats and save.');
+  };
+
+  const rowWarnings = (r: StreamRow) => {
+    const sum = sumCats(r.cats);
+    if (sum !== r.total) return `${r.stream} row: category totals (${sum}) do not match configured total (${r.total}). Please fix.`;
+    if (r.total < 1) return `Total seats for ${r.stream} must be at least 1.`;
+    return '';
+  };
+
+  const liveFor = (stream: string) => {
+    const live = liveUsage(stream);
+    const fb = FALLBACK_LIVE[stream] || { allotted: 0, accepted: 0, released: 0, waitlisted: 0 };
+    const allotted = live.allotted || fb.allotted;
+    const accepted = live.accepted || fb.accepted;
+    const released = live.released || fb.released;
+    const waitlisted = live.waitlisted || fb.waitlisted;
+    return { allotted, accepted, released, waitlisted };
+  };
+
+  const belowFillMessages = () => {
+    const msgs: string[] = [];
+    rows.forEach((r, i) => {
+      const live = liveFor(r.stream);
+      if (r.total < live.allotted) msgs.push(`Cannot reduce ${r.stream} total to ${r.total} — ${live.allotted} are already filled.`);
+      CATS.forEach((c) => {
+        const filled = liveUsage(r.stream).byCat(c.label) || 0;
+        if (filled && r.cats[c.key] < filled) msgs.push(`Cannot reduce ${c.label} seats to ${r.cats[c.key]} — ${filled} are already filled.`);
+      });
+      const savedRow = saved[i];
+      if (savedRow && r.total < savedRow.total && live.allotted > r.total) {
+        msgs.push(`Cannot reduce ${r.stream} seats below current fill count (${live.allotted}).`);
+      }
+    });
+    return msgs;
+  };
+
+  const trySave = () => {
+    const warns = rows.map(rowWarnings).filter(Boolean);
+    if (warns.length) { setErrors(warns); return; }
+    const fill = belowFillMessages();
+    if (fill.length) { setErrors(fill); return; }
+    const reductions = rows.some((r, i) => saved[i] && r.total < saved[i].total);
+    if (reductions) { setConfirmSave(true); return; }
+    commitSave();
+  };
+
+  const commitSave = () => {
+    saveYear(year, rows);
+    setSaved(rows.map((r) => ({ stream: r.stream, total: r.total, cats: { ...r.cats } })));
+    setEditing(false);
+    setConfirmSave(false);
+    setErrors([]);
     setNotice('Seat matrix saved.');
   };
 
-  const totals = useMemo(() => ({
-    sanctioned: filtered.reduce((s, r) => s + r.total, 0),
-    occupied: filtered.reduce((s, r) => s + r.occupied, 0),
-    remaining: filtered.reduce((s, r) => s + remaining(r), 0),
-    waitlist: filtered.reduce((s, r) => s + r.waitlist, 0)
-  }), [filtered]);
+  const discard = () => {
+    setRows(saved.map((r) => ({ stream: r.stream, total: r.total, cats: { ...r.cats } })));
+    setEditing(false);
+    setErrors([]);
+    setNotice('Changes discarded.');
+  };
+
+  const grand = rows.reduce((s, r) => s + r.total, 0);
+  const colTotals = CATS.reduce((acc, c) => ({ ...acc, [c.key]: rows.reduce((s, r) => s + (r.cats[c.key] || 0), 0) }), {} as CatMap);
+  const drawerRow = rows.find((r) => r.stream === drawer);
+
+  const statusOf = (fill: number, available: number) => {
+    if (available <= 0 || fill >= 100) return { label: 'Full', color: 'bg-red-600 text-white', bar: 'bg-red-500' };
+    if (fill >= 75) return { label: 'Almost Full', color: 'bg-amber-500 text-white', bar: 'bg-amber-500' };
+    return { label: 'Available', color: 'bg-emerald-600 text-white', bar: 'bg-emerald-500' };
+  };
 
   return (
-    <div className="p-4 md:p-6 space-y-4 bg-gray-50 min-h-full">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="p-4 md:p-6 space-y-5 bg-gray-50 min-h-full">
+      <div>
+        <p className="text-xs text-gray-500">Home → Master Setup → Seat Matrix</p>
+        <div className="flex flex-wrap items-center gap-2 mt-1">
+          <h1 className="text-xl font-bold text-gray-900">Seat Matrix</h1>
+          <Badge variant="info">{year}</Badge>
+        </div>
+        <p className="text-sm text-gray-500">Configure seats per stream and category — monitor availability in real time</p>
+      </div>
+
+      {notice && <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm text-indigo-800 flex justify-between"><span>{notice}</span><button type="button" onClick={() => setNotice(null)}>×</button></div>}
+      {dirty && <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">You have unsaved seat changes. Save or discard before leaving.</div>}
+      {errors.length > 0 && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 space-y-1">{errors.map((e) => <p key={e}>{e}</p>)}</div>}
+
+      <div className="bg-white border rounded-xl p-4 flex flex-wrap items-end gap-3">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Seat Matrix Configuration</h1>
-          <p className="text-sm text-gray-500">Define sanctioned seats by class, stream, campus and quota.</p>
+          <label className="text-xs text-gray-600">Academic Year</label>
+          <select value={year} onChange={(e) => {
+            if (dirty && !window.confirm('You have unsaved seat changes. Save or discard before leaving.')) return;
+            const y = e.target.value;
+            setYear(y);
+            const data = loadYear(y);
+            setRows(data);
+            setSaved(data);
+            setEditing(false);
+            setErrors([]);
+          }} className="block mt-1 px-3 py-2 border rounded-lg text-sm bg-white">
+            {YEARS.map((y) => <option key={y}>{y}</option>)}
+          </select>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setNotice('Seat matrix exported.')}><Download className="w-4 h-4 mr-1" /> Export</Button>
-          <Button variant="primary" onClick={() => { setEditing(blank()); setErrors([]); setOpen(true); }}><Plus className="w-4 h-4 mr-1" /> Add Matrix</Button>
-        </div>
+        <Button variant="outline" onClick={() => loadMatrix()}>Load Matrix</Button>
+        <Button variant="outline" onClick={copyLastYear}>Copy from Last Year</Button>
+        <Button variant="outline" onClick={startFresh}>Start Fresh</Button>
       </div>
-
-      {notice && <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-800 flex justify-between"><span>{notice}</span><button type="button" onClick={() => setNotice(null)}>×</button></div>}
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {[
-          ['Sanctioned', totals.sanctioned], ['Occupied', totals.occupied], ['Remaining', totals.remaining], ['Waitlist', totals.waitlist]
-        ].map(([l, v]) => (
-          <div key={String(l)} className="bg-white border rounded-xl p-4"><p className="text-2xl font-bold">{v}</p><p className="text-xs text-gray-500">{l}</p></div>
-        ))}
-      </div>
-
-      <Card>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-          <div className="relative md:col-span-2">
-            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
-            <input className={`${inputClass} pl-9`} placeholder="Search class / stream / campus" value={q} onChange={(e) => setQ(e.target.value)} />
-          </div>
-          <select className={inputClass} value={year} onChange={(e) => setYear(e.target.value)}>{['All', ...YEARS].map((y) => <option key={y}>{y}</option>)}</select>
-          <select className={inputClass} value={campus} onChange={(e) => setCampus(e.target.value)}><option>All</option>{CAMPUSES.map((c) => <option key={c}>{c}</option>)}</select>
-          <select className={inputClass} value={klass} onChange={(e) => setKlass(e.target.value)}><option>All</option>{CLASSES.map((c) => <option key={c}>{c}</option>)}</select>
-        </div>
-      </Card>
 
       <div className="bg-white rounded-xl border overflow-x-auto">
+        <div className="px-4 py-3 border-b font-semibold text-sm">Seat Configuration Grid {editing ? <Badge variant="warning">Edit mode</Badge> : <Badge variant="secondary">View mode</Badge>}</div>
         <table className="min-w-full text-sm">
           <thead className="bg-gray-50 text-xs uppercase text-gray-500">
-            <tr>{['Class / Stream', 'Campus · Shift', 'Total', 'Gender', 'Occupied', 'Remaining', 'Waitlist', 'Status', ''].map((h) => <th key={h} className="px-3 py-2 text-left">{h}</th>)}</tr>
+            <tr>
+              <th className="px-3 py-2 text-left">Stream</th>
+              {CATS.map((c) => <th key={c.key} className="px-3 py-2 text-right">{c.label}</th>)}
+              <th className="px-3 py-2 text-right">Total</th>
+            </tr>
           </thead>
           <tbody>
-            {filtered.map((r) => (
-              <tr key={r.id} className="border-t">
-                <td className="px-3 py-2"><p className="font-medium">Class {r.className} · {r.stream}</p><p className="text-xs text-gray-500">{r.year} · {r.board} · {r.program}</p></td>
-                <td className="px-3 py-2">{r.campus}<br /><span className="text-xs text-gray-500">{r.shift}</span></td>
-                <td className="px-3 py-2 font-semibold">{r.total}</td>
-                <td className="px-3 py-2 text-xs">M {r.male} · F {r.female} · O {r.other}</td>
-                <td className="px-3 py-2">{r.occupied}</td>
-                <td className="px-3 py-2 text-teal-700 font-semibold">{remaining(r)}</td>
-                <td className="px-3 py-2">{r.waitlist}</td>
-                <td className="px-3 py-2 space-x-1">
-                  {r.frozen && <Badge variant="warning">Frozen</Badge>}
-                  {r.overAllot && <Badge variant="info">Over-allot</Badge>}
-                  {!r.frozen && remaining(r) === 0 && <Badge variant="danger">Full</Badge>}
-                </td>
-                <td className="px-3 py-2 whitespace-nowrap">
-                  <Button variant="outline" onClick={() => { setEditing({ ...r, quotas: { ...r.quotas } }); setErrors([]); setOpen(true); }}>Edit</Button>
-                  <Button variant="outline" className="ml-1" onClick={() => setRows((list) => list.map((x) => x.id === r.id ? { ...x, frozen: !x.frozen } : x))}>
-                    {r.frozen ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
-                  </Button>
-                </td>
-              </tr>
-            ))}
+            {rows.map((r) => {
+              const mismatch = sumCats(r.cats) !== r.total;
+              return (
+                <tr key={r.stream} className={`border-t ${mismatch ? 'bg-red-50' : ''}`}>
+                  <td className="px-3 py-2 font-medium">{r.stream}</td>
+                  {CATS.map((c) => (
+                    <td key={c.key} className="px-3 py-2 text-right">
+                      {editing ? (
+                        <input type="number" min={0} className="w-20 text-right border rounded px-2 py-1" value={r.cats[c.key]} onChange={(e) => setCell(r.stream, c.key, Number(e.target.value) || 0)} />
+                      ) : r.cats[c.key]}
+                    </td>
+                  ))}
+                  <td className="px-3 py-2 text-right font-semibold">
+                    {editing ? (
+                      <input type="number" min={0} className="w-20 text-right border rounded px-2 py-1 font-semibold" value={r.total} onChange={(e) => setCell(r.stream, 'total', Number(e.target.value) || 0)} />
+                    ) : r.total}
+                    {mismatch && <p className="text-[10px] text-red-600 font-normal">Mismatch {sumCats(r.cats)} ≠ {r.total}</p>}
+                  </td>
+                </tr>
+              );
+            })}
+            <tr className="bg-gray-50 font-semibold border-t">
+              <td className="px-3 py-2">Column Total</td>
+              {CATS.map((c) => <td key={c.key} className="px-3 py-2 text-right">{colTotals[c.key]}</td>)}
+              <td className="px-3 py-2 text-right text-indigo-700">{grand}</td>
+            </tr>
           </tbody>
         </table>
+        <p className="px-4 py-2 text-xs text-gray-500">Grand total (complete intake for {year}): <b>{grand}</b></p>
       </div>
 
-      <Modal isOpen={open} onClose={() => setOpen(false)} title={editing?.id ? 'Edit Seat Matrix' : 'New Seat Matrix'} size="lg" footer={<div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button variant="primary" onClick={save}><Save className="w-4 h-4 mr-1" /> Save</Button></div>}>
-        {editing && (
-          <div className="space-y-4">
-            {errors.length > 0 && <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-xs text-red-700 space-y-1">{errors.map((e) => <p key={e}>• {e}</p>)}</div>}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <Select label="Academic Year *" options={YEARS.map((y) => ({ value: y, label: y }))} value={editing.year} onChange={(e) => setEditing({ ...editing, year: e.target.value })} />
-              <Select label="Board *" options={BOARDS.map((y) => ({ value: y, label: y }))} value={editing.board} onChange={(e) => setEditing({ ...editing, board: e.target.value })} />
-              <Select label="Program *" options={PROGRAMS.map((y) => ({ value: y, label: y }))} value={editing.program} onChange={(e) => setEditing({ ...editing, program: e.target.value })} />
-              <Select label="Class *" options={CLASSES.map((y) => ({ value: y, label: y }))} value={editing.className} onChange={(e) => setEditing({ ...editing, className: e.target.value })} />
-              <Select label="Stream" options={STREAMS.map((y) => ({ value: y, label: y }))} value={editing.stream} onChange={(e) => setEditing({ ...editing, stream: e.target.value })} />
-              <Select label="Shift" options={SHIFTS.map((y) => ({ value: y, label: y }))} value={editing.shift} onChange={(e) => setEditing({ ...editing, shift: e.target.value })} />
-              <Select label="Campus *" options={CAMPUSES.map((y) => ({ value: y, label: y }))} value={editing.campus} onChange={(e) => setEditing({ ...editing, campus: e.target.value })} />
-              <Input label="Total sanctioned seats *" type="number" value={String(editing.total)} onChange={(e) => setEditing({ ...editing, total: Number(e.target.value) || 0 })} />
-              <Input label="Occupied (read-only mock)" type="number" value={String(editing.occupied)} onChange={(e) => setEditing({ ...editing, occupied: Number(e.target.value) || 0 })} />
-            </div>
-            <p className="text-sm font-semibold">Gender split</p>
-            <div className="grid grid-cols-3 gap-3">
-              <Input label="Male" type="number" value={String(editing.male)} onChange={(e) => setEditing({ ...editing, male: Number(e.target.value) || 0 })} />
-              <Input label="Female" type="number" value={String(editing.female)} onChange={(e) => setEditing({ ...editing, female: Number(e.target.value) || 0 })} />
-              <Input label="Other" type="number" value={String(editing.other)} onChange={(e) => setEditing({ ...editing, other: Number(e.target.value) || 0 })} />
-            </div>
-            <p className="text-sm font-semibold">Quota seats</p>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-              {QUOTAS.map((q) => (
-                <Input key={q.key} label={q.label} type="number" value={String(editing.quotas[q.key])} onChange={(e) => setEditing({ ...editing, quotas: { ...editing.quotas, [q.key]: Number(e.target.value) || 0 } })} />
-              ))}
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <Input label="Waitlist capacity" type="number" value={String(editing.waitlist)} onChange={(e) => setEditing({ ...editing, waitlist: Number(e.target.value) || 0 })} />
-              <label className="flex items-center gap-2 text-sm mt-6"><input type="checkbox" checked={editing.overAllot} onChange={(e) => setEditing({ ...editing, overAllot: e.target.checked })} /> Allow over-allotment</label>
-              <label className="flex items-center gap-2 text-sm mt-6"><input type="checkbox" checked={editing.frozen} onChange={(e) => setEditing({ ...editing, frozen: e.target.checked })} /> Freeze matrix</label>
-            </div>
-            <p className="text-xs text-gray-500">Quota total {quotaSum(editing)} / {editing.total} · Gender total {genderSum(editing)} / {editing.total} · Remaining {remaining(editing)}</p>
-            <textarea className={inputClass} rows={2} placeholder="Remarks" value={editing.remarks} onChange={(e) => setEditing({ ...editing, remarks: e.target.value })} />
+      <div className="bg-white rounded-xl border overflow-x-auto">
+        <div className="px-4 py-3 border-b font-semibold text-sm">Live Availability Monitor</div>
+        <table className="min-w-full text-sm">
+          <thead className="bg-gray-50 text-xs uppercase text-gray-500">
+            <tr>{['Stream', 'Configured', 'Allotted', 'Accepted', 'Released', 'Available Now', 'Waitlisted', 'Fill %', 'Status'].map((h) => <th key={h} className="px-3 py-2 text-left">{h}</th>)}</tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => {
+              const live = liveFor(r.stream);
+              const available = Math.max(0, r.total - live.allotted + live.released);
+              const fill = r.total ? Math.round((live.allotted / r.total) * 100) : 0;
+              const st = statusOf(fill, available);
+              return (
+                <tr key={r.stream} className="border-t hover:bg-indigo-50 cursor-pointer" onClick={() => setDrawer(drawer === r.stream ? null : r.stream)}>
+                  <td className="px-3 py-2 font-medium text-indigo-700">{r.stream}</td>
+                  <td className="px-3 py-2">{r.total}</td>
+                  <td className="px-3 py-2">{live.allotted}</td>
+                  <td className="px-3 py-2">{live.accepted}</td>
+                  <td className="px-3 py-2">{live.released}</td>
+                  <td className="px-3 py-2 font-semibold text-teal-700">{available}</td>
+                  <td className="px-3 py-2">{live.waitlisted}</td>
+                  <td className="px-3 py-2 w-40">
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-2 bg-gray-100 rounded"><div className={`h-2 rounded ${st.bar}`} style={{ width: `${Math.min(100, fill)}%` }} /></div>
+                      <span className="text-xs">{fill}%</span>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2"><span className={`text-xs px-2 py-0.5 rounded-full ${st.color}`}>{st.label}</span></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        <p className="px-4 py-2 text-xs text-gray-500">Click a stream row to open category breakdown. Green &lt; 75% · Amber 75–99% · Red 100%.</p>
+      </div>
+
+      {drawerRow && (
+        <div className="bg-white rounded-xl border overflow-hidden">
+          <div className="px-4 py-3 border-b flex items-center justify-between">
+            <h2 className="font-semibold text-sm">Category breakdown — {drawerRow.stream}</h2>
+            <button type="button" onClick={() => setDrawer(null)}><X className="w-4 h-4" /></button>
           </div>
-        )}
+          <table className="min-w-full text-sm">
+            <thead className="bg-gray-50 text-xs uppercase text-gray-500">
+              <tr>{['Category', 'Configured', 'Allotted', 'Available', 'Waitlisted'].map((h) => <th key={h} className="px-3 py-2 text-left">{h}</th>)}</tr>
+            </thead>
+            <tbody>
+              {CATS.map((c) => {
+                const configured = drawerRow.cats[c.key];
+                const allotted = liveUsage(drawerRow.stream).byCat(c.label) || Math.round((liveFor(drawerRow.stream).allotted * configured) / Math.max(1, drawerRow.total));
+                const available = Math.max(0, configured - allotted);
+                const wait = Math.round((liveFor(drawerRow.stream).waitlisted * configured) / Math.max(1, drawerRow.total));
+                return (
+                  <tr key={c.key} className="border-t">
+                    <td className="px-3 py-2">{c.label}</td>
+                    <td className="px-3 py-2">{configured}</td>
+                    <td className="px-3 py-2">{allotted}</td>
+                    <td className="px-3 py-2">{available}</td>
+                    <td className="px-3 py-2">{wait}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-2">
+        {!editing && <Button onClick={() => setEditing(true)}><Pencil className="w-4 h-4 mr-1" /> Edit Matrix</Button>}
+        {editing && <Button onClick={trySave}><Save className="w-4 h-4 mr-1" /> Save Changes</Button>}
+        {editing && <Button variant="outline" onClick={discard}><RotateCcw className="w-4 h-4 mr-1" /> Discard Changes</Button>}
+        <Button variant="outline" onClick={() => {
+          downloadCsv([
+            ['Stream', ...CATS.map((c) => c.label), 'Total', 'Allotted', 'Accepted', 'Released', 'Available', 'Waitlisted', 'Fill %'],
+            ...rows.map((r) => {
+              const live = liveFor(r.stream);
+              const available = Math.max(0, r.total - live.allotted + live.released);
+              const fill = r.total ? Math.round((live.allotted / r.total) * 100) : 0;
+              return [r.stream, ...CATS.map((c) => r.cats[c.key]), r.total, live.allotted, live.accepted, live.released, available, live.waitlisted, fill];
+            })
+          ], `seat-matrix-${year}.csv`);
+          setNotice('Seat matrix exported.');
+        }}><Download className="w-4 h-4 mr-1" /> Export to Excel</Button>
+        <Button variant="outline" onClick={() => window.print()}><Printer className="w-4 h-4 mr-1" /> Print</Button>
+      </div>
+
+      <Modal isOpen={confirmSave} onClose={() => setConfirmSave(false)} title="Confirm seat reduction" footer={
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => setConfirmSave(false)}>Cancel</Button>
+          <Button onClick={commitSave}>Save anyway</Button>
+        </div>
+      }>
+        <p className="text-sm text-gray-700">You are reducing seats below the previous configured total. Confirm only if this matches current fill.</p>
       </Modal>
     </div>
   );

@@ -380,9 +380,12 @@ export function TimetableSetup() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Timetable Setup</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Configure period master, working days, subject allocations and
-            auto-generate timetables
+            Configure both student and teacher timetables — period master, working days, allocations and auto-generate
           </p>
+          <div className="mt-3 flex gap-2">
+            <button type="button" onClick={() => setTtAudience('student')} className={`px-4 py-2 rounded-lg text-sm font-medium ${ttAudience === 'student' ? 'bg-indigo-600 text-white' : 'bg-white border text-gray-700'}`}>Student Timetable</button>
+            <button type="button" onClick={() => setTtAudience('teacher')} className={`px-4 py-2 rounded-lg text-sm font-medium ${ttAudience === 'teacher' ? 'bg-indigo-600 text-white' : 'bg-white border text-gray-700'}`}>Teacher Timetable</button>
+          </div>
         </div>
         <div className="flex gap-2 flex-wrap">
           <Button

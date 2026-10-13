@@ -125,7 +125,7 @@ export function Sidebar({
           </div> :
 
         // Regular Module View
-        sections.map((section, idx) => {
+        sections.filter((section) => !section.hidden).map((section, idx) => {
           const isCollapsed = collapsedSections[section.title];
           return (
             <div key={idx} className="mb-6">

@@ -467,27 +467,27 @@ export function LeaveEntryBulk({ lockedMode }: { lockedMode?: 'bulk' | 'single' 
       }
 
       {mode === 'bulk' &&
-      <>
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center"><Users className="w-5 h-5 text-blue-600" /></div>
                 <div><p className="text-xs text-gray-500">Total Employees</p><p className="text-2xl font-bold text-blue-600">{ALL_EMPLOYEES.length}</p></div>
               </div>
             </div>
-            <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-teal-100 rounded-lg flex items-center justify-center"><UserPlus className="w-5 h-5 text-teal-600" /></div>
                 <div><p className="text-xs text-gray-500">Selected</p><p className="text-2xl font-bold text-teal-600">{selectedIds.length}</p></div>
               </div>
             </div>
-            <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center"><Calendar className="w-5 h-5 text-orange-600" /></div>
                 <div><p className="text-xs text-gray-500">Working Days (per employee)</p><p className="text-2xl font-bold text-orange-600">{leaveDays}</p></div>
               </div>
             </div>
-            <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center"><Clock className="w-5 h-5 text-purple-600" /></div>
                 <div><p className="text-xs text-gray-500">Total Leave Days</p><p className="text-2xl font-bold text-purple-600">{totalLeaveDays}</p></div>
@@ -501,9 +501,9 @@ export function LeaveEntryBulk({ lockedMode }: { lockedMode?: 'bulk' | 'single' 
             </div>
           }
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-              <div className="px-6 py-4 border-b border-gray-100"><h3 className="font-semibold text-gray-900">Leave Details</h3></div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-2 border-t border-gray-100">
+            <div>
+              <div className="px-1 py-2 border-b border-gray-100"><h3 className="font-semibold text-gray-900">Leave Details</h3></div>
               <div className="p-6 space-y-4">
                 <Select
                   label="Leave Type *"
@@ -555,7 +555,7 @@ export function LeaveEntryBulk({ lockedMode }: { lockedMode?: 'bulk' | 'single' 
               </div>
             </div>
 
-            <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div className="lg:col-span-2">
               <div className="px-6 py-4 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
                 <h3 className="font-semibold text-gray-900">Select Employees</h3>
                 <div className="flex flex-wrap gap-2">
@@ -630,12 +630,11 @@ export function LeaveEntryBulk({ lockedMode }: { lockedMode?: 'bulk' | 'single' 
               </div>
             </div>
           </div>
-        </>
+        </div>
       }
 
       {mode === 'single' &&
-      <div className="space-y-6">
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
             <div className="px-6 py-4 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
               <div>
                 <h3 className="font-semibold text-gray-900">Leave History</h3>

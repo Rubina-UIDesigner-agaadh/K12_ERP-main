@@ -1,201 +1,230 @@
-import React, { useState } from 'react';
-import { Plus, Edit, Trash2, Save, Search, Briefcase, XCircle } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Plus, Trash2, Save, GripVertical, FileText, UserPlus } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
-import { Card } from '../../../components/ui/Card';
-import { Input } from '../../../components/ui/Input';
-import { Select } from '../../../components/ui/Select';
 import { Badge } from '../../../components/ui/Badge';
-import { Textarea } from '../../../components/ui/Textarea';
 
-interface VacancyFormTemplate {
+type FieldType = 'text' | 'textarea' | 'number' | 'date' | 'select' | 'file' | 'checkbox' | 'email' | 'tel';
+
+interface FormField {
   id: string;
-  code: string;
-  position: string;
-  department: string;
-  employmentType: string;
-  minQualification: string;
-  minExperience: number;
-  sanctionedPosts: number;
-  defaultPriority: 'High' | 'Medium' | 'Low';
-  requiredFields: string[];
-  justificationHint: string;
-  status: 'Active' | 'Inactive';
+  label: string;
+  type: FieldType;
+  required: boolean;
+  placeholder?: string;
+  options?: string;
 }
 
-const FIELD_OPTIONS = [
-  'Justification',
-  'Reporting Manager',
-  'Salary Range',
-  'Subject / Specialization',
-  'Preferred Gender',
-  'Joining Timeline',
-  'Replacement For',
-  'Budget Code'
+interface FormBlueprint {
+  requisition: FormField[];
+  applicant: FormField[];
+}
+
+const STORE_KEY = 'k12-vacancy-form-builder-v1';
+
+const TYPE_OPTIONS: { value: FieldType; label: string }[] = [
+  { value: 'text', label: 'Text' },
+  { value: 'textarea', label: 'Long text' },
+  { value: 'number', label: 'Number' },
+  { value: 'date', label: 'Date' },
+  { value: 'email', label: 'Email' },
+  { value: 'tel', label: 'Phone' },
+  { value: 'select', label: 'Dropdown' },
+  { value: 'file', label: 'File upload' },
+  { value: 'checkbox', label: 'Checkbox' }
 ];
 
-const SEED: VacancyFormTemplate[] = [
-  { id: 'VRM001', code: 'TCH', position: 'Teacher', department: 'Academics', employmentType: 'Permanent', minQualification: 'M.A / M.Sc + B.Ed', minExperience: 2, sanctionedPosts: 12, defaultPriority: 'High', requiredFields: ['Justification', 'Subject / Specialization', 'Reporting Manager'], justificationHint: 'Mention class load and subject gap.', status: 'Active' },
-  { id: 'VRM002', code: 'HOD', position: 'Head of Department', department: 'Academics', employmentType: 'Permanent', minQualification: 'Post Graduate + 8 yrs', minExperience: 8, sanctionedPosts: 6, defaultPriority: 'High', requiredFields: ['Justification', 'Salary Range', 'Reporting Manager'], justificationHint: 'Link to department vacancy and succession.', status: 'Active' },
-  { id: 'VRM003', code: 'ADM', position: 'Admin Officer', department: 'Administration', employmentType: 'Permanent', minQualification: 'Graduate', minExperience: 3, sanctionedPosts: 4, defaultPriority: 'Medium', requiredFields: ['Justification', 'Budget Code'], justificationHint: 'State process / compliance need.', status: 'Active' },
-  { id: 'VRM004', code: 'CON', position: 'Counselor', department: 'Student Support', employmentType: 'Contract', minQualification: 'M.A Psychology', minExperience: 2, sanctionedPosts: 2, defaultPriority: 'Low', requiredFields: ['Justification', 'Joining Timeline'], justificationHint: 'Describe student ratio and caseload.', status: 'Inactive' }
-];
+const SEED: FormBlueprint = {
+  requisition: [
+    { id: 'r1', label: 'Position Title', type: 'text', required: true, placeholder: 'e.g. Mathematics Teacher' },
+    { id: 'r2', label: 'Department', type: 'select', required: true, options: 'Academics,Administration,Sports,Student Support' },
+    { id: 'r3', label: 'Employment Type', type: 'select', required: true, options: 'Permanent,Contract,Part-time' },
+    { id: 'r4', label: 'No. of Vacancies', type: 'number', required: true },
+    { id: 'r5', label: 'Min. Qualification', type: 'text', required: true, placeholder: 'M.A / M.Sc + B.Ed' },
+    { id: 'r6', label: 'Min. Experience (years)', type: 'number', required: false },
+    { id: 'r7', label: 'Reporting Manager', type: 'text', required: true },
+    { id: 'r8', label: 'Salary Range', type: 'text', required: false, placeholder: '₹50,000 – ₹75,000' },
+    { id: 'r9', label: 'Subject / Specialization', type: 'text', required: true },
+    { id: 'r10', label: 'Joining Timeline', type: 'date', required: false },
+    { id: 'r11', label: 'Justification', type: 'textarea', required: true, placeholder: 'Why is this vacancy needed?' }
+  ],
+  applicant: [
+    { id: 'a1', label: 'Full Name', type: 'text', required: true },
+    { id: 'a2', label: 'Email', type: 'email', required: true },
+    { id: 'a3', label: 'Phone', type: 'tel', required: true },
+    { id: 'a4', label: 'Highest Qualification', type: 'text', required: true },
+    { id: 'a5', label: 'Years of Experience', type: 'number', required: true },
+    { id: 'a6', label: 'Subject Specialization', type: 'text', required: true },
+    { id: 'a7', label: 'Current Employer', type: 'text', required: false },
+    { id: 'a8', label: 'Expected Salary', type: 'text', required: false },
+    { id: 'a9', label: 'Notice Period', type: 'text', required: false },
+    { id: 'a10', label: 'Resume / CV', type: 'file', required: true },
+    { id: 'a11', label: 'Cover Letter', type: 'textarea', required: false },
+    { id: 'a12', label: 'Willing to relocate', type: 'checkbox', required: false }
+  ]
+};
 
-const emptyForm = (): Omit<VacancyFormTemplate, 'id'> => ({
-  code: '',
-  position: '',
-  department: '',
-  employmentType: 'Permanent',
-  minQualification: '',
-  minExperience: 0,
-  sanctionedPosts: 1,
-  defaultPriority: 'Medium',
-  requiredFields: ['Justification'],
-  justificationHint: '',
-  status: 'Active'
+const emptyField = (prefix: string): FormField => ({
+  id: `${prefix}-${Date.now()}`,
+  label: '',
+  type: 'text',
+  required: false,
+  placeholder: '',
+  options: ''
 });
 
+const loadBlueprint = (): FormBlueprint => {
+  try {
+    const raw = window.localStorage.getItem(STORE_KEY);
+    if (!raw) return SEED;
+    const parsed = JSON.parse(raw) as FormBlueprint;
+    if (!parsed.requisition?.length || !parsed.applicant?.length) return SEED;
+    return parsed;
+  } catch {
+    return SEED;
+  }
+};
+
 export function VacancyRequisitionMaster() {
-  const [rows, setRows] = useState<VacancyFormTemplate[]>(SEED);
-  const [search, setSearch] = useState('');
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState(emptyForm());
+  const [tab, setTab] = useState<'requisition' | 'applicant'>('requisition');
+  const [forms, setForms] = useState<FormBlueprint>(SEED);
   const [notice, setNotice] = useState<string | null>(null);
+  const [newLabel, setNewLabel] = useState('');
+  const [newType, setNewType] = useState<FieldType>('text');
 
-  const filtered = rows.filter((row) =>
-    `${row.code} ${row.position} ${row.department}`.toLowerCase().includes(search.trim().toLowerCase())
-  );
+  useEffect(() => {
+    setForms(loadBlueprint());
+  }, []);
 
-  const toggleField = (field: string) => {
-    setForm((prev) => ({
+  const fields = forms[tab];
+
+  const updateField = (id: string, patch: Partial<FormField>) => {
+    setForms((prev) => ({
       ...prev,
-      requiredFields: prev.requiredFields.includes(field)
-        ? prev.requiredFields.filter((item) => item !== field)
-        : [...prev.requiredFields, field]
+      [tab]: prev[tab].map((field) => (field.id === id ? { ...field, ...patch } : field))
     }));
   };
 
-  const startCreate = () => {
-    setEditingId('new');
-    setForm(emptyForm());
+  const removeField = (id: string) => {
+    setForms((prev) => ({
+      ...prev,
+      [tab]: prev[tab].filter((field) => field.id !== id)
+    }));
   };
 
-  const startEdit = (row: VacancyFormTemplate) => {
-    setEditingId(row.id);
-    const { id: _id, ...rest } = row;
-    setForm(rest);
+  const addField = () => {
+    const label = newLabel.trim() || 'New field';
+    const field = { ...emptyField(tab === 'requisition' ? 'r' : 'a'), label, type: newType };
+    setForms((prev) => ({ ...prev, [tab]: [...prev[tab], field] }));
+    setNewLabel('');
+    setNotice(`Added “${label}” to the ${tab} form.`);
   };
 
   const save = () => {
-    if (!form.code.trim() || !form.position.trim() || !form.department.trim()) {
-      setNotice('Code, position and department are required.');
+    const missing = [...forms.requisition, ...forms.applicant].some((field) => !field.label.trim());
+    if (missing) {
+      setNotice('Every field needs a label before saving.');
       return;
     }
-    if (editingId === 'new') {
-      const id = `VRM${String(rows.length + 1).padStart(3, '0')}`;
-      setRows((prev) => [{ id, ...form }, ...prev]);
-      setNotice(`Vacancy form template ${form.position} created.`);
-    } else if (editingId) {
-      setRows((prev) => prev.map((row) => (row.id === editingId ? { ...row, ...form } : row)));
-      setNotice(`Vacancy form template ${form.position} updated.`);
-    }
-    setEditingId(null);
-  };
-
-  const remove = (id: string) => {
-    setRows((prev) => prev.filter((row) => row.id !== id));
-    if (editingId === id) setEditingId(null);
-    setNotice('Template removed.');
+    window.localStorage.setItem(STORE_KEY, JSON.stringify(forms));
+    setNotice('Requisition and applicant forms saved. These fields appear when raising a vacancy or when an applicant applies.');
   };
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+    <div className="space-y-6 p-6 bg-gray-50 min-h-full">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Vacancy / Requisition Master</h1>
-          <p className="text-sm text-gray-500">Configure the vacancy form used when raising a manpower requisition</p>
+          <p className="text-xs text-gray-500">Home → HR → Master → Vacancy / Requisition Master</p>
+          <h1 className="text-2xl font-bold text-gray-900 mt-1">Vacancy / Requisition Master</h1>
+          <p className="text-sm text-gray-500">Edit the requisition form and the applicant filling form — add or remove any field</p>
         </div>
-        <Button onClick={startCreate}><Plus className="w-4 h-4 mr-2" /> New Template</Button>
+        <Button onClick={save}><Save className="w-4 h-4 mr-2" /> Save forms</Button>
       </div>
 
       {notice && (
-        <div className="flex items-center justify-between rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+        <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-800 flex justify-between">
           <span>{notice}</span>
-          <button type="button" onClick={() => setNotice(null)}><XCircle className="w-4 h-4" /></button>
+          <button type="button" onClick={() => setNotice(null)}>×</button>
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-gray-100 flex items-center gap-3">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search position, code or department..." className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm" />
+      <div className="flex gap-2">
+        <button type="button" onClick={() => setTab('requisition')} className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${tab === 'requisition' ? 'bg-indigo-600 text-white' : 'bg-white border text-gray-700'}`}>
+          <FileText className="w-4 h-4" /> Requisition form
+        </button>
+        <button type="button" onClick={() => setTab('applicant')} className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${tab === 'applicant' ? 'bg-indigo-600 text-white' : 'bg-white border text-gray-700'}`}>
+          <UserPlus className="w-4 h-4" /> Applicant filling form
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold text-gray-900">{tab === 'requisition' ? 'Requisition form fields' : 'Applicant filling form fields'}</h2>
+            <Badge variant="info">{fields.length} fields</Badge>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <input value={newLabel} onChange={(e) => setNewLabel(e.target.value)} placeholder="New field label" className="flex-1 min-w-40 px-3 py-2 border rounded-lg text-sm" />
+            <select value={newType} onChange={(e) => setNewType(e.target.value as FieldType)} className="px-3 py-2 border rounded-lg text-sm">
+              {TYPE_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+            </select>
+            <Button onClick={addField}><Plus className="w-4 h-4 mr-1" /> Add field</Button>
+          </div>
+
+          <div className="space-y-3">
+            {fields.map((field) => (
+              <div key={field.id} className="border rounded-lg p-3 bg-gray-50 space-y-2">
+                <div className="flex items-center gap-2">
+                  <GripVertical className="w-4 h-4 text-gray-400 shrink-0" />
+                  <input value={field.label} onChange={(e) => updateField(field.id, { label: e.target.value })} className="flex-1 px-3 py-1.5 border rounded-lg text-sm bg-white" placeholder="Field label" />
+                  <select value={field.type} onChange={(e) => updateField(field.id, { type: e.target.value as FieldType })} className="px-2 py-1.5 border rounded-lg text-sm bg-white">
+                    {TYPE_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                  </select>
+                  <label className="text-xs flex items-center gap-1 whitespace-nowrap">
+                    <input type="checkbox" checked={field.required} onChange={(e) => updateField(field.id, { required: e.target.checked })} />
+                    Required
+                  </label>
+                  <button type="button" className="text-red-600 p-1" onClick={() => removeField(field.id)} title="Remove field">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+                {field.type !== 'checkbox' && field.type !== 'file' && field.type !== 'select' && (
+                  <input value={field.placeholder || ''} onChange={(e) => updateField(field.id, { placeholder: e.target.value })} className="w-full px-3 py-1.5 border rounded-lg text-xs" placeholder="Placeholder text (optional)" />
+                )}
+                {field.type === 'select' && (
+                  <input value={field.options || ''} onChange={(e) => updateField(field.id, { options: e.target.value })} className="w-full px-3 py-1.5 border rounded-lg text-xs" placeholder="Dropdown options, comma separated" />
+                )}
+              </div>
+            ))}
+            {fields.length === 0 && <p className="text-sm text-gray-400 text-center py-6">No fields. Add one above.</p>}
           </div>
         </div>
 
-        {editingId && (
-          <div className="p-5 border-b border-gray-100 bg-slate-50 space-y-4">
-            <h3 className="font-semibold text-gray-900 flex items-center gap-2"><Briefcase className="w-4 h-4 text-indigo-600" /> {editingId === 'new' ? 'Create vacancy form' : 'Update vacancy form'}</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Input label="Code *" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })} />
-              <Input label="Position *" value={form.position} onChange={(e) => setForm({ ...form, position: e.target.value })} />
-              <Input label="Department *" value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} />
-              <Select label="Employment Type" value={form.employmentType} onChange={(val) => setForm({ ...form, employmentType: val })} options={[{ value: 'Permanent', label: 'Permanent' }, { value: 'Contract', label: 'Contract' }, { value: 'Part-time', label: 'Part-time' }]} />
-              <Input label="Min. Qualification" value={form.minQualification} onChange={(e) => setForm({ ...form, minQualification: e.target.value })} />
-              <Input label="Min. Experience (years)" type="number" value={form.minExperience} onChange={(e) => setForm({ ...form, minExperience: Number(e.target.value) || 0 })} />
-              <Input label="Sanctioned Posts" type="number" value={form.sanctionedPosts} onChange={(e) => setForm({ ...form, sanctionedPosts: Number(e.target.value) || 0 })} />
-              <Select label="Default Priority" value={form.defaultPriority} onChange={(val) => setForm({ ...form, defaultPriority: val as VacancyFormTemplate['defaultPriority'] })} options={[{ value: 'High', label: 'High' }, { value: 'Medium', label: 'Medium' }, { value: 'Low', label: 'Low' }]} />
-              <Select label="Status" value={form.status} onChange={(val) => setForm({ ...form, status: val as 'Active' | 'Inactive' })} options={[{ value: 'Active', label: 'Active' }, { value: 'Inactive', label: 'Inactive' }]} />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-700 mb-2">Required fields on vacancy form</p>
-              <div className="flex flex-wrap gap-2">
-                {FIELD_OPTIONS.map((field) => (
-                  <label key={field} className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm cursor-pointer ${form.requiredFields.includes(field) ? 'bg-indigo-50 border-indigo-300 text-indigo-800' : 'bg-white border-gray-200 text-gray-600'}`}>
-                    <input type="checkbox" checked={form.requiredFields.includes(field)} onChange={() => toggleField(field)} className="h-3.5 w-3.5" />
-                    {field}
-                  </label>
-                ))}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+          <h2 className="font-semibold text-gray-900 mb-1">Live preview</h2>
+          <p className="text-xs text-gray-500 mb-4">How the {tab === 'requisition' ? 'manpower requisition' : 'applicant'} form looks after your edits</p>
+          <div className="space-y-3">
+            {fields.map((field) => (
+              <div key={field.id}>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {field.label || 'Untitled'} {field.required && <span className="text-red-500">*</span>}
+                </label>
+                {field.type === 'textarea' && <textarea rows={2} disabled placeholder={field.placeholder} className="w-full px-3 py-2 border rounded-lg text-sm bg-gray-50" />}
+                {field.type === 'select' && (
+                  <select disabled className="w-full px-3 py-2 border rounded-lg text-sm bg-gray-50">
+                    <option>Select…</option>
+                    {(field.options || '').split(',').filter(Boolean).map((opt) => <option key={opt}>{opt.trim()}</option>)}
+                  </select>
+                )}
+                {field.type === 'checkbox' && <input type="checkbox" disabled className="h-4 w-4" />}
+                {field.type === 'file' && <input type="file" disabled className="w-full text-sm" />}
+                {field.type !== 'textarea' && field.type !== 'select' && field.type !== 'checkbox' && field.type !== 'file' && (
+                  <input type={field.type} disabled placeholder={field.placeholder} className="w-full px-3 py-2 border rounded-lg text-sm bg-gray-50" />
+                )}
               </div>
-            </div>
-            <Textarea label="Justification hint shown on the form" rows={2} value={form.justificationHint} onChange={(e) => setForm({ ...form, justificationHint: e.target.value })} />
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setEditingId(null)}>Cancel</Button>
-              <Button onClick={save}><Save className="w-4 h-4 mr-2" /> Save Template</Button>
-            </div>
-          </div>
-        )}
-
-        <table className="min-w-full divide-y divide-gray-200 text-sm">
-          <thead className="bg-gray-50">
-            <tr>
-              {['Code', 'Position', 'Department', 'Type', 'Qualification', 'Exp.', 'Posts', 'Fields', 'Status', 'Actions'].map((h) =>
-                <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">{h}</th>
-              )}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {filtered.map((row) => (
-              <tr key={row.id} className="hover:bg-gray-50">
-                <td className="px-4 py-3 font-mono text-xs">{row.code}</td>
-                <td className="px-4 py-3 font-medium text-gray-900">{row.position}</td>
-                <td className="px-4 py-3 text-gray-600">{row.department}</td>
-                <td className="px-4 py-3">{row.employmentType}</td>
-                <td className="px-4 py-3 text-gray-600">{row.minQualification}</td>
-                <td className="px-4 py-3">{row.minExperience}y</td>
-                <td className="px-4 py-3">{row.sanctionedPosts}</td>
-                <td className="px-4 py-3 text-xs text-gray-500">{row.requiredFields.length} required</td>
-                <td className="px-4 py-3"><Badge variant={row.status === 'Active' ? 'success' : 'default'}>{row.status}</Badge></td>
-                <td className="px-4 py-3">
-                  <div className="flex gap-1">
-                    <Button variant="ghost" size="sm" onClick={() => startEdit(row)}><Edit className="w-4 h-4" /></Button>
-                    <Button variant="ghost" size="sm" className="text-red-600" onClick={() => remove(row.id)}><Trash2 className="w-4 h-4" /></Button>
-                  </div>
-                </td>
-              </tr>
             ))}
-          </tbody>
-        </table>
-        {filtered.length === 0 && <p className="p-8 text-center text-sm text-gray-500">No templates match the search.</p>}
+          </div>
+        </div>
       </div>
     </div>
   );
