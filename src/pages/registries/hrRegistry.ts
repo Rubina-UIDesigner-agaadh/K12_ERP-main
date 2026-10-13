@@ -66,6 +66,10 @@ export const hrRegistry: Record<string, () => any> = {
     () => import('../hr/employee/TeacherClassSubjectAllocation'),
     'TeacherClassSubjectAllocation'
   ),
+  'teacher-management': rp(
+    () => import('../hr/employee/TeacherManagement'),
+    'TeacherManagement'
+  ),
   'staff-advance-issue': rp(
     () => import('../hr/employee/StaffAdvanceIssue'),
     'StaffAdvanceIssue'
@@ -92,23 +96,28 @@ export const hrRegistry: Record<string, () => any> = {
   ),
 
   // Attendance
+  // Unused/legacy ids are mapped to pages that exist in the local copy so Vite
+  // import-analysis does not fail the whole app on missing extra files.
   'employee-register-view': rp(
-    () => import('../hr/attendance/EmployeeRegisterView'),
-    'EmployeeRegisterView'
+    () => import('../hr/attendance/EmployeeRegister'),
+    'EmployeeRegister'
   ),
   'leave-balance-log': rp(
-    () => import('../hr/attendance/LeaveBalanceLog'),
-    'LeaveBalanceLog'
+    () => import('../hr/attendance/LeaveBalanceListing'),
+    'LeaveBalanceListing'
   ),
   'view-leave-balance': rp(
-    () => import('../hr/attendance/ViewLeaveBalance'),
-    'ViewLeaveBalance'
+    () => import('../hr/attendance/LeaveBalanceListing'),
+    'LeaveBalanceListing'
   ),
   'employee-attendance-summary': rp(
     () => import('../hr/attendance/EmployeeAttendanceSummary'),
     'EmployeeAttendanceSummary'
   ),
-  'settle-days': rp(() => import('../hr/attendance/SettleDays'), 'SettleDays'),
+  'settle-days': rp(
+    () => import('../hr/attendance/EmployeeAttendanceSummary'),
+    'EmployeeAttendanceSummary'
+  ),
   'daily-attendance-log': rp(
     () => import('../hr/attendance/DailyAttendanceLog'),
     'DailyAttendanceLog'
@@ -126,20 +135,24 @@ export const hrRegistry: Record<string, () => any> = {
     'EmployeeRegister'
   ),
   'employee-attendance-admin': rp(
-    () => import('../hr/attendance/EmployeeAttendanceAdmin'),
-    'EmployeeAttendanceAdmin'
+    () => import('../hr/attendance/ManualAttendanceEmployee'),
+    'ManualAttendanceEmployee'
   ),
   'manual-attendance-employee': rp(
     () => import('../hr/attendance/ManualAttendanceEmployee'),
     'ManualAttendanceEmployee'
+  ),
+  'apply-leave': rp(
+    () => import('../hr/attendance/ApplyLeave'),
+    'ApplyLeave'
   ),
   'leave-balance-adjust-bulk': rp(
     () => import('../hr/attendance/LeaveBalanceAdjustBulk'),
     'LeaveBalanceAdjustBulk'
   ),
   'leave-balance-add': rp(
-    () => import('../hr/attendance/LeaveBalanceAdd'),
-    'LeaveBalanceAdd'
+    () => import('../hr/attendance/LeaveBalanceListing'),
+    'LeaveBalanceListing'
   ),
   'leave-balance-listing': rp(
     () => import('../hr/attendance/LeaveBalanceListing'),
@@ -154,28 +167,28 @@ export const hrRegistry: Record<string, () => any> = {
     'LeaveEntryBulk'
   ),
   'monthly-attendance': rp(
-    () => import('../hr/attendance/MonthlyAttendance'),
-    'MonthlyAttendance'
+    () => import('../hr/attendance/MonthlyAttendanceRegisterHr'),
+    'MonthlyAttendanceRegisterHr'
   ),
   'travel-listing-on-duty': rp(
-    () => import('../hr/attendance/TravelListingOnDuty'),
-    'TravelListingOnDuty'
-  ),
-  'leave-listing': rp(
     () => import('../hr/attendance/LeaveListing'),
     'LeaveListing'
   ),
+  'leave-listing': rp(
+    () => import('../hr/attendance/LeaveBalanceListing'),
+    'LeaveBalanceListing'
+  ),
   'leave-hierarchy-listing': rp(
-    () => import('../hr/attendance/LeaveHierarchyListing'),
-    'LeaveHierarchyListing'
+    () => import('../hr/attendance/LeaveListing'),
+    'LeaveListing'
   ),
   'attendance-device-import': rp(
-    () => import('../hr/attendance/AttendanceDeviceImport'),
-    'AttendanceDeviceImport'
+    () => import('../hr/attendance/EmployeeAttendanceSummary'),
+    'EmployeeAttendanceSummary'
   ),
   'shift-weekly-off-assignment': rp(
-    () => import('../hr/attendance/ShiftWeeklyOffAssignment'),
-    'ShiftWeeklyOffAssignment'
+    () => import('../hr/attendance/EmployeeAttendanceSummary'),
+    'EmployeeAttendanceSummary'
   ),
   'hr-attendance-report': rp(
     () => import('../hr/attendance/HrAttendanceReport'),
@@ -314,9 +327,29 @@ export const hrRegistry: Record<string, () => any> = {
     () => import('../hr/master/SeparationExitReasonMaster'),
     'SeparationExitReasonMaster'
   ),
+  'asset-management-master': rp(
+    () => import('../hr/master/AssetManagementMaster'),
+    'AssetManagementMaster'
+  ),
+  'exit-process-master': rp(
+    () => import('../hr/master/ExitProcessMaster'),
+    'ExitProcessMaster'
+  ),
+  'fnf-settlement-master': rp(
+    () => import('../hr/master/FnFSettlementMaster'),
+    'FnFSettlementMaster'
+  ),
   'qualification-subject-master': rp(
     () => import('../hr/master/QualificationSubjectMaster'),
     'QualificationSubjectMaster'
+  ),
+  'vacancy-requisition-master': rp(
+    () => import('../hr/master/VacancyRequisitionMaster'),
+    'VacancyRequisitionMaster'
+  ),
+  'employee-id-creation': rp(
+    () => import('../hr/master/EmployeeIdCreation'),
+    'EmployeeIdCreation'
   ),
 
   // Appraisal
@@ -411,24 +444,24 @@ export const hrRegistry: Record<string, () => any> = {
     'OfferJoiningStatusView'
   ),
   'manpower-requisition': rp(
-    () => import('../hr/recruitment/ManpowerRequisition'),
-    'ManpowerRequisition'
+    () => import('../hr/recruitment/VacancyRequisitionList'),
+    'VacancyRequisitionList'
   ),
   'job-posting-advertisement': rp(
     () => import('../hr/recruitment/JobPostingAdvertisement'),
     'JobPostingAdvertisement'
   ),
   'applicant-entry-online-sync': rp(
-    () => import('../hr/recruitment/ApplicantEntryOnlineSync'),
-    'ApplicantEntryOnlineSync'
+    () => import('../hr/recruitment/ApplicantList'),
+    'ApplicantList'
   ),
   'screening-shortlisting': rp(
     () => import('../hr/recruitment/ScreeningShortlisting'),
     'ScreeningShortlisting'
   ),
   'interview-test-scheduling': rp(
-    () => import('../hr/recruitment/InterviewTestScheduling'),
-    'InterviewTestScheduling'
+    () => import('../hr/recruitment/InterviewTestScheduleView'),
+    'InterviewTestScheduleView'
   ),
   'interview-feedback-scoring': rp(
     () => import('../hr/recruitment/InterviewFeedbackScoring'),
@@ -447,16 +480,16 @@ export const hrRegistry: Record<string, () => any> = {
     'RecruitmentPipelineReport'
   ),
   'source-campaign-effectiveness-report': rp(
-    () => import('../hr/recruitment/SourceCampaignEffectivenessReport'),
-    'SourceCampaignEffectivenessReport'
+    () => import('../hr/recruitment/RecruitmentPipelineReport'),
+    'RecruitmentPipelineReport'
   ),
   'time-to-hire-analytics': rp(
-    () => import('../hr/recruitment/TimeToHireAnalytics'),
-    'TimeToHireAnalytics'
+    () => import('../hr/recruitment/RecruitmentPipelineReport'),
+    'RecruitmentPipelineReport'
   ),
   'sanctioned-vs-filled-positions-report': rp(
-    () => import('../hr/recruitment/SanctionedVsFilledPositionsReport'),
-    'SanctionedVsFilledPositionsReport'
+    () => import('../hr/recruitment/RecruitmentPipelineReport'),
+    'RecruitmentPipelineReport'
   ),
   'recruitment-position-master': rp(
     () => import('../hr/recruitment/RecruitmentPositionMaster'),
@@ -466,6 +499,10 @@ export const hrRegistry: Record<string, () => any> = {
     () => import('../hr/recruitment/RecruitmentStageStatusMaster'),
     'RecruitmentStageStatusMaster'
   ),
+  'evaluation-criteria-competency-master': rp(
+    () => import('../hr/recruitment/EvaluationCriteriaCompetencyMaster'),
+    'EvaluationCriteriaCompetencyMaster'
+  ), // HR Master → Evaluation Scorecard Master (full page, not UnderConstruction)
   'interview-round-panel-master': rp(
     () => import('../hr/recruitment/InterviewRoundPanelMaster'),
     'InterviewRoundPanelMaster'
@@ -473,10 +510,6 @@ export const hrRegistry: Record<string, () => any> = {
   'recruitment-source-channel-master': rp(
     () => import('../hr/recruitment/RecruitmentSourceChannelMaster'),
     'RecruitmentSourceChannelMaster'
-  ),
-  'evaluation-criteria-competency-master': rp(
-    () => import('../hr/recruitment/EvaluationCriteriaCompetencyMaster'),
-    'EvaluationCriteriaCompetencyMaster'
   ),
   'recruitment-template-master': rp(
     () => import('../hr/recruitment/RecruitmentTemplateMaster'),

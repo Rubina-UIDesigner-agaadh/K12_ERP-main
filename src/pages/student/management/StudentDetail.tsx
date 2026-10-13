@@ -192,8 +192,13 @@ const Modal = ({ open, onClose, title, children }: {open: boolean;onClose: () =>
 // ============================================================================
 // HEADER & SIDEBAR
 // ============================================================================
-const Header = ({ student, onChangeClass, onChangeDivision, onEdit }: {student: typeof STUDENT_DATA;onChangeClass: () => void;onChangeDivision: () => void;onEdit: () => void;}) =>
+const Header = ({ student, onChangeClass, onChangeDivision, onEdit, onBack }: {student: typeof STUDENT_DATA;onChangeClass: () => void;onChangeDivision: () => void;onEdit: () => void;onBack?: () => void;}) =>
 <div className="px-8 py-6 shadow-xl" style={{ backgroundColor: PRIMARY }}>
+    {onBack && (
+      <button type="button" onClick={onBack} className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-white/90 hover:text-white">
+        ← Back to student list
+      </button>
+    )}
     <div className="flex items-center gap-8">
       <div className="flex items-center gap-5">
         <div className="relative group">
@@ -540,10 +545,10 @@ const Overview = ({ s }: {s: typeof STUDENT_DATA;}) =>
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================
-export function StudentDetail() {
+export function StudentDetail({ onBack, overlayName }: { onBack?: () => void; overlayName?: string } = {}) {
   const { id } = useParams();
   const [active, setActive] = useState('overview');
-  const [student, setStudent] = useState(STUDENT_DATA);
+  const [student, setStudent] = useState({ ...STUDENT_DATA, fullName: overlayName || STUDENT_DATA.fullName });
   const [classModal, setClassModal] = useState(false);
   const [divModal, setDivModal] = useState(false);
   const [selClass, setSelClass] = useState(student.class);
@@ -575,7 +580,7 @@ export function StudentDetail() {
 
   return (
     <div className="h-screen flex flex-col bg-slate-50">
-      <Header student={student} onChangeClass={() => {setSelClass(student.class);setClassModal(true);}} onChangeDivision={() => {setSelDiv(student.division);setDivModal(true);}} onEdit={() => {}} />
+      <Header student={student} onBack={onBack} onChangeClass={() => {setSelClass(student.class);setClassModal(true);}} onChangeDivision={() => {setSelDiv(student.division);setDivModal(true);}} onEdit={() => {}} />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar active={active} onChange={setActive} />
         <main className="flex-1 overflow-y-auto p-6">{views[active] || <Overview s={student} />}</main>

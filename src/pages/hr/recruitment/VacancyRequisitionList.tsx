@@ -107,6 +107,10 @@ interface Requisition {
   qualifications?: string;
   experience?: string;
   salaryRange?: string;
+  justification?: string;
+  reportingManager?: string;
+  certifications?: string;
+  academicYear?: string;
   approvedBy?: string;
   approvedDate?: string;
   closedDate?: string;
@@ -128,6 +132,10 @@ interface RequisitionFormData {
   qualifications: string;
   experience: string;
   salaryRange: string;
+  justification: string;
+  reportingManager: string;
+  certifications: string;
+  academicYear: string;
 }
 
 interface Toast {
@@ -165,7 +173,7 @@ const initialRequisitions: Requisition[] = [
   vacancies: 1,
   requestedBy: 'Mrs. Kavita',
   priority: 'High',
-  status: 'Approved',
+  status: 'In Hiring',
   requestedDate: '2024-11-05',
   expectedJoining: '2025-01-20',
   branch: 'main',
@@ -224,7 +232,7 @@ const initialRequisitions: Requisition[] = [
   vacancies: 1,
   requestedBy: 'Mr. Vikram',
   priority: 'High',
-  status: 'Approved',
+  status: 'In Hiring',
   requestedDate: '2024-11-20',
   expectedJoining: '2025-01-10',
   branch: 'south',
@@ -324,7 +332,11 @@ const initialFormData: RequisitionFormData = {
   description: '',
   qualifications: '',
   experience: '',
-  salaryRange: ''
+  salaryRange: '',
+  justification: '',
+  reportingManager: '',
+  certifications: '',
+  academicYear: '2024-2025'
 };
 
 export function VacancyRequisitionList() {
@@ -472,7 +484,7 @@ export function VacancyRequisitionList() {
         vacancies: formData.vacancies,
         requestedBy: formData.requestedBy,
         priority: formData.priority,
-        status: 'Draft',
+        status: 'In Hiring',
         requestedDate: new Date().toISOString().split('T')[0],
         expectedJoining: formData.expectedJoining,
         branch: formData.branch,
@@ -480,7 +492,11 @@ export function VacancyRequisitionList() {
         description: formData.description,
         qualifications: formData.qualifications,
         experience: formData.experience,
-        salaryRange: formData.salaryRange
+        salaryRange: formData.salaryRange,
+        justification: formData.justification,
+        reportingManager: formData.reportingManager,
+        certifications: formData.certifications,
+        academicYear: formData.academicYear
       };
 
       setRequisitions((prev) => [newRequisition, ...prev]);
@@ -522,7 +538,11 @@ export function VacancyRequisitionList() {
         description: formData.description,
         qualifications: formData.qualifications,
         experience: formData.experience,
-        salaryRange: formData.salaryRange
+        salaryRange: formData.salaryRange,
+        justification: formData.justification,
+        reportingManager: formData.reportingManager,
+        certifications: formData.certifications,
+        academicYear: formData.academicYear
       } :
       r
       )
@@ -554,7 +574,7 @@ export function VacancyRequisitionList() {
       r.id === selectedRequisition.id ?
       {
         ...r,
-        status: 'Approved' as ReqStatus,
+        status: 'In Hiring' as ReqStatus,
         approvedBy: 'Current User',
         approvedDate: new Date().toISOString().split('T')[0]
       } :
@@ -740,7 +760,11 @@ export function VacancyRequisitionList() {
       description: requisition.description || '',
       qualifications: requisition.qualifications || '',
       experience: requisition.experience || '',
-      salaryRange: requisition.salaryRange || ''
+      salaryRange: requisition.salaryRange || '',
+      justification: requisition.justification || '',
+      reportingManager: requisition.reportingManager || '',
+      certifications: requisition.certifications || '',
+      academicYear: requisition.academicYear || '2024-2025'
     });
     setShowEditModal(true);
   };
@@ -1044,6 +1068,47 @@ export function VacancyRequisitionList() {
         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
 
       </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Reporting Manager</label>
+          <input
+            type="text"
+            value={formData.reportingManager}
+            onChange={(e) => setFormData((prev) => ({ ...prev, reportingManager: e.target.value }))}
+            placeholder="e.g., HOD / Principal"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Academic Year</label>
+          <select
+            value={formData.academicYear}
+            onChange={(e) => setFormData((prev) => ({ ...prev, academicYear: e.target.value }))}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+            {ACADEMIC_YEARS.map((year) => <option key={year.value} value={year.value}>{year.label}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Certifications</label>
+        <input
+          type="text"
+          value={formData.certifications}
+          onChange={(e) => setFormData((prev) => ({ ...prev, certifications: e.target.value }))}
+          placeholder="e.g., B.Ed, CTET, TET"
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Justification / Reason for Hire</label>
+        <textarea
+          value={formData.justification}
+          onChange={(e) => setFormData((prev) => ({ ...prev, justification: e.target.value }))}
+          rows={3}
+          placeholder="Why this vacancy is required"
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+      </div>
     </div>;
 
 
@@ -1200,7 +1265,7 @@ export function VacancyRequisitionList() {
             </div>
 
             {/* Additional Details */}
-            {(req.description || req.qualifications || req.experience || req.salaryRange) &&
+            {(req.description || req.qualifications || req.experience || req.salaryRange || req.justification || req.reportingManager || req.certifications || req.academicYear) &&
             <div className="pt-4 border-t space-y-3">
                 {req.description &&
               <div>
@@ -1226,6 +1291,30 @@ export function VacancyRequisitionList() {
                     <p className="font-medium">₹{req.salaryRange}</p>
                   </div>
               }
+                {req.reportingManager &&
+              <div>
+                    <p className="text-sm text-gray-500">Reporting Manager</p>
+                    <p className="font-medium">{req.reportingManager}</p>
+                  </div>
+              }
+                {req.academicYear &&
+              <div>
+                    <p className="text-sm text-gray-500">Academic Year</p>
+                    <p className="font-medium">{req.academicYear}</p>
+                  </div>
+              }
+                {req.certifications &&
+              <div>
+                    <p className="text-sm text-gray-500">Certifications</p>
+                    <p className="font-medium">{req.certifications}</p>
+                  </div>
+              }
+                {req.justification &&
+              <div>
+                    <p className="text-sm text-gray-500">Justification</p>
+                    <p className="font-medium">{req.justification}</p>
+                  </div>
+              }
               </div>
             }
           </div>
@@ -1245,15 +1334,6 @@ export function VacancyRequisitionList() {
 
                   <Edit className="w-4 h-4 mr-2" />
                   Edit
-                </Button>
-                <Button
-                onClick={() => {
-                  closeAllModals();
-                  openApproveModal(req);
-                }}>
-
-                  <CheckCircle className="w-4 h-4 mr-2" />
-                  Approve
                 </Button>
               </>
             }
@@ -1537,7 +1617,7 @@ export function VacancyRequisitionList() {
       <CreateModal />
       <ViewModal />
       <EditModal />
-      <ApproveModal />
+
       <CloseModal />
       <DeleteModal />
 
@@ -1814,15 +1894,6 @@ export function VacancyRequisitionList() {
 
                           <Edit className="w-4 h-4" />
                         </button>
-                        {req.status === 'Draft' &&
-                        <button
-                          className="p-1.5 hover:bg-green-50 rounded-lg text-green-600 transition-colors"
-                          title="Approve"
-                          onClick={() => openApproveModal(req)}>
-
-                            <CheckCircle className="w-4 h-4" />
-                          </button>
-                        }
                         {req.status !== 'Closed' &&
                         <button
                           className="p-1.5 hover:bg-red-50 rounded-lg text-red-600 transition-colors"

@@ -109,11 +109,34 @@ interface Applicant {
   interviewType?: string;
   rejectionReason?: string;
   resumeUrl?: string;
+  cvFile?: string;
+  cvSummary?: string;
   skills?: string[];
   expectedSalary?: string;
   noticePeriod?: string;
   stageHistory?: {stage: Stage;date: string;notes?: string;}[];
 }
+
+const DEFAULT_SCREENING_CRITERIA = [
+  { key: 'qualification', label: 'Qualification Match' },
+  { key: 'experience', label: 'Experience Match' },
+  { key: 'subjectKnowledge', label: 'Subject Knowledge' },
+  { key: 'communication', label: 'Communication Skills' },
+  { key: 'culturalFit', label: 'Cultural Fit' }
+];
+
+const STAGE_TABS: { key: string; label: string; kind: 'stage' | 'scheduled' | 'rejected' }[] = [
+  { key: 'Applied', label: 'Applied', kind: 'stage' },
+  { key: 'Shortlisted', label: 'Shortlisted', kind: 'stage' },
+  { key: 'scheduled', label: 'Scheduled Interview', kind: 'scheduled' },
+  { key: 'Interviewed', label: 'Interviewed', kind: 'stage' },
+  { key: 'Selected', label: 'Selected', kind: 'stage' },
+  { key: 'Offered', label: 'Offered', kind: 'stage' },
+  { key: 'Joined', label: 'Joined', kind: 'stage' },
+  { key: 'rejected', label: 'Rejected', kind: 'rejected' }
+];
+
+const canScheduleInterview = (stage: Stage) => stage === 'Shortlisted';
 
 interface Toast {
   id: string;
@@ -150,6 +173,8 @@ const initialApplicants: Applicant[] = [
   phone: '9876543210',
   address: '123, MG Road, Delhi',
   skills: ['Algebra', 'Geometry', 'Calculus', 'Problem Solving'],
+  cvFile: 'Priya_Sharma_CV.pdf',
+  cvSummary: 'M.Sc Mathematics, B.Ed. 5 years teaching Grades 8–12. Strong board-result record and olympiad mentoring.',
   expectedSalary: '₹45,000/month',
   noticePeriod: '30 days',
   stageHistory: [
@@ -219,6 +244,8 @@ const initialApplicants: Applicant[] = [
   email: 'suresh@email.com',
   phone: '9876543213',
   skills: ['Sports', 'Fitness Training', 'First Aid', 'Team Sports'],
+  cvFile: 'Suresh_Kumar_CV.pdf',
+  cvSummary: 'B.P.Ed with 3 years of PE teaching, sports coaching, and first-aid certified.',
   expectedSalary: '₹35,000/month',
   noticePeriod: 'Immediate'
 },
@@ -231,7 +258,7 @@ const initialApplicants: Applicant[] = [
   qualification: 'MCA + B.Ed',
   experience: 4,
   source: 'Job Portal',
-  stage: 'Screened',
+  stage: 'Shortlisted',
   rating: 4,
   status: 'Active',
   appliedDate: '2024-11-18',
@@ -259,8 +286,13 @@ const initialApplicants: Applicant[] = [
   email: 'vikram@email.com',
   phone: '9876543215',
   skills: ['Literature', 'Grammar', 'Creative Writing', 'Public Speaking'],
+  cvFile: 'Vikram_Singh_CV.pdf',
+  cvSummary: 'MA English, B.Ed. 6 years teaching literature and grammar with debate and creative writing clubs.',
   expectedSalary: '₹48,000/month',
-  noticePeriod: '30 days'
+  noticePeriod: '30 days',
+  interviewDate: '2024-12-18',
+  interviewTime: '11:00 AM',
+  interviewType: 'Online'
 },
 {
   id: 'APP-2024-007',
@@ -332,7 +364,7 @@ const initialApplicants: Applicant[] = [
   qualification: 'B.Tech + B.Ed',
   experience: 3,
   source: 'Social Media',
-  stage: 'Screened',
+  stage: 'Shortlisted',
   rating: 3,
   status: 'On Hold',
   appliedDate: '2024-11-19',
@@ -366,6 +398,23 @@ export function ApplicantList() {
   const [academicYear, setAcademicYear] = useState('2024-2025');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStage, setFilterStage] = useState('all');
+  const [listTag, setListTag] = useState<'all' | 'scheduled' | 'rejected'>('all');
+  const [interviewScores, setInterviewScores] = useState<Record<string, number>>({});
+  const [interviewRemarks, setInterviewRemarks] = useState('');
+  const [interviewRecommendation, setInterviewRecommendation] = useState('');
+  const [interviewCriteria, setInterviewCriteria] = useState<{key: string;label: string;description?: string;}[]>([
+    { key: 'subjectExpertise', label: 'Subject Expertise', description: 'Depth of knowledge in the subject area' },
+    { key: 'classroomManagement', label: 'Classroom Management', description: 'Ability to manage and engage students' },
+    { key: 'teachingDemo', label: 'Teaching Demo Performance', description: 'Quality of demo class delivery' },
+    { key: 'communication', label: 'Communication Skills', description: 'Clarity and effectiveness of communication' },
+    { key: 'confidence', label: 'Confidence', description: 'Poise and self-assurance during interview' },
+    { key: 'behaviour', label: 'Behaviour & Attitude', description: 'Professional conduct and positive attitude' }
+  ]);
+  const [screeningCriteria, setScreeningCriteria] = useState<{key: string;label: string;}[]>(DEFAULT_SCREENING_CRITERIA);
+  const [screeningScores, setScreeningScores] = useState<Record<string, number>>({});
+  const [screeningComments, setScreeningComments] = useState('');
+  const [screeningDemoRequired, setScreeningDemoRequired] = useState(false);
+  const [screeningDecision, setScreeningDecision] = useState('Pending');
   const [filterPosition, setFilterPosition] = useState('all');
   const [filterSource, setFilterSource] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
@@ -401,7 +450,11 @@ export function ApplicantList() {
     address: '',
     expectedSalary: '',
     noticePeriod: '',
-    skills: ''
+    skills: '',
+    cvFile: '',
+    certifications: '',
+    tags: '',
+    sourceUrl: ''
   });
 
   // Schedule interview form state
@@ -473,11 +526,16 @@ export function ApplicantList() {
       a.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
       a.email.toLowerCase().includes(searchQuery.toLowerCase());
       const stageMatch = filterStage === 'all' || a.stage === filterStage;
+      const laterStages = a.stage === 'Interviewed' || a.stage === 'Selected' || a.stage === 'Offered' || a.stage === 'Joined' || a.stage === 'Rejected';
+      const scheduledMatch =
+        listTag !== 'scheduled' ||
+        Boolean(a.interviewDate) && !laterStages;
+      const rejectedMatch = listTag !== 'rejected' || a.status === 'Rejected' || a.stage === 'Rejected';
       const posMatch = filterPosition === 'all' || a.position === filterPosition;
       const sourceMatch = filterSource === 'all' || a.source === filterSource;
-      return branchMatch && searchMatch && stageMatch && posMatch && sourceMatch;
+      return branchMatch && searchMatch && stageMatch && scheduledMatch && rejectedMatch && posMatch && sourceMatch;
     });
-  }, [applicants, activeBranches, searchQuery, filterStage, filterPosition, filterSource]);
+  }, [applicants, activeBranches, searchQuery, filterStage, listTag, filterPosition, filterSource]);
 
   // Pagination
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
@@ -542,7 +600,172 @@ export function ApplicantList() {
   const viewApplicant = useCallback((applicant: Applicant) => {
     setSelectedApplicant(applicant);
     setShowViewModal(true);
+    try {
+      const raw = window.localStorage.getItem('k12-evaluation-scorecards-v1');
+      const cards = raw ? JSON.parse(raw) : [];
+      const match = Array.isArray(cards) ? cards.find((card: {position?: string}) => card.position?.toLowerCase() === applicant.position.toLowerCase()) : null;
+      if (match?.interview?.length) {
+        setInterviewCriteria(match.interview);
+      }
+      if (match?.screening?.length) {
+        setScreeningCriteria(match.screening.map((item: {key: string;label: string}) => ({ key: item.key, label: item.label })));
+      } else {
+        setScreeningCriteria(DEFAULT_SCREENING_CRITERIA);
+      }
+    } catch {
+      setScreeningCriteria(DEFAULT_SCREENING_CRITERIA);
+    }
+    try {
+      const savedRaw = window.localStorage.getItem('k12-applicant-interview-feedback-v1');
+      const saved = savedRaw ? JSON.parse(savedRaw) : {};
+      const record = saved[applicant.id];
+      setInterviewScores(record?.scores || {});
+      setInterviewRemarks(record?.remarks || '');
+      setInterviewRecommendation(record?.recommendation || '');
+    } catch {
+      setInterviewScores({});
+      setInterviewRemarks('');
+      setInterviewRecommendation('');
+    }
+    try {
+      const screenRaw = window.localStorage.getItem('k12-applicant-screening-v1');
+      const screenSaved = screenRaw ? JSON.parse(screenRaw) : {};
+      const screenRecord = screenSaved[applicant.id];
+      setScreeningScores(screenRecord?.scores || {});
+      setScreeningComments(screenRecord?.comments || '');
+      setScreeningDemoRequired(Boolean(screenRecord?.demoRequired));
+      setScreeningDecision(screenRecord?.decision || 'Pending');
+    } catch {
+      setScreeningScores({});
+      setScreeningComments('');
+      setScreeningDemoRequired(false);
+      setScreeningDecision('Pending');
+    }
   }, []);
+
+  const moveToShortlist = useCallback(() => {
+    if (!selectedApplicant) return;
+    setApplicants((prev) =>
+      prev.map((a) =>
+        a.id === selectedApplicant.id
+          ? {
+              ...a,
+              stage: 'Shortlisted' as Stage,
+              stageHistory: [
+                ...(a.stageHistory || []),
+                { stage: 'Shortlisted' as Stage, date: new Date().toISOString().split('T')[0], notes: 'Moved to shortlist' }
+              ]
+            }
+          : a
+      )
+    );
+    setSelectedApplicant((prev) => prev ? { ...prev, stage: 'Shortlisted' } : prev);
+    setShowViewModal(false);
+    setListTag('all');
+    setFilterStage('Shortlisted');
+    showToast(`${selectedApplicant.name} moved to Shortlisted`, 'success');
+  }, [selectedApplicant, showToast]);
+
+  const saveScreeningEvaluation = useCallback(() => {
+    if (!selectedApplicant) return;
+    try {
+      const raw = window.localStorage.getItem('k12-applicant-screening-v1');
+      const saved = raw ? JSON.parse(raw) : {};
+      saved[selectedApplicant.id] = {
+        scores: screeningScores,
+        comments: screeningComments,
+        demoRequired: screeningDemoRequired,
+        decision: screeningDecision,
+        savedAt: new Date().toISOString()
+      };
+      window.localStorage.setItem('k12-applicant-screening-v1', JSON.stringify(saved));
+      showToast('Screening evaluation saved', 'success');
+    } catch {
+      showToast('Could not save evaluation', 'error');
+    }
+  }, [selectedApplicant, screeningScores, screeningComments, screeningDemoRequired, screeningDecision, showToast]);
+
+  const hireApplicant = useCallback((applicant: Applicant) => {
+    const today = new Date().toISOString().split('T')[0];
+    setApplicants((prev) =>
+      prev.map((a) =>
+        a.id === applicant.id
+          ? {
+              ...a,
+              stage: 'Selected' as Stage,
+              stageHistory: [
+                ...(a.stageHistory || []),
+                { stage: 'Selected' as Stage, date: today, notes: 'Hired from applicant list' }
+              ]
+            }
+          : a
+      )
+    );
+    setSelectedApplicant((prev) => prev && prev.id === applicant.id ? { ...prev, stage: 'Selected' } : prev);
+    setShowViewModal(false);
+    setListTag('all');
+    setFilterStage('Selected');
+    showToast(`${applicant.name} hired and moved to Selected.`, 'success');
+  }, [showToast]);
+
+  const restoreToShortlist = useCallback((applicant: Applicant) => {
+    const today = new Date().toISOString().split('T')[0];
+    setApplicants((prev) =>
+      prev.map((a) =>
+        a.id === applicant.id
+          ? {
+              ...a,
+              stage: 'Shortlisted' as Stage,
+              status: 'Active',
+              rejectionReason: undefined,
+              stageHistory: [...(a.stageHistory || []), { stage: 'Shortlisted' as Stage, date: today, notes: 'Re-added from Rejected' }]
+            }
+          : a
+      )
+    );
+    setShowViewModal(false);
+    setListTag('all');
+    setFilterStage('Shortlisted');
+    showToast(`${applicant.name} moved back to Shortlisted.`, 'success');
+  }, [showToast]);
+
+  const sendOfferLetter = useCallback((applicant: Applicant) => {
+    const today = new Date().toISOString().split('T')[0];
+    setApplicants((prev) =>
+      prev.map((a) =>
+        a.id === applicant.id
+          ? {
+              ...a,
+              stage: 'Offered' as Stage,
+              stageHistory: [...(a.stageHistory || []), { stage: 'Offered' as Stage, date: today, notes: 'Offer letter sent' }]
+            }
+          : a
+      )
+    );
+    setShowViewModal(false);
+    setListTag('all');
+    setFilterStage('Offered');
+    showToast(`Offer letter sent to ${applicant.name} (${applicant.email}).`, 'success');
+  }, [showToast]);
+
+  const convertApplicant = useCallback((applicant: Applicant) => {
+    const today = new Date().toISOString().split('T')[0];
+    setApplicants((prev) =>
+      prev.map((a) =>
+        a.id === applicant.id
+          ? {
+              ...a,
+              stage: 'Joined' as Stage,
+              stageHistory: [...(a.stageHistory || []), { stage: 'Joined' as Stage, date: today, notes: 'Converted to employee' }]
+            }
+          : a
+      )
+    );
+    setShowViewModal(false);
+    setListTag('all');
+    setFilterStage('Joined');
+    showToast(`${applicant.name} converted to employee.`, 'success');
+  }, [showToast]);
 
   // Move to next stage
   const openStageModal = useCallback((applicant: Applicant) => {
@@ -1155,8 +1378,216 @@ export function ApplicantList() {
               </div>
           }
 
+            {(selectedApplicant.stage === 'Applied' || selectedApplicant.stage === 'Shortlisted') && listTag !== 'scheduled' &&
+            <div className="p-4 border border-gray-200 bg-gray-50 rounded-xl">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h5 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                      <FileText className="w-4 h-4" />
+                      Curriculum Vitae
+                    </h5>
+                    <p className="text-sm font-medium text-gray-900 mt-2">{selectedApplicant.cvFile || selectedApplicant.resumeUrl || 'CV not uploaded'}</p>
+                    <p className="text-sm text-gray-600 mt-1">{selectedApplicant.cvSummary || 'No CV summary available for this applicant.'}</p>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => downloadResume(selectedApplicant)}>View CV</Button>
+                </div>
+              </div>
+            }
+
+            {selectedApplicant.stage === 'Shortlisted' && listTag !== 'scheduled' &&
+            <div className="p-4 border border-indigo-200 bg-indigo-50 rounded-xl space-y-3">
+                <h5 className="text-sm font-semibold text-indigo-900">Evaluation Scorecard</h5>
+                {screeningCriteria.map((criterion) =>
+              <div key={criterion.key} className="flex items-center justify-between gap-3 bg-white rounded-lg p-2">
+                    <span className="text-sm font-medium text-gray-800">{criterion.label}</span>
+                    <div className="flex items-center gap-1">
+                      {[1, 2, 3, 4, 5].map((value) =>
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setScreeningScores((prev) => ({ ...prev, [criterion.key]: value }))}>
+                        <Star className={`w-4 h-4 ${value <= (screeningScores[criterion.key] || 0) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-200'}`} />
+                      </button>
+                  )}
+                      <span className="text-xs font-bold text-gray-700 w-8">{screeningScores[criterion.key] || 0}/5</span>
+                    </div>
+                  </div>
+              )}
+                <div className="flex items-center justify-between p-2 bg-white rounded-lg">
+                  <span className="text-sm font-medium text-gray-700">Demo Class Required</span>
+                  <button
+                  type="button"
+                  onClick={() => setScreeningDemoRequired((prev) => !prev)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full ${screeningDemoRequired ? 'bg-indigo-600' : 'bg-gray-300'}`}>
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white ${screeningDemoRequired ? 'translate-x-6' : 'translate-x-1'}`} />
+                  </button>
+                </div>
+                <textarea
+                value={screeningComments}
+                onChange={(e) => setScreeningComments(e.target.value)}
+                rows={2}
+                placeholder="Reviewer comments"
+                className="w-full px-3 py-2 border rounded-lg text-sm" />
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  {['Shortlisted', 'Move to Interview', 'Hold', 'Rejected'].map((decision) =>
+                <button
+                  key={decision}
+                  type="button"
+                  onClick={() => setScreeningDecision(decision)}
+                  className={`p-2 rounded-lg border text-xs font-medium ${screeningDecision === decision ? 'border-indigo-500 bg-indigo-100 text-indigo-700' : 'border-gray-200 text-gray-600'}`}>
+                    {decision}
+                  </button>
+                )}
+                </div>
+              </div>
+            }
+
+            {listTag === 'scheduled' &&
+            <div className="p-4 border border-violet-200 bg-violet-50 rounded-xl space-y-3">
+              <div className="flex items-center justify-between">
+                <h5 className="text-sm font-semibold text-violet-900 flex items-center gap-2">
+                  <Star className="w-4 h-4" />
+                  Interview Feedback & Scoring
+                </h5>
+                <span className="text-xs text-violet-700">
+                  {interviewCriteria.length ? Math.round((Object.values(interviewScores).reduce((a, b) => a + b, 0) / (interviewCriteria.length * 5)) * 100) || 0 : 0}%
+                </span>
+              </div>
+              {interviewCriteria.map((criterion) =>
+              <div key={criterion.key} className="flex items-center justify-between gap-3 bg-white rounded-lg p-2">
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">{criterion.label}</p>
+                    {criterion.description && <p className="text-xs text-gray-500">{criterion.description}</p>}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {[1, 2, 3, 4, 5].map((value) =>
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setInterviewScores((prev) => ({ ...prev, [criterion.key]: value }))}>
+                      <Star className={`w-4 h-4 ${value <= (interviewScores[criterion.key] || 0) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-200'}`} />
+                    </button>
+                  )}
+                  </div>
+                </div>
+              )}
+              <textarea
+                value={interviewRemarks}
+                onChange={(e) => setInterviewRemarks(e.target.value)}
+                rows={2}
+                placeholder="Remarks / feedback"
+                className="w-full px-3 py-2 border rounded-lg text-sm" />
+              <div className="flex flex-wrap gap-2">
+                {(['Yes', 'No', 'Maybe'] as const).map((option) =>
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => setInterviewRecommendation(option)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium ${
+                    interviewRecommendation === option ? 'bg-violet-600 text-white' : 'bg-white text-gray-600 border'
+                  }`}>
+                  Hire: {option}
+                </button>
+                )}
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => hireApplicant(selectedApplicant)}>
+                  Hire
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  className="ml-auto"
+                  onClick={() => {
+                    if (!selectedApplicant) return;
+                    try {
+                      const raw = window.localStorage.getItem('k12-applicant-interview-feedback-v1');
+                      const saved = raw ? JSON.parse(raw) : {};
+                      saved[selectedApplicant.id] = {
+                        scores: interviewScores,
+                        remarks: interviewRemarks,
+                        recommendation: interviewRecommendation,
+                        savedAt: new Date().toISOString()
+                      };
+                      window.localStorage.setItem('k12-applicant-interview-feedback-v1', JSON.stringify(saved));
+                      setApplicants((prev) =>
+                        prev.map((a) =>
+                          a.id === selectedApplicant.id
+                            ? {
+                                ...a,
+                                stage: 'Interviewed' as Stage,
+                                stageHistory: [
+                                  ...(a.stageHistory || []),
+                                  { stage: 'Interviewed' as Stage, date: new Date().toISOString().split('T')[0], notes: 'Interview evaluation saved' }
+                                ]
+                              }
+                            : a
+                        )
+                      );
+                      setSelectedApplicant((prev) => prev ? { ...prev, stage: 'Interviewed' } : prev);
+                      setShowViewModal(false);
+                      setListTag('all');
+                      setFilterStage('Interviewed');
+                      showToast('Interview feedback saved. Applicant moved to Interviewed.', 'success');
+                    } catch {
+                      showToast('Could not save feedback', 'error');
+                    }
+                  }}>
+                  Save Scoring
+                </Button>
+              </div>
+            </div>
+            }
+
             {/* Actions */}
-            <div className="flex justify-end gap-2 pt-4 border-t">
+            <div className="flex justify-end gap-2 pt-4 border-t flex-wrap">
+              {selectedApplicant.stage === 'Applied' &&
+              <>
+                <Button variant="outline" size="sm" onClick={moveToShortlist}>Move to Shortlist</Button>
+                <Button variant="primary" size="sm" onClick={() => hireApplicant(selectedApplicant)}>Hire</Button>
+              </>
+              }
+              {selectedApplicant.stage === 'Shortlisted' && listTag !== 'scheduled' &&
+              <>
+                  <Button variant="primary" size="sm" onClick={saveScreeningEvaluation}>
+                    Save Evaluation
+                  </Button>
+                  <Button variant="primary" size="sm" onClick={() => hireApplicant(selectedApplicant)}>
+                    Hire
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setShowViewModal(false);
+                      openScheduleModal(selectedApplicant);
+                    }}>
+                    <Calendar className="w-4 h-4 mr-2" />
+                    Schedule Interview
+                  </Button>
+                </>
+              }
+              {(listTag === 'scheduled' || selectedApplicant.stage === 'Interviewed') &&
+                <Button variant="primary" size="sm" onClick={() => hireApplicant(selectedApplicant)}>
+                  Hire
+                </Button>
+              }
+              {(listTag === 'rejected' || selectedApplicant.stage === 'Rejected') &&
+                <Button variant="primary" size="sm" onClick={() => restoreToShortlist(selectedApplicant)}>
+                  Re-add to Shortlist
+                </Button>
+              }
+              {selectedApplicant.stage === 'Selected' &&
+                <Button variant="primary" size="sm" onClick={() => sendOfferLetter(selectedApplicant)}>
+                  Send Offer Letter
+                </Button>
+              }
+              {selectedApplicant.stage === 'Offered' &&
+                <Button variant="primary" size="sm" onClick={() => convertApplicant(selectedApplicant)}>
+                  Convert to Employee
+                </Button>
+              }
               <Button
               variant="outline"
               size="sm"
@@ -1176,19 +1607,6 @@ export function ApplicantList() {
                 <Download className="w-4 h-4 mr-2" />
                 Download Resume
               </Button>
-              {selectedApplicant.stage !== 'Rejected' && selectedApplicant.stage !== 'Joined' &&
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => {
-                setShowViewModal(false);
-                openStageModal(selectedApplicant);
-              }}>
-
-                  <ChevronRight className="w-4 h-4 mr-2" />
-                  Move to Next Stage
-                </Button>
-            }
             </div>
           </div>
         }
@@ -1202,6 +1620,9 @@ export function ApplicantList() {
         size="lg">
 
         <div className="space-y-4">
+          <div className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs text-violet-800">
+            Manual entry and online-application fields live on this panel. Upload a CV and add source URL when syncing from a job portal.
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1362,6 +1783,46 @@ export function ApplicantList() {
               rows={2}
               placeholder="Enter address" />
 
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Certifications</label>
+              <input
+                type="text"
+                value={newApplicant.certifications}
+                onChange={(e) => setNewApplicant((p) => ({ ...p, certifications: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                placeholder="CTET, NET, ..." />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Tags</label>
+              <input
+                type="text"
+                value={newApplicant.tags}
+                onChange={(e) => setNewApplicant((p) => ({ ...p, tags: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                placeholder="Mathematics, Board results" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Source / portal URL</label>
+              <input
+                type="text"
+                value={newApplicant.sourceUrl}
+                onChange={(e) => setNewApplicant((p) => ({ ...p, sourceUrl: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                placeholder="https://naukri.com/..." />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">CV / Resume</label>
+              <input
+                type="file"
+                accept=".pdf,.doc,.docx"
+                onChange={(e) => setNewApplicant((p) => ({ ...p, cvFile: e.target.files?.[0]?.name || '' }))}
+                className="w-full text-sm"
+              />
+              {newApplicant.cvFile && <p className="text-xs text-gray-500 mt-1">{newApplicant.cvFile}</p>}
+            </div>
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t">
@@ -1745,22 +2206,42 @@ export function ApplicantList() {
 
       {/* Stage Summary */}
       <div className="flex gap-3 overflow-x-auto pb-1">
-        {STAGES_ORDER.map((stage) =>
-        <button
-          key={stage}
-          onClick={() => setFilterStage(filterStage === stage ? 'all' : stage)}
-          className={`flex-shrink-0 px-4 py-2.5 rounded-xl border-2 transition-all text-sm font-medium ${
-          filterStage === stage ?
-          `border-current ${stageConfig[stage].bg} ${stageConfig[stage].color}` :
-          'border-gray-200 bg-white text-gray-600 hover:border-gray-300'}`
-          }>
-
-            <span>{stage}</span>
-            <span className={`ml-2 px-1.5 py-0.5 rounded-full text-xs font-bold ${stageConfig[stage].bg} ${stageConfig[stage].color}`}>
-              {stageCounts[stage] || 0}
-            </span>
-          </button>
-        )}
+        {STAGE_TABS.map((tab) => {
+          const isActive = tab.kind === 'stage' ? filterStage === tab.key && listTag === 'all' : listTag === tab.key;
+          const count =
+            tab.kind === 'stage' ? stageCounts[tab.key as Stage] || 0 :
+            tab.kind === 'scheduled' ? applicants.filter((a) => a.interviewDate && a.stage !== 'Interviewed' && a.stage !== 'Selected' && a.stage !== 'Offered' && a.stage !== 'Joined' && a.stage !== 'Rejected').length :
+            applicants.filter((a) => a.status === 'Rejected' || a.stage === 'Rejected').length;
+          const activeClass =
+            tab.kind === 'scheduled' ? 'border-current bg-violet-100 text-violet-700' :
+            tab.kind === 'rejected' ? 'border-current bg-red-100 text-red-700' :
+            `border-current ${stageConfig[tab.key as Stage].bg} ${stageConfig[tab.key as Stage].color}`;
+          const badgeClass =
+            tab.kind === 'scheduled' ? 'bg-violet-100 text-violet-700' :
+            tab.kind === 'rejected' ? 'bg-red-100 text-red-700' :
+            `${stageConfig[tab.key as Stage].bg} ${stageConfig[tab.key as Stage].color}`;
+          return (
+            <button
+              key={tab.key}
+              onClick={() => {
+                if (tab.kind === 'stage') {
+                  setListTag('all');
+                  setFilterStage(filterStage === tab.key ? 'all' : tab.key);
+                } else {
+                  setFilterStage('all');
+                  setListTag(listTag === tab.key ? 'all' : tab.key);
+                }
+              }}
+              className={`flex-shrink-0 px-4 py-2.5 rounded-xl border-2 transition-all text-sm font-medium ${
+                isActive ? activeClass : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+              }`}>
+              <span>{tab.label}</span>
+              <span className={`ml-2 px-1.5 py-0.5 rounded-full text-xs font-bold ${badgeClass}`}>
+                {count}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Bulk Actions */}
@@ -1867,7 +2348,6 @@ export function ApplicantList() {
                 <th className="text-center py-3 px-4 text-gray-500 font-medium">Exp.</th>
                 <th className="text-left py-3 px-4 text-gray-500 font-medium">Source</th>
                 <th className="text-center py-3 px-4 text-gray-500 font-medium">Stage</th>
-                <th className="text-center py-3 px-4 text-gray-500 font-medium">Rating</th>
                 <th className="text-center py-3 px-4 text-gray-500 font-medium">Actions</th>
               </tr>
             </thead>
@@ -1923,11 +2403,8 @@ export function ApplicantList() {
                       {app.stage}
                     </span>
                   </td>
-                  <td className="py-3 px-4 text-center">
-                    {renderStars(app.rating, app.id, true)}
-                  </td>
                   <td className="py-3 px-4">
-                    <div className="flex items-center justify-center gap-1">
+                    <div className="flex items-center justify-center gap-1 flex-wrap">
                       <button
                       onClick={() => viewApplicant(app)}
                       className="p-1.5 hover:bg-violet-50 rounded-lg text-violet-600 transition-colors"
@@ -1935,14 +2412,43 @@ export function ApplicantList() {
 
                         <Eye className="w-4 h-4" />
                       </button>
+                      {(filterStage === 'Applied' || filterStage === 'Shortlisted' || filterStage === 'Interviewed' || listTag === 'scheduled') && app.stage !== 'Rejected' && app.stage !== 'Joined' &&
                       <button
-                      onClick={() => openStageModal(app)}
-                      className="p-1.5 hover:bg-green-50 rounded-lg text-green-600 transition-colors"
-                      title="Move to Next Stage"
-                      disabled={app.stage === 'Joined' || app.stage === 'Rejected'}>
-
-                        <ChevronRight className="w-4 h-4" />
+                        type="button"
+                        onClick={() => hireApplicant(app)}
+                        className="px-2 py-1 text-xs font-medium rounded-lg bg-violet-600 text-white hover:bg-violet-700"
+                        title="Hire">
+                        Hire
                       </button>
+                      }
+                      {(listTag === 'rejected' || app.stage === 'Rejected') &&
+                      <button
+                        type="button"
+                        onClick={() => restoreToShortlist(app)}
+                        className="px-2 py-1 text-xs font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
+                        title="Re-add to Shortlist">
+                        Re-add to Shortlist
+                      </button>
+                      }
+                      {filterStage === 'Selected' &&
+                      <button
+                        type="button"
+                        onClick={() => sendOfferLetter(app)}
+                        className="px-2 py-1 text-xs font-medium rounded-lg bg-green-600 text-white hover:bg-green-700"
+                        title="Send Offer Letter">
+                        Send Offer Letter
+                      </button>
+                      }
+                      {filterStage === 'Offered' &&
+                      <button
+                        type="button"
+                        onClick={() => convertApplicant(app)}
+                        className="px-2 py-1 text-xs font-medium rounded-lg bg-teal-600 text-white hover:bg-teal-700"
+                        title="Convert to Employee">
+                        Convert to Employee
+                      </button>
+                      }
+                      {canScheduleInterview(app.stage) &&
                       <button
                       onClick={() => openScheduleModal(app)}
                       className="p-1.5 hover:bg-blue-50 rounded-lg text-blue-600 transition-colors"
@@ -1950,6 +2456,7 @@ export function ApplicantList() {
 
                         <Calendar className="w-4 h-4" />
                       </button>
+                      }
                       <button
                       onClick={() => downloadResume(app)}
                       className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-600 transition-colors"

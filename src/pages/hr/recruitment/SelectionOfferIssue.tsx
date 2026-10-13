@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Building,
   X,
@@ -14,6 +15,7 @@ import {
   AlertCircle,
   Plus,
   Trash2,
+  Upload,
   Mail,
   Clock,
   Eye,
@@ -27,7 +29,9 @@ import {
   RotateCcw,
   ChevronDown,
   ChevronUp,
-  Search } from
+  Search,
+  Users,
+  ChevronLeft } from
 'lucide-react';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
@@ -113,9 +117,28 @@ interface Candidate {
   offerGeneratedAt?: string;
   offerSentAt?: string;
   offerViewedAt?: string;
+  documentsShared?: boolean;
+  converted?: boolean;
+  selectedOnboardingDocs?: string[];
   offerRespondedAt?: string;
   offerLetterUrl?: string;
+  actualDoj?: string;
+  employeeId?: string;
 }
+
+const formatDisplayDate = (value?: string) => {
+  if (!value) return '—';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+};
+
+const formatSalary = (value?: string) => {
+  if (!value) return '—';
+  const amount = Number(value);
+  if (Number.isNaN(amount)) return value;
+  return `₹${amount.toLocaleString('en-IN')}`;
+};
 
 const defaultSalaryComponents: SalaryComponent[] = [
 { id: '1', head: 'Basic Salary', amount: 25000, type: 'earning' },
@@ -269,16 +292,44 @@ interface ValidationErrors {
   salaryComponents?: string;
 }
 
+const ONBOARDING_DOCUMENTS = [
+  'Offer Letter',
+  'Joining Form',
+  'Code of Conduct',
+  'Document Checklist',
+  'Bank Mandate Form',
+  'PF / ESI Nomination',
+  'ID & Address Proof Request',
+  'Medical Fitness Form'
+];
+
+const getPipeline = (candidate: Candidate) => {
+  const offerGenerated = Boolean(candidate.offerGeneratedAt) || Boolean(candidate.trackingSteps[0]?.done);
+  const emailSent = Boolean(candidate.offerSentAt) || Boolean(candidate.trackingSteps[1]?.done) || candidate.status === 'Offer Sent' || candidate.status === 'Offer Accepted' || candidate.status === 'Joined';
+  const joiningConfirmed = candidate.status === 'Joined' || Boolean(candidate.trackingSteps[4]?.done);
+  const documentsShared = Boolean(candidate.documentsShared);
+  const employeeConverted = Boolean(candidate.converted) || candidate.status === 'Joined';
+  return [
+    { key: 'offerGenerated', label: 'Offer Generated', done: offerGenerated },
+    { key: 'emailSent', label: 'Email sent', done: emailSent },
+    { key: 'joiningConfirmed', label: 'Joining confirmed', done: joiningConfirmed },
+    { key: 'documentsShared', label: 'Documents shared', done: documentsShared },
+    { key: 'employeeConverted', label: 'Employee converted', done: employeeConverted }
+  ];
+};
+
 export function SelectionOfferIssue() {
+  const navigate = useNavigate();
   // State for filters
   const [selectedBranches, setSelectedBranches] = useState<string[]>(['all']);
   const [academicYear, setAcademicYear] = useState('2024-2025');
   const [searchQuery, setSearchQuery] = useState('');
+  const [hasSearched, setHasSearched] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
 
   // State for candidates
   const [candidates, setCandidates] = useState<Candidate[]>(initialCandidates);
-  const [selectedCandidateId, setSelectedCandidateId] = useState<string>('APP-2024-001');
+  const [selectedCandidateId, setSelectedCandidateId] = useState<string>('');
 
   // State for editing
   const [editedSalaryComponents, setEditedSalaryComponents] = useState<SalaryComponent[]>([]);
@@ -305,6 +356,26 @@ export function SelectionOfferIssue() {
   const [showOfferPreview, setShowOfferPreview] = useState(false);
   const [isRevising, setIsRevising] = useState(false);
   const [revisionNotes, setRevisionNotes] = useState('');
+  const [onboardingDocs, setOnboardingDocs] = useState<string[]>(['Offer Letter']);
+  const [joiningForm, setJoiningForm] = useState({
+    employeeId: 'EMP-2026-002',
+    department: 'Mathematics',
+    subject: 'Mathematics',
+    joiningDate: '2025-01-02',
+    reportingManager: '',
+    salaryStructure: 'Grade A - Teacher (₹50,000 - ₹75,000)',
+    probationPeriod: '6 months',
+    bankName: '',
+    accountHolder: '',
+    accountNumber: '',
+    ifscCode: '',
+    workEmail: 'priya.sharma@school.edu',
+    emergencyName: '',
+    emergencyPhone: '',
+    notes: ''
+  });
+  const [joiningChecks, setJoiningChecks] = useState<Record<string, boolean>>({});
+  const [joiningUploads, setJoiningUploads] = useState<{ name: string; url: string }[]>([]);
 
   // Get selected candidate
   const selectedCandidate = useMemo(
@@ -321,6 +392,26 @@ export function SelectionOfferIssue() {
       setValidationErrors({});
       setIsRevising(false);
       setRevisionNotes('');
+      setOnboardingDocs(selectedCandidate.selectedOnboardingDocs?.length ? selectedCandidate.selectedOnboardingDocs : ['Offer Letter']);
+      setJoiningForm({
+        employeeId: selectedCandidate.employeeId || 'EMP-2026-002',
+        department: selectedCandidate.position.includes('Math') ? 'Mathematics' : selectedCandidate.position,
+        subject: selectedCandidate.position.includes('Math') ? 'Mathematics' : selectedCandidate.position,
+        joiningDate: selectedCandidate.offerDetails.reportingDate || '2025-01-02',
+        reportingManager: selectedCandidate.offerDetails.approvalAuthority,
+        salaryStructure: 'Grade A - Teacher (₹50,000 - ₹75,000)',
+        probationPeriod: `${selectedCandidate.offerDetails.probationPeriod || '6'} months`,
+        bankName: '',
+        accountHolder: selectedCandidate.name,
+        accountNumber: '',
+        ifscCode: '',
+        workEmail: selectedCandidate.email.replace('@email.com', '@school.edu'),
+        emergencyName: '',
+        emergencyPhone: '',
+        notes: ''
+      });
+      setJoiningChecks({});
+      setJoiningUploads([]);
     }
   }, [selectedCandidateId]);
 
@@ -619,6 +710,8 @@ HR Department
         ...c,
         status: 'Offer Sent',
         offerSentAt: now.toISOString(),
+        documentsShared: onboardingDocs.length > 0,
+        selectedOnboardingDocs: onboardingDocs,
         trackingSteps: c.trackingSteps.map((step, idx) =>
         idx === 1 ?
         { ...step, done: true, date: now.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }), actor: 'System' } :
@@ -631,14 +724,59 @@ HR Department
 
       setNotification({
         type: 'success',
-        message: `Offer email sent successfully to ${selectedCandidate.email}`
+        message: `Offer letter${onboardingDocs.length ? ` and ${onboardingDocs.length} onboarding document(s)` : ''} emailed to ${selectedCandidate.email}`
       });
     } catch (error) {
       setNotification({ type: 'error', message: 'Failed to send email. Please try again.' });
     } finally {
       setIsSendingEmail(false);
     }
-  }, [selectedCandidate, selectedCandidateId, candidates, validateForm]);
+  }, [selectedCandidate, selectedCandidateId, candidates, validateForm, onboardingDocs]);
+
+  const convertApplicantToEmployee = () => {
+    if (!selectedCandidate) return;
+    setCandidates((prev) =>
+      prev.map((c) =>
+        c.id === selectedCandidateId
+          ? {
+              ...c,
+              converted: true,
+              status: 'Joined',
+              actualDoj: c.actualDoj || new Date().toISOString().split('T')[0],
+              employeeId: c.employeeId || `EMP${c.id.replace(/\D/g, '').slice(-4)}`,
+              trackingSteps: c.trackingSteps.map((step, idx) =>
+                idx === 4
+                  ? { ...step, done: true, date: new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }), actor: 'HR' }
+                  : step
+              )
+            }
+          : c
+      )
+    );
+    setNotification({
+      type: 'success',
+      message: `${selectedCandidate.name} converted to employee with the information captured so far.`
+    });
+  };
+
+  const openEmployeeForm = () => {
+    if (!selectedCandidate) return;
+    const [firstName, ...rest] = selectedCandidate.name.split(' ');
+    navigate('/hr/employee/add-edit-employee-profile', {
+      state: {
+        prefill: {
+          firstName,
+          lastName: rest.join(' '),
+          personalEmail: selectedCandidate.email,
+          primaryMobile: selectedCandidate.phone,
+          designation: selectedCandidate.position,
+          department: joiningForm.department,
+          campus: getBranchName(selectedCandidate.branch),
+          officialEmail: joiningForm.workEmail
+        }
+      }
+    });
+  };
 
   // Start revision
   const startRevision = useCallback(() => {
@@ -942,20 +1080,45 @@ HR Department
 
         <div className="mt-5 pt-5 border-t space-y-4">
           {/* Search */}
-          <div className="relative max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search candidates..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent" />
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative flex-1 min-w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search by name, ID, or position..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    if (hasUnsavedChanges) {
+                      const confirmLeave = window.confirm('You have unsaved changes. Continue without saving?');
+                      if (!confirmLeave) return;
+                    }
+                    setHasSearched(true);
+                    setSelectedCandidateId('');
+                  }
+                }}
+                className="w-full pl-10 pr-4 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent" />
 
-            {searchQuery &&
-            <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2">
-                <X className="w-4 h-4 text-gray-400 hover:text-gray-600" />
-              </button>
-            }
+              {searchQuery &&
+              <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <X className="w-4 h-4 text-gray-400 hover:text-gray-600" />
+                </button>
+              }
+            </div>
+            <Button
+              variant="primary"
+              onClick={() => {
+                if (hasUnsavedChanges) {
+                  const confirmLeave = window.confirm('You have unsaved changes. Continue without saving?');
+                  if (!confirmLeave) return;
+                }
+                setHasSearched(true);
+                setSelectedCandidateId('');
+              }}>
+              <Search className="w-4 h-4 mr-1" />
+              Search
+            </Button>
           </div>
 
           {/* Branch filter */}
@@ -988,501 +1151,451 @@ HR Department
         </div>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          {/* Unsaved Changes Warning */}
-          {hasUnsavedChanges &&
-          <div className="flex items-center gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0" />
-              <span className="text-sm text-yellow-800 flex-1">You have unsaved changes</span>
-              <Button variant="outline" size="sm" onClick={resetChanges}>
-                Reset
-              </Button>
-              <Button variant="primary" size="sm" onClick={saveChanges}>
-                <Save className="w-4 h-4 mr-1" />
-                Save
-              </Button>
-            </div>
-          }
+      {!hasSearched && !selectedCandidate &&
+      <Card className="p-10">
+          <div className="text-center text-gray-400 max-w-md mx-auto">
+            <Search className="w-12 h-12 mx-auto mb-3 opacity-40" />
+            <p className="font-medium text-gray-600">Search applicants to begin offer issue</p>
+            <p className="text-sm mt-1">Use name, ID, or position, then click Search to see the applicant list.</p>
+          </div>
+        </Card>
+      }
 
-          {/* Candidate Selection */}
-          <Card title="Selected Candidate">
-            <Select
-              label="Candidate *"
-              options={candidateOptions}
-              value={selectedCandidateId}
-              onChange={(value) => {
-                if (hasUnsavedChanges) {
-                  const confirm = window.confirm('You have unsaved changes. Continue without saving?');
-                  if (!confirm) return;
-                }
-                setSelectedCandidateId(value);
-              }} />
+      {hasSearched && !selectedCandidate &&
+      <Card title={`Applicants (${filteredCandidates.length})`}>
+        <div className="overflow-x-auto">
+          {filteredCandidates.length === 0 ?
+          <div className="text-center py-8 text-gray-400">
+              <Users className="w-12 h-12 mx-auto mb-3 opacity-40" />
+              <p>No applicants found</p>
+            </div> :
 
-
-            {selectedCandidate &&
-            <div className="mt-4 p-4 bg-green-50 rounded-xl border border-green-200">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-500 to-teal-600 text-white flex items-center justify-center font-bold">
-                    {selectedCandidate.avatar}
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-semibold text-gray-900">{selectedCandidate.name}</p>
-                    <p className="text-sm text-gray-500">
-                      {selectedCandidate.position} · {getBranchName(selectedCandidate.branch)}
-                    </p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getStatusColor(selectedCandidate.status)}`}>
-                        {selectedCandidate.status}
-                      </span>
-                      <span className="text-xs text-gray-400">Interview Score: {selectedCandidate.interviewScore}%</span>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+                <th className="py-3 px-3 font-semibold">Candidate</th>
+                <th className="py-3 px-3 font-semibold">Position</th>
+                <th className="py-3 px-3 font-semibold">Offered Salary</th>
+                <th className="py-3 px-3 font-semibold">Offer Date</th>
+                <th className="py-3 px-3 font-semibold">Status</th>
+                <th className="py-3 px-3 font-semibold">Offer & joining progress</th>
+                <th className="py-3 px-3 font-semibold">Expected DOJ</th>
+                <th className="py-3 px-3 font-semibold">Actual DOJ</th>
+                <th className="py-3 px-3 font-semibold">Documents</th>
+                <th className="py-3 px-3 font-semibold">Employee</th>
+                <th className="py-3 px-3 font-semibold text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredCandidates.map((candidate) =>
+              <tr key={candidate.id} className="border-b last:border-0 hover:bg-green-50/40">
+                <td className="py-3 px-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-green-500 to-teal-600 text-white flex items-center justify-center text-xs font-bold flex-shrink-0">
+                      {candidate.avatar}
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900">{candidate.name}</p>
+                      <p className="text-xs text-gray-400">{candidate.id}</p>
                     </div>
                   </div>
-                  <div className="text-right text-sm">
-                    <p className="text-gray-500">{selectedCandidate.email}</p>
-                    <p className="text-gray-500">{selectedCandidate.phone}</p>
+                </td>
+                <td className="py-3 px-3 text-gray-800">{candidate.position}</td>
+                <td className="py-3 px-3 font-medium text-gray-900">{formatSalary(candidate.offerDetails.approvedSalary)}</td>
+                <td className="py-3 px-3 text-gray-700">{formatDisplayDate(candidate.offerGeneratedAt || candidate.offerSentAt)}</td>
+                <td className="py-3 px-3">
+                  <span className={`text-xs px-2 py-1 rounded-full font-medium ${getStatusColor(candidate.status)}`}>
+                    {candidate.status}
+                  </span>
+                </td>
+                <td className="py-3 px-3 min-w-[180px]">
+                  <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                    <div className="h-full bg-green-500" style={{ width: `${getPipeline(candidate).filter((s) => s.done).length / 5 * 100}%` }} />
                   </div>
-                </div>
-              </div>
-            }
-          </Card>
+                  <p className="text-[10px] text-gray-500 mt-1">{getPipeline(candidate).filter((s) => s.done).length}/5 · {getPipeline(candidate).find((s) => !s.done)?.label || 'Complete'}</p>
+                </td>
+                <td className="py-3 px-3 text-gray-700">{formatDisplayDate(candidate.offerDetails.reportingDate)}</td>
+                <td className="py-3 px-3 text-gray-700">{formatDisplayDate(candidate.actualDoj)}</td>
+                <td className="py-3 px-3 text-gray-700">
+                  {candidate.selectedOnboardingDocs?.length
+                    ? `${candidate.selectedOnboardingDocs.length} docs`
+                    : candidate.documentsShared
+                      ? 'Shared'
+                      : '—'}
+                </td>
+                <td className="py-3 px-3 text-gray-700">{candidate.employeeId || (candidate.converted ? 'Converted' : '—')}</td>
+                <td className="py-3 px-3 text-center">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCandidateId(candidate.id)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-green-700 hover:bg-green-50"
+                    title="View">
+                    <Eye className="w-4 h-4" />
+                    View
+                  </button>
+                </td>
+              </tr>
+              )}
+            </tbody>
+          </table>
+          }
+        </div>
+      </Card>
+      }
 
-          {/* Revision Mode Banner */}
+      {selectedCandidate &&
+      <>
+      <div className="flex items-center justify-between">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            if (hasUnsavedChanges) {
+              const confirmLeave = window.confirm('You have unsaved changes. Continue without saving?');
+              if (!confirmLeave) return;
+            }
+            setSelectedCandidateId('');
+          }}>
+          <ChevronLeft className="w-4 h-4 mr-1" />
+          Back to Applicants
+        </Button>
+      </div>
+
+      <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-gray-900">Offer & joining progress</h2>
+          <span className="text-xs text-gray-500">{getPipeline(selectedCandidate).filter((s) => s.done).length} of 5 complete</span>
+        </div>
+        <div className="h-2 bg-gray-200 rounded-full overflow-hidden mb-4">
+          <div className="h-full bg-green-500 transition-all" style={{ width: `${getPipeline(selectedCandidate).filter((s) => s.done).length / 5 * 100}%` }} />
+        </div>
+        <div className="flex items-start">
+          {getPipeline(selectedCandidate).map((step, index, arr) =>
+            <React.Fragment key={step.key}>
+              <div className="flex flex-col items-center min-w-0 flex-1">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold ${step.done ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-500'}`}>
+                  {step.done ? '✓' : index + 1}
+                </div>
+                <p className={`mt-2 text-[11px] text-center leading-tight ${step.done ? 'text-green-700 font-medium' : 'text-gray-500'}`}>{step.label}</p>
+              </div>
+              {index < arr.length - 1 && <div className={`h-1 mt-4 flex-1 rounded ${arr[index].done ? 'bg-green-500' : 'bg-gray-200'}`} />}
+            </React.Fragment>
+          )}
+        </div>
+      </div>
+
+      {hasUnsavedChanges &&
+      <div className="flex items-center gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0" />
+          <span className="text-sm text-yellow-800 flex-1">You have unsaved changes</span>
+          <Button variant="outline" size="sm" onClick={resetChanges}>Reset</Button>
+          <Button variant="primary" size="sm" onClick={saveChanges}><Save className="w-4 h-4 mr-1" />Save</Button>
+        </div>
+      }
+
+      {!getPipeline(selectedCandidate).find((s) => s.key === 'emailSent')?.done ?
+      <Card title="Selection & Offer">
+        <div className="space-y-6">
+          <div className="p-4 bg-green-50 rounded-xl border border-green-200 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-500 to-teal-600 text-white flex items-center justify-center font-bold">{selectedCandidate.avatar}</div>
+            <div className="flex-1">
+              <p className="font-semibold text-gray-900">{selectedCandidate.name}</p>
+              <p className="text-sm text-gray-500">{selectedCandidate.position} · {getBranchName(selectedCandidate.branch)} · {selectedCandidate.email} · {selectedCandidate.phone}</p>
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getStatusColor(selectedCandidate.status)}`}>{selectedCandidate.status}</span>
+            </div>
+            <p className="text-sm font-bold text-green-700">Score {selectedCandidate.interviewScore}%</p>
+          </div>
+
           {isRevising &&
           <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
-              <div className="flex items-center gap-2 mb-3">
-                <Edit className="w-5 h-5 text-orange-600" />
-                <span className="font-medium text-orange-800">Revision Mode</span>
-              </div>
-              <p className="text-sm text-orange-700 mb-3">
-                Make changes to the offer details and salary breakdown. After saving, you'll need to regenerate and resend the offer letter.
-              </p>
-              <div className="mb-3">
-                <label className="block text-sm font-medium text-orange-800 mb-1">Revision Notes *</label>
-                <textarea
-                value={revisionNotes}
-                onChange={(e) => setRevisionNotes(e.target.value)}
-                placeholder="Explain the reason for this revision..."
-                rows={2}
-                className="w-full px-3 py-2 border border-orange-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent" />
-
-              </div>
-              <div className="flex gap-2">
-                <Button variant="primary" size="sm" onClick={submitRevision}>
-                  Submit Revision
-                </Button>
-                <Button variant="outline" size="sm" onClick={cancelRevision}>
-                  Cancel
-                </Button>
+              <p className="font-medium text-orange-800 mb-2">Revision Mode</p>
+              <textarea value={revisionNotes} onChange={(e) => setRevisionNotes(e.target.value)} placeholder="Revision notes..." rows={2} className="w-full px-3 py-2 border border-orange-300 rounded-lg text-sm" />
+              <div className="mt-2 flex gap-2">
+                <Button variant="primary" size="sm" onClick={submitRevision}>Submit Revision</Button>
+                <Button variant="outline" size="sm" onClick={cancelRevision}>Cancel</Button>
               </div>
             </div>
           }
 
-          {/* Offer Details */}
-          <Card title="Offer Details">
+          <div>
+            <h3 className="font-semibold text-gray-900 mb-3">Offer details</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Final Approved Salary (₹) *</label>
-                <input
-                  type="number"
-                  value={editedOfferDetails.approvedSalary}
-                  onChange={(e) => updateOfferDetail('approvedSalary', e.target.value)}
-                  className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent ${
-                  validationErrors.approvedSalary ? 'border-red-500' : 'border-gray-300'}`
-                  } />
-
-                {validationErrors.approvedSalary &&
-                <p className="text-xs text-red-500 mt-1">{validationErrors.approvedSalary}</p>
-                }
+                <input type="number" value={editedOfferDetails.approvedSalary} onChange={(e) => updateOfferDetail('approvedSalary', e.target.value)} className={`w-full px-3 py-2 border rounded-lg text-sm ${validationErrors.approvedSalary ? 'border-red-500' : 'border-gray-300'}`} />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Reporting Date *</label>
-                <input
-                  type="date"
-                  value={editedOfferDetails.reportingDate}
-                  onChange={(e) => updateOfferDetail('reportingDate', e.target.value)}
-                  min={new Date().toISOString().split('T')[0]}
-                  className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent ${
-                  validationErrors.reportingDate ? 'border-red-500' : 'border-gray-300'}`
-                  } />
-
-                {validationErrors.reportingDate &&
-                <p className="text-xs text-red-500 mt-1">{validationErrors.reportingDate}</p>
-                }
+                <input type="date" value={editedOfferDetails.reportingDate} onChange={(e) => updateOfferDetail('reportingDate', e.target.value)} className={`w-full px-3 py-2 border rounded-lg text-sm ${validationErrors.reportingDate ? 'border-red-500' : 'border-gray-300'}`} />
               </div>
-              <Select
-                label="Probation Period"
-                options={PROBATION_OPTIONS}
-                value={editedOfferDetails.probationPeriod}
-                onChange={(v) => updateOfferDetail('probationPeriod', v)} />
-
-              <Select
-                label="Contract Type"
-                options={CONTRACT_OPTIONS}
-                value={editedOfferDetails.contractType}
-                onChange={(v) => updateOfferDetail('contractType', v)} />
-
+              <Select label="Probation Period" options={PROBATION_OPTIONS} value={editedOfferDetails.probationPeriod} onChange={(v) => updateOfferDetail('probationPeriod', v)} />
+              <Select label="Contract Type" options={CONTRACT_OPTIONS} value={editedOfferDetails.contractType} onChange={(v) => updateOfferDetail('contractType', v)} />
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Approval Authority *</label>
-                <select
-                  value={editedOfferDetails.approvalAuthority}
-                  onChange={(e) => updateOfferDetail('approvalAuthority', e.target.value)}
-                  className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent ${
-                  validationErrors.approvalAuthority ? 'border-red-500' : 'border-gray-300'}`
-                  }>
-
-                  {APPROVAL_AUTHORITIES.map((opt) =>
-                  <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  )}
+                <select value={editedOfferDetails.approvalAuthority} onChange={(e) => updateOfferDetail('approvalAuthority', e.target.value)} className={`w-full px-3 py-2 border rounded-lg text-sm ${validationErrors.approvalAuthority ? 'border-red-500' : 'border-gray-300'}`}>
+                  {APPROVAL_AUTHORITIES.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                 </select>
-                {validationErrors.approvalAuthority &&
-                <p className="text-xs text-red-500 mt-1">{validationErrors.approvalAuthority}</p>
-                }
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Benefits</label>
-                <input
-                  type="text"
-                  value={editedOfferDetails.benefits}
-                  onChange={(e) => updateOfferDetail('benefits', e.target.value)}
-                  placeholder="e.g. Medical, PF, Gratuity"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent" />
-
+                <input type="text" value={editedOfferDetails.benefits} onChange={(e) => updateOfferDetail('benefits', e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm" />
               </div>
             </div>
-          </Card>
+          </div>
 
-          {/* Salary Breakdown */}
-          <Card
-            title="Salary Breakdown"
-            headerAction={
-            <Button variant="outline" size="xs" onClick={addComponent}>
-                <Plus className="w-3 h-3 mr-1" />
-                Add Component
-              </Button>
-            }>
-
-            {validationErrors.salaryComponents &&
-            <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-600">
-                {validationErrors.salaryComponents}
-              </div>
-            }
-
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-gray-900">Salary breakdown</h3>
+              <Button variant="outline" size="sm" onClick={addComponent}><Plus className="w-3 h-3 mr-1" />Add Component</Button>
+            </div>
             <div className="space-y-2">
               {editedSalaryComponents.map((comp) =>
               <div key={comp.id} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg">
-                  <input
-                  type="text"
-                  value={comp.head}
-                  onChange={(e) => updateComponent(comp.id, 'head', e.target.value)}
-                  placeholder="Head name"
-                  className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-green-500 focus:border-transparent" />
-
-                  <select
-                  value={comp.type}
-                  onChange={(e) => updateComponent(comp.id, 'type', e.target.value)}
-                  className="px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-green-500">
-
+                  <input type="text" value={comp.head} onChange={(e) => updateComponent(comp.id, 'head', e.target.value)} className="flex-1 px-2 py-1.5 border rounded text-sm" />
+                  <select value={comp.type} onChange={(e) => updateComponent(comp.id, 'type', e.target.value)} className="px-2 py-1.5 border rounded text-sm">
                     <option value="earning">Earning</option>
                     <option value="deduction">Deduction</option>
                   </select>
-                  <input
-                  type="number"
-                  value={comp.amount}
-                  onChange={(e) => updateComponent(comp.id, 'amount', parseInt(e.target.value) || 0)}
-                  className="w-28 px-2 py-1.5 border border-gray-300 rounded text-sm text-right focus:ring-1 focus:ring-green-500 focus:border-transparent" />
-
-                  <button
-                  onClick={() => removeComponent(comp.id)}
-                  disabled={editedSalaryComponents.length <= 1}
-                  className="p-1 hover:bg-red-50 rounded text-red-500 disabled:opacity-50 disabled:cursor-not-allowed">
-
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <input type="number" value={comp.amount} onChange={(e) => updateComponent(comp.id, 'amount', parseInt(e.target.value) || 0)} className="w-28 px-2 py-1.5 border rounded text-sm text-right" />
+                  <button onClick={() => removeComponent(comp.id)} disabled={editedSalaryComponents.length <= 1} className="p-1 text-red-500 disabled:opacity-50"><Trash2 className="w-4 h-4" /></button>
                 </div>
               )}
             </div>
-
-            <div className="mt-4 pt-4 border-t space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Total Earnings</span>
-                <span className="font-semibold text-green-700">₹{totalEarnings.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Total Deductions</span>
-                <span className="font-semibold text-red-600">₹{totalDeductions.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between text-base font-bold border-t pt-2">
-                <span className="text-gray-900">Net Salary</span>
-                <span className="text-green-700">₹{netSalary.toLocaleString()}</span>
-              </div>
-            </div>
-          </Card>
-
-          {/* Action Buttons */}
-          <div className="flex flex-wrap gap-3">
-            <Button
-              variant="primary"
-              onClick={generateOfferLetter}
-              disabled={isGeneratingPdf || isRevising}>
-
-              {isGeneratingPdf ?
-              <>
-                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                  Generating...
-                </> :
-
-              <>
-                  <FileText className="w-4 h-4 mr-2" />
-                  Generate Offer Letter (PDF)
-                </>
-              }
-            </Button>
-
-            <Button
-              variant="outline"
-              onClick={sendOfferEmail}
-              disabled={isSendingEmail || isRevising}>
-
-              {isSendingEmail ?
-              <>
-                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                  Sending...
-                </> :
-
-              <>
-                  <Send className="w-4 h-4 mr-2" />
-                  Send Offer Email
-                </>
-              }
-            </Button>
-
-            <Button
-              variant="outline"
-              onClick={startRevision}
-              disabled={isRevising || selectedCandidate?.status === 'Joined'}>
-
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Revise Offer
-            </Button>
-
-            <Button variant="outline" onClick={copyOfferLink}>
-              <Copy className="w-4 h-4 mr-2" />
-              Copy Link
-            </Button>
-
-            <Button variant="outline" onClick={printOffer}>
-              <Printer className="w-4 h-4 mr-2" />
-              Print
-            </Button>
-
-            <Button variant="outline" onClick={() => setShowOfferPreview(true)}>
-              <Eye className="w-4 h-4 mr-2" />
-              Preview
-            </Button>
+            <div className="mt-3 flex justify-between text-sm"><span>Gross / Net</span><span className="font-semibold">₹{totalEarnings.toLocaleString()} / ₹{netSalary.toLocaleString()}</span></div>
           </div>
 
-          {/* Simulation Buttons (for testing) */}
-          <Card title="Simulation Controls (For Testing)">
-            <p className="text-sm text-gray-500 mb-3">
-              Use these buttons to simulate candidate actions for testing purposes.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" onClick={simulateCandidateView}>
-                <Eye className="w-4 h-4 mr-1" />
-                Simulate: Candidate Views Offer
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => recordCandidateResponse(true)}>
-                <CheckCircle className="w-4 h-4 mr-1" />
-                Simulate: Accept Offer
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => recordCandidateResponse(false)}>
-                <XCircle className="w-4 h-4 mr-1" />
-                Simulate: Reject Offer
-              </Button>
-              <Button variant="outline" size="sm" onClick={confirmJoining}>
-                <User className="w-4 h-4 mr-1" />
-                Confirm Joining
-              </Button>
-            </div>
-          </Card>
-        </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="primary" onClick={generateOfferLetter} disabled={isGeneratingPdf}><FileText className="w-4 h-4 mr-1" />{isGeneratingPdf ? 'Generating...' : 'Generate Offer Letter'}</Button>
+            <Button variant="outline" onClick={() => setShowOfferPreview(true)}><Eye className="w-4 h-4 mr-1" />Preview</Button>
+            <Button variant="outline" onClick={printOffer}><Printer className="w-4 h-4 mr-1" />Print</Button>
+            <Button variant="outline" onClick={startRevision}><Edit className="w-4 h-4 mr-1" />Revise</Button>
+          </div>
 
-        {/* Right Column */}
+          <div className="pt-4 border-t">
+            <h3 className="font-semibold text-gray-900 mb-2">Onboarding documents checklist</h3>
+            <p className="text-xs text-gray-500 mb-3">Select documents to email with the offer letter.</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {ONBOARDING_DOCUMENTS.map((doc) =>
+              <label key={doc} className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg text-sm">
+                  <input
+                    type="checkbox"
+                    checked={onboardingDocs.includes(doc)}
+                    onChange={() => setOnboardingDocs((prev) => prev.includes(doc) ? prev.filter((d) => d !== doc) : [...prev, doc])}
+                  />
+                  {doc}
+                </label>
+              )}
+            </div>
+            <Button variant="primary" className="mt-4" onClick={sendOfferEmail} disabled={isSendingEmail}>
+              <Send className="w-4 h-4 mr-1" />
+              {isSendingEmail ? 'Sending...' : 'Email offer letter with selected documents'}
+            </Button>
+          </div>
+        </div>
+      </Card> :
+
+      <Card title="Joining & Conversion">
         <div className="space-y-6">
-          {/* Offer Tracking */}
-          <Card title="Offer Tracking">
-            <div className="space-y-3">
-              {selectedCandidate &&
-              candidates.find((c) => c.id === selectedCandidateId)?.trackingSteps.map((step, i) =>
-              <div key={step.id} className="flex items-start gap-3">
-                    <div className="relative">
-                      <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                    step.done ? 'bg-green-100' : 'bg-gray-100'}`
-                    }>
-
-                        {step.done ?
-                    <CheckCircle className="w-4 h-4 text-green-600" /> :
-
-                    <Clock className="w-4 h-4 text-gray-300" />
-                    }
-                      </div>
-                      {i < 4 &&
-                  <div
-                    className={`absolute left-1/2 top-8 w-0.5 h-6 -translate-x-1/2 ${
-                    step.done ? 'bg-green-200' : 'bg-gray-200'}`
-                    } />
-
-                  }
-                    </div>
-                    <div className="flex-1 pb-4">
-                      <p className={`text-sm font-medium ${step.done ? 'text-gray-900' : 'text-gray-400'}`}>
-                        {step.label}
-                      </p>
-                      <p className="text-xs text-gray-400">
-                        {step.done ? step.date : 'Pending'}
-                        {step.actor && ` · ${step.actor}`}
-                      </p>
-                    </div>
-                  </div>
-              )}
+          <div className="p-4 bg-teal-50 rounded-xl border border-teal-200 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-teal-500 to-green-600 text-white flex items-center justify-center font-bold">{selectedCandidate.avatar}</div>
+            <div className="flex-1">
+              <p className="font-semibold text-gray-900">{selectedCandidate.name}</p>
+              <p className="text-sm text-gray-500">{selectedCandidate.position} · {getBranchName(selectedCandidate.branch)}</p>
+              <p className="text-xs text-gray-400">{selectedCandidate.email} · {selectedCandidate.phone} · Offer sent</p>
             </div>
+            {selectedCandidate.converted && <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700">Converted</span>}
+          </div>
 
-            {/* Progress indicator */}
-            <div className="mt-4 pt-4 border-t">
-              <div className="flex items-center justify-between text-sm mb-2">
-                <span className="text-gray-600">Progress</span>
-                <span className="font-medium">{getCurrentTrackingStep()} / 5 steps</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div
-                  className="bg-green-500 h-2 rounded-full transition-all"
-                  style={{ width: `${getCurrentTrackingStep() / 5 * 100}%` }} />
-
-              </div>
-            </div>
-          </Card>
-
-          {/* Offer Summary */}
-          <Card title="Offer Summary">
-            {selectedCandidate &&
-            <div className="space-y-3 text-sm">
-                {[
-              { label: 'Candidate', value: selectedCandidate.name },
-              { label: 'Position', value: selectedCandidate.position },
-              { label: 'Branch', value: getBranchName(selectedCandidate.branch) },
-              { label: 'Gross Salary', value: `₹${totalEarnings.toLocaleString()}` },
-              { label: 'Net Salary', value: `₹${netSalary.toLocaleString()}` },
-              { label: 'Contract Type', value: editedOfferDetails.contractType },
-              { label: 'Probation', value: `${editedOfferDetails.probationPeriod} months` },
-              { label: 'Reporting Date', value: editedOfferDetails.reportingDate || 'Not set' },
-              { label: 'Benefits', value: editedOfferDetails.benefits || 'Not specified' }].
-              map((item) =>
-              <div key={item.label} className="flex justify-between">
-                    <span className="text-gray-500">{item.label}</span>
-                    <span className="font-medium text-gray-900 text-right max-w-[60%] truncate">{item.value}</span>
-                  </div>
-              )}
-              </div>
-            }
-          </Card>
-
-          {/* Revision History */}
-          {selectedCandidate && selectedCandidate.revisions.length > 0 &&
-          <Card
-            title="Revision History"
-            headerAction={
-            <button onClick={() => setShowRevisionHistory(!showRevisionHistory)}>
-                  {showRevisionHistory ?
-              <ChevronUp className="w-4 h-4 text-gray-500" /> :
-
-              <ChevronDown className="w-4 h-4 text-gray-500" />
-              }
-                </button>
-            }>
-
-              <div className={`space-y-3 ${showRevisionHistory ? '' : 'max-h-24 overflow-hidden'}`}>
-                {candidates.
-              find((c) => c.id === selectedCandidateId)?.
-              revisions.slice().
-              reverse().
-              map((revision) =>
-              <div key={revision.id} className="p-2 bg-gray-50 rounded-lg text-xs">
-                      <div className="flex justify-between mb-1">
-                        <span className="font-medium">{revision.revisedBy}</span>
-                        <span className="text-gray-400">
-                          {new Date(revision.timestamp).toLocaleDateString()}
+          <div>
+            <h3 className="font-semibold text-gray-900 mb-3">Pre-Joining Checklist</h3>
+            <div className="space-y-4">
+              {([
+                ['Document Verification', [
+                  ['origDegree', 'Original Degree Certificate', true],
+                  ['bedCert', 'B.Ed / Teaching Certificate', true],
+                  ['prevEmp', 'Previous Employment Certificate', true],
+                  ['addressProof', 'Address Proof (Aadhar/Passport)', true],
+                  ['pan', 'PAN Card', true],
+                  ['photos', 'Passport Size Photographs (4)', true]
+                ]],
+                ['Qualification Verification', [
+                  ['qualComplete', 'Qualification Verification Complete', true],
+                  ['refCheck', 'Previous Employer Reference Check', true]
+                ]],
+                ['Background Check', [
+                  ['bgInitiated', 'Background Check Initiated', true],
+                  ['bgCleared', 'Background Check Cleared', true],
+                  ['policeInitiated', 'Police Verification Initiated', false],
+                  ['policeCleared', 'Police Verification Cleared', false]
+                ]],
+                ['Medical Check', [
+                  ['medCert', 'Medical Certificate Submitted', false],
+                  ['medFit', 'Medical Fitness Verified', false]
+                ]]
+              ] as [string, [string, string, boolean][]][]).map(([section, items]) =>
+                <div key={section} className="border rounded-lg overflow-hidden">
+                  <div className="bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-800">{section}</div>
+                  <div className="divide-y">
+                    {items.map(([key, label, required]) =>
+                      <label key={key} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                        <span className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(joiningChecks[key])}
+                            onChange={(e) => setJoiningChecks((prev) => ({ ...prev, [key]: e.target.checked }))}
+                          />
+                          {label}
                         </span>
-                      </div>
-                      <ul className="space-y-0.5 text-gray-600">
-                        {revision.changes.map((change, idx) =>
-                  <li key={idx}>
-                            {change.field}: {change.oldValue} → {change.newValue}
-                          </li>
-                  )}
-                      </ul>
-                    </div>
+                        {required ? <span className="text-[11px] font-medium text-red-600">Required</span> : <span className="text-[11px] text-gray-400">Optional</span>}
+                      </label>
+                    )}
+                  </div>
+                </div>
               )}
-              </div>
-              {!showRevisionHistory && selectedCandidate.revisions.length > 1 &&
-            <button
-              onClick={() => setShowRevisionHistory(true)}
-              className="mt-2 text-xs text-green-600 hover:underline">
-
-                  Show all {selectedCandidate.revisions.length} revisions
-                </button>
-            }
-            </Card>
-          }
-
-          {/* Quick Actions */}
-          <Card title="Quick Actions">
-            <div className="space-y-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full justify-start"
-                onClick={() => {
-                  if (selectedCandidate) {
-                    window.open(`mailto:${selectedCandidate.email}`, '_blank');
-                  }
-                }}>
-
-                <Mail className="w-4 h-4 mr-2" />
-                Email Candidate
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full justify-start"
-                onClick={() => setShowRevisionHistory(true)}>
-
-                <History className="w-4 h-4 mr-2" />
-                View History
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full justify-start"
-                onClick={() => {
-                  const candidateData = candidates.find((c) => c.id === selectedCandidateId);
-                  if (candidateData?.offerLetterUrl) {
-                    setNotification({ type: 'info', message: 'Downloading offer letter...' });
-                  } else {
-                    setNotification({ type: 'warning', message: 'Offer letter not generated yet' });
-                  }
-                }}>
-
-                <Download className="w-4 h-4 mr-2" />
-                Download Offer Letter
-              </Button>
             </div>
-          </Card>
+          </div>
+
+          <div>
+            <h3 className="font-semibold text-gray-900 mb-3">Joining Details</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Employee ID (Auto-Generated)</label>
+                <input value={joiningForm.employeeId} readOnly className="w-full px-3 py-2 border rounded-lg text-sm bg-gray-50" />
+                <p className="text-[11px] text-gray-400 mt-1">Auto-generated</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Joining Date <span className="text-red-500">*</span></label>
+                <input type="date" value={joiningForm.joiningDate} onChange={(e) => setJoiningForm((p) => ({ ...p, joiningDate: e.target.value }))} className="w-full px-3 py-2 border rounded-lg text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Department Allocation <span className="text-red-500">*</span></label>
+                <input value={joiningForm.department} onChange={(e) => setJoiningForm((p) => ({ ...p, department: e.target.value }))} className="w-full px-3 py-2 border rounded-lg text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Subject Allocation</label>
+                <input value={joiningForm.subject} onChange={(e) => setJoiningForm((p) => ({ ...p, subject: e.target.value }))} className="w-full px-3 py-2 border rounded-lg text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Reporting Manager <span className="text-red-500">*</span></label>
+                <select value={joiningForm.reportingManager} onChange={(e) => setJoiningForm((p) => ({ ...p, reportingManager: e.target.value }))} className="w-full px-3 py-2 border rounded-lg text-sm">
+                  <option value="">Select Manager</option>
+                  <option>Principal</option>
+                  <option>Vice Principal</option>
+                  <option>HOD Mathematics</option>
+                  <option>HOD Science</option>
+                  <option>HR Manager</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Salary Structure Mapping <span className="text-red-500">*</span></label>
+                <select value={joiningForm.salaryStructure} onChange={(e) => setJoiningForm((p) => ({ ...p, salaryStructure: e.target.value }))} className="w-full px-3 py-2 border rounded-lg text-sm">
+                  <option>Grade A - Teacher (₹50,000 - ₹75,000)</option>
+                  <option>Grade B - Teacher (₹35,000 - ₹50,000)</option>
+                  <option>Grade C - Staff (₹25,000 - ₹40,000)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Probation Period</label>
+                <select value={joiningForm.probationPeriod} onChange={(e) => setJoiningForm((p) => ({ ...p, probationPeriod: e.target.value }))} className="w-full px-3 py-2 border rounded-lg text-sm">
+                  <option>3 months</option>
+                  <option>6 months</option>
+                  <option>12 months</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Work Email</label>
+                <input type="email" value={joiningForm.workEmail} onChange={(e) => setJoiningForm((p) => ({ ...p, workEmail: e.target.value }))} className="w-full px-3 py-2 border rounded-lg text-sm" />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="font-semibold text-gray-900 mb-3">Bank Details</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Bank Name</label>
+                <input value={joiningForm.bankName} onChange={(e) => setJoiningForm((p) => ({ ...p, bankName: e.target.value }))} placeholder="e.g. SBI, HDFC" className="w-full px-3 py-2 border rounded-lg text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Account Holder Name</label>
+                <input value={joiningForm.accountHolder} onChange={(e) => setJoiningForm((p) => ({ ...p, accountHolder: e.target.value }))} className="w-full px-3 py-2 border rounded-lg text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Account Number</label>
+                <input value={joiningForm.accountNumber} onChange={(e) => setJoiningForm((p) => ({ ...p, accountNumber: e.target.value }))} className="w-full px-3 py-2 border rounded-lg text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">IFSC Code</label>
+                <input value={joiningForm.ifscCode} onChange={(e) => setJoiningForm((p) => ({ ...p, ifscCode: e.target.value }))} placeholder="e.g. SBIN0001234" className="w-full px-3 py-2 border rounded-lg text-sm" />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="font-semibold text-gray-900 mb-3">Emergency Contact (Optional)</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Contact Name</label>
+                <input value={joiningForm.emergencyName} onChange={(e) => setJoiningForm((p) => ({ ...p, emergencyName: e.target.value }))} className="w-full px-3 py-2 border rounded-lg text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Contact Phone</label>
+                <input value={joiningForm.emergencyPhone} onChange={(e) => setJoiningForm((p) => ({ ...p, emergencyPhone: e.target.value }))} className="w-full px-3 py-2 border rounded-lg text-sm" />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="font-semibold text-gray-900 mb-2">Additional Notes</h3>
+            <textarea rows={3} value={joiningForm.notes} onChange={(e) => setJoiningForm((p) => ({ ...p, notes: e.target.value }))} className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="Any joining remarks" />
+          </div>
+
+          <div>
+            <h3 className="font-semibold text-gray-900 mb-3">Document upload</h3>
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-teal-600 text-white text-sm cursor-pointer">
+                <Upload className="w-4 h-4" />
+                Upload document
+                <input
+                  type="file"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const url = URL.createObjectURL(file);
+                    setJoiningUploads((prev) => [...prev, { name: file.name, url }]);
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+            </div>
+            {joiningUploads.length === 0 && <p className="text-sm text-gray-400">No documents uploaded yet.</p>}
+            <div className="space-y-2">
+              {joiningUploads.map((doc) =>
+                <div key={doc.url} className="flex items-center justify-between gap-3 border rounded-lg px-3 py-2 text-sm">
+                  <span className="truncate">{doc.name}</span>
+                  <Button variant="outline" size="sm" onClick={() => window.open(doc.url, '_blank')}>
+                    <Eye className="w-4 h-4 mr-1" /> Preview document
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            <Button variant="primary" onClick={convertApplicantToEmployee} disabled={selectedCandidate.converted}>
+              Convert Employee
+            </Button>
+            <Button variant="outline" onClick={openEmployeeForm}>
+              Open Employee Form
+            </Button>
+          </div>
         </div>
-      </div>
+      </Card>
+      }
+
+      </>
+      }
 
       {/* Offer Preview Modal */}
       {showOfferPreview && selectedCandidate &&

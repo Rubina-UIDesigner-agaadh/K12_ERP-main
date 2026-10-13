@@ -541,3 +541,5 @@ export function EmployeeRegister() {
     </div>);
 
 }
+
+export default EmployeeRegister;

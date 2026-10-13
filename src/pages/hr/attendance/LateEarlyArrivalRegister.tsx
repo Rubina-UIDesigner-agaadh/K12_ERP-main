@@ -592,9 +592,10 @@ export function LateEarlyArrivalRegister() {
         </div>
       </div>
 
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-6">
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center">
               <Clock className="w-5 h-5 text-red-600" />
@@ -608,7 +609,7 @@ export function LateEarlyArrivalRegister() {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-yellow-100 flex items-center justify-center">
               <Timer className="w-5 h-5 text-yellow-600" />
@@ -620,7 +621,7 @@ export function LateEarlyArrivalRegister() {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center">
               <ShieldX className="w-5 h-5 text-red-600" />
@@ -632,7 +633,7 @@ export function LateEarlyArrivalRegister() {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
               <ShieldCheck className="w-5 h-5 text-green-600" />
@@ -644,7 +645,7 @@ export function LateEarlyArrivalRegister() {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center">
               <AlertTriangle className="w-5 h-5 text-orange-600" />
@@ -658,7 +659,7 @@ export function LateEarlyArrivalRegister() {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
               <Timer className="w-5 h-5 text-purple-600" />
@@ -672,7 +673,7 @@ export function LateEarlyArrivalRegister() {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center">
               <Zap className="w-5 h-5 text-red-600" />
@@ -686,7 +687,7 @@ export function LateEarlyArrivalRegister() {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
               <Users className="w-5 h-5 text-blue-600" />
@@ -701,8 +702,8 @@ export function LateEarlyArrivalRegister() {
         </div>
       </div>
 
-      {/* Filter Bar */}
-      <Card title="Filters">
+      <div>
+        <h3 className="font-semibold text-gray-900 mb-3">Filters</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -798,13 +799,10 @@ export function LateEarlyArrivalRegister() {
             }
           </div>
         </div>
-      </Card>
+      </div>
 
-      {/* Data Table */}
-      <Card
-        title={
-        showEarlyArrivals ? 'Early Arrival Records' : 'Late Arrival Records'
-        }>
+      <div>
+        <h3 className="font-semibold text-gray-900 mb-3">{showEarlyArrivals ? 'Early Arrival Records' : 'Late Arrival Records'}</h3>
 
         {/* Info Banner */}
         <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg mb-4">
@@ -1105,7 +1103,7 @@ export function LateEarlyArrivalRegister() {
             <span className="text-gray-500">Severe</span>
           </div>
         </div>
-      </Card>
+      </div>
 
       {/* Waive Penalty Modal */}
       {waiveModal.isOpen && waiveModal.record &&
@@ -1427,10 +1425,9 @@ export function LateEarlyArrivalRegister() {
         </div>
       }
 
-      {/* Top Late Comers Summary */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Frequent Late Comers */}
-        <Card title="Frequent Late Arrivals (This Month)">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2 border-t border-gray-100">
+        <div>
+          <h3 className="font-semibold text-gray-900 mb-3">Frequent Late Arrivals (This Month)</h3>
           <div className="space-y-3">
             {(() => {
               const employeeLateCount = records.
@@ -1492,10 +1489,11 @@ export function LateEarlyArrivalRegister() {
               );
             })()}
           </div>
-        </Card>
+        </div>
 
         {/* Late Arrival Trends */}
-        <Card title="Daily Late Arrival Trend">
+        <div>
+          <h3 className="font-semibold text-gray-900 mb-3">Daily Late Arrival Trend</h3>
           <div className="space-y-3">
             {(() => {
               const last7Days = [];
@@ -1558,7 +1556,8 @@ export function LateEarlyArrivalRegister() {
               <span className="text-gray-600">&gt; 5 (High)</span>
             </div>
           </div>
-        </Card>
+        </div>
+      </div>
       </div>
     </div>);
 

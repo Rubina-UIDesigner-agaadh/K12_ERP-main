@@ -255,6 +255,7 @@ export function TimetableSetup() {
   const [selectedYear, setSelectedYear] = useState('2025-26');
   const [showAddPeriod, setShowAddPeriod] = useState(false);
   const [selectedClass, setSelectedClass] = useState('class-8a');
+  const [ttAudience, setTtAudience] = useState<'student' | 'teacher'>('student');
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState(false);
   const [newPeriod, setNewPeriod] = useState<Partial<Period>>({
@@ -379,9 +380,12 @@ export function TimetableSetup() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Timetable Setup</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Configure period master, working days, subject allocations and
-            auto-generate timetables
+            Configure both student and teacher timetables — period master, working days, allocations and auto-generate
           </p>
+          <div className="mt-3 flex gap-2">
+            <button type="button" onClick={() => setTtAudience('student')} className={`px-4 py-2 rounded-lg text-sm font-medium ${ttAudience === 'student' ? 'bg-indigo-600 text-white' : 'bg-white border text-gray-700'}`}>Student Timetable</button>
+            <button type="button" onClick={() => setTtAudience('teacher')} className={`px-4 py-2 rounded-lg text-sm font-medium ${ttAudience === 'teacher' ? 'bg-indigo-600 text-white' : 'bg-white border text-gray-700'}`}>Teacher Timetable</button>
+          </div>
         </div>
         <div className="flex gap-2 flex-wrap">
           <Button
@@ -1002,11 +1006,37 @@ export function TimetableSetup() {
 
           {/* Timetable Generator Tab */}
           <TabsContent value="generator" className="p-5">
+            <div className="mb-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setTtAudience('student')}
+                className={`px-4 py-1.5 rounded-full text-sm font-medium border ${ttAudience === 'student' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}>
+                Student Timetable
+              </button>
+              <button
+                type="button"
+                onClick={() => setTtAudience('teacher')}
+                className={`px-4 py-1.5 rounded-full text-sm font-medium border ${ttAudience === 'teacher' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}>
+                Teacher Timetable
+              </button>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Left: Settings + Conflict */}
+              {/* Left: Settings */}
               <div className="md:col-span-1 space-y-4">
                 <Card title="Generator Settings">
                   <div className="space-y-3">
+                    {ttAudience === 'teacher' ?
+                    <Select
+                      label="Teacher"
+                      options={[
+                      { value: '', label: 'Select Teacher' },
+                      { value: 'sharma', label: 'Mrs. Sharma' },
+                      { value: 'patel', label: 'Mr. Patel' },
+                      { value: 'verma', label: 'Mrs. Verma' },
+                      { value: 'kumar', label: 'Mr. Kumar' },
+                      { value: 'nair', label: 'Ms. Nair' }
+                      ]} /> :
+                    <>
                     <Select
                       label="Class"
                       options={[
@@ -1045,6 +1075,7 @@ export function TimetableSetup() {
                         label: 'Section C'
                       }]
                       } />
+                    </>}
 
                     <Select
                       label="Academic Year"
@@ -1090,50 +1121,6 @@ export function TimetableSetup() {
                   </div>
                 </Card>
 
-                <Card title="Conflict Detection">
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 p-2 bg-yellow-50 rounded-lg">
-                      <AlertTriangleIcon className="w-4 h-4 text-yellow-600 flex-shrink-0" />
-                      <div>
-                        <p className="text-xs font-medium text-yellow-800">
-                          Teacher Conflict
-                        </p>
-                        <p className="text-xs text-yellow-600">
-                          Mrs. Sharma — Mon P3 double-booked
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 p-2 bg-green-50 rounded-lg">
-                      <CheckCircleIcon className="w-4 h-4 text-green-600 flex-shrink-0" />
-                      <div>
-                        <p className="text-xs font-medium text-green-800">
-                          Room Allocation
-                        </p>
-                        <p className="text-xs text-green-600">
-                          All rooms available
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 p-2 bg-green-50 rounded-lg">
-                      <CheckCircleIcon className="w-4 h-4 text-green-600 flex-shrink-0" />
-                      <div>
-                        <p className="text-xs font-medium text-green-800">
-                          Period Allocation
-                        </p>
-                        <p className="text-xs text-green-600">
-                          All subjects allocated correctly
-                        </p>
-                      </div>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full text-xs">
-
-                      Re-run Conflict Check
-                    </Button>
-                  </div>
-                </Card>
               </div>
 
               {/* Right: Timetable Preview / Override Editor */}

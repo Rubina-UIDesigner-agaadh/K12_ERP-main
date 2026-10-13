@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { Modal } from '../../../components/ui/Modal';
+import { EmployeeAttendanceAdmin } from './EmployeeAttendanceAdmin';
 import {
   AlertCircle, AlertTriangle, ArrowUpDown, Calendar, CheckCircle, ChevronLeft, ChevronRight, Clock, Coffee, RefreshCw,
   Download, Edit3, FileSpreadsheet, Home, Lock, Printer, Radio,
@@ -712,6 +713,11 @@ export function ManualAttendanceMarking() {
   const [editDraft, setEditDraft] = useState<EditDraft>({ choice: 'present', inTime: '', outTime: '', reason: '' });
   const [editError, setEditError] = useState<string | null>(null);
   const [showFullLog, setShowFullLog] = useState(false);
+  const [sheetTab, setSheetTab] = useState<'mark' | 'admin' | 'history'>('mark');
+  const [correctionHistory, setCorrectionHistory] = useState([
+    { id: 'CR-001', at: '08 Oct 2026 10:14', emp: 'Jane Smith (EMP002)', from: 'Absent', to: 'Present', by: 'HR Admin', reason: 'Biometric failed at Gate 2' },
+    { id: 'CR-002', at: '07 Oct 2026 16:40', emp: 'David Lee (EMP007)', from: 'Not marked', to: 'On Duty', by: 'HR Admin', reason: 'Official visit to north campus' }
+  ]);
   const [notice, setNotice] = useState<{ type: 'success' | 'info' | 'error'; text: string } | null>(null);
   const feedRef = useRef<HTMLUListElement>(null);
 
@@ -933,16 +939,26 @@ export function ManualAttendanceMarking() {
   const filtersActive = departmentFilter !== 'all' || staffTypeFilter !== 'all' || !!appliedSearch || quickFilter !== 'all';
 
   return (
-    <div className="space-y-6">
+    <div className="p-6">
+      {notice && (
+        <div className={`mb-4 flex items-start justify-between gap-3 rounded-lg border px-4 py-3 text-sm ${notice.type === 'success' ? 'bg-green-50 border-green-200 text-green-800' : notice.type === 'error' ? 'bg-red-50 border-red-200 text-red-800' : 'bg-indigo-50 border-indigo-200 text-indigo-800'}`}>
+          <span>{notice.text}</span>
+          <button type="button" onClick={() => setNotice(null)} className="opacity-70 hover:opacity-100">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
       {/* Zone 1: header, mode switch, live sync status */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+      <div className="p-5">
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
               <Calendar className="w-6 h-6 text-indigo-600" />
               Employee Attendance
             </h1>
-            <p className="text-sm text-gray-500 mt-1">Today: {formatLongDate(today)}</p>
+            <p className="text-sm text-gray-500 mt-1">Mark attendance and apply admin corrections in one place · Today: {formatLongDate(today)}</p>
           </div>
           <div className="flex items-center gap-3 rounded-lg border border-green-500 bg-green-50 px-4 py-2">
             <RefreshCw className="w-4 h-4 text-green-700" />
@@ -960,19 +976,52 @@ export function ManualAttendanceMarking() {
             <span className="inline-flex items-center gap-1.5 text-amber-700 font-medium"><Lock className="w-3.5 h-3.5" /> Day submitted and locked</span>
           )}
         </div>
+        <div className="mt-4 flex gap-1 border-b border-gray-200">
+          {([{ id: 'mark', label: 'Mark Attendance' }, { id: 'admin', label: 'Admin Corrections' }, { id: 'history', label: 'Correction History' }] as const).map((tab) =>
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setSheetTab(tab.id)}
+              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${sheetTab === tab.id ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-gray-500 hover:text-gray-800'}`}>
+              {tab.label}
+            </button>
+          )}
+        </div>
       </div>
 
-      {notice && (
-        <div className={`flex items-start justify-between gap-3 rounded-lg border px-4 py-3 text-sm ${notice.type === 'success' ? 'bg-green-50 border-green-200 text-green-800' : notice.type === 'error' ? 'bg-red-50 border-red-200 text-red-800' : 'bg-indigo-50 border-indigo-200 text-indigo-800'}`}>
-          <span>{notice.text}</span>
-          <button type="button" onClick={() => setNotice(null)} className="opacity-70 hover:opacity-100">
-            <X className="w-4 h-4" />
-          </button>
+      {sheetTab === 'admin' ? (
+        <div className="border-t border-gray-100">
+          <EmployeeAttendanceAdmin embedded />
         </div>
-      )}
-
+      ) : sheetTab === 'history' ? (
+        <div className="border-t border-gray-100 overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                {['Correction ID', 'When', 'Employee', 'From', 'To', 'By', 'Reason'].map((h) =>
+                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">{h}</th>
+                )}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {correctionHistory.map((row) => (
+                <tr key={row.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 font-mono text-xs">{row.id}</td>
+                  <td className="px-4 py-3">{row.at}</td>
+                  <td className="px-4 py-3">{row.emp}</td>
+                  <td className="px-4 py-3">{row.from}</td>
+                  <td className="px-4 py-3 font-medium text-indigo-700">{row.to}</td>
+                  <td className="px-4 py-3 text-gray-600">{row.by}</td>
+                  <td className="px-4 py-3 text-gray-600">{row.reason}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+      <div>
       {/* Zone 2: smart filter bar */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 space-y-4">
+      <div className="px-5 pb-4 space-y-4 border-t border-gray-100">
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3 items-end">
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Date</label>
@@ -1041,8 +1090,8 @@ export function ManualAttendanceMarking() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div>
+        <div className="lg:flex lg:items-stretch border-t border-gray-100">
+          <div className="flex-1 min-w-0">
           {/* Zone 6: bulk action bar */}
           <div className="px-5 py-3 bg-gray-50 border-b border-gray-200 space-y-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">Bulk Actions (select employees using the checkboxes, then apply a status)</p>
@@ -1329,9 +1378,8 @@ export function ManualAttendanceMarking() {
             </div>
           </div>
         </div>
-
-        {/* Zone 7: live auto-feed, part of the same panel */}
-        <div className="border-t border-gray-200">
+        {/* Zone 7: live auto-feed on the right of the same panel */}
+        <div className="lg:w-80 lg:flex-shrink-0 lg:border-l border-t lg:border-t-0 border-gray-200">
           <div>
             <div className="px-4 py-3 border-b border-gray-200">
               <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
@@ -1384,7 +1432,7 @@ export function ManualAttendanceMarking() {
             </div>
           </div>
         </div>
-      </div>
+        </div>
 
       {/* Zone 8: sticky bottom bar */}
       <div className="sticky bottom-0 z-30 rounded-xl border border-gray-200 bg-white/95 p-4 shadow-lg backdrop-blur">
@@ -1420,6 +1468,9 @@ export function ManualAttendanceMarking() {
             </button>
           </div>
         </div>
+      </div>
+      </div>
+      )}
       </div>
 
       {/* Full auto log */}
@@ -1463,6 +1514,10 @@ export function ManualAttendanceMarking() {
       </Modal>
     </div>);
 
+}
+
+export function ManualAttendanceEmployee() {
+  return <ManualAttendanceMarking />;
 }
 
 export default ManualAttendanceMarking;

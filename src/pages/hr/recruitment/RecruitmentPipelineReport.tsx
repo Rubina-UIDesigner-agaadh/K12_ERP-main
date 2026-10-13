@@ -37,6 +37,9 @@ import {
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Select } from '../../../components/ui/Select';
+import { SourceCampaignEffectivenessReport } from './SourceCampaignEffectivenessReport';
+import { TimeToHireAnalytics } from './TimeToHireAnalytics';
+import { SanctionedVsFilledPositionsReport } from './SanctionedVsFilledPositionsReport';
 
 const BRANCHES = [
 { id: 'all', name: 'All Branches' },
@@ -437,6 +440,7 @@ interface StageDetail {
 }
 
 export function RecruitmentPipelineReport() {
+  const [reportTab, setReportTab] = useState<'pipeline' | 'source' | 'time' | 'positions'>('pipeline');
   // Filter states
   const [selectedBranches, setSelectedBranches] = useState<string[]>(['all']);
   const [academicYear, setAcademicYear] = useState('2024-2025');
@@ -925,6 +929,26 @@ export function RecruitmentPipelineReport() {
 
   return (
     <div className="space-y-6 pb-8">
+      <div className="flex flex-wrap gap-1 border-b border-gray-200 px-1">
+        {([
+          { id: 'pipeline', label: 'Pipeline Report' },
+          { id: 'source', label: 'Source & Campaign' },
+          { id: 'time', label: 'Time-to-Hire' },
+          { id: 'positions', label: 'Sanctioned vs Filled' }
+        ] as const).map((tab) =>
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setReportTab(tab.id)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${reportTab === tab.id ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-800'}`}>
+            {tab.label}
+          </button>
+        )}
+      </div>
+      {reportTab === 'source' && <SourceCampaignEffectivenessReport />}
+      {reportTab === 'time' && <TimeToHireAnalytics />}
+      {reportTab === 'positions' && <SanctionedVsFilledPositionsReport />}
+      {reportTab === 'pipeline' && <>
       {/* Notification */}
       {notification &&
       <div
@@ -1812,6 +1836,7 @@ export function RecruitmentPipelineReport() {
 
       {/* Click outside handlers */}
       {showExportMenu && <div className="fixed inset-0 z-10" onClick={() => setShowExportMenu(false)} />}
+      </>}
     </div>);
 
 }

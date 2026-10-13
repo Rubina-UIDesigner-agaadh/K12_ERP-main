@@ -108,11 +108,11 @@ const platforms = [
 
 
 const REQUISITIONS = [
-{ id: 'REQ-2024-001', title: 'Math Teacher', department: 'Mathematics', positions: 2 },
-{ id: 'REQ-2024-002', title: 'Physics Teacher', department: 'Science', positions: 1 },
-{ id: 'REQ-2024-003', title: 'English Teacher', department: 'English', positions: 3 },
-{ id: 'REQ-2024-004', title: 'Admin Officer', department: 'Administration', positions: 1 },
-{ id: 'REQ-2024-005', title: 'CS Teacher', department: 'Computer Science', positions: 2 }];
+{ id: 'REQ-2024-001', title: 'Math Teacher', department: 'Mathematics', positions: 2, roleType: 'Teaching', subject: 'Mathematics', empType: 'Full-time', qualifications: 'M.Sc Mathematics, B.Ed', experience: '5+ years', salaryMin: '50000', salaryMax: '70000', branch: 'main', expectedJoining: '2025-01-15', priority: 'High', reportingManager: 'HOD Mathematics', justification: 'Two senior math vacancies for higher secondary', certifications: 'B.Ed, CTET', description: 'Senior mathematics teacher for higher secondary classes' },
+{ id: 'REQ-2024-002', title: 'Physics Teacher', department: 'Science', positions: 1, roleType: 'Teaching', subject: 'Physics', empType: 'Full-time', qualifications: 'M.Sc Physics, B.Ed', experience: '3+ years', salaryMin: '45000', salaryMax: '60000', branch: 'main', expectedJoining: '2025-01-20', priority: 'High', reportingManager: 'HOD Science', justification: 'Physics teacher for classes 11 and 12', certifications: 'B.Ed', description: 'Physics teacher for classes 11 and 12' },
+{ id: 'REQ-2024-003', title: 'English Teacher', department: 'English', positions: 3, roleType: 'Teaching', subject: 'English Literature', empType: 'Full-time', qualifications: 'M.A English, B.Ed', experience: '2+ years', salaryMin: '40000', salaryMax: '55000', branch: 'north', expectedJoining: '2025-02-01', priority: 'Medium', reportingManager: 'HOD English', justification: 'Additional English faculty for new sections', certifications: 'B.Ed, CTET', description: 'English teacher for middle and secondary classes' },
+{ id: 'REQ-2024-004', title: 'Admin Officer', department: 'Administration', positions: 1, roleType: 'Non-Teaching', subject: '', empType: 'Full-time', qualifications: 'Graduate with administrative experience', experience: '2+ years', salaryMin: '30000', salaryMax: '40000', branch: 'north', expectedJoining: '2025-02-01', priority: 'Medium', reportingManager: 'Office Superintendent', justification: 'Campus administration support', certifications: '', description: 'Administrative officer for North Wing campus' },
+{ id: 'REQ-2024-005', title: 'CS Teacher', department: 'Computer Science', positions: 2, roleType: 'Teaching', subject: 'Computer Science', empType: 'Full-time', qualifications: 'M.Tech / MCA, B.Ed', experience: '3+ years', salaryMin: '45000', salaryMax: '65000', branch: 'main', expectedJoining: '2025-01-10', priority: 'High', reportingManager: 'HOD Computer Science', justification: 'Computer science expansion', certifications: 'B.Ed', description: 'Computer science teacher for secondary classes' }];
 
 
 type PostingStatus = 'Draft' | 'Active' | 'Paused' | 'Closed' | 'Expired';
@@ -349,12 +349,21 @@ const initialPostings: JobPosting[] = [
   activityLog: []
 }];
 
+const ONLINE_APPLICATIONS = [
+  { id: 'OL-101', name: 'Kavya Menon', portal: 'Naukri', job: 'Mathematics Teacher', email: 'kavya.menon@email.com', phone: '+91 98765 10101', applied: '12-01-2026', experience: 4, qualification: 'M.Sc + B.Ed', cv: 'Kavya_Menon_CV.pdf', status: 'New' as 'New' | 'Rejected' },
+  { id: 'OL-102', name: 'Arjun Desai', portal: 'Indeed', job: 'Science Teacher', email: 'arjun.desai@email.com', phone: '+91 98765 10102', applied: '11-01-2026', experience: 6, qualification: 'M.Sc Physics', cv: 'Arjun_Desai_CV.pdf', status: 'New' as 'New' | 'Rejected' },
+  { id: 'OL-103', name: 'Sneha Iyer', portal: 'LinkedIn', job: 'English Teacher', email: 'sneha.iyer@email.com', phone: '+91 98765 10103', applied: '10-01-2026', experience: 3, qualification: 'M.A English + B.Ed', cv: 'Sneha_Iyer_CV.pdf', status: 'New' as 'New' | 'Rejected' },
+  { id: 'OL-104', name: 'Rohit Banerjee', portal: 'School Website', job: 'Computer Science Teacher', email: 'rohit.b@email.com', phone: '+91 98765 10104', applied: '09-01-2026', experience: 5, qualification: 'MCA + B.Ed', cv: 'Rohit_Banerjee_CV.pdf', status: 'New' as 'New' | 'Rejected' }
+];
 
 export function JobPostingAdvertisement() {
   const [postings, setPostings] = useState<JobPosting[]>(initialPostings);
   const [selectedBranches, setSelectedBranches] = useState<string[]>(['all']);
   const [academicYear, setAcademicYear] = useState('2024-2025');
-  const [activeTab, setActiveTab] = useState<'list' | 'create' | 'drafts' | 'closed'>('list');
+  const [activeTab, setActiveTab] = useState<'list' | 'create' | 'drafts' | 'closed' | 'requisitions' | 'online'>('list');
+  const [showNewPanel, setShowNewPanel] = useState(false);
+  const [onlineApps, setOnlineApps] = useState(ONLINE_APPLICATIONS);
+  const [onlineView, setOnlineView] = useState<(typeof ONLINE_APPLICATIONS)[0] | null>(null);
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['website']);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -395,7 +404,17 @@ export function JobPostingAdvertisement() {
     location: '',
     vacancies: '1',
     featured: false,
-    urgent: false
+    urgent: false,
+    roleType: 'Teaching',
+    subject: '',
+    qualifications: '',
+    experience: '',
+    expectedJoining: '',
+    priority: 'Medium',
+    reportingManager: '',
+    justification: '',
+    certifications: '',
+    requestedBy: ''
   });
 
   const handleBranchToggle = (branchId: string) => {
@@ -485,7 +504,17 @@ export function JobPostingAdvertisement() {
       location: '',
       vacancies: '1',
       featured: false,
-      urgent: false
+      urgent: false,
+      roleType: 'Teaching',
+      subject: '',
+      qualifications: '',
+      experience: '',
+      expectedJoining: '',
+      priority: 'Medium',
+      reportingManager: '',
+      justification: '',
+      certifications: '',
+      requestedBy: ''
     });
     setSelectedPlatforms(['website']);
   };
@@ -540,6 +569,7 @@ export function JobPostingAdvertisement() {
     setPostings((prev) => [...prev, newPosting]);
     resetForm();
     setActiveTab('list');
+    setShowNewPanel(false);
     alert(`Job posting ${status === 'Draft' ? 'saved as draft' : 'published'} successfully!`);
   };
 
@@ -990,7 +1020,21 @@ export function JobPostingAdvertisement() {
         requisitionId: reqId,
         jobTitle: requisition.title,
         dept: requisition.department,
-        vacancies: requisition.positions.toString()
+        vacancies: requisition.positions.toString(),
+        roleType: requisition.roleType,
+        subject: requisition.subject,
+        jobType: requisition.empType === 'Full-time' ? 'full-time' : requisition.empType === 'Part-time' ? 'part-time' : 'contract',
+        qualifications: requisition.qualifications,
+        experience: requisition.experience,
+        salaryMin: requisition.salaryMin,
+        salaryMax: requisition.salaryMax,
+        branch: requisition.branch,
+        expectedJoining: requisition.expectedJoining,
+        priority: requisition.priority,
+        reportingManager: requisition.reportingManager,
+        justification: requisition.justification,
+        certifications: requisition.certifications,
+        description: requisition.description
       }));
     }
   };
@@ -1083,7 +1127,7 @@ export function JobPostingAdvertisement() {
               <Download className="w-4 h-4 mr-1" />
               Export
             </Button>
-            <Button variant="primary" size="sm" onClick={() => setActiveTab('create')}>
+            <Button variant="primary" size="sm" onClick={() => setShowNewPanel(true)}>
               <Plus className="w-4 h-4 mr-1" />
               New Posting
             </Button>
@@ -1121,13 +1165,13 @@ export function JobPostingAdvertisement() {
         <div className="mt-4 flex gap-1 border-b border-gray-200">
           {[
           { key: 'list', label: 'Active Postings', count: stats.active },
-          { key: 'drafts', label: 'Drafts', count: stats.drafts },
           { key: 'closed', label: 'Closed', count: stats.closed },
-          { key: 'create', label: 'Create New', count: null }].
+          { key: 'requisitions', label: 'Created Requisitions', count: REQUISITIONS.length },
+          { key: 'online', label: 'Online Applications', count: onlineApps.filter((a) => a.status !== 'Rejected').length }].
           map((tab) =>
           <button
             key={tab.key}
-            onClick={() => setActiveTab(tab.key as any)}
+            onClick={() => { setShowNewPanel(false); setActiveTab(tab.key as any); }}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
             activeTab === tab.key ?
             'border-orange-600 text-orange-600' :
@@ -1143,7 +1187,122 @@ export function JobPostingAdvertisement() {
         </div>
       </Card>
 
-      {activeTab === 'list' || activeTab === 'drafts' || activeTab === 'closed' ?
+      {activeTab === 'online' && !showNewPanel ?
+      <Card className="p-4">
+          <h2 className="text-lg font-semibold text-gray-900 mb-1">Online applications received</h2>
+          <p className="text-sm text-gray-500 mb-4">Applicants who applied through job portals. View profile, CV, or reject from here.</p>
+          {onlineView ?
+          <div className="space-y-4">
+            <Button variant="outline" size="sm" onClick={() => setOnlineView(null)}>Back to applications</Button>
+            <div className="flex flex-col md:flex-row gap-5">
+              <div className="w-44 h-60 shrink-0 rounded-lg border bg-white shadow-sm p-3 text-[9px] leading-tight text-gray-700">
+                <p className="text-center font-bold text-[11px] text-gray-900">{onlineView.name}</p>
+                <p className="text-center text-gray-500 mb-2">{onlineView.job}</p>
+                <div className="h-px bg-gray-200 mb-2" />
+                <p className="font-semibold">Education</p>
+                <p className="mb-1">{onlineView.qualification}</p>
+                <p className="font-semibold">Experience</p>
+                <p className="mb-1">{onlineView.experience} years</p>
+                <p className="font-semibold">Portal</p>
+                <p>{onlineView.portal}</p>
+              </div>
+              <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                <div><p className="text-xs text-gray-500">Name</p><p className="font-semibold">{onlineView.name}</p></div>
+                <div><p className="text-xs text-gray-500">Application ID</p><p className="font-medium">{onlineView.id}</p></div>
+                <div><p className="text-xs text-gray-500">Job portal</p><p className="font-medium">{onlineView.portal}</p></div>
+                <div><p className="text-xs text-gray-500">Job applied</p><p className="font-medium">{onlineView.job}</p></div>
+                <div><p className="text-xs text-gray-500">Email</p><p className="font-medium">{onlineView.email}</p></div>
+                <div><p className="text-xs text-gray-500">Phone</p><p className="font-medium">{onlineView.phone}</p></div>
+                <div><p className="text-xs text-gray-500">Applied on</p><p className="font-medium">{onlineView.applied}</p></div>
+                <div><p className="text-xs text-gray-500">CV file</p><p className="font-medium">{onlineView.cv}</p></div>
+                <div className="md:col-span-2 flex gap-2 mt-2">
+                  <Button variant="outline" size="sm" onClick={() => window.alert(`Opening ${onlineView.cv}`)}>View CV</Button>
+                  {onlineView.status !== 'Rejected' &&
+                    <Button variant="danger" size="sm" onClick={() => { setOnlineApps((prev) => prev.map((a) => a.id === onlineView.id ? { ...a, status: 'Rejected' } : a)); setOnlineView((v) => v ? { ...v, status: 'Rejected' } : v); }}>Reject applicant</Button>
+                  }
+                </div>
+              </div>
+            </div>
+          </div> :
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-gray-50 text-left text-xs uppercase text-gray-500">
+                  {['ID', 'Applicant', 'Job portal', 'Job', 'Qualification', 'Exp.', 'Applied', 'Status', 'Actions'].map((h) => <th key={h} className="px-3 py-2">{h}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {onlineApps.map((app) =>
+                  <tr key={app.id} className="border-b">
+                    <td className="px-3 py-2 font-mono text-xs">{app.id}</td>
+                    <td className="px-3 py-2 font-medium">{app.name}<p className="text-xs text-gray-400">{app.email}</p></td>
+                    <td className="px-3 py-2">{app.portal}</td>
+                    <td className="px-3 py-2">{app.job}</td>
+                    <td className="px-3 py-2">{app.qualification}</td>
+                    <td className="px-3 py-2">{app.experience}y</td>
+                    <td className="px-3 py-2">{app.applied}</td>
+                    <td className="px-3 py-2"><span className={`text-xs px-2 py-0.5 rounded-full ${app.status === 'Rejected' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>{app.status}</span></td>
+                    <td className="px-3 py-2">
+                      <div className="flex flex-wrap gap-1">
+                        <Button size="sm" variant="outline" onClick={() => setOnlineView(app)}>View profile</Button>
+                        <Button size="sm" variant="outline" onClick={() => window.alert(`Opening ${app.cv}`)}>View CV</Button>
+                        {app.status !== 'Rejected' &&
+                          <Button size="sm" variant="danger" onClick={() => setOnlineApps((prev) => prev.map((a) => a.id === app.id ? { ...a, status: 'Rejected' } : a))}>Reject</Button>
+                        }
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          }
+        </Card> :
+      activeTab === 'requisitions' && !showNewPanel ?
+      <Card className="p-4">
+          <h2 className="text-lg font-semibold text-gray-900 mb-1">Created Requisitions</h2>
+          <p className="text-sm text-gray-500 mb-4">Reuse an approved requisition to create a job posting with the same details.</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-gray-50 text-left text-xs uppercase text-gray-500">
+                  <th className="px-3 py-2">ID</th>
+                  <th className="px-3 py-2">Position</th>
+                  <th className="px-3 py-2">Department</th>
+                  <th className="px-3 py-2">Role</th>
+                  <th className="px-3 py-2">Vacancies</th>
+                  <th className="px-3 py-2">Experience</th>
+                  <th className="px-3 py-2">Salary</th>
+                  <th className="px-3 py-2">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {REQUISITIONS.map((req) =>
+                <tr key={req.id} className="border-b hover:bg-gray-50">
+                    <td className="px-3 py-2 font-mono text-xs text-orange-700">{req.id}</td>
+                    <td className="px-3 py-2 font-medium">{req.title}</td>
+                    <td className="px-3 py-2">{req.department}</td>
+                    <td className="px-3 py-2">{req.roleType}{req.subject ? ` · ${req.subject}` : ''}</td>
+                    <td className="px-3 py-2">{req.positions}</td>
+                    <td className="px-3 py-2">{req.experience}</td>
+                    <td className="px-3 py-2">₹{req.salaryMin} - ₹{req.salaryMax}</td>
+                    <td className="px-3 py-2">
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          fillFormFromRequisition(req.id);
+                          setShowNewPanel(true);
+                        }}>
+                        Reuse for Job Posting
+                      </Button>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card> :
+      !showNewPanel && (activeTab === 'list' || activeTab === 'closed') ?
       <>
           {/* Stats */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -1235,7 +1394,7 @@ export function JobPostingAdvertisement() {
           <Card className="p-12 text-center">
                 <Globe className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                 <p className="text-gray-500">No job postings found</p>
-                <Button variant="outline" size="sm" className="mt-4" onClick={() => setActiveTab('create')}>
+                <Button variant="outline" size="sm" className="mt-4" onClick={() => setShowNewPanel(true)}>
                   <Plus className="w-4 h-4 mr-1" />
                   Create New Posting
                 </Button>
@@ -1390,8 +1549,12 @@ export function JobPostingAdvertisement() {
           </div>
         </> : (
 
-      /* Create Form */
+      /* New Posting panel */
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-3 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-900">New Posting</h2>
+            <Button variant="outline" size="sm" onClick={() => setShowNewPanel(false)}>Close panel</Button>
+          </div>
           <div className="lg:col-span-2 space-y-6">
             <Card title="Job Details">
               <div className="space-y-4">
@@ -1403,6 +1566,85 @@ export function JobPostingAdvertisement() {
                 }
                 value={form.requisitionId}
                 onChange={(e) => fillFormFromRequisition(e.target.value)} />
+
+                <div className="grid grid-cols-2 gap-4">
+                  <Select
+                    label="Role Type"
+                    options={[{ value: 'Teaching', label: 'Teaching' }, { value: 'Non-Teaching', label: 'Non-Teaching' }]}
+                    value={form.roleType}
+                    onChange={(e) => setForm((f) => ({ ...f, roleType: e.target.value }))} />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+                    <input
+                      type="text"
+                      value={form.subject}
+                      onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))}
+                      placeholder="Required for teaching roles"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Qualifications</label>
+                    <input
+                      type="text"
+                      value={form.qualifications}
+                      onChange={(e) => setForm((f) => ({ ...f, qualifications: e.target.value }))}
+                      placeholder="e.g., M.Sc, B.Ed"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Experience</label>
+                    <input
+                      type="text"
+                      value={form.experience}
+                      onChange={(e) => setForm((f) => ({ ...f, experience: e.target.value }))}
+                      placeholder="e.g., 3+ years"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Reporting Manager</label>
+                    <input
+                      type="text"
+                      value={form.reportingManager}
+                      onChange={(e) => setForm((f) => ({ ...f, reportingManager: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Expected Joining</label>
+                    <input
+                      type="date"
+                      value={form.expectedJoining}
+                      onChange={(e) => setForm((f) => ({ ...f, expectedJoining: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Certifications</label>
+                    <input
+                      type="text"
+                      value={form.certifications}
+                      onChange={(e) => setForm((f) => ({ ...f, certifications: e.target.value }))}
+                      placeholder="e.g., B.Ed, CTET"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent" />
+                  </div>
+                  <Select
+                    label="Priority"
+                    options={[{ value: 'High', label: 'High' }, { value: 'Medium', label: 'Medium' }, { value: 'Low', label: 'Low' }]}
+                    value={form.priority}
+                    onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Justification / Reason for Hire</label>
+                  <textarea
+                    value={form.justification}
+                    onChange={(e) => setForm((f) => ({ ...f, justification: e.target.value }))}
+                    rows={2}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none" />
+                </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>

@@ -92,6 +92,10 @@ interface Candidate {
   decision: 'Pending' | 'Shortlisted' | 'Rejected' | 'Hold' | 'Move to Interview';
   evaluatedAt?: string;
   evaluatedBy?: string;
+  email?: string;
+  phone?: string;
+  cvFile?: string;
+  cvSummary?: string;
 }
 
 interface EvaluationHistory {
@@ -122,7 +126,11 @@ const initialCandidates: Candidate[] = [
   },
   demoRequired: true,
   comments: 'Strong academic background',
-  decision: 'Shortlisted'
+  decision: 'Shortlisted',
+  email: 'priya.sharma@email.com',
+  phone: '+91 98765 11101',
+  cvFile: 'Priya_Sharma_CV.pdf',
+  cvSummary: 'M.Sc Mathematics, B.Ed. 5 years teaching Grades 8–12. Strong board-result record and olympiad mentoring.'
 },
 {
   id: 'APP-2024-002',
@@ -141,7 +149,11 @@ const initialCandidates: Candidate[] = [
   },
   demoRequired: false,
   comments: 'Excellent profile',
-  decision: 'Move to Interview'
+  decision: 'Move to Interview',
+  email: 'rahul.verma@email.com',
+  phone: '+91 98765 11102',
+  cvFile: 'Rahul_Verma_CV.pdf',
+  cvSummary: 'M.Sc + PhD. 12 years including HOD roles. Published papers in science education.'
 },
 {
   id: 'APP-2024-003',
@@ -223,6 +235,7 @@ export function ScreeningShortlisting() {
   const [selectedBranches, setSelectedBranches] = useState<string[]>(['all']);
   const [academicYear, setAcademicYear] = useState('2024-2025');
   const [searchQuery, setSearchQuery] = useState('');
+  const [hasSearched, setHasSearched] = useState(false);
   const [decisionFilter, setDecisionFilter] = useState('all');
   const [positionFilter, setPositionFilter] = useState('all');
   const [sortBy, setSortBy] = useState('name-asc');
@@ -238,6 +251,10 @@ export function ScreeningShortlisting() {
   const [editedComments, setEditedComments] = useState<string>('');
   const [editedDecision, setEditedDecision] = useState<Candidate['decision'] | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [screeningCriteria, setScreeningCriteria] = useState<{key: string;label: string;}[]>(
+    Object.entries(criteriaLabels).map(([key, label]) => ({ key, label }))
+  );
+  const [extraScores, setExtraScores] = useState<Record<string, number>>({});
 
   // State for history and notifications
   const [evaluationHistory, setEvaluationHistory] = useState<EvaluationHistory[]>([]);
@@ -252,6 +269,21 @@ export function ScreeningShortlisting() {
       setEditedComments(selectedCandidate.comments);
       setEditedDecision(selectedCandidate.decision);
       setHasUnsavedChanges(false);
+      setExtraScores({});
+      try {
+        const raw = window.localStorage.getItem('k12-evaluation-scorecards-v1');
+        const cards = raw ? JSON.parse(raw) : [];
+        const match = Array.isArray(cards)
+          ? cards.find((card: {position?: string}) => card.position?.toLowerCase() === selectedCandidate.position.toLowerCase())
+          : null;
+        if (match?.screening?.length) {
+          setScreeningCriteria(match.screening.map((item: {key: string;label: string}) => ({ key: item.key, label: item.label })));
+        } else {
+          setScreeningCriteria(Object.entries(criteriaLabels).map(([key, label]) => ({ key, label })));
+        }
+      } catch {
+        setScreeningCriteria(Object.entries(criteriaLabels).map(([key, label]) => ({ key, label })));
+      }
     } else {
       setEditedScores(null);
       setEditedDemoRequired(null);
@@ -736,6 +768,18 @@ export function ScreeningShortlisting() {
                 placeholder="Search by name, ID, position, or qualification..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    if (hasUnsavedChanges) {
+                      const confirmLeave = window.confirm(
+                        'You have unsaved changes. Do you want to continue without saving?'
+                      );
+                      if (!confirmLeave) return;
+                    }
+                    setHasSearched(true);
+                    setSelectedCandidate(null);
+                  }
+                }}
                 className="w-full pl-10 pr-4 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
 
               {searchQuery &&
@@ -747,6 +791,21 @@ export function ScreeningShortlisting() {
                 </button>
               }
             </div>
+            <Button
+              variant="primary"
+              onClick={() => {
+                if (hasUnsavedChanges) {
+                  const confirmLeave = window.confirm(
+                    'You have unsaved changes. Do you want to continue without saving?'
+                  );
+                  if (!confirmLeave) return;
+                }
+                setHasSearched(true);
+                setSelectedCandidate(null);
+              }}>
+              <Search className="w-4 h-4 mr-1" />
+              Search
+            </Button>
             <Select
               label=""
               options={DECISION_OPTIONS}
@@ -807,289 +866,369 @@ export function ScreeningShortlisting() {
         </div>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Candidate List */}
-        <div className="lg:col-span-1">
-          <Card
-            title={`Candidates (${filtered.length})`}
-            action={
-            filtered.length > 0 &&
-            <div className="relative group">
-                  <Button variant="outline" size="sm">
-                    Bulk Actions
-                  </Button>
-                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border z-10 hidden group-hover:block">
-                    <div className="py-1">
-                      <p className="px-4 py-2 text-xs text-gray-500 font-medium">Set Decision for All</p>
-                      {(['Shortlisted', 'Hold', 'Rejected'] as Candidate['decision'][]).map((decision) =>
-                  <button
-                    key={decision}
-                    onClick={() => bulkUpdateDecision(decision)}
-                    className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100">
+      {!hasSearched && !selectedCandidate &&
+      <Card className="p-10">
+          <div className="text-center text-gray-400 max-w-md mx-auto">
+            <Search className="w-12 h-12 mx-auto mb-3 opacity-40" />
+            <p className="font-medium text-gray-600">Search applicants to begin screening</p>
+            <p className="text-sm mt-1">Use name, ID, position, or qualification, then click Search to see the applicant list.</p>
+          </div>
+        </Card>
+      }
 
-                          Mark as {decision}
-                        </button>
-                  )}
-                    </div>
-                  </div>
-                </div>
+      {hasSearched && !selectedCandidate &&
+      <Card
+        title={`Applicants (${filtered.length})`}
+        headerAction={
+        filtered.length > 0 &&
+        <div className="relative group">
+              <Button variant="outline" size="sm">
+                Bulk Actions
+              </Button>
+              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border z-10 hidden group-hover:block">
+                <div className="py-1">
+                  <p className="px-4 py-2 text-xs text-gray-500 font-medium">Set Decision for All</p>
+                  {(['Shortlisted', 'Hold', 'Rejected'] as Candidate['decision'][]).map((decision) =>
+              <button
+                key={decision}
+                onClick={() => bulkUpdateDecision(decision)}
+                className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100">
 
-            }>
-
-            <div className="space-y-2 max-h-[600px] overflow-y-auto">
-              {filtered.length === 0 ?
-              <div className="text-center py-8 text-gray-400">
-                  <Users className="w-12 h-12 mx-auto mb-3 opacity-40" />
-                  <p>No candidates found</p>
-                  {hasActiveFilters &&
-                <Button variant="outline" size="sm" onClick={clearAllFilters} className="mt-2">
-                      Clear Filters
-                    </Button>
-                }
-                </div> :
-
-              filtered.map((candidate) => {
-                const score = calcAutoScore(candidate.scores);
-                const dc = decisionConfig[candidate.decision];
-                return (
-                  <div
-                    key={candidate.id}
-                    onClick={() => {
-                      if (hasUnsavedChanges && selectedCandidate?.id !== candidate.id) {
-                        const confirm = window.confirm(
-                          'You have unsaved changes. Do you want to continue without saving?'
-                        );
-                        if (!confirm) return;
-                      }
-                      setSelectedCandidate(candidate);
-                    }}
-                    className={`p-3 rounded-xl cursor-pointer transition-all border-2 ${
-                    selectedCandidate?.id === candidate.id ?
-                    'border-indigo-500 bg-indigo-50' :
-                    'border-transparent bg-gray-50 hover:bg-gray-100'}`
-                    }>
-
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center text-xs font-bold flex-shrink-0">
-                          {candidate.avatar}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-gray-900 text-sm truncate">{candidate.name}</p>
-                          <p className="text-xs text-gray-500 truncate">{candidate.position}</p>
-                        </div>
-                        <div className="text-right flex-shrink-0">
-                          <p className="text-sm font-bold text-indigo-600">{score}%</p>
-                          <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${dc.bg} ${dc.color}`}>
-                            {candidate.decision === 'Move to Interview' ? 'Interview' : candidate.decision}
-                          </span>
-                        </div>
-                      </div>
-                    </div>);
-
-              })
-              }
-            </div>
-          </Card>
-        </div>
-
-        {/* Evaluation Panel */}
-        <div className="lg:col-span-2">
-          {selectedCandidate && editedScores ?
-          <div className="space-y-4">
-              {/* Navigation */}
-              {candidateIndexInfo &&
-            <div className="flex items-center justify-between">
-                  <Button
-                variant="outline"
-                size="sm"
-                onClick={goToPreviousCandidate}
-                disabled={candidateIndexInfo.isFirst}>
-
-                    <ChevronLeft className="w-4 h-4 mr-1" />
-                    Previous
-                  </Button>
-                  <span className="text-sm text-gray-500">
-                    Candidate {candidateIndexInfo.current} of {candidateIndexInfo.total}
-                  </span>
-                  <Button
-                variant="outline"
-                size="sm"
-                onClick={goToNextCandidate}
-                disabled={candidateIndexInfo.isLast}>
-
-                    Next
-                    <ChevronRight className="w-4 h-4 ml-1" />
-                  </Button>
-                </div>
-            }
-
-              {/* Unsaved Changes Warning */}
-              {hasUnsavedChanges &&
-            <div className="flex items-center gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                  <AlertCircle className="w-5 h-5 text-yellow-600" />
-                  <span className="text-sm text-yellow-800">You have unsaved changes</span>
-                  <div className="ml-auto flex gap-2">
-                    <Button variant="outline" size="sm" onClick={resetEvaluation}>
-                      Reset
-                    </Button>
-                    <Button variant="primary" size="sm" onClick={saveEvaluation}>
-                      Save Now
-                    </Button>
-                  </div>
-                </div>
-            }
-
-              <Card title="Evaluation Scorecard">
-                <div className="flex items-center gap-4 mb-6 pb-4 border-b">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center font-bold">
-                    {selectedCandidate.avatar}
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-gray-900">{selectedCandidate.name}</h3>
-                    <p className="text-sm text-gray-500">
-                      {selectedCandidate.position} · {getBranchName(selectedCandidate.branch)}
-                    </p>
-                    <p className="text-xs text-gray-400">
-                      {selectedCandidate.qualification} · {selectedCandidate.experience} years exp.
-                    </p>
-                  </div>
-                  <div className="ml-auto text-center">
-                    <p className="text-3xl font-bold text-indigo-600">{calcAutoScore(editedScores)}%</p>
-                    <p className="text-xs text-gray-500">Auto Score</p>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  {(Object.entries(criteriaLabels) as [keyof Candidate['scores'], string][]).map(
-                  ([key, label]) =>
-                  <div key={key} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-                        <span className="text-sm font-medium text-gray-700 w-48">{label}</span>
-                        <div className="flex items-center gap-3">
-                          {renderStars(editedScores[key], (value) => updateScore(key, value))}
-                          <span className="text-sm font-bold text-gray-900 w-6">{editedScores[key]}/5</span>
-                        </div>
-                      </div>
-
-                )}
-                </div>
-
-                <div className="mt-4 p-3 bg-gray-50 rounded-xl">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-700">Demo Class Required</span>
-                    <button
-                    onClick={toggleDemoRequired}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    editedDemoRequired ? 'bg-indigo-600' : 'bg-gray-300'}`
-                    }>
-
-                      <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      editedDemoRequired ? 'translate-x-6' : 'translate-x-1'}`
-                      } />
-
+                      Mark as {decision}
                     </button>
-                  </div>
+              )}
                 </div>
+              </div>
+            </div>
 
-                <div className="mt-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Reviewer Comments</label>
-                  <textarea
-                  value={editedComments}
-                  onChange={(e) => updateComments(e.target.value)}
-                  rows={3}
-                  placeholder="Add your evaluation comments here..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none" />
+        }>
 
-                  <p className="text-xs text-gray-400 mt-1">{editedComments.length} characters</p>
-                </div>
-
-                {/* Evaluation metadata */}
-                {selectedCandidate.evaluatedAt &&
-              <div className="mt-4 text-xs text-gray-400">
-                    Last evaluated: {new Date(selectedCandidate.evaluatedAt).toLocaleString()}
-                    {selectedCandidate.evaluatedBy && ` by ${selectedCandidate.evaluatedBy}`}
-                  </div>
-              }
-              </Card>
-
-              <Card title="Decision">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {(['Shortlisted', 'Move to Interview', 'Hold', 'Rejected'] as Candidate['decision'][]).map(
-                  (decision) => {
-                    const dc = decisionConfig[decision];
-                    const isActive = editedDecision === decision;
-                    return (
-                      <button
-                        key={decision}
-                        onClick={() => updateDecision(decision)}
-                        className={`p-3 rounded-xl border-2 text-sm font-medium transition-all ${
-                        isActive ?
-                        `border-current ${dc.bg} ${dc.color}` :
-                        'border-gray-200 text-gray-600 hover:border-gray-300'}`
-                        }>
-
-                          {decision}
-                        </button>);
-
-                  }
-                )}
-                </div>
-                <div className="mt-4 flex gap-3">
-                  <Button variant="primary" onClick={saveEvaluation} disabled={!hasUnsavedChanges}>
-                    <Save className="w-4 h-4 mr-1" />
-                    Save Evaluation
-                  </Button>
-                  <Button variant="outline" onClick={goToNextCandidate} disabled={candidateIndexInfo?.isLast}>
-                    Next Candidate
-                    <ChevronRight className="w-4 h-4 ml-1" />
-                  </Button>
-                  <Button variant="outline" onClick={resetEvaluation} disabled={!hasUnsavedChanges}>
-                    <RotateCcw className="w-4 h-4 mr-1" />
-                    Reset
-                  </Button>
-                </div>
-              </Card>
-
-              {/* Quick Stats */}
-              <Card title="Quick Comparison">
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="text-center p-3 bg-gray-50 rounded-lg">
-                    <p className="text-2xl font-bold text-indigo-600">{selectedCandidate.experience}</p>
-                    <p className="text-xs text-gray-500">Years Experience</p>
-                  </div>
-                  <div className="text-center p-3 bg-gray-50 rounded-lg">
-                    <p className="text-2xl font-bold text-indigo-600">{calcAutoScore(editedScores)}%</p>
-                    <p className="text-xs text-gray-500">Overall Score</p>
-                  </div>
-                  <div className="text-center p-3 bg-gray-50 rounded-lg">
-                    <p className="text-2xl font-bold text-indigo-600">
-                      {filtered.filter((c) => calcAutoScore(c.scores) <= calcAutoScore(editedScores)).length}
-                    </p>
-                    <p className="text-xs text-gray-500">Rank in List</p>
-                  </div>
-                </div>
-              </Card>
+        <div className="space-y-2">
+          {filtered.length === 0 ?
+          <div className="text-center py-8 text-gray-400">
+              <Users className="w-12 h-12 mx-auto mb-3 opacity-40" />
+              <p>No applicants found</p>
+              {hasActiveFilters &&
+            <Button variant="outline" size="sm" onClick={clearAllFilters} className="mt-2">
+                  Clear Filters
+                </Button>
+            }
             </div> :
 
-          <Card className="h-64 flex items-center justify-center">
-              <div className="text-center text-gray-400">
-                <Users className="w-12 h-12 mx-auto mb-3 opacity-40" />
-                <p>Select a candidate to evaluate</p>
-                {filtered.length > 0 &&
-              <Button
-                variant="primary"
-                size="sm"
-                className="mt-4"
-                onClick={() => setSelectedCandidate(filtered[0])}>
+          filtered.map((candidate) => {
+            const score = calcAutoScore(candidate.scores);
+            const dc = decisionConfig[candidate.decision];
+            return (
+              <div
+                key={candidate.id}
+                onClick={() => {
+                  if (hasUnsavedChanges && selectedCandidate?.id !== candidate.id) {
+                    const confirm = window.confirm(
+                      'You have unsaved changes. Do you want to continue without saving?'
+                    );
+                    if (!confirm) return;
+                  }
+                  setSelectedCandidate(candidate);
+                }}
+                className="p-4 rounded-xl cursor-pointer transition-all border border-gray-100 bg-gray-50 hover:bg-indigo-50 hover:border-indigo-200">
 
-                    Start with First Candidate
-                  </Button>
-              }
-              </div>
-            </Card>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center text-xs font-bold flex-shrink-0">
+                      {candidate.avatar}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-gray-900 truncate">{candidate.name}</p>
+                      <p className="text-xs text-gray-500 truncate">{candidate.position} · {candidate.qualification} · {candidate.experience} yrs</p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-sm font-bold text-indigo-600">{score}%</p>
+                      <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${dc.bg} ${dc.color}`}>
+                        {candidate.decision === 'Move to Interview' ? 'Interview' : candidate.decision}
+                      </span>
+                    </div>
+                  </div>
+                </div>);
+
+          })
           }
         </div>
-      </div>
+      </Card>
+      }
+
+      {selectedCandidate && editedScores ?
+      <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (hasUnsavedChanges) {
+                  const confirm = window.confirm(
+                    'You have unsaved changes. Do you want to continue without saving?'
+                  );
+                  if (!confirm) return;
+                }
+                setSelectedCandidate(null);
+              }}>
+              <ChevronLeft className="w-4 h-4 mr-1" />
+              Back to Applicants
+            </Button>
+            {candidateIndexInfo &&
+            <div className="flex items-center gap-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={goToPreviousCandidate}
+                  disabled={candidateIndexInfo.isFirst}>
+                  <ChevronLeft className="w-4 h-4 mr-1" />
+                  Previous
+                </Button>
+                <span className="text-sm text-gray-500">
+                  Applicant {candidateIndexInfo.current} of {candidateIndexInfo.total}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={goToNextCandidate}
+                  disabled={candidateIndexInfo.isLast}>
+                  Next
+                  <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              </div>
+            }
+          </div>
+
+          {hasUnsavedChanges &&
+          <div className="flex items-center gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <AlertCircle className="w-5 h-5 text-yellow-600" />
+              <span className="text-sm text-yellow-800">You have unsaved changes</span>
+              <div className="ml-auto flex gap-2">
+                <Button variant="outline" size="sm" onClick={resetEvaluation}>
+                  Reset
+                </Button>
+                <Button variant="primary" size="sm" onClick={saveEvaluation}>
+                  Save Now
+                </Button>
+              </div>
+            </div>
+          }
+
+          <Card title="Applicant Profile">
+            <div className="flex flex-col lg:flex-row items-start gap-6">
+              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center font-bold text-xl flex-shrink-0">
+                {selectedCandidate.avatar}
+              </div>
+              <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                <div>
+                  <p className="text-xs text-gray-500">Name</p>
+                  <p className="font-semibold text-gray-900">{selectedCandidate.name}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Applicant ID</p>
+                  <p className="font-medium text-gray-900">{selectedCandidate.id}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Position applied</p>
+                  <p className="font-medium text-gray-900">{selectedCandidate.position}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Branch</p>
+                  <p className="font-medium text-gray-900">{getBranchName(selectedCandidate.branch)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Qualification</p>
+                  <p className="font-medium text-gray-900">{selectedCandidate.qualification}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Experience</p>
+                  <p className="font-medium text-gray-900">{selectedCandidate.experience} years</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Email</p>
+                  <p className="font-medium text-gray-900">{selectedCandidate.email || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Phone</p>
+                  <p className="font-medium text-gray-900">{selectedCandidate.phone || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Source</p>
+                  <p className="font-medium text-gray-900">Naukri / Direct apply</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Expected salary</p>
+                  <p className="font-medium text-gray-900">₹45,000 / month</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Notice period</p>
+                  <p className="font-medium text-gray-900">30 days</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Decision</p>
+                  <p className="font-medium text-gray-900">{selectedCandidate.decision}</p>
+                </div>
+                <div className="md:col-span-3">
+                  <p className="text-xs text-gray-500">Profile summary</p>
+                  <p className="font-medium text-gray-900">{selectedCandidate.cvSummary || 'Full applicant profile for screening — qualification, experience, contact and CV.'}</p>
+                </div>
+              </div>
+              <div className="text-center flex-shrink-0">
+                <p className="text-3xl font-bold text-indigo-600">{calcAutoScore(editedScores)}%</p>
+                <p className="text-xs text-gray-500">Auto Score</p>
+              </div>
+            </div>
+          </Card>
+
+          <Card title="Curriculum Vitae">
+            <div className="flex flex-col md:flex-row items-start gap-5">
+              <div className="w-44 h-60 shrink-0 rounded-lg border bg-white shadow-sm overflow-hidden p-3 text-[9px] leading-tight text-gray-700">
+                <p className="text-center font-bold text-[11px] text-gray-900">{selectedCandidate.name}</p>
+                <p className="text-center text-gray-500 mb-2">{selectedCandidate.position}</p>
+                <div className="h-px bg-gray-200 mb-2" />
+                <p className="font-semibold">Education</p>
+                <p className="mb-1">{selectedCandidate.qualification}</p>
+                <p className="font-semibold">Experience</p>
+                <p className="mb-1">{selectedCandidate.experience} years teaching</p>
+                <p className="font-semibold">Contact</p>
+                <p>{selectedCandidate.email}</p>
+                <p>{selectedCandidate.phone}</p>
+                <div className="mt-2 space-y-1">
+                  <div className="h-1 bg-gray-200 rounded" />
+                  <div className="h-1 bg-gray-200 rounded w-5/6" />
+                  <div className="h-1 bg-gray-200 rounded w-4/6" />
+                  <div className="h-1 bg-gray-200 rounded" />
+                  <div className="h-1 bg-gray-200 rounded w-3/4" />
+                </div>
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-gray-900">{selectedCandidate.cvFile || 'CV not uploaded'}</p>
+                <p className="text-sm text-gray-600 mt-2">{selectedCandidate.cvSummary || 'No CV summary available for this applicant.'}</p>
+                <Button variant="outline" size="sm" className="mt-3" onClick={() => setNotification({ type: 'success', message: `Opened ${selectedCandidate.cvFile || 'CV'} for ${selectedCandidate.name}` })}>View CV</Button>
+              </div>
+            </div>
+          </Card>
+
+          <Card title="Evaluation Scorecard">
+            <div className="space-y-4">
+              {screeningCriteria.map(
+              ({ key, label }) => {
+                const known = key in criteriaLabels;
+                const value = known ? editedScores[key as keyof Candidate['scores']] : extraScores[key] || 0;
+                return (
+              <div key={key} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                    <span className="text-sm font-medium text-gray-700 w-48">{label}</span>
+                    <div className="flex items-center gap-3">
+                      {renderStars(value, (next) => {
+                        if (known) updateScore(key as keyof Candidate['scores'], next);
+                        else {
+                          setExtraScores((prev) => ({ ...prev, [key]: next }));
+                          setHasUnsavedChanges(true);
+                        }
+                      })}
+                      <span className="text-sm font-bold text-gray-900 w-6">{value}/5</span>
+                    </div>
+                  </div>
+                );
+              }
+            )}
+            </div>
+
+            <div className="mt-4 p-3 bg-gray-50 rounded-xl">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-700">Demo Class Required</span>
+                <button
+                onClick={toggleDemoRequired}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                editedDemoRequired ? 'bg-indigo-600' : 'bg-gray-300'}`
+                }>
+
+                  <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  editedDemoRequired ? 'translate-x-6' : 'translate-x-1'}`
+                  } />
+
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Reviewer Comments</label>
+              <textarea
+              value={editedComments}
+              onChange={(e) => updateComments(e.target.value)}
+              rows={3}
+              placeholder="Add your evaluation comments here..."
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none" />
+
+              <p className="text-xs text-gray-400 mt-1">{editedComments.length} characters</p>
+            </div>
+
+            {selectedCandidate.evaluatedAt &&
+          <div className="mt-4 text-xs text-gray-400">
+                Last evaluated: {new Date(selectedCandidate.evaluatedAt).toLocaleString()}
+                {selectedCandidate.evaluatedBy && ` by ${selectedCandidate.evaluatedBy}`}
+              </div>
+          }
+          </Card>
+
+          <Card title="Decision">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {(['Shortlisted', 'Move to Interview', 'Hold', 'Rejected'] as Candidate['decision'][]).map(
+              (decision) => {
+                const dc = decisionConfig[decision];
+                const isActive = editedDecision === decision;
+                return (
+                  <button
+                    key={decision}
+                    onClick={() => updateDecision(decision)}
+                    className={`p-3 rounded-xl border-2 text-sm font-medium transition-all ${
+                    isActive ?
+                    `border-current ${dc.bg} ${dc.color}` :
+                    'border-gray-200 text-gray-600 hover:border-gray-300'}`
+                    }>
+
+                      {decision}
+                    </button>);
+
+              }
+            )}
+            </div>
+            <div className="mt-4 flex gap-3">
+              <Button variant="primary" onClick={saveEvaluation} disabled={!hasUnsavedChanges}>
+                <Save className="w-4 h-4 mr-1" />
+                Save Evaluation
+              </Button>
+              <Button variant="outline" onClick={goToNextCandidate} disabled={candidateIndexInfo?.isLast}>
+                Next Applicant
+                <ChevronRight className="w-4 h-4 ml-1" />
+              </Button>
+              <Button variant="outline" onClick={resetEvaluation} disabled={!hasUnsavedChanges}>
+                <RotateCcw className="w-4 h-4 mr-1" />
+                Reset
+              </Button>
+            </div>
+          </Card>
+
+          <Card title="Quick Comparison">
+            <div className="grid grid-cols-3 gap-4">
+              <div className="text-center p-3 bg-gray-50 rounded-lg">
+                <p className="text-2xl font-bold text-indigo-600">{selectedCandidate.experience}</p>
+                <p className="text-xs text-gray-500">Years Experience</p>
+              </div>
+              <div className="text-center p-3 bg-gray-50 rounded-lg">
+                <p className="text-2xl font-bold text-indigo-600">{calcAutoScore(editedScores)}%</p>
+                <p className="text-xs text-gray-500">Overall Score</p>
+              </div>
+              <div className="text-center p-3 bg-gray-50 rounded-lg">
+                <p className="text-2xl font-bold text-indigo-600">
+                  {filtered.filter((c) => calcAutoScore(c.scores) <= calcAutoScore(editedScores)).length}
+                </p>
+                <p className="text-xs text-gray-500">Rank in List</p>
+              </div>
+            </div>
+          </Card>
+        </div> :
+      null}
 
       {/* Click outside handler for export menu */}
       {showExportMenu &&

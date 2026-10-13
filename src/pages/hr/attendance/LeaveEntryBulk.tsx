@@ -86,7 +86,9 @@ const SEED_RECORDS: LeaveRecord[] = [
 { id: 1, empId: 'EMP001', leave: 'CL', from: '2026-09-14', to: '2026-09-15', days: 2, duration: 'full', reason: 'Family function', status: 'Approved', appliedOn: '2026-09-08', source: 'Single' },
 { id: 2, empId: 'EMP001', leave: 'SL', from: '2026-08-03', to: '2026-08-03', days: 1, duration: 'full', reason: 'Fever and doctor visit', status: 'Approved', appliedOn: '2026-08-03', source: 'Single' },
 { id: 3, empId: 'EMP002', leave: 'EL', from: '2026-07-20', to: '2026-07-24', days: 5, duration: 'full', reason: 'Pre-planned family vacation', status: 'Approved', appliedOn: '2026-07-01', source: 'Bulk' },
-{ id: 4, empId: 'EMP004', leave: 'CL', from: '2026-10-22', to: '2026-10-22', days: 1, duration: 'first_half', reason: 'Bank work', status: 'Pending', appliedOn: '2026-10-06', source: 'Single' }];
+{ id: 4, empId: 'EMP004', leave: 'CL', from: '2026-10-22', to: '2026-10-22', days: 1, duration: 'first_half', reason: 'Bank work', status: 'Pending', appliedOn: '2026-10-06', source: 'Single' },
+{ id: 5, empId: 'EMP001', leave: 'CL', from: '2026-10-08', to: '2026-10-09', days: 2, duration: 'full', reason: 'Family function', status: 'Approved', appliedOn: '2026-10-02', source: 'Single' },
+{ id: 6, empId: 'EMP001', leave: 'SL', from: '2026-10-16', to: '2026-10-16', days: 1, duration: 'full', reason: 'Medical appointment', status: 'Pending', appliedOn: '2026-10-10', source: 'Single' }];
 
 const todayIso = () => {
   const d = new Date();
@@ -145,6 +147,10 @@ const STATUS_STYLE: Record<LeaveStatus, string> = {
   Withdrawn: 'bg-gray-200 text-gray-700'
 };
 
+const ENTITLED: Record<LeaveCode, number> = {
+  CL: 12, PL: 15, SL: 10, EL: 20, CO: 4, LOP: 0, HOL: 0, OPT: 2
+};
+
 const inputClass = 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-sm';
 
 export function LeaveEntryBulk({ lockedMode }: { lockedMode?: 'bulk' | 'single' } = {}) {
@@ -170,6 +176,7 @@ export function LeaveEntryBulk({ lockedMode }: { lockedMode?: 'bulk' | 'single' 
   // Single employee state
   const [singleId, setSingleId] = useState('EMP001');
   const [historyStatus, setHistoryStatus] = useState<'all' | LeaveStatus>('all');
+  const [historyMonth, setHistoryMonth] = useState(() => todayIso().slice(0, 7));
   const [singleOpen, setSingleOpen] = useState(false);
   const [singleForm, setSingleForm] = useState({
     leave: 'CL' as LeaveCode | '',
@@ -297,9 +304,59 @@ export function LeaveEntryBulk({ lockedMode }: { lockedMode?: 'bulk' | 'single' 
       .reduce((sum, rec) => sum + rec.days, 0)
   })).filter((item) => item.days > 0);
 
+  const monthParts = historyMonth.split('-').map(Number);
+  const monthYear = monthParts[0] || new Date().getFullYear();
+  const monthIndex = (monthParts[1] || 1) - 1;
+  const daysInHistoryMonth = new Date(monthYear, monthIndex + 1, 0).getDate();
+  const monthStart = `${historyMonth}-01`;
+  const monthEnd = `${historyMonth}-${String(daysInHistoryMonth).padStart(2, '0')}`;
+  const monthRecords = singleRecords.filter((rec) => rec.from <= monthEnd && rec.to >= monthStart);
+  const monthTakenDays = monthRecords
+    .filter((rec) => rec.status === 'Approved')
+    .reduce((sum, rec) => sum + rec.days, 0);
+  const leaveByDay: Record<number, { code: LeaveCode; status: LeaveStatus }[]> = {};
+  monthRecords.forEach((rec) => {
+    const start = new Date(`${rec.from}T00:00:00`);
+    const end = new Date(`${rec.to}T00:00:00`);
+    const cursor = new Date(start);
+    while (cursor <= end) {
+      if (cursor.getFullYear() === monthYear && cursor.getMonth() === monthIndex) {
+        const day = cursor.getDate();
+        if (!leaveByDay[day]) leaveByDay[day] = [];
+        leaveByDay[day].push({ code: rec.leave, status: rec.status });
+      }
+      cursor.setDate(cursor.getDate() + 1);
+    }
+  });
+  const monthPad = new Date(monthYear, monthIndex, 1).getDay();
+  const shiftHistoryMonth = (delta: number) => {
+    const next = new Date(monthYear, monthIndex + delta, 1);
+    setHistoryMonth(`${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`);
+  };
+  const monthLabel = new Date(monthYear, monthIndex, 1).toLocaleString('en-IN', { month: 'long', year: 'numeric' });
+
   const singleDays = countLeaveDays(singleForm.from, singleForm.to, singleForm.duration);
 
-  const openSingle = () => {
+  const balances = LEAVE_OPTIONS.map((opt) => {
+    const taken = records
+      .filter((rec) => rec.empId === singleId && rec.leave === opt.value && rec.status === 'Approved')
+      .reduce((sum, rec) => sum + rec.days, 0);
+    const pending = records
+      .filter((rec) => rec.empId === singleId && rec.leave === opt.value && rec.status === 'Pending')
+      .reduce((sum, rec) => sum + rec.days, 0);
+    const entitled = ENTITLED[opt.value];
+    return {
+      code: opt.value,
+      label: opt.label,
+      entitled,
+      taken,
+      pending,
+      remaining: opt.value === 'LOP' ? null : Math.max(0, entitled - taken)
+    };
+  });
+  const selectedBalance = balances.find((b) => b.code === singleForm.leave);
+
+  const resetSingleForm = () => {
     setSingleErrors([]);
     setSingleForm({
       leave: 'CL',
@@ -310,10 +367,14 @@ export function LeaveEntryBulk({ lockedMode }: { lockedMode?: 'bulk' | 'single' 
       contact: '',
       attachment: ''
     });
+  };
+
+  const openSingle = () => {
+    resetSingleForm();
     setSingleOpen(true);
   };
 
-  const submitSingle = () => {
+  const submitSingle = (fromModal = false) => {
     const problems: string[] = [];
     if (!singleForm.leave) problems.push('Choose a leave type.');
     if (!singleForm.from || !singleForm.to) problems.push('Choose both From and To dates.');
@@ -323,8 +384,14 @@ export function LeaveEntryBulk({ lockedMode }: { lockedMode?: 'bulk' | 'single' 
     if (singleForm.contact && !/^[0-9+\-\s]{7,15}$/.test(singleForm.contact)) problems.push('Contact number looks invalid.');
     const clash = records.find((rec) => rec.empId === singleId && rec.status !== 'Withdrawn' && overlaps(rec, { from: singleForm.from, to: singleForm.to }));
     if (clash) problems.push(`Overlaps an existing ${LEAVE_LABEL[clash.leave] ?? clash.leave} request (${formatDate(clash.from)} – ${formatDate(clash.to)}).`);
+    if (singleForm.leave && singleForm.leave !== 'LOP' && selectedBalance && selectedBalance.remaining !== null && singleDays > selectedBalance.remaining) {
+      problems.push(`Insufficient ${LEAVE_LABEL[singleForm.leave]} balance. Remaining ${selectedBalance.remaining} day(s), requested ${singleDays}.`);
+    }
     setSingleErrors(problems);
-    if (problems.length > 0) return;
+    if (problems.length > 0) {
+      setNotice({ type: 'error', text: problems[0] });
+      return;
+    }
     setRecords((prev) => [{
       id: nextId,
       empId: singleId,
@@ -339,8 +406,11 @@ export function LeaveEntryBulk({ lockedMode }: { lockedMode?: 'bulk' | 'single' 
       source: 'Single'
     }, ...prev]);
     setNextId((id) => id + 1);
-    setSingleOpen(false);
-    setNotice({ type: 'success', text: `Leave request created for ${singleEmp.name} (${singleDays} day(s)) and sent for approval.` });
+    if (fromModal) setSingleOpen(false);
+    setHistoryMonth(singleForm.from.slice(0, 7));
+    setHistoryStatus('all');
+    resetSingleForm();
+    setNotice({ type: 'success', text: `Leave request submitted for ${singleEmp.name} (${singleDays} day(s)) and sent for approval.` });
   };
 
   const withdraw = (rec: LeaveRecord) => {
@@ -358,10 +428,10 @@ export function LeaveEntryBulk({ lockedMode }: { lockedMode?: 'bulk' | 'single' 
     <div className="space-y-6 p-6 bg-gray-50 min-h-screen">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Leave Entry</h1>
-          <p className="text-sm text-gray-500">Apply leave for multiple employees at once, or manage one employee's leave requests and history</p>
+          <h1 className="text-2xl font-bold text-gray-900">{lockedMode === 'single' ? 'Apply Leave' : 'Leave Entry'}</h1>
+          <p className="text-sm text-gray-500">{lockedMode === 'single' ? 'Apply for leave and review how many days you have taken this month' : "Apply leave for multiple employees at once, or manage one employee's leave requests and history"}</p>
         </div>
-        {mode === 'bulk' ?
+        {mode === 'bulk' &&
         <div className="flex gap-2">
             <button type="button" onClick={downloadBulkTemplate} className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
               <Download className="w-4 h-4 mr-2" /> Template
@@ -369,22 +439,19 @@ export function LeaveEntryBulk({ lockedMode }: { lockedMode?: 'bulk' | 'single' 
             <button type="button" onClick={submitBulk} className="inline-flex items-center px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-medium transition-colors">
               <Save className="w-4 h-4 mr-2" /> Submit Leave Requests
             </button>
-          </div> :
-        <button type="button" onClick={openSingle} className="inline-flex items-center px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-medium transition-colors">
-            <Plus className="w-4 h-4 mr-2" /> New Leave Request
-          </button>
+          </div>
         }
       </div>
 
       {!lockedMode && <div className="flex gap-2 border-b border-gray-200">
         {([
-        { id: 'bulk', label: 'Bulk Leave Entry (multiple employees)' },
-        { id: 'single', label: 'Single Employee & History' }] as const).map((tab) =>
+        { id: 'bulk', label: 'Bulk Leave Entry' },
+        { id: 'history', label: 'History' }] as const).map((tab) =>
         <button
           key={tab.id}
           type="button"
-          onClick={() => setMode(tab.id)}
-          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${mode === tab.id ? 'border-teal-600 text-teal-700' : 'border-transparent text-gray-500 hover:text-gray-800'}`}>
+          onClick={() => setMode(tab.id === 'history' ? 'single' : 'bulk')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${(tab.id === 'bulk' ? mode === 'bulk' : mode === 'single') ? 'border-teal-600 text-teal-700' : 'border-transparent text-gray-500 hover:text-gray-800'}`}>
             {tab.label}
           </button>
         )}
@@ -400,27 +467,27 @@ export function LeaveEntryBulk({ lockedMode }: { lockedMode?: 'bulk' | 'single' 
       }
 
       {mode === 'bulk' &&
-      <>
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center"><Users className="w-5 h-5 text-blue-600" /></div>
                 <div><p className="text-xs text-gray-500">Total Employees</p><p className="text-2xl font-bold text-blue-600">{ALL_EMPLOYEES.length}</p></div>
               </div>
             </div>
-            <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-teal-100 rounded-lg flex items-center justify-center"><UserPlus className="w-5 h-5 text-teal-600" /></div>
                 <div><p className="text-xs text-gray-500">Selected</p><p className="text-2xl font-bold text-teal-600">{selectedIds.length}</p></div>
               </div>
             </div>
-            <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center"><Calendar className="w-5 h-5 text-orange-600" /></div>
                 <div><p className="text-xs text-gray-500">Working Days (per employee)</p><p className="text-2xl font-bold text-orange-600">{leaveDays}</p></div>
               </div>
             </div>
-            <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center"><Clock className="w-5 h-5 text-purple-600" /></div>
                 <div><p className="text-xs text-gray-500">Total Leave Days</p><p className="text-2xl font-bold text-purple-600">{totalLeaveDays}</p></div>
@@ -434,9 +501,9 @@ export function LeaveEntryBulk({ lockedMode }: { lockedMode?: 'bulk' | 'single' 
             </div>
           }
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-              <div className="px-6 py-4 border-b border-gray-100"><h3 className="font-semibold text-gray-900">Leave Details</h3></div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-2 border-t border-gray-100">
+            <div>
+              <div className="px-1 py-2 border-b border-gray-100"><h3 className="font-semibold text-gray-900">Leave Details</h3></div>
               <div className="p-6 space-y-4">
                 <Select
                   label="Leave Type *"
@@ -488,7 +555,7 @@ export function LeaveEntryBulk({ lockedMode }: { lockedMode?: 'bulk' | 'single' 
               </div>
             </div>
 
-            <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div className="lg:col-span-2">
               <div className="px-6 py-4 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
                 <h3 className="font-semibold text-gray-900">Select Employees</h3>
                 <div className="flex flex-wrap gap-2">
@@ -563,50 +630,20 @@ export function LeaveEntryBulk({ lockedMode }: { lockedMode?: 'bulk' | 'single' 
               </div>
             </div>
           </div>
-        </>
+        </div>
       }
 
       {mode === 'single' &&
-      <div className="space-y-6">
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="space-y-4">
-              <Select
-                label="Employee"
-                options={ALL_EMPLOYEES.map((emp) => ({ value: emp.id, label: `${emp.name} - ${emp.id} (${emp.department})` }))}
-                value={singleId}
-                onChange={(e) => setSingleId(e.target.value)} />
-              <div className="flex items-center gap-4 bg-teal-50 border border-teal-200 rounded-lg p-4">
-                <div className="w-14 h-14 rounded-full bg-gradient-to-br from-teal-500 to-teal-700 flex items-center justify-center text-white font-bold">{singleEmp.avatar}</div>
-                <div>
-                  <p className="font-semibold text-gray-900">{singleEmp.name}</p>
-                  <p className="text-sm text-gray-600">{singleEmp.id} · {singleEmp.designation}</p>
-                  <p className="text-sm text-gray-500">{singleEmp.department} Department</p>
-                </div>
-              </div>
-            </div>
-            <div className="lg:col-span-2">
-              <p className="text-sm font-medium text-gray-700 mb-2">Approved leave taken (days)</p>
-              {takenByType.length === 0 ?
-              <p className="text-sm text-gray-500">No approved leave recorded yet.</p> :
-              <div className="flex flex-wrap gap-3">
-                  {takenByType.map((item) => (
-                    <div key={item.code} className="px-4 py-2 rounded-lg border border-gray-200 bg-gray-50">
-                      <p className="text-xs text-gray-500">{LEAVE_LABEL[item.code]}</p>
-                      <p className="text-lg font-bold text-gray-900">{item.days}</p>
-                    </div>
-                  ))}
-                </div>
-              }
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
             <div className="px-6 py-4 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
               <div>
                 <h3 className="font-semibold text-gray-900">Leave History</h3>
-                <p className="text-xs text-gray-500">All leave requests for {singleEmp.name}</p>
+                <p className="text-xs text-gray-500">All submitted leave requests</p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <button type="button" onClick={() => shiftHistoryMonth(-1)} className="px-2 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50" title="Previous month">‹</button>
+                <input type="month" value={historyMonth} onChange={(e) => setHistoryMonth(e.target.value || historyMonth)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500" />
+                <button type="button" onClick={() => shiftHistoryMonth(1)} className="px-2 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50" title="Next month">›</button>
                 <select value={historyStatus} onChange={(e) => setHistoryStatus(e.target.value as 'all' | LeaveStatus)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500">
                   <option value="all">All statuses</option>
                   <option value="Approved">Approved</option>
@@ -616,6 +653,45 @@ export function LeaveEntryBulk({ lockedMode }: { lockedMode?: 'bulk' | 'single' 
                 <button type="button" onClick={downloadHistory} disabled={singleRecords.length === 0} className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-40">
                   <Download className="w-4 h-4 mr-2" /> Export
                 </button>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-b border-gray-100 grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm font-semibold text-gray-900">{monthLabel}</p>
+                  <p className="text-sm text-gray-600">Leaves taken this month: <span className="font-bold text-teal-700">{monthTakenDays}</span> day(s)</p>
+                </div>
+                <div className="grid grid-cols-7 text-center text-[11px] font-semibold uppercase text-gray-400 mb-1">
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => <span key={d}>{d}</span>)}
+                </div>
+                <div className="grid grid-cols-7 gap-1">
+                  {Array.from({ length: monthPad }).map((_, i) => <div key={`pad-${i}`} className="h-14 rounded-lg bg-gray-50" />)}
+                  {Array.from({ length: daysInHistoryMonth }, (_, i) => i + 1).map((day) => {
+                    const marks = leaveByDay[day] || [];
+                    const approved = marks.some((m) => m.status === 'Approved');
+                    const pending = marks.some((m) => m.status === 'Pending');
+                    return (
+                      <div key={day} className={`h-14 rounded-lg border p-1 text-left ${approved ? 'bg-teal-50 border-teal-200' : pending ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-100'}`}>
+                        <p className="text-xs font-semibold text-gray-700">{day}</p>
+                        {marks[0] && <p className="text-[10px] font-medium text-teal-700 truncate">{marks[0].code}{marks.length > 1 ? ` +${marks.length - 1}` : ''}</p>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <p className="text-sm font-semibold text-gray-900">This month by type</p>
+                {LEAVE_OPTIONS.map((opt) => {
+                  const days = monthRecords.filter((rec) => rec.leave === opt.value && rec.status === 'Approved').reduce((sum, rec) => sum + rec.days, 0);
+                  if (!days) return null;
+                  return (
+                    <div key={opt.value} className="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2">
+                      <span className="text-sm text-gray-700">{opt.label}</span>
+                      <span className="text-sm font-bold text-gray-900">{days}</span>
+                    </div>
+                  );
+                })}
+                {monthTakenDays === 0 && <p className="text-sm text-gray-500">No approved leave in {monthLabel}.</p>}
               </div>
             </div>
             <div className="overflow-x-auto">
@@ -628,10 +704,10 @@ export function LeaveEntryBulk({ lockedMode }: { lockedMode?: 'bulk' | 'single' 
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 bg-white">
-                  {singleRecords.length === 0 &&
-                  <tr><td colSpan={10} className="px-4 py-10 text-center text-gray-500">No leave records for this filter.</td></tr>
+                  {monthRecords.length === 0 &&
+                  <tr><td colSpan={10} className="px-4 py-10 text-center text-gray-500">No leave records for {monthLabel}.</td></tr>
                   }
-                  {singleRecords.map((rec) => (
+                  {monthRecords.map((rec) => (
                     <tr key={rec.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-gray-600">{formatDate(rec.appliedOn)}</td>
                       <td className="px-4 py-3 font-medium text-gray-900">{LEAVE_LABEL[rec.leave] ?? rec.leave}</td>
@@ -711,3 +787,5 @@ export function LeaveEntryBulk({ lockedMode }: { lockedMode?: 'bulk' | 'single' 
     </div>);
 
 }
+
+

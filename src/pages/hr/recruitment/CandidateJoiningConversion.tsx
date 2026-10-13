@@ -43,6 +43,7 @@ import {
   Info,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
   Paperclip,
   File,
   ExternalLink,
@@ -440,6 +441,7 @@ export function CandidateJoiningConversion() {
   const [selectedChecklistItem, setSelectedChecklistItem] = useState<ChecklistItem | null>(null);
   const [checklistNote, setChecklistNote] = useState('');
   const [searchCandidate, setSearchCandidate] = useState('');
+  const [hasSearched, setHasSearched] = useState(false);
 
   const [newChecklistItem, setNewChecklistItem] = useState({
     label: '',
@@ -1014,19 +1016,96 @@ export function CandidateJoiningConversion() {
             </button>
           )}
         </div>
+
+        <div className="mt-5 pt-5 border-t">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative flex-1 min-w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search by name, ID, or position..."
+                value={searchCandidate}
+                onChange={(e) => setSearchCandidate(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    setHasSearched(true);
+                    setSelectedCandidate(null);
+                    setConverted(false);
+                    setConvertedEmployee(null);
+                  }
+                }}
+                className="w-full pl-10 pr-4 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-transparent" />
+              {searchCandidate &&
+              <button
+                onClick={() => setSearchCandidate('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <X className="w-4 h-4 text-gray-400 hover:text-gray-600" />
+                </button>
+              }
+            </div>
+            <Button
+              variant="primary"
+              onClick={() => {
+                setHasSearched(true);
+                setSelectedCandidate(null);
+                setConverted(false);
+                setConvertedEmployee(null);
+              }}>
+              <Search className="w-4 h-4 mr-1" />
+              Search
+            </Button>
+          </div>
+        </div>
       </Card>
 
-      {/* No Candidate Selected */}
-      {!selectedCandidate &&
-      <Card className="p-12 text-center">
-          <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-600 mb-2">No Candidate Selected</h3>
-          <p className="text-gray-400 mb-4">Select a candidate to begin the joining process</p>
-          <Button variant="primary" onClick={() => setShowCandidateListModal(true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            Select Candidate
-          </Button>
+      {!hasSearched && !selectedCandidate &&
+      <Card className="p-10">
+          <div className="text-center text-gray-400 max-w-md mx-auto">
+            <Search className="w-12 h-12 mx-auto mb-3 opacity-40" />
+            <p className="font-medium text-gray-600">Search applicants to begin joining</p>
+            <p className="text-sm mt-1">Use name, ID, or position, then click Search to see the applicant list.</p>
+          </div>
         </Card>
+      }
+
+      {hasSearched && !selectedCandidate &&
+      <Card title={`Applicants (${filteredCandidates.length})`}>
+        <div className="space-y-2">
+          {filteredCandidates.length === 0 ?
+          <div className="text-center py-8 text-gray-400">
+              <Users className="w-12 h-12 mx-auto mb-3 opacity-40" />
+              <p>No applicants found</p>
+            </div> :
+
+          filteredCandidates.map((candidate) =>
+          <div
+            key={candidate.id}
+            onClick={() => selectCandidate(candidate)}
+            className="p-4 rounded-xl cursor-pointer transition-all border border-gray-100 bg-gray-50 hover:bg-teal-50 hover:border-teal-200">
+
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-teal-500 to-green-600 text-white flex items-center justify-center text-xs font-bold flex-shrink-0">
+                  {candidate.avatar}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-gray-900 truncate">{candidate.name}</p>
+                  <p className="text-xs text-gray-500 truncate">{candidate.position} · {candidate.applicationId} · {candidate.email}</p>
+                  <p className="text-xs text-gray-400">Offer: {candidate.offerDate}{candidate.expectedJoiningDate ? ` · Join: ${candidate.expectedJoiningDate}` : ''}</p>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <p className="text-sm font-bold text-teal-600">{candidate.interviewScore}%</p>
+                  <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
+                    candidate.status === 'Offer Accepted' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                  }`}>
+                    {candidate.status}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )
+          }
+        </div>
+      </Card>
       }
 
       {/* Conversion Success Banner */}
@@ -1076,6 +1155,19 @@ export function CandidateJoiningConversion() {
 
       {selectedCandidate && !converted &&
       <>
+          <div className="flex items-center justify-between">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setSelectedCandidate(null);
+                setConverted(false);
+                setConvertedEmployee(null);
+              }}>
+              <ChevronLeft className="w-4 h-4 mr-1" />
+              Back to Applicants
+            </Button>
+          </div>
           {/* Progress Bar */}
           <Card className="p-5">
             <div className="flex items-center justify-between mb-3">

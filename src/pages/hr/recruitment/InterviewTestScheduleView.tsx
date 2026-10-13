@@ -444,6 +444,14 @@ export function InterviewTestScheduleView() {
 
   // Modal states
   const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [applicantSearch, setApplicantSearch] = useState('');
+  const [pickedApplicant, setPickedApplicant] = useState('');
+  const SCHEDULE_APPLICANTS = [
+    { id: 'APP-2024-001', name: 'Priya Sharma', position: 'Math Teacher', email: 'priya.sharma@email.com', phone: '+91 98765 11101' },
+    { id: 'APP-2024-002', name: 'Rahul Verma', position: 'Science HOD', email: 'rahul.verma@email.com', phone: '+91 98765 11102' },
+    { id: 'APP-2024-003', name: 'Suresh Kumar', position: 'PE Teacher', email: 'suresh.kumar@email.com', phone: '+91 98765 11103' },
+    { id: 'APP-2024-004', name: 'Ananya Iyer', position: 'English Teacher', email: 'ananya.iyer@email.com', phone: '+91 98765 11104' }
+  ];
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
@@ -1559,6 +1567,39 @@ export function InterviewTestScheduleView() {
               </button>
             </div>
             <div className="p-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Search applicant</label>
+                <input
+                  value={applicantSearch}
+                  onChange={(e) => setApplicantSearch(e.target.value)}
+                  placeholder="Search shortlisted applicants by name, ID or position..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                />
+                <div className="mt-2 max-h-40 overflow-y-auto border border-gray-200 rounded-lg divide-y">
+                  {SCHEDULE_APPLICANTS.filter((a) =>
+                    `${a.name} ${a.id} ${a.position}`.toLowerCase().includes(applicantSearch.trim().toLowerCase())
+                  ).map((a) => (
+                    <button
+                      type="button"
+                      key={a.id}
+                      onClick={() => {
+                        setPickedApplicant(a.id);
+                        setNewInterview({
+                          ...newInterview,
+                          candidate: a.name,
+                          candidateEmail: a.email,
+                          candidatePhone: a.phone,
+                          position: a.position
+                        });
+                      }}
+                      className={`w-full text-left px-3 py-2 text-sm hover:bg-indigo-50 ${pickedApplicant === a.id ? 'bg-indigo-50' : ''}`}
+                    >
+                      <p className="font-medium text-gray-900">{a.name}</p>
+                      <p className="text-xs text-gray-500">{a.id} · {a.position}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <Input
                 label="Candidate Name *"
