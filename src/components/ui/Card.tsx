@@ -5,16 +5,19 @@ interface CardProps {
   className?: string;
   noPadding?: boolean;
   headerAction?: React.ReactNode;
+  onClick?: React.MouseEventHandler<HTMLDivElement>;
 }
 export function Card({
   title,
   children,
   className = '',
   noPadding = false,
-  headerAction
+  headerAction,
+  onClick
 }: CardProps) {
   return (
     <div
+      onClick={onClick}
       className={`bg-white rounded-lg border border-gray-200 shadow-sm ${className}`}>
 
       {title &&

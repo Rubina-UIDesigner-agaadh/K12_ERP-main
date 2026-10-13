@@ -301,13 +301,8 @@ const payrollSidebar: SidebarSection[] = [
 
 const hrMasterSidebar: SidebarSection[] = [
   { title: 'Employee Masters', items: [{ label: 'Designation Master', id: 'designation-master' }, { label: 'Employee Classification Master', id: 'employee-classification-master' }, { label: 'Employee Document Type Master', id: 'employee-document-type-master' }, { label: 'Vacancy / Requisition Master', id: 'vacancy-requisition-master' }, { label: 'Employee ID Creation Rules', id: 'employee-id-creation' }] },
-  { title: 'Exit & Asset Masters', items: [
-    { label: 'Asset Management Master', id: 'asset-management-master' },
-    { label: 'Exit Process Master', id: 'exit-process-master' },
-    { label: 'Full & Final Settlement Master', id: 'fnf-settlement-master' }
-  ] },
   { title: 'Employee Attendance Master', items: [{ label: 'Leave Type Master', id: 'leave-type-master' }, { label: 'Attendance Rule Master', id: 'attendance-rule-master' }] },
-  { title: 'Recruitment Master', items: [{ label: 'Recruitment Stage & Status Master', id: 'recruitment-stage-status-master' }, { label: 'Evaluation Scorecard Master', id: 'evaluation-criteria-competency-master' }] },
+  { title: 'Recruitment Master', items: [{ label: 'Evaluation Scorecard Master', id: 'evaluation-criteria-competency-master' }] },
   { title: 'Payroll Master', items: [{ label: 'Pay Head Master', id: 'pay-head-master' }, { label: 'Salary Grade / Pay Scale Master', id: 'salary-grade-pay-scale-master' }, { label: 'Payroll Calendar / Period Master', id: 'payroll-calendar-period-master' }, { label: 'Payroll Setup', id: 'payroll-setup' }, { label: 'Disbursement Mode / Bank Setup', id: 'disbursement-mode-bank-setup' }] },
   { title: 'Appraisal Master', items: [{ label: 'Appraisal Cycle Master', id: 'appraisal-cycle-master' }, { label: 'Appraisal Template Master', id: 'appraisal-template-master' }, { label: 'Competency & KPI Master', id: 'competency-kpi-master' }, { label: 'Rating Scale Master', id: 'rating-scale-master' }, { label: 'Appraisal Role & Workflow Master', id: 'appraisal-role-workflow-master' }] },
   { title: 'Income Tax Master', items: [{ label: 'Financial Year & Tax Configuration Master', id: 'financial-year-tax-config-master' }, { label: 'Tax Regime Master', id: 'tax-regime-master' }, { label: 'Tax Slab & Surcharge Master', id: 'tax-slab-surcharge-master' }, { label: 'Exemption & Deduction Section Master', id: 'exemption-deduction-section-master' }, { label: 'Income Head Mapping Master', id: 'income-head-mapping-master' }, { label: 'HRA & Special Exemption Rule Master', id: 'hra-special-exemption-rule-master' }] }
@@ -397,14 +392,12 @@ const utilitiesSidebar: SidebarSection[] = [
 const mastersSidebar: SidebarSection[] = [
   { title: 'Academic', items: [
     { label: 'Stream & Subject Group Master', id: 'stream-subject-group-master' },
-    { label: 'Seat Matrix Configuration', id: 'seat-matrix-configuration' },
     { label: 'Eligibility Rules Builder', id: 'eligibility-rules-builder' },
     { label: 'Application Schedule Manager', id: 'application-schedule-manager' },
     { label: 'Curriculum Master', id: 'curriculum-master' },
     { label: 'Learning Objectives Master', id: 'learning-objectives-master' },
     { label: 'Textbook & Resource Master', id: 'textbook-resource-master' },
-    { label: 'Class Timetable', id: 'class-timetable' },
-    { label: 'Substitution Management', id: 'substitution-management' }
+    { label: 'Class Timetable', id: 'class-timetable' }
   ] },
   { title: 'Charge', items: [{ label: 'Charge Master', id: 'charge-master' }] },
   { title: 'Expense', items: [
@@ -421,7 +414,7 @@ const mastersSidebar: SidebarSection[] = [
     { label: 'Discipline & Counselling Policy', id: 'discipline-counselling-policy' }
   ] }
 ];
-const instituteSetupSidebar: SidebarSection[] = [{ title: 'Institute Setup', items: [{ label: 'Institute Profile & Branch Management', id: 'institute-profile-branch-management' }, { label: 'Campus, Building & Room Layout', id: 'campus-building-room-layout' }, { label: 'Academic Session & Term Setup', id: 'academic-session-term-setup' }, { label: 'Class & Section Structure Setup', id: 'class-section-structure-setup' }, { label: 'Department & Subject Grouping Setup', id: 'department-subject-grouping-setup' }, { label: 'Institute Calendar & Working Days', id: 'institute-calendar-working-days' }, { label: 'Timetable Framework & Shift Setup', id: 'timetable-framework-shift-setup' }, { label: 'Timetable Setup', id: 'timetable-setup' }, { label: 'House, Club & Co-curricular Group Setup', id: 'house-club-co-curricular-group-setup' }, { label: 'Batch Master', id: 'batch-master' }] }];
+const instituteSetupSidebar: SidebarSection[] = [{ title: 'Institute Setup', items: [{ label: 'Institute Profile & Branch Management', id: 'institute-profile-branch-management' }, { label: 'Campus, Building & Room Layout', id: 'campus-building-room-layout' }, { label: 'Academic Session & Term Setup', id: 'academic-session-term-setup' }, { label: 'Class & Section Structure Setup', id: 'class-section-structure-setup' }, { label: 'Department & Subject Grouping Setup', id: 'department-subject-grouping-setup' }, { label: 'Institute Calendar & Working Days', id: 'institute-calendar-working-days' }, { label: 'Timetable Framework & Shift Setup', id: 'timetable-framework-shift-setup' }, { label: 'House, Club & Co-curricular Group Setup', id: 'house-club-co-curricular-group-setup' }, { label: 'Batch Master', id: 'batch-master' }] }];
 const marketplaceSidebar: SidebarSection[] = [{ title: 'Marketplace', items: [{ label: 'Marketplace', id: 'marketplace' }] }];
 const billingSidebar: SidebarSection[] = [{ title: 'Billing', items: [{ label: 'Subscription Overview', id: 'subscription-overview' }, { label: 'Usage Insights', id: 'usage-insights' }, { label: 'Invoice Archive', id: 'invoice-archive' }, { label: 'Account Details', id: 'account-details' }] }];
 const newsfeedSidebar: SidebarSection[] = [{ title: 'Content Management', items: [{ label: 'Internal School Updates', id: 'internal-school-updates' }, { label: 'Government & Policy Updates', id: 'government-policy-updates' }, { label: 'Board & Examination Updates', id: 'board-examination-updates' }, { label: 'Scholarships & Grants', id: 'scholarships-grants' }, { label: 'Health & Safety Advisories', id: 'health-safety-advisories' }, { label: 'Education Industry & Global News', id: 'education-industry-global-news' }] }, { title: 'Media & Engagement', items: [{ label: 'Media & Attachments', id: 'media-attachments' }, { label: 'Engagement & Interaction', id: 'engagement-interaction' }] }, { title: 'Management', items: [{ label: 'Smart Targeting & Filtering', id: 'smart-targeting-filtering' }, { label: 'Moderation & Workflow', id: 'moderation-workflow' }, { label: 'Alerts & Action Center', id: 'alerts-action-center' }, { label: 'Analytics & Insights', id: 'analytics-insights' }] }];
@@ -430,9 +423,7 @@ const frontOfficeSidebar: SidebarSection[] = [{ title: 'Front Office', items: [{
 const communicationsSidebar: SidebarSection[] = [{ title: 'Communications', items: [{ label: 'Messaging', id: 'messaging' }, { label: 'Circulars & Notices', id: 'circulars-notices' }, { label: 'Announcements', id: 'announcements' }, { label: 'Parent Interaction', id: 'parent-interaction' }, { label: 'Communication Logs', id: 'communication-logs' }, { label: 'Private Chats', id: 'private-chats' }] }];
 const eventActivitiesSidebar: SidebarSection[] = [
   { title: 'Event Management', items: [
-    { label: 'Event Management', id: 'event-management' },
-    { label: 'Media & Gallery Management', id: 'media-gallery-management' },
-    { label: 'Event Participation Report', id: 'event-participation-report' }
+    { label: 'Media & Gallery Management', id: 'media-gallery-management' }
   ] },
   { title: 'Event Section', items: [
     { label: 'Event Master', id: 'event-master' },
@@ -472,11 +463,10 @@ const eventActivitiesSidebar: SidebarSection[] = [
     { label: 'Results & Achievements', id: 'competition-results-achievements' }
   ] },
   { title: 'Co-curricular Activities', items: [
-    { label: 'Clubs & Activities', id: 'clubs-activities' },
     { label: 'Activity Attendance & Evaluation', id: 'activity-attendance-evaluation' }
   ] }
 ];
-const timetableSidebar: SidebarSection[] = [{ title: 'Timetable', items: [{ label: 'Timetable Setup', id: 'timetable-setup' }, { label: 'Class Timetable', id: 'class-timetable' }, { label: 'Teacher Timetable', id: 'teacher-timetable' }, { label: 'Substitution Management', id: 'substitution-management' }] }];
+const timetableSidebar: SidebarSection[] = [{ title: 'Timetable', items: [{ label: 'Timetable Setup', id: 'timetable-setup' }, { label: 'Class Timetable', id: 'class-timetable' }, { label: 'Teacher Timetable', id: 'teacher-timetable' }] }];
 const administrationSidebar: SidebarSection[] = [
   { title: 'Administration', items: [
     { label: 'My Workflow Hub', id: 'my-workflow-hub' },
@@ -517,15 +507,19 @@ const projectManagementSidebar: SidebarSection[] = [{ title: 'Project Management
 const eisSidebar: SidebarSection[] = [{ title: 'Executive Information', items: [{ label: 'Executive KPI Dashboard', id: 'executive-kpi-dashboard' }, { label: 'Strategic Planning', id: 'strategic-planning' }, { label: 'Risk & Alert Monitoring', id: 'risk-alert-monitoring' }, { label: 'Performance Overview', id: 'performance-overview' }] }];
 const issueReportingSidebar: SidebarSection[] = [{ title: 'Issue Management', items: [{ label: 'Issue Logging', id: 'issue-logging' }, { label: 'Ticket Management', id: 'ticket-management' }, { label: 'Maintenance Requests', id: 'maintenance-requests' }, { label: 'Escalation Management', id: 'escalation-management' }, { label: 'Feedback & Closure', id: 'feedback-closure' }] }];
 const myCommunicationSidebar: SidebarSection[] = [
-  { title: 'Messages', items: [{ label: 'Internal Messages Inbox', id: 'my-messages-inbox' }, { label: 'Sent Items & Drafts', id: 'my-sent-drafts' }] },
+  { title: 'Messages', items: [
+    { label: 'Internal Messages Inbox', id: 'my-messages-inbox' },
+    { label: 'Private Chats', id: 'private-chats' }
+  ] },
+  { title: 'School Communications', items: [
+    { label: 'Parent Interaction', id: 'parent-interaction' }
+  ] },
   { title: 'Notifications', items: [
     { label: 'Notification Centre', id: 'my-notification-centre' },
-    { label: 'Announcement Subscriptions', id: 'my-announcement-subscriptions' },
     { label: 'Notification Queue & Resend', id: 'notification-queue-resend-utility' }
   ] },
   { title: 'Meetings', items: [{ label: 'Meeting & Appointment Requests', id: 'my-meeting-requests' }] },
-  { title: 'History', items: [{ label: 'Communication History', id: 'my-communication-history' }] },
-  { title: 'Feedback', items: [{ label: 'Feedback & Suggestions', id: 'my-feedback-suggestions' }] }
+  { title: 'History', items: [{ label: 'Communication History', id: 'my-communication-history' }] }
 ];
 const manageSettingsSidebar: SidebarSection[] = [{ title: 'System Updates', items: [{ label: 'Release Note Detail', id: 'my-release-note-detail' }] }, { title: 'Account', items: [{ label: 'My Account Settings', id: 'my-account-settings' }, { label: 'Password & Security', id: 'my-password-security' }] }, { title: 'Preferences', items: [{ label: 'General Settings', id: 'my-display-language' }] }, { title: 'Policies', items: [{ label: 'Policy Library', id: 'my-policy-library' }, { label: 'Policy Acknowledgement History', id: 'my-policy-acknowledgements' }] }, { title: 'Accounts & Devices', items: [{ label: 'Linked Accounts', id: 'my-linked-accounts' }, { label: 'Device & Session Management', id: 'my-device-sessions' }] }, { title: 'Audit', items: [{ label: 'My Data Access Log', id: 'my-data-access-log' }] }];
 const qrBarcodeSidebar: SidebarSection[] = [{ title: 'QR Code & Barcode', items: [{ label: 'QR / Barcode Master', id: 'qr-barcode-master' }, { label: 'Code Generator (Bulk & Dynamic)', id: 'code-generator' }, { label: 'Entity Mapping', id: 'entity-mapping' }, { label: 'Scan & Usage Management', id: 'scan-usage-management' }, { label: 'Attendance & Access Integration', id: 'attendance-access-integration' }, { label: 'Security & Expiry Controls', id: 'security-expiry-controls' }, { label: 'Reports & Scan Logs', id: 'reports-scan-logs' }] }];
@@ -552,15 +546,8 @@ export const modules: Module[] = [
   { id: 'finance', label: 'Finance', icon: Wallet, subModules: [{ id: 'ledgers', label: 'Ledgers', sidebarConfig: ledgersSidebar }, { id: 'fees', label: 'Fees', sidebarConfig: feesSidebar }, { id: 'charge', label: 'Charge', sidebarConfig: chargeSidebar }, { id: 'scholarship', label: 'Scholarship', sidebarConfig: scholarshipSidebar }, { id: 'expenses', label: 'Expenses', sidebarConfig: expensesSidebar }] },
   { id: 'hr', label: 'HR', icon: Briefcase, subModules: [{ id: 'employee', label: 'Employee', sidebarConfig: employeeSidebar }, { id: 'attendance', label: 'Attendance', sidebarConfig: hrAttendanceSidebar }, { id: 'payroll', label: 'Payroll', sidebarConfig: payrollSidebar }, { id: 'master', label: 'Master', sidebarConfig: hrMasterSidebar }, { id: 'appraisal', label: 'Appraisal', sidebarConfig: appraisalSidebar }, { id: 'recruitment', label: 'Recruitment', sidebarConfig: recruitmentSidebar }, { id: 'income-tax', label: 'Income Tax', sidebarConfig: incomeTaxSidebar }] },
   { id: 'assessment', label: 'Assessment', icon: ClipboardList, subModules: [{ id: 'general', label: 'Assessment Setup', sidebarConfig: generalAssessmentSidebar }, { id: 'preschool-assessment', label: 'Preschool Assessment', sidebarConfig: preschoolAssessmentSidebar }, { id: 'cce-management', label: 'CCE Management', sidebarConfig: ccemanagementSidebar }, { id: 'result-card-management', label: 'Result Card Management', sidebarConfig: resultCardManagementSidebar }, { id: 'gseb', label: 'GSEB', sidebarConfig: gsebSidebar }, { id: 'cbse', label: 'CBSE', sidebarConfig: cbseSidebar }, { id: 'cisce', label: 'CISCE', sidebarConfig: cisceSidebar }] },
-  { id: 'admin-tools', label: 'Admin Tools', icon: Shield, 
-    subModules: [{ id: 'security', label: 'Security', sidebarConfig: securitySidebar },
-       { id: 'administration', label: 'Administration', sidebarConfig: administrationSidebar },
-        { id: 'utilities', label: 'Utilities', sidebarConfig: utilitiesSidebar },
-         { id: 'masters', label: 'Masters', sidebarConfig: mastersSidebar },
-          { id: 'institute-setup', label: 'Institute Setup', sidebarConfig: instituteSetupSidebar },
-           { id: 'marketplace', label: 'Marketplace', sidebarConfig: marketplaceSidebar },
-            { id: 'billing', label: 'Billing', sidebarConfig: billingSidebar }] },
-  { id: 'more', label: 'More', icon: Grid, subModules: [{ id: 'newsfeed', label: 'Newsfeed', sidebarConfig: newsfeedSidebar }, { id: 'reports', label: 'Reports', sidebarConfig: reportsSidebar }, { id: 'front-office', label: 'Front Office', sidebarConfig: frontOfficeSidebar }, { id: 'communications', label: 'Communications', sidebarConfig: communicationsSidebar }, { id: 'health', label: 'Health', sidebarConfig: healthSidebar }, { id: 'mis', label: 'MIS', sidebarConfig: misSidebar }, { id: 'project-management', label: 'Project Management', sidebarConfig: projectManagementSidebar }, { id: 'eis', label: 'EIS', sidebarConfig: eisSidebar }, { id: 'issue-reporting', label: 'Issue Reporting', sidebarConfig: issueReportingSidebar }] },
+  { id: 'admin-tools', label: 'Admin Tools', icon: Shield, subModules: [{ id: 'security', label: 'Security', sidebarConfig: securitySidebar }, { id: 'administration', label: 'Administration', sidebarConfig: administrationSidebar }, { id: 'utilities', label: 'Utilities', sidebarConfig: utilitiesSidebar }, { id: 'masters', label: 'Masters', sidebarConfig: mastersSidebar }, { id: 'institute-setup', label: 'Institute Setup', sidebarConfig: instituteSetupSidebar }, { id: 'marketplace', label: 'Marketplace', sidebarConfig: marketplaceSidebar }, { id: 'billing', label: 'Billing', sidebarConfig: billingSidebar }] },
+  { id: 'more', label: 'More', icon: Grid, subModules: [{ id: 'newsfeed', label: 'Newsfeed', sidebarConfig: newsfeedSidebar }, { id: 'reports', label: 'Reports', sidebarConfig: reportsSidebar }, { id: 'front-office', label: 'Front Office', sidebarConfig: frontOfficeSidebar }, { id: 'health', label: 'Health', sidebarConfig: healthSidebar }, { id: 'mis', label: 'MIS', sidebarConfig: misSidebar }, { id: 'project-management', label: 'Project Management', sidebarConfig: projectManagementSidebar }, { id: 'eis', label: 'EIS', sidebarConfig: eisSidebar }, { id: 'issue-reporting', label: 'Issue Reporting', sidebarConfig: issueReportingSidebar }] },
   { id: 'my-details', label: 'My Details', icon: User, subModules: [{ id: 'my-communication', label: 'My Communication', sidebarConfig: myCommunicationSidebar }, { id: 'manage-settings', label: 'Manage Settings', sidebarConfig: manageSettingsSidebar }] },
   { id: 'plugins', label: 'Plugins', icon: Puzzle, subModules: [{ id: 'qr-barcode', label: 'QR Code & Barcode', sidebarConfig: qrBarcodeSidebar }, { id: 'gps-tracking', label: 'GPS Tracking', sidebarConfig: gpsTrackingSidebar }, { id: 'mobile-app', label: 'Mobile App', sidebarConfig: mobileAppSidebar }, { id: 'whatsapp', label: 'WhatsApp', sidebarConfig: whatsappSidebar }, { id: 'tally', label: 'Tally', sidebarConfig: tallySidebar }, { id: 'payment-gateway', label: 'Payment Gateway', sidebarConfig: paymentGatewaySidebar }, { id: 'email', label: 'Email', sidebarConfig: emailSidebar }, { id: 'biometric', label: 'Biometric', sidebarConfig: biometricSidebar }, { id: 'sms-calling', label: 'SMS & Calling', sidebarConfig: smsCallingSidebar }, { id: 'google-apps', label: 'Google Apps', sidebarConfig: googleAppsSidebar }, { id: 'microsoft-tools', label: 'Microsoft Tools', sidebarConfig: microsoftToolsSidebar }, { id: 'alert', label: 'Alert', sidebarConfig: alertPluginSidebar }] }
 ];
