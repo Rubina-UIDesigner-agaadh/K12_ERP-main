@@ -283,7 +283,7 @@ const expensesSidebar: SidebarSection[] = [
 
 const employeeSidebar: SidebarSection[] = [
   { title: 'List Screens', items: [{ label: 'Employee Summary Dashboard', id: 'employee-summary-dashboard' }, { label: 'Employee Directory & Profile', id: 'employee-list-directory' }, { label: 'Probation & Confirmation', id: 'probation-confirmation-list' }, { label: 'Employee Exit & Separation Management', id: 'exit-relieved-employees' }] },
-  { title: 'Transactions', items: [{ label: 'Add / Edit Employee Profile', id: 'add-edit-employee-profile' }, { label: 'Employee Letters & Document Generation', id: 'employee-service-register' }, { label: 'Employee Transfer', id: 'employee-transfer' }, { label: 'Shift View and Switch', id: 'shift-view-and-switch' }, { label: 'Employee ID Card', id: 'employee-id-card' }, { label: 'Staff Achievement', id: 'staff-achievement' }, { label: "Teacher's Management", id: 'teacher-management' }] },
+  { title: 'Transactions', items: [{ label: 'Add / Edit Employee Profile', id: 'add-edit-employee-profile' }, { label: 'Employee Letters & Document Generation', id: 'employee-service-register' }, { label: 'Employee Transfer', id: 'employee-transfer' }, { label: 'Shift View and Switch', id: 'shift-view-and-switch' }, { label: 'Employee ID Card', id: 'employee-id-card' }, { label: 'Staff Achievement', id: 'staff-achievement' }, { label: "Teacher's Management", id: 'teacher-management' }, { label: 'Teacher Assignment Management', id: 'teacher-class-subject-allocation' }] },
   { title: 'Report Criteria', items: [{ label: 'Employee Reports', id: 'employee-reports' }] }
 ];
 
@@ -432,28 +432,21 @@ const eventActivitiesSidebar: SidebarSection[] = [
     { label: 'Event Feedback & Review', id: 'event-feedback-review' }
   ] },
   { title: 'TEACHER ACTIVITIES SECTION', items: [
-    { label: 'Teacher Activity Master', id: 'teacher-activity-master' },
     { label: 'Professional Development', id: 'professional-development' },
     { label: 'Teacher Achievements', id: 'teacher-achievements' }
   ] },
   { title: 'TEACHER DUTIES SECTION', items: [
     { label: 'Duty Master', id: 'duty-master' },
     { label: 'Duty Roster', id: 'duty-roster' },
-    { label: 'Duty Attendance', id: 'duty-attendance' },
-    { label: 'Reports & Analytics', id: 'reports-analytics' }
+    { label: 'Duty Attendance', id: 'duty-attendance' }
   ] },
   { title: 'Activity Planning', items: [
-    { label: 'Planner Dashboard', id: 'planner-dashboard' },
-    { label: 'Activity Management', id: 'activity-management' },
     { label: 'Activity Calendar', id: 'activity-calendar' },
     { label: 'Activity Types & Settings', id: 'activity-types-settings' },
-    { label: 'Recurring Activities', id: 'recurring-activities' },
-    { label: 'Bulk Planning', id: 'bulk-planning' },
+    { label: 'Recurring Activities', id: 'recurring-activities' }
   ] },
   { title: 'Teacher & Department Coordination', items: [
-    { label: 'Department Duty Allocation', id: 'department-duty-allocation' },
     { label: 'Teacher Schedule View', id: 'teacher-schedule-view' },
-    { label: 'Teacher Workload View', id: 'teacher-workload-view' },
     { label: 'Teacher Duty Report', id: 'teacher-duty-report' }
   ] },
   { title: 'Competition Management', items: [
@@ -521,7 +514,7 @@ const myCommunicationSidebar: SidebarSection[] = [
   { title: 'Meetings', items: [{ label: 'Meeting & Appointment Requests', id: 'my-meeting-requests' }] },
   { title: 'History', items: [{ label: 'Communication History', id: 'my-communication-history' }] }
 ];
-const manageSettingsSidebar: SidebarSection[] = [{ title: 'System Updates', items: [{ label: 'Release Note Detail', id: 'my-release-note-detail' }] }, { title: 'Account', items: [{ label: 'My Account Settings', id: 'my-account-settings' }, { label: 'Password & Security', id: 'my-password-security' }] }, { title: 'Preferences', items: [{ label: 'General Settings', id: 'my-display-language' }] }, { title: 'Policies', items: [{ label: 'Policy Library', id: 'my-policy-library' }, { label: 'Policy Acknowledgement History', id: 'my-policy-acknowledgements' }] }, { title: 'Accounts & Devices', items: [{ label: 'Linked Accounts', id: 'my-linked-accounts' }, { label: 'Device & Session Management', id: 'my-device-sessions' }] }, { title: 'Audit', items: [{ label: 'My Data Access Log', id: 'my-data-access-log' }] }];
+const manageSettingsSidebar: SidebarSection[] = [{ title: 'System Updates', items: [{ label: 'Release Note Detail', id: 'my-release-note-detail' }] }, { title: 'Account', items: [{ label: 'My Account Settings', id: 'my-account-settings' }, { label: 'Password & Security', id: 'my-password-security' }] }, { title: 'Preferences', items: [{ label: 'General Settings', id: 'my-display-language' }] }, { title: 'Policies', items: [{ label: 'Policy Library', id: 'my-policy-library' }, { label: 'Policy Acknowledgement History', id: 'my-policy-acknowledgements' }] }, { title: 'Accounts & Devices', items: [{ label: 'Device & Session Management', id: 'my-device-sessions' }] }, { title: 'Audit', items: [{ label: 'My Data Access Log', id: 'my-data-access-log' }] }];
 const qrBarcodeSidebar: SidebarSection[] = [{ title: 'QR Code & Barcode', items: [{ label: 'QR / Barcode Master', id: 'qr-barcode-master' }, { label: 'Code Generator (Bulk & Dynamic)', id: 'code-generator' }, { label: 'Entity Mapping', id: 'entity-mapping' }, { label: 'Scan & Usage Management', id: 'scan-usage-management' }, { label: 'Attendance & Access Integration', id: 'attendance-access-integration' }, { label: 'Security & Expiry Controls', id: 'security-expiry-controls' }, { label: 'Reports & Scan Logs', id: 'reports-scan-logs' }] }];
 const gpsTrackingSidebar: SidebarSection[] = [{ title: 'GPS Tracking (Transport)', items: [{ label: 'Vehicle & Device Master', id: 'vehicle-device-master' }, { label: 'Route & Geo-Fence Setup', id: 'route-geofence-setup' }, { label: 'Live Tracking Dashboard', id: 'live-tracking-dashboard' }, { label: 'Student Boarding Tracking', id: 'student-boarding-tracking' }, { label: 'Alert Integration', id: 'gps-alert-integration' }, { label: 'Trip History & Logs', id: 'trip-history-logs' }, { label: 'Transport Analytics', id: 'transport-analytics' }] }];
 const mobileAppSidebar: SidebarSection[] = [{ title: 'Mobile App Integration', items: [{ label: 'App Configuration & Feature Control', id: 'app-configuration' }, { label: 'Role-Based Access Setup', id: 'role-based-access-setup' }, { label: 'Push Notification Management', id: 'push-notification-management' }, { label: 'Content & Announcement Control', id: 'content-announcement-control' }, { label: 'Authentication (OTP / SSO)', id: 'app-authentication' }, { label: 'App Usage Analytics', id: 'app-usage-analytics' }, { label: 'App Logs & Monitoring', id: 'app-logs-monitoring' }] }];

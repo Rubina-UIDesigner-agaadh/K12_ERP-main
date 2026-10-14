@@ -255,7 +255,7 @@ export function TeacherManagement() {
 
   const saveTeacherSetup = () => {
     if (!selected) return;
-    setNotice(`Timetable, class/subject allocation and duties saved for ${selected.name}.`);
+    setNotice(`Class/subject allocation and timetable saved for ${selected.name}.`);
   };
 
   return (
@@ -263,10 +263,10 @@ export function TeacherManagement() {
       <div>
         <p className="text-xs text-gray-500">Home → HR → Employee → Teacher's Management</p>
         <h1 className="text-2xl font-bold text-gray-900 mt-1">Teacher's Management</h1>
-        <p className="text-sm text-gray-500">Set up and view any employee's timetable, class/subject allocation, and daily, weekly or monthly duties</p>
+        <p className="text-sm text-gray-500">{mode === 'setup' ? 'Set up class / subject allocation and timetable. Duties are view-only.' : 'View timetable, class/subject allocation, and daily, weekly or monthly duties'}</p>
         <div className="mt-3 flex gap-2">
           <button type="button" onClick={() => setMode('view')} className={`px-4 py-2 rounded-lg text-sm font-medium ${mode === 'view' ? 'bg-indigo-600 text-white' : 'bg-white border text-gray-700'}`}>View</button>
-          <button type="button" onClick={() => setMode('setup')} className={`px-4 py-2 rounded-lg text-sm font-medium ${mode === 'setup' ? 'bg-indigo-600 text-white' : 'bg-white border text-gray-700'}`}>Setup</button>
+          <button type="button" onClick={() => { setMode('setup'); if (tab === 'duties') setTab('allocation'); }} className={`px-4 py-2 rounded-lg text-sm font-medium ${mode === 'setup' ? 'bg-indigo-600 text-white' : 'bg-white border text-gray-700'}`}>Setup</button>
         </div>
       </div>
 
@@ -361,7 +361,7 @@ export function TeacherManagement() {
               ['timetable', 'Timetable', Calendar],
               ['allocation', 'Class / Subject', BookOpen],
               ['duties', 'Duties', ClipboardList]
-            ] as const).map(([id, label, Icon]) => (
+            ] as const).filter(([id]) => mode === 'view' || id !== 'duties').map(([id, label, Icon]) => (
               <button key={id} type="button" onClick={() => setTab(id)} className={`px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 ${tab === id ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700'}`}>
                 <Icon className="w-4 h-4" /> {label}
               </button>
@@ -458,43 +458,74 @@ export function TeacherManagement() {
 
           {tab === 'allocation' && (
             <>
-              <h2 className="text-lg font-semibold">Class / subject allocation — {selected.name}</h2>
-              {mode === 'setup' && <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                <select className="px-3 py-2 border rounded-lg text-sm" value={allocDraft.className} onChange={(e) => setAllocDraft({ ...allocDraft, className: e.target.value })}>
-                  <option value="">Class</option>
-                  {CLASSES.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-                <select className="px-3 py-2 border rounded-lg text-sm" value={allocDraft.subject} onChange={(e) => setAllocDraft({ ...allocDraft, subject: e.target.value })}>
-                  <option value="">Subject</option>
-                  {SUBJECTS.map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
-                <input type="number" className="px-3 py-2 border rounded-lg text-sm" placeholder="Weekly periods" value={allocDraft.weekly} onChange={(e) => setAllocDraft({ ...allocDraft, weekly: Number(e.target.value) || 0 })} />
-                <select className="px-3 py-2 border rounded-lg text-sm" value={allocDraft.role} onChange={(e) => setAllocDraft({ ...allocDraft, role: e.target.value as Allocation['role'] })}>
-                  <option>Subject teacher</option>
-                  <option>Class teacher</option>
-                </select>
-                <Button onClick={() => {
-                  if (!selected || !allocDraft.className || !allocDraft.subject) { setNotice('Enter class and subject.'); return; }
-                  setAlloc((prev) => ({ ...prev, [selected.id]: [...(prev[selected.id] || []), { ...allocDraft }] }));
-                  setNotice(`Allocated ${allocDraft.subject} for ${allocDraft.className}.`);
-                  setAllocDraft({ className: '', subject: selected.subject, weekly: 6, role: 'Subject teacher' });
-                }}>Add allocation</Button>
-              </div>}
-              <table className="min-w-full text-sm">
-                <thead className="bg-gray-50 text-xs uppercase text-gray-500"><tr>{['Class', 'Subject', 'Weekly periods', 'Role', ''].map((h) => <th key={h} className="px-3 py-2 text-left">{h}</th>)}</tr></thead>
-                <tbody>
-                  {allocRows.length === 0 && <tr><td colSpan={5} className="px-3 py-6 text-center text-gray-400">No class/subject allocation yet.</td></tr>}
-                  {allocRows.map((row, i) => (
-                    <tr key={row.className + row.subject + i} className="border-t">
-                      <td className="px-3 py-2">{row.className}</td>
-                      <td className="px-3 py-2">{row.subject}</td>
-                      <td className="px-3 py-2">{row.weekly}</td>
-                      <td className="px-3 py-2"><Badge variant={row.role === 'Class teacher' ? 'info' : 'secondary'}>{row.role}</Badge></td>
-                      <td className="px-3 py-2">{mode === 'setup' && <button type="button" className="text-red-600 text-xs" onClick={() => setAlloc((prev) => ({ ...prev, [selected.id]: (prev[selected.id] || []).filter((_, idx) => idx !== i) }))}>Remove</button>}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <h2 className="text-lg font-semibold">Class / subject allocation — {selected.name}</h2>
+                {mode === 'setup' && <Button onClick={saveTeacherSetup}><Save className="w-4 h-4 mr-1" /> Save allocation</Button>}
+              </div>
+              {mode === 'setup' && (
+                <div className="rounded-lg border border-indigo-100 bg-indigo-50/40 p-4 space-y-3">
+                  <p className="text-sm font-medium text-gray-800">Assign class and subject (same mapping as Teacher Assignment Management)</p>
+                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+                    <select className="px-3 py-2 border rounded-lg text-sm bg-white" defaultValue="2025-26">
+                      <option>2025-26</option><option>2024-25</option>
+                    </select>
+                    <select className="px-3 py-2 border rounded-lg text-sm bg-white" defaultValue="CBSE">
+                      <option>CBSE</option><option>State</option><option>ICSE</option>
+                    </select>
+                    <select className="px-3 py-2 border rounded-lg text-sm bg-white" defaultValue="English">
+                      <option>English</option><option>Hindi</option><option>Gujarati</option>
+                    </select>
+                    <select className="px-3 py-2 border rounded-lg text-sm bg-white" defaultValue="General">
+                      <option>General</option><option>Science</option><option>Commerce</option><option>Arts</option>
+                    </select>
+                    <select className="px-3 py-2 border rounded-lg text-sm" value={allocDraft.className} onChange={(e) => setAllocDraft({ ...allocDraft, className: e.target.value })}>
+                      <option value="">Class / Section</option>
+                      {CLASSES.map((c) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                    <select className="px-3 py-2 border rounded-lg text-sm" value={allocDraft.subject} onChange={(e) => setAllocDraft({ ...allocDraft, subject: e.target.value })}>
+                      <option value="">Subject</option>
+                      {SUBJECTS.map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                    <input type="number" min={1} className="px-3 py-2 border rounded-lg text-sm" placeholder="Periods / week" value={allocDraft.weekly} onChange={(e) => setAllocDraft({ ...allocDraft, weekly: Number(e.target.value) || 0 })} />
+                  </div>
+                  <div className="flex flex-wrap gap-3 items-center">
+                    <select className="px-3 py-2 border rounded-lg text-sm" value={allocDraft.role} onChange={(e) => setAllocDraft({ ...allocDraft, role: e.target.value as Allocation['role'] })}>
+                      <option>Subject teacher</option>
+                      <option>Class teacher</option>
+                    </select>
+                    <Button onClick={() => {
+                      if (!selected || !allocDraft.className || !allocDraft.subject) { setNotice('Enter class and subject.'); return; }
+                      const clash = Object.entries(alloc).some(([tid, rows]) => tid !== selected.id && rows.some((r) => r.className === allocDraft.className && r.subject === allocDraft.subject));
+                      const classTeacherClash = allocDraft.role === 'Class teacher' && Object.entries(alloc).some(([tid, rows]) => tid !== selected.id && rows.some((r) => r.className === allocDraft.className && r.role === 'Class teacher'));
+                      if (clash) { setNotice(`Another teacher already has ${allocDraft.subject} for ${allocDraft.className}.`); return; }
+                      if (classTeacherClash) { setNotice(`${allocDraft.className} already has a class teacher.`); return; }
+                      setAlloc((prev) => ({ ...prev, [selected.id]: [...(prev[selected.id] || []), { ...allocDraft }] }));
+                      setNotice(`Allocated ${allocDraft.subject} for ${allocDraft.className} (${allocDraft.role}).`);
+                      setAllocDraft({ className: '', subject: selected.subject, weekly: 6, role: 'Subject teacher' });
+                    }}>Add allocation</Button>
+                  </div>
+                </div>
+              )}
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-gray-50 text-xs uppercase text-gray-500"><tr>{['Class / Section', 'Subject', 'Weekly periods', 'Role', mode === 'setup' ? 'Action' : ''].filter(Boolean).map((h) => <th key={h} className="px-3 py-2 text-left">{h}</th>)}</tr></thead>
+                  <tbody>
+                    {allocRows.length === 0 && <tr><td colSpan={5} className="px-3 py-6 text-center text-gray-400">No class/subject allocation yet.</td></tr>}
+                    {allocRows.map((row, i) => (
+                      <tr key={row.className + row.subject + i} className="border-t">
+                        <td className="px-3 py-2">{row.className}</td>
+                        <td className="px-3 py-2">{row.subject}</td>
+                        <td className="px-3 py-2">{row.weekly}</td>
+                        <td className="px-3 py-2"><Badge variant={row.role === 'Class teacher' ? 'info' : 'secondary'}>{row.role}</Badge></td>
+                        {mode === 'setup' && <td className="px-3 py-2"><button type="button" className="text-red-600 text-xs" onClick={() => setAlloc((prev) => ({ ...prev, [selected.id]: (prev[selected.id] || []).filter((_, idx) => idx !== i) }))}>Remove</button></td>}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {mode === 'view' && (
+                <p className="text-xs text-gray-500">Class teacher of: {allocRows.filter((r) => r.role === 'Class teacher').map((r) => r.className).join(', ') || '—'}</p>
+              )}
             </>
           )}
 
@@ -508,22 +539,6 @@ export function TeacherManagement() {
                   <button type="button" onClick={() => setDutyView('monthly')} className={`px-3 py-1.5 rounded-lg text-sm ${dutyView === 'monthly' ? 'bg-indigo-600 text-white' : 'bg-gray-100'}`}>Monthly</button>
                 </div>
               </div>
-              {mode === 'setup' && <>
-              <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-                <input className="px-3 py-2 border rounded-lg text-sm" placeholder="Duty title" value={dutyDraft.title} onChange={(e) => setDutyDraft({ ...dutyDraft, title: e.target.value })} />
-                <input className="px-3 py-2 border rounded-lg text-sm" placeholder="When" value={dutyDraft.when} onChange={(e) => setDutyDraft({ ...dutyDraft, when: e.target.value })} />
-                <input className="px-3 py-2 border rounded-lg text-sm" placeholder="Place" value={dutyDraft.place} onChange={(e) => setDutyDraft({ ...dutyDraft, place: e.target.value })} />
-                <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={dutyDraft.daily} onChange={(e) => setDutyDraft({ ...dutyDraft, daily: e.target.checked })} /> Daily</label>
-                <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={dutyDraft.week} onChange={(e) => setDutyDraft({ ...dutyDraft, week: e.target.checked })} /> Weekly</label>
-                <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={dutyDraft.month} onChange={(e) => setDutyDraft({ ...dutyDraft, month: e.target.checked })} /> Monthly</label>
-              </div>
-              <Button onClick={() => {
-                if (!selected || !dutyDraft.title) { setNotice('Enter a duty title.'); return; }
-                setDuties((prev) => ({ ...prev, [selected.id]: [...(prev[selected.id] || []), { id: `d${Date.now()}`, ...dutyDraft }] }));
-                setNotice('Duty added.');
-                setDutyDraft({ title: '', when: '', place: '', daily: true, week: false, month: false });
-              }}>Add duty</Button>
-              </>}
               <table className="min-w-full text-sm">
                 <thead className="bg-gray-50 text-xs uppercase text-gray-500"><tr>{['Duty', 'When', 'Place', 'Cadence', ''].map((h) => <th key={h} className="px-3 py-2 text-left">{h}</th>)}</tr></thead>
                 <tbody>

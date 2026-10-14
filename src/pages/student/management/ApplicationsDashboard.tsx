@@ -271,7 +271,6 @@ export function ApplicationsDashboard() {
   const [status, setStatus] = useState('all');
   const [eligibility, setEligibility] = useState('all');
   const [density, setDensity] = useState<'comfortable' | 'compact'>('comfortable');
-  const [category, setCategory] = useState('all');
   const [round, setRound] = useState('all');
   const [minPct, setMinPct] = useState(0);
   const [maxPct, setMaxPct] = useState(100);
@@ -307,7 +306,6 @@ export function ApplicationsDashboard() {
       if (stream !== 'all' && r.p1 !== stream && r.p2 !== stream && r.p3 !== stream && r.allotted !== stream) return false;
       if (status !== 'all' && r.status !== status) return false;
       if (eligibility !== 'all' && r.eligibility !== eligibility) return false;
-      if (category !== 'all' && r.category !== category) return false;
       if (round !== 'all' && r.round !== round) return false;
       if (r.pct < minPct || r.pct > maxPct) return false;
       if (term && !`${r.name} ${r.roll} ${r.id}`.toLowerCase().includes(term)) return false;
@@ -325,9 +323,9 @@ export function ApplicationsDashboard() {
       return 0;
     });
     return rows;
-  }, [applications, year, stream, status, eligibility, category, round, minPct, maxPct, search, sortBy, sortDir, from, to]);
+  }, [applications, year, stream, status, eligibility, round, minPct, maxPct, search, sortBy, sortDir, from, to]);
 
-  useEffect(() => { setPage(1); }, [year, stream, status, eligibility, category, round, minPct, maxPct, search, pageSize, from, to]);
+  useEffect(() => { setPage(1); }, [year, stream, status, eligibility, round, minPct, maxPct, search, pageSize, from, to]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const pageRows = filtered.slice((page - 1) * pageSize, page * pageSize);
@@ -335,7 +333,7 @@ export function ApplicationsDashboard() {
   const toggleCol = (key: string) => setHiddenCols((prev) => prev.includes(key) ? prev.filter((c) => c !== key) : [...prev, key]);
 
   const reset = () => {
-    setStream('all'); setStatus('all'); setEligibility('all'); setCategory('all'); setRound('all');
+    setStream('all'); setStatus('all'); setEligibility('all'); setRound('all');
     setMinPct(0); setMaxPct(100); setFrom(''); setTo(''); setSearch(''); setSelected([]); setPage(1);
   };
 
@@ -446,11 +444,8 @@ export function ApplicationsDashboard() {
             <option value="Not Eligible">Not Eligible</option>
             <option value="Pending">Pending</option>
           </select>
-          <select value={category} onChange={(e) => setCategory(e.target.value)} className="px-3 py-2 border rounded-lg text-sm">
-            {['all', 'General', 'SC', 'ST', 'OBC', 'EWS'].map((o) => <option key={o} value={o}>{o === 'all' ? 'All Categories' : o}</option>)}
-          </select>
           <select value={round} onChange={(e) => setRound(e.target.value)} className="px-3 py-2 border rounded-lg text-sm">
-            {['all', 'Round 1', 'Round 2', 'Counselling'].map((o) => <option key={o} value={o}>{o === 'all' ? 'All Rounds' : o}</option>)}
+            {['all', 'Round 1', 'Round 2', 'Round 3'].map((o) => <option key={o} value={o}>{o === 'all' ? 'All Rounds' : o}</option>)}
           </select>
           <div className="text-xs text-gray-600">
             Marks {minPct}% – {maxPct}%
@@ -502,14 +497,14 @@ export function ApplicationsDashboard() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-3 py-2"><input type="checkbox" checked={pageRows.length > 0 && pageRows.every((r) => selected.includes(r.id))} onChange={(e) => setSelected(e.target.checked ? Array.from(new Set([...selected, ...pageRows.map((r) => r.id)])) : selected.filter((id) => !pageRows.some((r) => r.id === id)))} /></th>
-                {['#', 'Student', 'Roll Number', 'Class & Section', 'Aggregate %', 'Category', '1st Preference', '2nd Preference', '3rd Preference', 'Status', 'Eligibility', 'Allotted Stream', 'Submitted On', 'Actions'].map((h) =>
+                {['#', 'Student', 'Roll Number', 'Class & Section', 'Aggregate %', '1st Preference', '2nd Preference', '3rd Preference', 'Status', 'Eligibility', 'Allotted Stream', 'Submitted On', 'Actions'].map((h) =>
                   <th key={h} className="px-3 py-2 text-left text-xs font-semibold uppercase text-gray-500 whitespace-nowrap">{h}</th>
                 )}
               </tr>
             </thead>
             <tbody className="divide-y">
               {pageRows.length === 0 && (
-                <tr><td colSpan={15} className="px-3 py-8 text-center text-gray-400">No applications match the current filters.</td></tr>
+                <tr><td colSpan={14} className="px-3 py-8 text-center text-gray-400">No applications match the current filters.</td></tr>
               )}
               {pageRows.map((row, idx) => (
                 <tr key={row.id} className={`hover:bg-gray-50 ${density === 'compact' ? 'text-xs' : ''}`}>
@@ -524,7 +519,6 @@ export function ApplicationsDashboard() {
                   <td className="px-3 py-2">{colOn('roll') ? row.roll : '—'}</td>
                   <td className="px-3 py-2">{row.classSec}</td>
                   <td className={`px-3 py-2 ${pctColor(row.pct)}`}>{row.pct.toFixed(1)}%</td>
-                  <td className="px-3 py-2"><Badge variant="secondary">{row.category}</Badge></td>
                   <td className="px-3 py-2"><Badge variant="info">{row.p1}</Badge></td>
                   <td className="px-3 py-2">{colOn('p2') ? <Badge variant="outline">{row.p2}</Badge> : '—'}</td>
                   <td className="px-3 py-2">{colOn('p3') ? <Badge variant="outline">{row.p3}</Badge> : '—'}</td>

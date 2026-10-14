@@ -539,6 +539,15 @@ export function EmployeeExitSeparation() {
   const [showConfirmExitModal, setShowConfirmExitModal] = useState(false);
   const [showDocumentModal, setShowDocumentModal] = useState(false);
   const [resignationForm, setResignationForm] = useState({
+    firstName: '',
+    lastName: '',
+    employeeCode: '',
+    email: '',
+    phone: '',
+    department: '',
+    designation: '',
+    joiningDate: '',
+    employmentType: '',
     resignationDate: '',
     noticePeriod: 30,
     lastWorkingDay: '',
@@ -632,7 +641,17 @@ export function EmployeeExitSeparation() {
 
   const handleEmployeeSelect = (employee: Employee) => {
     setSelectedEmployee(employee);
+    const parts = employee.name.trim().split(/\s+/);
     setResignationForm({
+      firstName: parts[0] || '',
+      lastName: parts.slice(1).join(' '),
+      employeeCode: employee.code,
+      email: employee.email,
+      phone: employee.phone,
+      department: employee.department,
+      designation: employee.designation,
+      joiningDate: employee.joiningDate,
+      employmentType: employee.employmentType,
       resignationDate: new Date().toISOString().split('T')[0],
       noticePeriod: employee.employmentType === 'Probation' ? 15 : 30,
       lastWorkingDay: '',
@@ -733,10 +752,10 @@ export function EmployeeExitSeparation() {
       const newRequest: ExitRequest = {
         id: Date.now().toString(),
         employeeId: selectedEmployee.id,
-        employeeName: selectedEmployee.name,
-        employeeCode: selectedEmployee.code,
-        department: selectedEmployee.department,
-        designation: selectedEmployee.designation,
+        employeeName: `${resignationForm.firstName} ${resignationForm.lastName}`.trim() || selectedEmployee.name,
+        employeeCode: resignationForm.employeeCode || selectedEmployee.code,
+        department: resignationForm.department || selectedEmployee.department,
+        designation: resignationForm.designation || selectedEmployee.designation,
         resignationDate: resignationForm.resignationDate,
         noticePeriod: resignationForm.noticePeriod,
         lastWorkingDay: resignationForm.lastWorkingDay,
@@ -755,7 +774,7 @@ export function EmployeeExitSeparation() {
       setActiveTab('requests');
       setShowResignationPanel(false);
       setSelectedEmployee(null);
-      setResignationForm({ resignationDate: '', noticePeriod: 30, lastWorkingDay: '', reason: '', remarks: '' });
+      setResignationForm({ firstName: '', lastName: '', employeeCode: '', email: '', phone: '', department: '', designation: '', joiningDate: '', employmentType: '', resignationDate: '', noticePeriod: 30, lastWorkingDay: '', reason: '', remarks: '' });
       setIsSaving(false);
       addToast('success', 'Resignation request submitted successfully');
     }, 1500);
@@ -979,7 +998,7 @@ export function EmployeeExitSeparation() {
 
   const handleResetResignation = () => {
     setSelectedEmployee(null);
-    setResignationForm({ resignationDate: '', noticePeriod: 30, lastWorkingDay: '', reason: '', remarks: '' });
+    setResignationForm({ firstName: '', lastName: '', employeeCode: '', email: '', phone: '', department: '', designation: '', joiningDate: '', employmentType: '', resignationDate: '', noticePeriod: 30, lastWorkingDay: '', reason: '', remarks: '' });
   };
 
   const openNoticeEdit = (request: ExitRequest) => {
@@ -1445,8 +1464,8 @@ export function EmployeeExitSeparation() {
       render: (row: ExitRequest) =>
       <div className="flex flex-wrap gap-1">
           <Button variant="outline" size="sm" disabled={row.status === 'Completed' || row.status === 'Cancelled' || row.status === 'Approved'} onClick={() => handleApproveRequest(row.id)}>Approved</Button>
-          <Button variant="outline" size="sm" disabled={row.status === 'Completed' || row.status === 'Cancelled'} onClick={() => handleRejectRequest(row.id)}>Reject</Button>
-          <Button variant="outline" size="sm" disabled={row.status === 'Completed' || row.status === 'Cancelled' || row.status === 'On Hold'} onClick={() => handleHoldRequest(row.id)}>On Hold</Button>
+          <Button variant="outline" size="sm" disabled={row.status === 'Completed' || row.status === 'Cancelled' || row.status === 'Approved'} onClick={() => handleRejectRequest(row.id)}>Reject</Button>
+          <Button variant="outline" size="sm" disabled={row.status === 'Completed' || row.status === 'Cancelled' || row.status === 'On Hold' || row.status === 'Approved'} onClick={() => handleHoldRequest(row.id)}>On Hold</Button>
           <Button variant="outline" size="sm" onClick={() => handleStartProcessing(row)}>View</Button>
         </div>
     }
@@ -1708,9 +1727,6 @@ export function EmployeeExitSeparation() {
           <p className="text-sm text-gray-500">Track employees in notice or exit processing and review employees who have already left.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={handleOpenNoticePeriods} leftIcon={<RefreshCw className="w-4 h-4" />}>
-            Check Notice Periods
-          </Button>
           <Button variant="primary" onClick={() => setShowResignationPanel(true)} leftIcon={<Plus className="w-4 h-4" />}>
             New Exit Request
           </Button>
@@ -1776,17 +1792,17 @@ export function EmployeeExitSeparation() {
       </div>
 
       {showResignationPanel &&
-      <Card className="p-6">
-          <div className="max-w-4xl mx-auto space-y-6">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">Resignation Form</h3>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Select the employee and record the resignation. After submission, the notice period can be edited from the Leaving / Exit Requests tab.
-                  </p>
-                </div>
-                <Button variant="outline" onClick={() => { setShowResignationPanel(false); handleResetResignation(); }}>Close</Button>
+      <div className="fixed inset-0 z-50 flex">
+          <button type="button" className="absolute inset-0 bg-black/40" aria-label="Close overlay" onClick={() => { setShowResignationPanel(false); handleResetResignation(); }} />
+          <div className="relative ml-auto h-full w-full max-w-2xl overflow-y-auto bg-white shadow-2xl">
+            <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b bg-white px-6 py-4">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">New Exit Request</h3>
+                <p className="text-sm text-gray-500 mt-1">This form opens as a separate overlay. Fill employee details and submit the resignation.</p>
               </div>
+              <Button variant="outline" onClick={() => { setShowResignationPanel(false); handleResetResignation(); }}>Close</Button>
+            </div>
+            <div className="space-y-6 p-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Select Employee <span className="text-red-500">*</span>
@@ -1796,20 +1812,16 @@ export function EmployeeExitSeparation() {
                   onChange={(val) => handleResignationEmployeeChange(val)}
                   options={[{ value: '', label: 'Select an active employee' }, ...activeEmployeeOptions]} />
               </div>
-              {selectedEmployee &&
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center gap-4">
-                  <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center text-lg font-bold text-blue-600 flex-shrink-0">
-                    {selectedEmployee.avatar}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-semibold text-gray-900">{selectedEmployee.name}</h4>
-                    <p className="text-sm text-gray-600">{selectedEmployee.code} • {selectedEmployee.designation}</p>
-                    <p className="text-sm text-gray-500">{selectedEmployee.department} • Joined: {formatDate(selectedEmployee.joiningDate)}</p>
-                  </div>
-                  <Badge variant="secondary">{selectedEmployee.employmentType}</Badge>
-                </div>
-              }
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input label="First Name *" value={resignationForm.firstName} onChange={(e) => setResignationForm((prev) => ({ ...prev, firstName: e.target.value }))} />
+                <Input label="Last Name *" value={resignationForm.lastName} onChange={(e) => setResignationForm((prev) => ({ ...prev, lastName: e.target.value }))} />
+                <Input label="Employee Code" value={resignationForm.employeeCode} onChange={(e) => setResignationForm((prev) => ({ ...prev, employeeCode: e.target.value }))} />
+                <Input label="Email" value={resignationForm.email} onChange={(e) => setResignationForm((prev) => ({ ...prev, email: e.target.value }))} />
+                <Input label="Phone" value={resignationForm.phone} onChange={(e) => setResignationForm((prev) => ({ ...prev, phone: e.target.value }))} />
+                <Input label="Department" value={resignationForm.department} onChange={(e) => setResignationForm((prev) => ({ ...prev, department: e.target.value }))} />
+                <Input label="Designation" value={resignationForm.designation} onChange={(e) => setResignationForm((prev) => ({ ...prev, designation: e.target.value }))} />
+                <Input label="Joining Date" type="date" value={resignationForm.joiningDate} onChange={(e) => setResignationForm((prev) => ({ ...prev, joiningDate: e.target.value }))} />
+                <Input label="Employment Type" value={resignationForm.employmentType} onChange={(e) => setResignationForm((prev) => ({ ...prev, employmentType: e.target.value }))} />
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     <Calendar className="w-4 h-4 inline mr-1" />
@@ -1862,13 +1874,14 @@ export function EmployeeExitSeparation() {
                 <Button
                   variant="primary"
                   onClick={handleSubmitResignation}
-                  disabled={!selectedEmployee || !resignationForm.resignationDate || !resignationForm.reason || isSaving}
+                  disabled={!selectedEmployee || !resignationForm.firstName || !resignationForm.resignationDate || !resignationForm.reason || isSaving}
                   leftIcon={<Send className="w-4 h-4" />}>
                   {isSaving ? 'Submitting...' : 'Submit Request'}
                 </Button>
               </div>
             </div>
-        </Card>
+          </div>
+        </div>
       }
 
       <Card className="p-0 overflow-hidden">

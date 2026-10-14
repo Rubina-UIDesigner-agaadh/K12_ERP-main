@@ -2521,6 +2521,11 @@ export function EmployeeProfileView() {
   const [documentRemarks, setDocumentRemarks] = useState('');
   const [documentError, setDocumentError] = useState<string | null>(null);
   const [documentNotice, setDocumentNotice] = useState<string | null>(null);
+  const [hrRequestTab, setHrRequestTab] = useState<'shift' | 'transfer' | 'resignation'>('shift');
+  const [shiftForm, setShiftForm] = useState({ currentShift: '', newShift: '', fromDate: '', reason: '' });
+  const [transferForm, setTransferForm] = useState({ toCampus: '', toDepartment: '', toDesignation: '', fromDate: '', reason: '' });
+  const [resignForm, setResignForm] = useState({ resignationDate: '', lastWorkingDay: '', reason: '', remarks: '' });
+  const [hrRequestNotice, setHrRequestNotice] = useState<string | null>(null);
   const [filters, setFilters] = useState({
     department: '',
     status: '',
@@ -2564,6 +2569,18 @@ export function EmployeeProfileView() {
           : baseEmployee.health,
       }
     : undefined;
+  const classTeacherOf = employee
+    ? employee.engagement.responsibilities.filter((item) => /class teacher/i.test(item)).map((item) => item.replace(/class teacher\s*-?\s*/i, '').trim()).filter(Boolean).join(', ') || '—'
+    : '—';
+  const downloadWorkspaceFile = (fileName: string, body: string) => {
+    const blob = new Blob([body], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
   const peerFeedback = employee ? employee.performance.feedback.filter((feedback) => feedback.type === 'peer') : [];
   const studentFeedback = employee ? employee.performance.feedback.filter((feedback) => feedback.type === 'student' || feedback.type === 'parent') : [];
   const evaluationFeedback = employee ? employee.performance.feedback.filter((feedback) => feedback.type === 'admin') : [];
@@ -4089,7 +4106,10 @@ export function EmployeeProfileView() {
                                 <Button variant="outline" size="sm" onClick={() => openDocumentReview(d.id)} title="View and verify document">
                                   <Eye className="w-4 h-4" />
                                 </Button>
-                                <Button variant="outline" size="sm" disabled title="Download needs document storage, which is not connected in this prototype">
+                                <Button variant="outline" size="sm" title="Download document" onClick={() => {
+                                  downloadWorkspaceFile(`${d.name.replace(/\s+/g, '-')}.txt`, `Document: ${d.name}\nType: ${d.type}\nCategory: ${d.category || '—'}\nFile: ${d.fileType} (${d.fileSize})\nUploaded: ${d.uploadDate || '—'}\nStatus: ${d.status}\nVerified by: ${d.verifiedBy || '—'}\n`);
+                                  setDocumentNotice(`${d.name} downloaded.`);
+                                }}>
                                   <Download className="w-4 h-4" />
                                 </Button>
                               </div>
@@ -4267,7 +4287,7 @@ export function EmployeeProfileView() {
                               { label: 'Secondary Subjects', value: employee.skills.teaching.slice(1).join(', ') || '—' },
                               { label: 'Weekly Teaching Hours', value: `${employee.schedule.weeklyLoad.reduce((total, day) => total + day.teachingHours, 0)} hours` },
                               { label: 'Max Periods / Day', value: '—' },
-                              { label: 'Class Teacher Of', value: '—' },
+                              { label: 'Class Teacher Of', value: classTeacherOf },
                               { label: 'Previous Internal Employment', value: '—' },
                             ].map((field) => <InfoBlock key={field.label} label={field.label} value={field.value} />)}
                           </div>
@@ -4598,32 +4618,35 @@ export function EmployeeProfileView() {
                             </h3>
                           </div>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-4">
                           {employee.qualification.certifications.map((c, i) =>
                     <div
                       key={i}
-                      className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-5 border border-blue-100">
+                      className="rounded-xl border border-gray-200 bg-gray-50 p-5">
 
-                              <div className="flex items-start justify-between mb-3">
-                                <div className="p-2 bg-blue-100 rounded-lg">
-                                  <Award className="w-5 h-5 text-blue-600" />
+                              <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
+                                <div>
+                                  <h4 className="text-sm font-semibold text-gray-900">{c.name}</h4>
+                                  <p className="text-sm text-gray-600">{c.issuingAuthority}</p>
                                 </div>
-                                {c.verified &&
+                                <div className="flex items-center gap-2">
+                                  {c.verified &&
                         <Badge variant="success">
                                     <CheckCircle className="w-3 h-3 mr-1" />
                                     Verified
                                   </Badge>
                         }
+                                  <Button variant="outline" size="sm" onClick={() => downloadWorkspaceFile(`${c.name.replace(/\s+/g, '-')}-certificate.txt`, `Certification: ${c.name}\nProvider: ${c.issuingAuthority}\nCertificate ID: ${c.credentialId}\nIssued: ${c.issueDate}\nExpiry: ${c.expiryDate || 'N/A'}\nVerified: ${c.verified ? 'Yes' : 'No'}\n`)}>
+                                    <Download className="w-4 h-4 mr-1" /> Download
+                                  </Button>
+                                </div>
                               </div>
-                              <h4 className="text-sm font-semibold text-gray-900 mb-3">
-                                {c.name}
-                              </h4>
-                              <div className="grid grid-cols-1 gap-3 text-xs sm:grid-cols-2">
-                                <div><p className="text-gray-400">Course Name / Certification</p><p className="font-medium text-gray-800">{c.name}</p></div>
-                                <div><p className="text-gray-400">Provider</p><p className="font-medium text-gray-800">{c.issuingAuthority}</p></div>
-                                <div><p className="text-gray-400">Completion Date</p><p className="font-medium text-gray-800">{c.issueDate}</p></div>
-                                <div><p className="text-gray-400">Certificate ID</p><p className="font-medium text-gray-800">{c.credentialId}</p></div>
-                                <div><p className="text-gray-400">Expiry Date</p><p className="font-medium text-gray-800">{c.expiryDate || '—'}</p></div>
+                              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                                <div><p className="text-xs text-gray-500">Course Name / Certification</p><p className="text-sm font-medium text-gray-800">{c.name}</p></div>
+                                <div><p className="text-xs text-gray-500">Provider</p><p className="text-sm font-medium text-gray-800">{c.issuingAuthority}</p></div>
+                                <div><p className="text-xs text-gray-500">Completion Date</p><p className="text-sm font-medium text-gray-800">{c.issueDate}</p></div>
+                                <div><p className="text-xs text-gray-500">Certificate ID</p><p className="text-sm font-medium text-gray-800">{c.credentialId}</p></div>
+                                <div><p className="text-xs text-gray-500">Expiry Date</p><p className="text-sm font-medium text-gray-800">{c.expiryDate || '—'}</p></div>
                               </div>
                             </div>
                     )}
@@ -4711,6 +4734,10 @@ export function EmployeeProfileView() {
                       )}{' '}
                             Total Students
                           </Badge>
+                        </div>
+                        <div className="mb-5 rounded-xl border border-indigo-100 bg-indigo-50 p-4">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Class teacher of</p>
+                          <p className="mt-1 text-sm font-semibold text-gray-900">{classTeacherOf}</p>
                         </div>
                         <div className="overflow-x-auto">
                           <table className="w-full">
@@ -4984,6 +5011,62 @@ export function EmployeeProfileView() {
                             ].map((field) => <InfoBlock key={field.label} label={field.label} value={field.value} />)}
                           </div>
                           <p className="mt-4 text-xs text-gray-500">Unavailable operational settings and asset assignments are not recorded in the current employee sample data.</p>
+                        </Card>
+                        <Card className="p-6">
+                          <h3 className="mb-1 text-lg font-semibold text-gray-900">HR Requests</h3>
+                          <p className="mb-4 text-sm text-gray-500">Shift change, transfer and resignation for {employee.fullName}.</p>
+                          <div className="mb-4 flex flex-wrap gap-2">
+                            {([['shift', 'Shift Change'], ['transfer', 'Transfer'], ['resignation', 'Resignation']] as const).map(([id, label]) =>
+                              <button type="button" key={id} onClick={() => setHrRequestTab(id)} className={`px-3 py-1.5 rounded-lg text-sm font-medium ${hrRequestTab === id ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700'}`}>{label}</button>
+                            )}
+                          </div>
+                          {hrRequestNotice && <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">{hrRequestNotice}</div>}
+                          {hrRequestTab === 'shift' &&
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                              <div><label className="mb-1 block text-xs font-medium text-gray-600">Current Shift</label><input className="w-full rounded-lg border px-3 py-2 text-sm" value={shiftForm.currentShift || employee.employment.shift} onChange={(e) => setShiftForm({ ...shiftForm, currentShift: e.target.value })} /></div>
+                              <div><label className="mb-1 block text-xs font-medium text-gray-600">New Shift</label>
+                                <select className="w-full rounded-lg border px-3 py-2 text-sm" value={shiftForm.newShift} onChange={(e) => setShiftForm({ ...shiftForm, newShift: e.target.value })}>
+                                  <option value="">Select shift</option>
+                                  <option>General Shift (8:00 AM - 4:00 PM)</option>
+                                  <option>Morning Shift (7:00 AM - 3:00 PM)</option>
+                                  <option>Afternoon Shift (11:00 AM - 7:00 PM)</option>
+                                </select>
+                              </div>
+                              <div><label className="mb-1 block text-xs font-medium text-gray-600">Effective From</label><input type="date" className="w-full rounded-lg border px-3 py-2 text-sm" value={shiftForm.fromDate} onChange={(e) => setShiftForm({ ...shiftForm, fromDate: e.target.value })} /></div>
+                              <div className="sm:col-span-2"><label className="mb-1 block text-xs font-medium text-gray-600">Reason</label><textarea className="w-full rounded-lg border px-3 py-2 text-sm" rows={3} value={shiftForm.reason} onChange={(e) => setShiftForm({ ...shiftForm, reason: e.target.value })} /></div>
+                              <div><Button onClick={() => { if (!shiftForm.newShift || !shiftForm.fromDate) { setHrRequestNotice('Select a new shift and date.'); return; } setHrRequestNotice(`Shift change request submitted for ${employee.fullName}.`); }}>Submit Shift Change</Button></div>
+                            </div>
+                          }
+                          {hrRequestTab === 'transfer' &&
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                              <div><label className="mb-1 block text-xs font-medium text-gray-600">Current Campus</label><input className="w-full rounded-lg border px-3 py-2 text-sm bg-gray-50" readOnly value={employee.employment.campus} /></div>
+                              <div><label className="mb-1 block text-xs font-medium text-gray-600">Transfer To Campus</label>
+                                <select className="w-full rounded-lg border px-3 py-2 text-sm" value={transferForm.toCampus} onChange={(e) => setTransferForm({ ...transferForm, toCampus: e.target.value })}>
+                                  <option value="">Select campus</option>
+                                  <option>Main Campus</option>
+                                  <option>North Campus</option>
+                                  <option>South Campus</option>
+                                  <option>West Campus</option>
+                                </select>
+                              </div>
+                              <div><label className="mb-1 block text-xs font-medium text-gray-600">New Department</label><input className="w-full rounded-lg border px-3 py-2 text-sm" value={transferForm.toDepartment} onChange={(e) => setTransferForm({ ...transferForm, toDepartment: e.target.value })} placeholder={employee.department} /></div>
+                              <div><label className="mb-1 block text-xs font-medium text-gray-600">New Designation</label><input className="w-full rounded-lg border px-3 py-2 text-sm" value={transferForm.toDesignation} onChange={(e) => setTransferForm({ ...transferForm, toDesignation: e.target.value })} placeholder={employee.designation} /></div>
+                              <div><label className="mb-1 block text-xs font-medium text-gray-600">Effective From</label><input type="date" className="w-full rounded-lg border px-3 py-2 text-sm" value={transferForm.fromDate} onChange={(e) => setTransferForm({ ...transferForm, fromDate: e.target.value })} /></div>
+                              <div className="sm:col-span-2"><label className="mb-1 block text-xs font-medium text-gray-600">Reason</label><textarea className="w-full rounded-lg border px-3 py-2 text-sm" rows={3} value={transferForm.reason} onChange={(e) => setTransferForm({ ...transferForm, reason: e.target.value })} /></div>
+                              <div><Button onClick={() => { if (!transferForm.toCampus || !transferForm.fromDate) { setHrRequestNotice('Select campus and date.'); return; } setHrRequestNotice(`Transfer request submitted for ${employee.fullName}.`); }}>Submit Transfer</Button></div>
+                            </div>
+                          }
+                          {hrRequestTab === 'resignation' &&
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                              <div><label className="mb-1 block text-xs font-medium text-gray-600">First Name</label><input className="w-full rounded-lg border px-3 py-2 text-sm bg-gray-50" readOnly value={employee.fullName.split(' ')[0]} /></div>
+                              <div><label className="mb-1 block text-xs font-medium text-gray-600">Last Name</label><input className="w-full rounded-lg border px-3 py-2 text-sm bg-gray-50" readOnly value={employee.fullName.split(' ').slice(1).join(' ')} /></div>
+                              <div><label className="mb-1 block text-xs font-medium text-gray-600">Resignation Date</label><input type="date" className="w-full rounded-lg border px-3 py-2 text-sm" value={resignForm.resignationDate} onChange={(e) => setResignForm({ ...resignForm, resignationDate: e.target.value })} /></div>
+                              <div><label className="mb-1 block text-xs font-medium text-gray-600">Last Working Day</label><input type="date" className="w-full rounded-lg border px-3 py-2 text-sm" value={resignForm.lastWorkingDay} onChange={(e) => setResignForm({ ...resignForm, lastWorkingDay: e.target.value })} /></div>
+                              <div><label className="mb-1 block text-xs font-medium text-gray-600">Reason</label><input className="w-full rounded-lg border px-3 py-2 text-sm" value={resignForm.reason} onChange={(e) => setResignForm({ ...resignForm, reason: e.target.value })} /></div>
+                              <div className="sm:col-span-2"><label className="mb-1 block text-xs font-medium text-gray-600">Remarks</label><textarea className="w-full rounded-lg border px-3 py-2 text-sm" rows={3} value={resignForm.remarks} onChange={(e) => setResignForm({ ...resignForm, remarks: e.target.value })} /></div>
+                              <div><Button onClick={() => { if (!resignForm.resignationDate || !resignForm.reason) { setHrRequestNotice('Enter resignation date and reason.'); return; } setHrRequestNotice(`Resignation request submitted for ${employee.fullName}.`); }}>Submit Resignation</Button></div>
+                            </div>
+                          }
                         </Card>
                       </div>
                     )}

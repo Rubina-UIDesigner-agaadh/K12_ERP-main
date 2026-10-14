@@ -252,7 +252,7 @@ export function StudentAcademicReports() {
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><FileSpreadsheet className="w-7 h-7 text-blue-600" />Student Reports & Search</h1>
-            <p className="text-gray-500 text-sm mt-1">All student reports in one tab; custom search on the other</p>
+            <p className="text-gray-500 text-sm mt-1">Filter students from one panel and generate reports</p>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
             <MultiSelect options={BRANCHES} selected={selectedBranches} onChange={setSelectedBranches} />
@@ -436,13 +436,9 @@ export function StudentAcademicReports() {
                   <div className="p-5 border-b">
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-lg font-semibold">Student Data</h3>
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => setShowFilters(!showFilters)} className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg ${showFilters ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}><Filter className="w-4 h-4" />{showFilters ? 'Hide' : 'Show'} Filters</button>
-                        {isFilterActive && <button onClick={handleResetFilters} className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-red-600 bg-red-50 rounded-lg"><X className="w-4 h-4" />Reset</button>}
-                      </div>
+                      {isFilterActive && <button onClick={handleResetFilters} className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-red-600 bg-red-50 rounded-lg"><X className="w-4 h-4" />Reset</button>}
                     </div>
-                    {showFilters &&
-                <div className="mb-6 p-4 bg-gray-50 rounded-lg border">
+                    <div className="mb-6 p-4 bg-gray-50 rounded-lg border">
                         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                           <div><label className="block text-xs font-medium mb-1">Search</label><div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" /><input type="text" placeholder="Name / ADM No..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className={`${selectClass} pl-10`} /></div></div>
                           <div><label className="block text-xs font-medium mb-1">Grade</label><select value={gradeFilter} onChange={(e) => setGradeFilter(e.target.value)} className={selectClass}><option value="all">All</option>{['Grade 8', 'Grade 9', 'Grade 10', 'Grade 11'].map((g) => <option key={g} value={g}>{g}</option>)}</select></div>
@@ -455,7 +451,6 @@ export function StudentAcademicReports() {
                           <div><label className="block text-xs font-medium mb-1">Special</label><select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className={selectClass}><option value="all">All</option>{['transfer', 'sibling', 'achiever', 'transport', 'hostel', 'disability'].map((t) => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}</select></div>
                         </div>
                       </div>
-                }
                   </div>
                   <div className="overflow-x-auto">
                     <table className="min-w-full divide-y">

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, CheckCircle, XCircle, Mail, FileText, Download, Eye } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, Mail, FileText, Download } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
 import { Textarea } from '../../../components/ui/Textarea';
@@ -112,15 +112,11 @@ export function StudentApplicationDetail({
   const [notice, setNotice] = useState<string | null>(null);
   const [allotStream, setAllotStream] = useState(application?.p1 || 'Science');
   const [mailBody, setMailBody] = useState('');
-  const [pickedDoc, setPickedDoc] = useState<StreamDoc | null>(null);
-  const [docReason, setDocReason] = useState('');
-  const [docs, setDocs] = useState<StreamDoc[]>(() => (loadStore().docs || []).filter((d: StreamDoc) => d.roll === (application ?? FALLBACK).roll));
 
   useEffect(() => {
     if (application) {
       setApp(application);
       setAllotStream(application.allotted || application.p1);
-      setDocs((loadStore().docs || []).filter((d: StreamDoc) => d.roll === application.roll));
     }
   }, [application]);
 
@@ -153,21 +149,6 @@ export function StudentApplicationDetail({
     return true;
   };
 
-  const updateDoc = (status: 'Verified' | 'Rejected') => {
-    if (!pickedDoc) return;
-    if (status === 'Rejected' && docReason.trim().length < 8) {
-      setNotice('Rejection remarks of at least 8 characters are required.');
-      return;
-    }
-    const nextDocs = loadStore();
-    nextDocs.docs = (nextDocs.docs || []).map((d: StreamDoc) => d.id === pickedDoc.id ? { ...d, status, remarks: docReason } : d);
-    pushAudit(nextDocs, status === 'Verified' ? 'Document Verified' : 'Document Rejected', app.name, `${pickedDoc.type} — ${docReason || 'verified'}`);
-    saveStore(nextDocs);
-    setDocs(nextDocs.docs.filter((d: StreamDoc) => d.roll === app.roll));
-    setPickedDoc({ ...pickedDoc, status, remarks: docReason });
-    setNotice(`${pickedDoc.type} ${status.toLowerCase()} for ${app.name}.`);
-  };
-
   return (
     <div className="space-y-6 p-6 bg-gray-50 min-h-screen">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
@@ -193,7 +174,7 @@ export function StudentApplicationDetail({
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm flex-1">
                 {[
                   ['Full Name', app.name], ['Date of Birth', '15-05-2009'], ['Gender', '—'],
-                  ['Category', app.category], ['Admission Number', app.id.replace('APP-', 'ADM')], ['Board Roll Number', app.roll],
+                  ['Admission Number', app.id.replace('APP-', 'ADM')], ['Board Roll Number', app.roll],
                   ['Class & Section', app.classSec], ['Academic Year', app.year], ['Round', app.round],
                   ['Contact Number', '+91 98765 43210'], ['Email Address', `${app.name.split(' ')[0].toLowerCase()}.parent@email.com`], ['Submitted', app.submitted]
                 ].map(([k, v]) => <div key={k}><p className="text-xs text-gray-500">{k}</p><p className="font-medium">{v}</p></div>)}
@@ -225,7 +206,6 @@ export function StudentApplicationDetail({
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4 text-sm">
               <p>Recorded Aggregate: <b>{app.pct}%</b></p>
               <p>Board Result: <b>PASS</b></p>
-              <p>Category: <b>{app.category}</b></p>
               <p>Eligibility: <b>{app.eligibility}</b></p>
             </div>
           </div>
@@ -246,63 +226,6 @@ export function StudentApplicationDetail({
             <p className="text-xs text-gray-500">Submitted On {app.submitted} · Allotted {app.allotted || '—'}</p>
           </div>
 
-          <div className="bg-white rounded-xl border p-5 overflow-x-auto">
-            <h2 className="font-semibold mb-3">Document Verification</h2>
-            <p className="text-xs text-gray-500 mb-3">Review documents for this application (Document Verification is handled here).</p>
-            <table className="min-w-full text-sm">
-              <thead className="bg-gray-50"><tr>{['Document', 'Uploaded', 'Size', 'Status', ''].map((h) => <th key={h} className="px-3 py-2 text-left text-xs uppercase text-gray-500">{h}</th>)}</tr></thead>
-              <tbody className="divide-y">
-                {docs.length === 0 && <tr><td colSpan={5} className="px-3 py-4 text-gray-400">No documents uploaded.</td></tr>}
-                {docs.map((d) => (
-                  <tr key={d.id} className={pickedDoc?.id === d.id ? 'bg-indigo-50' : ''}>
-                    <td className="px-3 py-2">{d.type}</td>
-                    <td className="px-3 py-2">{d.uploaded}</td>
-                    <td className="px-3 py-2">{d.size}</td>
-                    <td className="px-3 py-2"><Badge variant={d.status === 'Verified' ? 'success' : d.status === 'Rejected' ? 'danger' : 'warning'}>{d.status}</Badge></td>
-                    <td className="px-3 py-2"><Button size="sm" variant="ghost" onClick={() => { setPickedDoc(d); setDocReason(d.remarks); }}><Eye className="w-4 h-4" /></Button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {pickedDoc && (
-              <div className="mt-4 border rounded-lg p-4 space-y-3">
-                <div className="h-28 bg-gray-100 rounded-lg flex items-center justify-center text-sm text-gray-500">Preview · {pickedDoc.type}</div>
-                <p className="text-sm"><b>{pickedDoc.type}</b> · {pickedDoc.size}</p>
-                <Textarea rows={2} value={docReason} onChange={(e) => setDocReason(e.target.value)} placeholder="Verifier remarks / rejection reason" />
-                <div className="flex gap-2">
-                  <Button size="sm" onClick={() => updateDoc('Verified')}><CheckCircle className="w-4 h-4 mr-1" /> Verify</Button>
-                  <Button size="sm" variant="outline" onClick={() => updateDoc('Rejected')}><XCircle className="w-4 h-4 mr-1" /> Reject</Button>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="bg-white rounded-xl border p-5 overflow-x-auto">
-            <h2 className="font-semibold mb-3">Eligibility Check Results</h2>
-            <table className="min-w-full text-sm">
-              <thead className="bg-gray-50"><tr>{['Rule Name', 'Required', "Student's Value", 'Result'].map((h) => <th key={h} className="px-3 py-2 text-left text-xs uppercase text-gray-500">{h}</th>)}</tr></thead>
-              <tbody className="divide-y">
-                {[
-                  ['Min Aggregate Science', '≥ 75%', `${app.pct}%`, streamMeets(app.pct, 'Science')],
-                  ['Min Aggregate Commerce', '≥ 60%', `${app.pct}%`, streamMeets(app.pct, 'Commerce')],
-                  ['Min Aggregate Arts', '≥ 45%', `${app.pct}%`, streamMeets(app.pct, 'Arts')],
-                  ['Board Result', 'PASS', 'PASS', true]
-                ].map((r) => (
-                  <tr key={String(r[0])}>
-                    <td className="px-3 py-2">{r[0]}</td>
-                    <td className="px-3 py-2">{r[1]}</td>
-                    <td className="px-3 py-2">{r[2]}</td>
-                    <td className="px-3 py-2">{r[3] ? '✅ Pass' : '❌ Fail'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <div className="grid grid-cols-3 gap-3 mt-4 text-sm">
-              {[[app.p1, streamMeets(app.pct, app.p1)], [app.p2, streamMeets(app.pct, app.p2)], [app.p3, streamMeets(app.pct, app.p3)]].map(([s, v]) => (
-                <div key={String(s)} className="border rounded-lg p-3"><p className="text-gray-500">{String(s)}</p><p className="font-semibold">{v ? '✅ ELIGIBLE' : '❌ NOT ELIGIBLE'}</p></div>
-              ))}
-            </div>
-          </div>
         </div>
 
         <div className="space-y-6">

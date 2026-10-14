@@ -101,13 +101,10 @@ const availableTags = ['Olympiad Winner', 'Sports Captain', 'Scholarship', 'Clas
 export function StudentCustomSearchPage() {
   const [filters, setFilters] = useState<FilterState>(initialFilters);
   const [showResults, setShowResults] = useState(false);
-  const [showMoreFilters, setShowMoreFilters] = useState(false);
   const [selectedStudents, setSelectedStudents] = useState<number[]>([]);
-  const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [filteredResults, setFilteredResults] = useState<Student[]>([]);
   const [showBranchDropdown, setShowBranchDropdown] = useState(false);
-  const [showBatchDropdown, setShowBatchDropdown] = useState(false);
 
   const activeFilterCount = useMemo(() => {
     let count = 0;
@@ -197,115 +194,37 @@ export function StudentCustomSearchPage() {
 
   return (
     <div className="flex flex-col h-full bg-gray-50/50">
-      {/* Header */}
-      <div className="flex items-center justify-between p-6 bg-white border-b sticky top-0 z-10 shadow-sm">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><Search className="w-7 h-7" />Advanced Student Search</h1>
-          <p className="text-sm text-gray-500 mt-1">Build complex queries to find specific student groups</p>
-        </div>
-        <div className="flex items-center gap-3">
-          {activeFilterCount > 0 && <Badge variant="info">{activeFilterCount} filters active</Badge>}
-          <Button variant="outline" leftIcon={<RefreshCw className="w-4 h-4" />} onClick={handleReset}>Reset</Button>
-          <Button variant="outline" leftIcon={<Save className="w-4 h-4" />} onClick={() => setIsSaveModalOpen(true)}>Save Search</Button>
-          <Button variant="primary" leftIcon={<Search className="w-4 h-4" />} onClick={handleRunSearch} disabled={isSearching}>{isSearching ? 'Searching...' : 'Run Search'}</Button>
-        </div>
-      </div>
-
-      {/* Main Content */}
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
-        
-        {/* Branch & Batch Selection */}
-        <Card className="p-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
-          <div className="flex items-center gap-2 mb-4">
-            <Building2 className="w-5 h-5 text-blue-600" />
-            <h3 className="text-lg font-semibold text-gray-900">Branch & Batch Selection</h3>
+        <Card className="p-6">
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+            <h3 className="text-lg font-semibold text-gray-900">Student Search Filters</h3>
+            {activeFilterCount > 0 && <Badge variant="info">{activeFilterCount} filters active</Badge>}
           </div>
-          <div className="flex flex-wrap gap-4">
-            {/* Branch Multi-Select */}
-            <div className="relative min-w-[250px]">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Branch (Multiple)</label>
-              <button onClick={() => {setShowBranchDropdown(!showBranchDropdown);setShowBatchDropdown(false);}}
-              className="w-full flex items-center justify-between gap-2 px-4 py-2 bg-white border rounded-lg hover:bg-gray-50 text-left">
-                <div className="flex items-center gap-2">
-                  <Building2 className="w-4 h-4 text-gray-500" />
-                  <span className="text-sm font-medium">
-                    {filters.branches.length === branches.length ? 'All Branches' : filters.branches.length === 0 ? 'Select Branches' : `${filters.branches.length} Branch${filters.branches.length > 1 ? 'es' : ''}`}
-                  </span>
-                </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+            <div className="relative min-w-[180px]">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Branch</label>
+              <button type="button" onClick={() => setShowBranchDropdown(!showBranchDropdown)} className="w-full flex items-center justify-between gap-2 px-4 py-2 bg-white border rounded-lg hover:bg-gray-50 text-left">
+                <span className="text-sm">{filters.branches.length === branches.length ? 'All Branches' : filters.branches.length === 0 ? 'Select Branches' : `${filters.branches.length} selected`}</span>
                 <ChevronDown className="w-4 h-4 text-gray-400" />
               </button>
               {showBranchDropdown &&
               <div className="absolute top-full mt-1 left-0 right-0 bg-white border rounded-lg shadow-lg z-20">
-                  <button onClick={() => setFilters((prev) => ({ ...prev, branches: branches.map((b) => b.id) }))}
-                className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 border-b flex items-center gap-2">
-                    <div className={`w-4 h-4 rounded border flex items-center justify-center ${filters.branches.length === branches.length ? 'bg-blue-600 border-blue-600' : 'border-gray-300'}`}>
-                      {filters.branches.length === branches.length && <CheckCircle className="w-3 h-3 text-white" />}
-                    </div>All Branches
-                  </button>
+                  <button type="button" onClick={() => setFilters((prev) => ({ ...prev, branches: branches.map((b) => b.id) }))}
+                className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 border-b">All Branches</button>
                   {branches.map((branch) =>
-                <button key={branch.id} onClick={() => toggleBranch(branch.id)} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2">
-                      <div className={`w-4 h-4 rounded border flex items-center justify-center ${filters.branches.includes(branch.id) ? 'bg-blue-600 border-blue-600' : 'border-gray-300'}`}>
-                        {filters.branches.includes(branch.id) && <CheckCircle className="w-3 h-3 text-white" />}
-                      </div>
+                <button type="button" key={branch.id} onClick={() => toggleBranch(branch.id)} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2">
                       <span className={`w-2 h-2 rounded-full ${branchColors[branch.id]}`} />{branch.name}
                     </button>
                 )}
-                </div>
-              }
+                </div>}
             </div>
-
-            {/* Batch Single-Select */}
-            <div className="relative min-w-[200px]">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Batch (Academic Year)</label>
-              <button onClick={() => {setShowBatchDropdown(!showBatchDropdown);setShowBranchDropdown(false);}}
-              className="w-full flex items-center justify-between gap-2 px-4 py-2 bg-white border rounded-lg hover:bg-gray-50 text-left">
-                <div className="flex items-center gap-2">
-                  <CalendarDays className="w-4 h-4 text-gray-500" />
-                  <span className="text-sm font-medium">{filters.batch || 'Select Batch'}</span>
-                </div>
-                <ChevronDown className="w-4 h-4 text-gray-400" />
-              </button>
-              {showBatchDropdown &&
-              <div className="absolute top-full mt-1 left-0 right-0 bg-white border rounded-lg shadow-lg z-20">
-                  {batches.map((batch) =>
-                <button key={batch} onClick={() => {handleFilterChange('batch', batch);setShowBatchDropdown(false);}}
-                className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 ${filters.batch === batch ? 'bg-blue-50 text-blue-600' : ''}`}>{batch}</button>
-                )}
-                </div>
-              }
-            </div>
-          </div>
-
-          {/* Selected Filters Display */}
-          <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-blue-200">
-            <span className="text-sm text-gray-500">Selected:</span>
-            <Badge variant="primary">{filters.batch}</Badge>
-            {filters.branches.map((branchId) => {
-              const branch = branches.find((b) => b.id === branchId);
-              return branch && <Badge key={branchId} variant="secondary" className="flex items-center gap-1"><span className={`w-2 h-2 rounded-full ${branchColors[branchId]}`} />{branch.name}</Badge>;
-            })}
-          </div>
-        </Card>
-
-        {/* 1. Identity & Admission */}
-        <Card className="p-6">
-          <div className="flex items-center gap-2 mb-4"><UserCheck className="w-5 h-5 text-blue-600" /><h3 className="text-lg font-semibold text-gray-900">Identity & Admission</h3></div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            <Input label="Student Name" placeholder="Search by name..." value={filters.studentName} onChange={(e) => handleFilterChange('studentName', e.target.value)} />
-            <Input label="GR Number" placeholder="e.g., GR-1001" value={filters.grNo} onChange={(e) => handleFilterChange('grNo', e.target.value)} />
-            <Input label="SU ID" placeholder="e.g., SU-2024-001" value={filters.suId} onChange={(e) => handleFilterChange('suId', e.target.value)} />
-            <Input label="Admission No" placeholder="Exact match" value={filters.admissionNo} onChange={(e) => handleFilterChange('admissionNo', e.target.value)} />
-            <Input label="Roll Number" placeholder="Exact match" value={filters.rollNumber} onChange={(e) => handleFilterChange('rollNumber', e.target.value)} />
+            <Select label="Batch" value={filters.batch} onChange={(e) => handleFilterChange('batch', e.target.value)} options={[{ value: '', label: 'All Batches' }, ...batches.map((b) => ({ value: b, label: b }))]} />
+            <Input label="Student Name" placeholder="Contains..." value={filters.studentName} onChange={(e) => handleFilterChange('studentName', e.target.value)} />
+            <Input label="Admission No" placeholder="ADM / SU ID" value={filters.suId} onChange={(e) => handleFilterChange('suId', e.target.value)} />
+            <Input label="GR No" placeholder="GR No" value={filters.grNo} onChange={(e) => handleFilterChange('grNo', e.target.value)} />
             <Select label="Admission Year" value={filters.admissionYear} onChange={(e) => handleFilterChange('admissionYear', e.target.value)} options={admissionYearOptions} />
             <Select label="Admission Type" value={filters.admissionType} onChange={(e) => handleFilterChange('admissionType', e.target.value)} options={admissionTypeOptions} />
             <Select label="Status" value={filters.status} onChange={(e) => handleFilterChange('status', e.target.value)} options={statusOptions} />
-          </div>
-        </Card>
-
-        {/* 2. Academic Criteria */}
-        <Card className="p-6">
-          <div className="flex items-center gap-2 mb-4"><GraduationCap className="w-5 h-5 text-green-600" /><h3 className="text-lg font-semibold text-gray-900">Academic Criteria</h3></div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
             <Select label="Academic Year" value={filters.academicYear} onChange={(e) => handleFilterChange('academicYear', e.target.value)} options={academicYearOptions} />
             <Select label="Class" value={filters.class} onChange={(e) => handleFilterChange('class', e.target.value)} options={classOptions} />
             <Select label="Section" value={filters.section} onChange={(e) => handleFilterChange('section', e.target.value)} options={sectionOptions} />
@@ -314,138 +233,58 @@ export function StudentCustomSearchPage() {
             <Select label="Result Status" value={filters.resultStatus} onChange={(e) => handleFilterChange('resultStatus', e.target.value)} options={resultStatusOptions} />
             <Input label="Percentage From" placeholder="%" type="number" value={filters.percentageFrom} onChange={(e) => handleFilterChange('percentageFrom', e.target.value)} />
             <Input label="Percentage To" placeholder="%" type="number" value={filters.percentageTo} onChange={(e) => handleFilterChange('percentageTo', e.target.value)} />
-          </div>
-        </Card>
-
-        {/* 3. Category & Reservation */}
-        <Card className="p-6 border-2 border-blue-100 bg-blue-50/30">
-          <div className="flex items-center gap-2 mb-4"><Shield className="w-5 h-5 text-purple-600" /><h3 className="text-lg font-semibold text-gray-900">Category & Reservation</h3><Badge variant="info" className="text-xs">Key Filters</Badge></div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
             <Select label="Social Category" value={filters.socialCategory} onChange={(e) => handleFilterChange('socialCategory', e.target.value)} options={socialCategoryOptions} />
-            <Select label="Admission Type" value={filters.admissionType} onChange={(e) => handleFilterChange('admissionType', e.target.value)} options={admissionTypeOptions} />
             <Select label="EWS Status" value={filters.ews} onChange={(e) => handleFilterChange('ews', e.target.value)} options={yesNoOptions} />
             <Select label="RTE Status" value={filters.rte} onChange={(e) => handleFilterChange('rte', e.target.value)} options={yesNoOptions} />
             <Select label="Minority Status" value={filters.minorityStatus} onChange={(e) => handleFilterChange('minorityStatus', e.target.value)} options={yesNoOptions} />
             <Select label="Disability (PWD)" value={filters.disability} onChange={(e) => handleFilterChange('disability', e.target.value)} options={yesNoOptions} />
-          </div>
-          {filters.disability === 'Yes' &&
-          <div className="mt-4 pt-4 border-t border-blue-200">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Select label="Disability Type" value={filters.disabilityType} onChange={(e) => handleFilterChange('disabilityType', e.target.value)} options={disabilityTypeOptions} />
-              </div>
-            </div>
-          }
-          <div className="mt-4 pt-4 border-t border-blue-200 flex flex-wrap gap-4 text-sm text-gray-600">
-            <span className="flex items-center gap-1"><Info className="w-4 h-4" />Tip: Use these filters to find students eligible for specific schemes or quotas</span>
-          </div>
-        </Card>
-
-        {/* 4. Enrollment & Status */}
-        <Card className="p-6">
-          <div className="flex items-center gap-2 mb-4"><CheckCircle className="w-5 h-5 text-teal-600" /><h3 className="text-lg font-semibold text-gray-900">Enrollment & Status</h3></div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Select label="Student Status" value={filters.studentStatus} onChange={(e) => handleFilterChange('studentStatus', e.target.value)} options={statusOptions} />
+            {filters.disability === 'Yes' && <Select label="Disability Type" value={filters.disabilityType} onChange={(e) => handleFilterChange('disabilityType', e.target.value)} options={disabilityTypeOptions} />}
             <Select label="Hostel / Day Scholar" value={filters.hostelDayScholar} onChange={(e) => handleFilterChange('hostelDayScholar', e.target.value)} options={hostelDayScholarOptions} />
             <Select label="Transport User" value={filters.transportUser} onChange={(e) => handleFilterChange('transportUser', e.target.value)} options={yesNoOptions} />
             <Select label="Library Member" value={filters.libraryMember} onChange={(e) => handleFilterChange('libraryMember', e.target.value)} options={yesNoOptions} />
+            <Select label="Gender" value={filters.gender} onChange={(e) => handleFilterChange('gender', e.target.value)} options={genderOptions} />
+            <Input label="DOB From" type="date" value={filters.dobFrom} onChange={(e) => handleFilterChange('dobFrom', e.target.value)} />
+            <Input label="DOB To" type="date" value={filters.dobTo} onChange={(e) => handleFilterChange('dobTo', e.target.value)} />
+            <Select label="Religion" value={filters.religion} onChange={(e) => handleFilterChange('religion', e.target.value)} options={religionOptions} />
+            <Input label="Caste" placeholder="Enter caste" value={filters.caste} onChange={(e) => handleFilterChange('caste', e.target.value)} />
+            <Select label="Blood Group" value={filters.bloodGroup} onChange={(e) => handleFilterChange('bloodGroup', e.target.value)} options={bloodGroupOptions} />
+            <Input label="Father Name" placeholder="Contains..." value={filters.fatherName} onChange={(e) => handleFilterChange('fatherName', e.target.value)} />
+            <Input label="Mother Name" placeholder="Contains..." value={filters.motherName} onChange={(e) => handleFilterChange('motherName', e.target.value)} />
+            <Input label="Parent Mobile" placeholder="Phone number" value={filters.parentMobile} onChange={(e) => handleFilterChange('parentMobile', e.target.value)} />
+            <Input label="Parent Email" placeholder="Email" value={filters.parentEmail} onChange={(e) => handleFilterChange('parentEmail', e.target.value)} />
+            <Select label="Guardian Type" value={filters.guardianType} onChange={(e) => handleFilterChange('guardianType', e.target.value)} options={guardianTypeOptions} />
+            <Select label="Fee Status" value={filters.feeStatus} onChange={(e) => handleFilterChange('feeStatus', e.target.value)} options={feeStatusOptions} />
+            <Input label="Outstanding (>)" placeholder="Amount" type="number" value={filters.outstandingFrom} onChange={(e) => handleFilterChange('outstandingFrom', e.target.value)} />
+            <Input label="Outstanding (<)" placeholder="Amount" type="number" value={filters.outstandingTo} onChange={(e) => handleFilterChange('outstandingTo', e.target.value)} />
+            <Select label="Scholarship" value={filters.scholarship} onChange={(e) => handleFilterChange('scholarship', e.target.value)} options={scholarshipOptions} />
+            <Select label="RTE / Freeship" value={filters.freeshipRte} onChange={(e) => handleFilterChange('freeshipRte', e.target.value)} options={yesNoOptions} />
+            <Input label="Attendance % From" placeholder="%" type="number" value={filters.attendanceFrom} onChange={(e) => handleFilterChange('attendanceFrom', e.target.value)} />
+            <Input label="Attendance % To" placeholder="%" type="number" value={filters.attendanceTo} onChange={(e) => handleFilterChange('attendanceTo', e.target.value)} />
+            <Select label="Chronic Absentee" value={filters.chronicAbsentee} onChange={(e) => handleFilterChange('chronicAbsentee', e.target.value)} options={yesNoOptions} />
+            <Select label="Discipline Cases" value={filters.disciplineCases} onChange={(e) => handleFilterChange('disciplineCases', e.target.value)} options={yesNoOptions} />
+            <Input label="Last Attendance Date" type="date" value={filters.lastAttendanceDate} onChange={(e) => handleFilterChange('lastAttendanceDate', e.target.value)} />
+            <Select label="Transport Route" value={filters.transportRoute} onChange={(e) => handleFilterChange('transportRoute', e.target.value)} options={transportRouteOptions} />
+            <Input label="Bus Number" placeholder="Bus No." value={filters.busNumber} onChange={(e) => handleFilterChange('busNumber', e.target.value)} />
+            <Select label="Hostel Name" value={filters.hostelName} onChange={(e) => handleFilterChange('hostelName', e.target.value)} options={hostelNameOptions} />
+            <Input label="Room Number" placeholder="Room No" value={filters.roomNumber} onChange={(e) => handleFilterChange('roomNumber', e.target.value)} />
+            <Select label="Medical Alert" value={filters.medicalAlert} onChange={(e) => handleFilterChange('medicalAlert', e.target.value)} options={yesNoOptions} />
+            <Select label="Special Needs" value={filters.specialNeeds} onChange={(e) => handleFilterChange('specialNeeds', e.target.value)} options={yesNoOptions} />
+            <Select label="Allergies Recorded" value={filters.allergiesRecorded} onChange={(e) => handleFilterChange('allergiesRecorded', e.target.value)} options={yesNoOptions} />
+          </div>
+          <div className="mt-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Tags</label>
+            <div className="flex gap-2 flex-wrap">
+              {availableTags.map((tag) =>
+                <button type="button" key={tag} onClick={() => toggleTag(tag)}
+                className={`px-3 py-1 rounded-full text-sm border ${filters.tags.includes(tag) ? 'bg-blue-100 border-blue-300 text-blue-700' : 'bg-gray-50 border-gray-200 text-gray-600'}`}>{tag}</button>
+              )}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-5 pt-4 border-t">
+            <Button variant="primary" leftIcon={<Search className="w-4 h-4" />} onClick={handleRunSearch} disabled={isSearching}>{isSearching ? 'Searching...' : 'Search'}</Button>
+            <Button variant="outline" leftIcon={<RefreshCw className="w-4 h-4" />} onClick={handleReset}>Reset</Button>
           </div>
         </Card>
-
-        {/* Toggle Advanced Filters */}
-        <div className="flex justify-center">
-          <button onClick={() => setShowMoreFilters(!showMoreFilters)} className="flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-800 bg-white px-4 py-2 rounded-full border shadow-sm transition-all">
-            {showMoreFilters ? <>Hide Advanced Filters <ChevronUp className="w-4 h-4" /></> : <>Show Advanced Filters (6 more sections) <ChevronDown className="w-4 h-4" /></>}
-          </button>
-        </div>
-
-        {/* Advanced Filters */}
-        {showMoreFilters &&
-        <div className="space-y-6 animate-in fade-in slide-in-from-top-4">
-            {/* 5. Personal & Demographic */}
-            <Card className="p-6">
-              <div className="flex items-center gap-2 mb-4"><Users className="w-5 h-5 text-orange-600" /><h3 className="text-lg font-semibold text-gray-900">Personal & Demographic</h3></div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-                <Select label="Gender" value={filters.gender} onChange={(e) => handleFilterChange('gender', e.target.value)} options={genderOptions} />
-                <Input label="DOB From" type="date" value={filters.dobFrom} onChange={(e) => handleFilterChange('dobFrom', e.target.value)} />
-                <Input label="DOB To" type="date" value={filters.dobTo} onChange={(e) => handleFilterChange('dobTo', e.target.value)} />
-                <Select label="Religion" value={filters.religion} onChange={(e) => handleFilterChange('religion', e.target.value)} options={religionOptions} />
-                <Input label="Caste" placeholder="Enter caste" value={filters.caste} onChange={(e) => handleFilterChange('caste', e.target.value)} />
-                <Select label="Blood Group" value={filters.bloodGroup} onChange={(e) => handleFilterChange('bloodGroup', e.target.value)} options={bloodGroupOptions} />
-              </div>
-            </Card>
-
-            {/* 6. Parent & Contact */}
-            <Card className="p-6">
-              <div className="flex items-center gap-2 mb-4"><Phone className="w-5 h-5 text-indigo-600" /><h3 className="text-lg font-semibold text-gray-900">Parent & Contact</h3></div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                <Input label="Father Name" placeholder="Contains..." value={filters.fatherName} onChange={(e) => handleFilterChange('fatherName', e.target.value)} />
-                <Input label="Mother Name" placeholder="Contains..." value={filters.motherName} onChange={(e) => handleFilterChange('motherName', e.target.value)} />
-                <Input label="Parent Mobile" placeholder="Phone number" value={filters.parentMobile} onChange={(e) => handleFilterChange('parentMobile', e.target.value)} />
-                <Input label="Parent Email" placeholder="Email" value={filters.parentEmail} onChange={(e) => handleFilterChange('parentEmail', e.target.value)} />
-                <Select label="Guardian Type" value={filters.guardianType} onChange={(e) => handleFilterChange('guardianType', e.target.value)} options={guardianTypeOptions} />
-              </div>
-            </Card>
-
-            {/* 7. Fees & Finance */}
-            <Card className="p-6">
-              <div className="flex items-center gap-2 mb-4"><DollarSign className="w-5 h-5 text-emerald-600" /><h3 className="text-lg font-semibold text-gray-900">Fees & Finance</h3></div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                <Select label="Fee Status" value={filters.feeStatus} onChange={(e) => handleFilterChange('feeStatus', e.target.value)} options={feeStatusOptions} />
-                <Input label="Outstanding (>)" placeholder="Amount" type="number" value={filters.outstandingFrom} onChange={(e) => handleFilterChange('outstandingFrom', e.target.value)} />
-                <Input label="Outstanding (<)" placeholder="Amount" type="number" value={filters.outstandingTo} onChange={(e) => handleFilterChange('outstandingTo', e.target.value)} />
-                <Select label="Scholarship" value={filters.scholarship} onChange={(e) => handleFilterChange('scholarship', e.target.value)} options={scholarshipOptions} />
-                <Select label="RTE / Freeship" value={filters.freeshipRte} onChange={(e) => handleFilterChange('freeshipRte', e.target.value)} options={yesNoOptions} />
-              </div>
-            </Card>
-
-            {/* 8. Attendance & Discipline */}
-            <Card className="p-6">
-              <div className="flex items-center gap-2 mb-4"><Calendar className="w-5 h-5 text-red-600" /><h3 className="text-lg font-semibold text-gray-900">Attendance & Discipline</h3></div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                <Input label="Attendance % From" placeholder="%" type="number" value={filters.attendanceFrom} onChange={(e) => handleFilterChange('attendanceFrom', e.target.value)} />
-                <Input label="Attendance % To" placeholder="%" type="number" value={filters.attendanceTo} onChange={(e) => handleFilterChange('attendanceTo', e.target.value)} />
-                <Select label="Chronic Absentee" value={filters.chronicAbsentee} onChange={(e) => handleFilterChange('chronicAbsentee', e.target.value)} options={yesNoOptions} />
-                <Select label="Discipline Cases" value={filters.disciplineCases} onChange={(e) => handleFilterChange('disciplineCases', e.target.value)} options={yesNoOptions} />
-                <Input label="Last Attendance Date" type="date" value={filters.lastAttendanceDate} onChange={(e) => handleFilterChange('lastAttendanceDate', e.target.value)} />
-              </div>
-            </Card>
-
-            {/* 9. Transport & Hostel */}
-            <Card className="p-6">
-              <div className="flex items-center gap-2 mb-4"><Bus className="w-5 h-5 text-amber-600" /><h3 className="text-lg font-semibold text-gray-900">Transport & Hostel</h3></div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <Select label="Transport Route" value={filters.transportRoute} onChange={(e) => handleFilterChange('transportRoute', e.target.value)} options={transportRouteOptions} />
-                <Input label="Bus Number" placeholder="Bus No." value={filters.busNumber} onChange={(e) => handleFilterChange('busNumber', e.target.value)} />
-                <Select label="Hostel Name" value={filters.hostelName} onChange={(e) => handleFilterChange('hostelName', e.target.value)} options={hostelNameOptions} />
-                <Input label="Room Number" placeholder="Room No" value={filters.roomNumber} onChange={(e) => handleFilterChange('roomNumber', e.target.value)} />
-              </div>
-            </Card>
-
-            {/* 10. Health & Special */}
-            <Card className="p-6 bg-red-50/30 border-red-100">
-              <div className="flex items-center gap-2 mb-4"><Activity className="w-5 h-5 text-red-500" /><h3 className="text-lg font-semibold text-gray-900">Health & Special Flags</h3><Badge variant="secondary" className="text-xs">Restricted Access</Badge></div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <Select label="Medical Alert" value={filters.medicalAlert} onChange={(e) => handleFilterChange('medicalAlert', e.target.value)} options={yesNoOptions} />
-                <Select label="Special Needs" value={filters.specialNeeds} onChange={(e) => handleFilterChange('specialNeeds', e.target.value)} options={yesNoOptions} />
-                <Select label="Allergies Recorded" value={filters.allergiesRecorded} onChange={(e) => handleFilterChange('allergiesRecorded', e.target.value)} options={yesNoOptions} />
-              </div>
-            </Card>
-
-            {/* 11. Tags */}
-            <Card className="p-6">
-              <div className="flex items-center gap-2 mb-4"><Tag className="w-5 h-5 text-cyan-600" /><h3 className="text-lg font-semibold text-gray-900">Tags & Custom Fields</h3></div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Custom Tags</label>
-                <div className="flex gap-2 flex-wrap">
-                  {availableTags.map((tag) =>
-                <button key={tag} onClick={() => toggleTag(tag)}
-                className={`px-3 py-1 rounded-full text-sm border transition-colors ${filters.tags.includes(tag) ? 'bg-blue-100 border-blue-300 text-blue-700' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'}`}>{tag}</button>
-                )}
-                </div>
-              </div>
-            </Card>
-          </div>
-        }
 
         {/* Results Section */}
         {showResults &&
@@ -524,17 +363,6 @@ export function StudentCustomSearchPage() {
         }
       </div>
 
-      {/* Save Search Modal */}
-      <Modal isOpen={isSaveModalOpen} onClose={() => setIsSaveModalOpen(false)} title="Save Search Template" size="md">
-        <div className="space-y-4">
-          <Input label="Template Name" placeholder="e.g., SC/ST Students with Fee Due" />
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Description</label><textarea className="w-full p-2 border border-gray-300 rounded-md text-sm" rows={3} placeholder="Describe what this search finds..." /></div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-2">Active Filters Summary</label><div className="p-3 bg-gray-50 rounded-lg text-sm text-gray-600">{activeFilterCount > 0 ? <span>{activeFilterCount} filters will be saved with this template</span> : <span className="text-amber-600">No filters active. Add some filters before saving.</span>}</div></div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-2">Visibility</label><div className="flex gap-4"><label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer"><input type="radio" name="visibility" className="text-blue-600" defaultChecked />Private</label><label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer"><input type="radio" name="visibility" className="text-blue-600" />Shared</label></div></div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-2">Settings</label><div className="space-y-2"><label className="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" className="rounded text-blue-600" />Auto-run on dashboard load</label><label className="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" className="rounded text-blue-600" />Make available in Reports module</label></div></div>
-          <div className="flex justify-end gap-2 pt-4 border-t"><Button variant="outline" onClick={() => setIsSaveModalOpen(false)}>Cancel</Button><Button variant="primary" onClick={() => setIsSaveModalOpen(false)}>Save Template</Button></div>
-        </div>
-      </Modal>
     </div>);
 
 }

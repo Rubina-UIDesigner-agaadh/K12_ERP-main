@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Play, Eye, Pause, RotateCcw, CheckCircle, XCircle, Download } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
@@ -34,7 +34,7 @@ function allocate(store: StreamStore, includeWait: boolean) {
     const prefs = [a.p1, a.p2, a.p3];
     let placed = '';
     let prefLabel = '—';
-    let reason = 'Seats exhausted in category';
+    let reason = 'Seats exhausted';
     prefs.forEach((p, idx) => {
       if (placed) return;
       if (!streamMeets(a.pct, p)) {
@@ -112,17 +112,6 @@ export function AllotmentControlPanel() {
   ];
   const ready = checklistItems.every((c) => store.checklist[c.key]);
 
-  const stats = useMemo(() => {
-    const yearApps = store.applications.filter((a) => a.year === '2025-26');
-    return {
-      eligible: yearApps.filter((a) => a.eligibility === 'Eligible').length,
-      allotted: yearApps.filter((a) => a.status === 'Allotted' || a.status === 'Accepted').length,
-      waitlisted: yearApps.filter((a) => a.status === 'Waitlisted').length,
-      accepted: yearApps.filter((a) => a.status === 'Accepted').length,
-      rejected: yearApps.filter((a) => a.status === 'Rejected').length
-    };
-  }, [store]);
-
   const persist = (next: StreamStore) => {
     saveStreamStore(next);
     setStore({ ...next, applications: [...next.applications], waitlist: [...next.waitlist], checklist: { ...next.checklist } });
@@ -194,14 +183,6 @@ export function AllotmentControlPanel() {
       </div>
       {notice && <div className="rounded-lg bg-indigo-50 border border-indigo-200 px-4 py-3 text-sm text-indigo-800">{notice}</div>}
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {[
-          ['Current Round', store.currentRound], ['Round Status', store.roundStatus], ['Last Allotment Run', store.lastAllotment],
-          ['Total Eligible', String(stats.eligible)], ['Allotted So Far', String(stats.allotted)], ['Waitlisted', String(stats.waitlisted)], ['Accepted', String(stats.accepted)],
-          ['Rejected', String(stats.rejected)], ['Science seats', String(SEAT_CAP.Science)], ['Commerce seats', String(SEAT_CAP.Commerce)]
-        ].map(([k, v]) => <div key={k} className="bg-white border rounded-xl p-4"><p className="text-xs text-gray-500">{k}</p><p className="font-semibold">{v}</p></div>)}
-      </div>
-
       <div className="bg-white rounded-xl border p-5">
         <h2 className="font-semibold mb-3">Pre-allotment Checklist</h2>
         <ul className="space-y-2 text-sm">
@@ -229,10 +210,10 @@ export function AllotmentControlPanel() {
         <div>
           <label className="text-xs text-gray-600">Allotment Round Number</label>
           <select value={store.currentRound} onChange={(e) => { const next = loadStreamStore(); next.currentRound = e.target.value; persist(next); }} className="w-full mt-1 px-3 py-2 border rounded-lg text-sm">
-            <option>Round 1</option><option>Round 2</option><option>Round 3</option><option>Counselling</option>
+            <option>Round 1</option><option>Round 2</option><option>Round 3</option>
           </select>
         </div>
-        <div><label className="text-xs text-gray-600">Allotment Type *</label><select value={type} onChange={(e) => setType(e.target.value)} className="w-full mt-1 px-3 py-2 border rounded-lg text-sm"><option>Auto</option><option>Manual</option><option>Counselling</option></select></div>
+        <div><label className="text-xs text-gray-600">Allotment Type *</label><select value={type} onChange={(e) => setType(e.target.value)} className="w-full mt-1 px-3 py-2 border rounded-lg text-sm"><option>Auto</option><option>Manual</option></select></div>
         <div><label className="text-xs text-gray-600">Primary Merit Sort *</label><select value={sort} onChange={(e) => setSort(e.target.value)} className="w-full mt-1 px-3 py-2 border rounded-lg text-sm"><option>Aggregate %</option><option>Board Marks</option><option>Subject Marks</option></select></div>
         <div><label className="text-xs text-gray-600">Tiebreaker 1 *</label><select value={tb1} onChange={(e) => setTb1(e.target.value)} className="w-full mt-1 px-3 py-2 border rounded-lg text-sm"><option>Math Marks</option><option>Science Marks</option><option>DOB</option></select></div>
         <div><label className="text-xs text-gray-600">Tiebreaker 2 *</label><select value={tb2} onChange={(e) => setTb2(e.target.value)} className="w-full mt-1 px-3 py-2 border rounded-lg text-sm"><option>Date of Birth</option><option>Alphabetical order</option></select></div>
@@ -269,14 +250,13 @@ export function AllotmentControlPanel() {
         <>
           <div className="bg-white rounded-xl border overflow-x-auto">
             <table className="min-w-full text-sm">
-              <thead className="bg-gray-50"><tr>{['Student', 'Roll', 'Agg %', 'Category', 'Pref', 'Stream', 'Combination', 'Reason', 'Status', ''].map((h) => <th key={h} className="px-3 py-2 text-left text-xs uppercase text-gray-500">{h}</th>)}</tr></thead>
+              <thead className="bg-gray-50"><tr>{['Student', 'Roll', 'Agg %', 'Pref', 'Stream', 'Combination', 'Reason', 'Status', ''].map((h) => <th key={h} className="px-3 py-2 text-left text-xs uppercase text-gray-500">{h}</th>)}</tr></thead>
               <tbody className="divide-y">
                 {results.map((r) => (
                   <tr key={r.app.roll}>
                     <td className="px-3 py-2 font-medium">{r.app.name}</td>
                     <td className="px-3 py-2">{r.app.roll}</td>
                     <td className="px-3 py-2">{r.app.pct}</td>
-                    <td className="px-3 py-2"><Badge variant="secondary">{r.app.category}</Badge></td>
                     <td className="px-3 py-2">{r.pref}</td>
                     <td className="px-3 py-2">{r.stream}</td>
                     <td className="px-3 py-2">{r.comb}</td>
@@ -287,11 +267,6 @@ export function AllotmentControlPanel() {
                 ))}
               </tbody>
             </table>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-            {[['Processed', results.length], ['Allotted', results.filter((r) => r.status === 'Allotted').length], ['Waitlisted', results.filter((r) => r.status === 'Waitlisted').length]].map(([k, v]) =>
-              <div key={String(k)} className="bg-white border rounded-xl p-4 text-center"><p className="text-xs text-gray-500">{k}</p><p className="text-xl font-bold">{v}</p></div>
-            )}
           </div>
           <Button variant="outline" onClick={() => downloadCsv([['Student', 'Roll', 'Stream', 'Status', 'Reason'], ...results.map((r) => [r.app.name, r.app.roll, r.stream, r.status, r.reason])], 'allotment-results.csv')}><Download className="w-4 h-4 mr-1" /> Export Results</Button>
         </>
