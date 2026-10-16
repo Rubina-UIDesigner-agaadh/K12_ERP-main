@@ -30,14 +30,6 @@ export function StreamReportsAnalytics() {
     return { stream, applied, eligible, allotted, wait, seats, fill };
   });
 
-  const cats = ['General', 'OBC', 'SC', 'ST', 'EWS'].map((cat) => ({
-    cat,
-    sci: apps.filter((a) => a.category === cat && a.allotted === 'Science').length,
-    com: apps.filter((a) => a.category === cat && a.allotted === 'Commerce').length,
-    arts: apps.filter((a) => a.category === cat && a.allotted === 'Arts').length,
-    voc: apps.filter((a) => a.category === cat && a.allotted === 'Vocational').length
-  }));
-
   const focused = focus ? apps.filter((a) => a.p1 === focus || a.allotted === focus) : [];
 
   return (
@@ -46,11 +38,11 @@ export function StreamReportsAnalytics() {
         <div>
           <p className="text-xs text-gray-500">Home → Reports → Stream Analytics</p>
           <div className="flex items-center gap-2 mt-1"><BarChart3 className="w-6 h-6 text-indigo-600" /><h1 className="text-2xl font-bold">Stream Reports & Analytics</h1></div>
-          <p className="text-sm text-gray-500">Demand, eligibility, allotment fill and category mix</p>
+          <p className="text-sm text-gray-500">Demand, eligibility, allotment fill and waitlist movement</p>
         </div>
         <div className="flex gap-2">
           <select value={year} onChange={(e) => setYear(e.target.value)} className="px-3 py-2 border rounded-lg text-sm bg-white"><option>2025-26</option><option>2024-25</option></select>
-          <select value={round} onChange={(e) => setRound(e.target.value)} className="px-3 py-2 border rounded-lg text-sm bg-white"><option>All Rounds</option><option>Round 1</option><option>Round 2</option><option>Counselling</option></select>
+          <select value={round} onChange={(e) => setRound(e.target.value)} className="px-3 py-2 border rounded-lg text-sm bg-white"><option>All Rounds</option><option>Round 1</option><option>Round 2</option><option>Round 3</option></select>
           <Button variant="outline" onClick={() => {
             downloadCsv([['Stream', 'Applied', 'Eligible', 'Allotted', 'Waitlist', 'Seats', 'Fill %'], ...funnel.map((s) => [s.stream, s.applied, s.eligible, s.allotted, s.wait, s.seats, s.fill])], `stream-analytics-${year}.csv`);
             setNotice('Analytics exported.');
@@ -154,13 +146,6 @@ export function StreamReportsAnalytics() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border overflow-x-auto">
-        <h2 className="font-semibold p-4">Category Mix (Allotted)</h2>
-        <table className="min-w-full text-sm">
-          <thead className="bg-gray-50"><tr>{['Category', 'Science', 'Commerce', 'Arts', 'Vocational'].map((h) => <th key={h} className="px-3 py-2 text-left text-xs uppercase text-gray-500">{h}</th>)}</tr></thead>
-          <tbody className="divide-y">{cats.map((c) => <tr key={c.cat}><td className="px-3 py-2">{c.cat}</td><td className="px-3 py-2">{c.sci}</td><td className="px-3 py-2">{c.com}</td><td className="px-3 py-2">{c.arts}</td><td className="px-3 py-2">{c.voc}</td></tr>)}</tbody>
-        </table>
-      </div>
     </div>
   );
 }

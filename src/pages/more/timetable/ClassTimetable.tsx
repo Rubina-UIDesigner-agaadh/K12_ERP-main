@@ -3,13 +3,7 @@ import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Select } from '../../../components/ui/Select';
-import { Badge } from '../../../components/ui/Badge';
-import {
-  Tabs,
-  TabsList,
-  TabsTrigger,
-  TabsContent } from
-'../../../components/ui/Tabs';
+
 import {
   DownloadIcon,
   PrinterIcon,
@@ -19,7 +13,6 @@ import {
   ListIcon,
   CalendarIcon,
   InfoIcon,
-  BuildingIcon,
   EditIcon } from
 'lucide-react';
 const branchOptions = [
@@ -250,7 +243,6 @@ const TEACHERS = ['Mrs. Sharma', 'Mr. Patel', 'Mrs. Verma', 'Mrs. Gupta', 'Mr. K
 const SUBJECTS = Object.keys(subjectColors);
 
 export function ClassTimetable() {
-  const [tab, setTab] = useState('classwise');
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [grid, setGrid] = useState(() => JSON.parse(JSON.stringify(timetableData)) as typeof timetableData);
   const [editCell, setEditCell] = useState<{ day: string; period: string } | null>(null);
@@ -270,7 +262,7 @@ export function ClassTimetable() {
     setNotice(`${editCell.day} ${editCell.period.split('\\n')[0]} updated.`);
     setEditCell(null);
   };
-  const [selectedBranches, setSelectedBranches] = useState<string[]>(['all']);
+  const [selectedBranch, setSelectedBranch] = useState('all');
   const [selectedYear, setSelectedYear] = useState('2025-26');
   const [selectedClass, setSelectedClass] = useState('class-8');
   const [selectedSection, setSelectedSection] = useState('a');
@@ -278,17 +270,48 @@ export function ClassTimetable() {
   const [selectedTeacher, setSelectedTeacher] = useState('');
   const [selectedDay, setSelectedDay] = useState('Monday');
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);
-  const toggleBranch = (val: string) => {
-    if (val === 'all') {
-      setSelectedBranches(['all']);
+  const branchLabel = branchOptions.find((b) => b.value === selectedBranch)?.label || 'All Branches';
+  const classLabel = selectedClass.startsWith('class-') ? `Class ${selectedClass.replace('class-', '')}` : selectedClass.toUpperCase();
+  const sectionLabel = `Section ${selectedSection.toUpperCase()}`;
+
+  const runSearch = () => {
+    setNotice(`Showing ${branchLabel} · ${selectedYear} · ${classLabel}-${selectedSection.toUpperCase()}.`);
+  };
+
+  const handlePrint = () => {
+    window.print();
+    setNotice('Print dialog opened.');
+  };
+
+  const handleShare = async () => {
+    const text = `Class Timetable — ${classLabel} ${sectionLabel} · ${selectedYear} · ${branchLabel}`;
+    try {
+      if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(text);
+      setNotice('Timetable summary copied.');
+    } catch {
+      setNotice(text);
+    }
+  };
+
+  const handleDownload = (fmt: string) => {
+    setShowDownloadMenu(false);
+    if (fmt === 'Excel') {
+      const rows = [['Day', 'Period', 'Time', 'Subject', 'Teacher'], ...listData.map((r) => [r.day, r.period, r.time, r.subject, r.teacher])];
+      const csv = rows.map((r) => r.map((c) => `"${c}"`).join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `class-timetable-${selectedClass}-${selectedSection}.csv`;
+      a.click();
+      setNotice('Excel (CSV) downloaded.');
       return;
     }
-    setSelectedBranches((prev) => {
-      const without = prev.filter((b) => b !== 'all');
-      return without.includes(val) ?
-      without.filter((b) => b !== val) :
-      [...without, val];
-    });
+    if (fmt === 'PDF') {
+      window.print();
+      setNotice('Use the print dialog to save as PDF.');
+      return;
+    }
+    setNotice('Image (PNG): use Print from the browser to save as image/PDF.');
   };
   const listData = days.flatMap((day) =>
   periods.
@@ -314,12 +337,6 @@ export function ClassTimetable() {
     r.teacher.toLowerCase().includes(selectedTeacher.toLowerCase());
     return r.subject !== '—' && matchSubject && matchTeacher;
   });
-  const selectedBranchLabels = selectedBranches.includes('all') ?
-  'All Branches' :
-  branchOptions.
-  filter((b) => selectedBranches.includes(b.value)).
-  map((b) => b.label).
-  join(', ');
   return (
     <div className="space-y-6 p-6 bg-gray-50 min-h-full">
       {notice && <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm text-indigo-800 flex justify-between"><span>{notice}</span><button type="button" onClick={() => setNotice(null)}>×</button></div>}
@@ -327,21 +344,23 @@ export function ClassTimetable() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Class Timetable</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Click a period cell to add or change teacher and subject
+            {classLabel} {sectionLabel} · {selectedYear} · {branchLabel}. Click a period cell to add or change teacher and subject.
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
           <Button
             variant="outline"
             size="sm"
-            leftIcon={<ShareIcon className="w-4 h-4" />}>
+            leftIcon={<ShareIcon className="w-4 h-4" />}
+            onClick={handleShare}>
 
             Share
           </Button>
           <Button
             variant="outline"
             size="sm"
-            leftIcon={<PrinterIcon className="w-4 h-4" />}>
+            leftIcon={<PrinterIcon className="w-4 h-4" />}
+            onClick={handlePrint}>
 
             Print
           </Button>
@@ -360,7 +379,7 @@ export function ClassTimetable() {
               <button
                 key={fmt}
                 className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                onClick={() => setShowDownloadMenu(false)}>
+                onClick={() => handleDownload(fmt)}>
 
                     {fmt}
                   </button>
@@ -371,26 +390,16 @@ export function ClassTimetable() {
         </div>
       </div>
 
-      {/* Multi-Branch Filter */}
+      {/* Combined search panel */}
       <Card>
-        <div className="flex flex-wrap gap-4 items-end">
-          <div className="flex-1 min-w-0">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              School Branch
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {branchOptions.map((b) =>
-              <button
-                key={b.value}
-                onClick={() => toggleBranch(b.value)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${selectedBranches.includes(b.value) ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}>
+        <div className="flex flex-wrap gap-3 items-end">
+          <Select
+            label="School Branch"
+            options={branchOptions.map((b) => ({ value: b.value, label: b.label }))}
+            value={selectedBranch}
+            onChange={setSelectedBranch}
+            className="w-44" />
 
-                  <span className={`w-2 h-2 rounded-full ${b.color}`} />
-                  {b.label}
-                </button>
-              )}
-            </div>
-          </div>
           <Select
             label="Academic Year"
             options={[
@@ -407,21 +416,6 @@ export function ClassTimetable() {
             onChange={setSelectedYear}
             className="w-32" />
 
-        </div>
-        {!selectedBranches.includes('all') && selectedBranches.length > 0 &&
-        <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-2 text-xs text-gray-500">
-            <BuildingIcon className="w-3.5 h-3.5" />
-            <span>
-              Showing data for:{' '}
-              <strong className="text-gray-700">{selectedBranchLabels}</strong>
-            </span>
-          </div>
-        }
-      </Card>
-
-      {/* Secondary Filters */}
-      <Card>
-        <div className="flex flex-wrap gap-3 items-end">
           <Select
             label="Class"
             options={[
@@ -522,7 +516,8 @@ export function ClassTimetable() {
           <Button
             variant="primary"
             size="sm"
-            leftIcon={<SearchIcon className="w-4 h-4" />}>
+            leftIcon={<SearchIcon className="w-4 h-4" />}
+            onClick={runSearch}>
 
             Search
           </Button>
@@ -543,14 +538,9 @@ export function ClassTimetable() {
       </div>
 
       <Card noPadding>
-        <Tabs defaultValue="classwise" value={tab} onValueChange={setTab}>
+        <div>
           <div className="px-5 pt-4 flex items-center justify-between flex-wrap gap-3">
-            <TabsList>
-              <TabsTrigger value="classwise">Class-wise Timetable</TabsTrigger>
-              <TabsTrigger value="sectionwise">
-                Section-wise Timetable
-              </TabsTrigger>
-            </TabsList>
+            <h2 className="text-sm font-semibold text-gray-800">{classLabel} {sectionLabel} timetable</h2>
             <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
               {(
               [
@@ -570,7 +560,7 @@ export function ClassTimetable() {
             </div>
           </div>
 
-          <TabsContent value="classwise" className="p-5">
+          <div className="p-5">
             {/* Grid View */}
             {viewMode === 'grid' &&
             <>
@@ -723,7 +713,15 @@ export function ClassTimetable() {
                           <Button
                         variant="ghost"
                         size="xs"
-                        leftIcon={<EditIcon className="w-3 h-3" />}>
+                        leftIcon={<EditIcon className="w-3 h-3" />}
+                        onClick={() => {
+                          const periodKey = periods.find((p) => p.startsWith(row.period)) || row.period;
+                          const cell = grid[row.day]?.[periodKey];
+                          setEditCell({ day: row.day, period: periodKey });
+                          setEditSubject(cell?.subject || '');
+                          setEditTeacher(cell?.teacher === '—' ? '' : cell?.teacher || '');
+                          setViewMode('grid');
+                        }}>
 
                             Edit
                           </Button>
@@ -798,7 +796,13 @@ export function ClassTimetable() {
                         variant="ghost"
                         size="xs"
                         leftIcon={<EditIcon className="w-3 h-3" />}
-                        className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
+                        className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => {
+                          setEditCell({ day: selectedDay, period });
+                          setEditSubject(cell?.subject || '');
+                          setEditTeacher(cell?.teacher === '—' ? '' : cell?.teacher || '');
+                          setViewMode('grid');
+                        }}>
 
                           Edit
                         </Button>
@@ -808,82 +812,8 @@ export function ClassTimetable() {
                 </div>
               </div>
             }
-          </TabsContent>
-
-          <TabsContent value="sectionwise" className="p-5">
-            <div className="flex gap-3 mb-4 flex-wrap items-end">
-              <Select
-                options={[
-                {
-                  value: '8',
-                  label: 'Class 8'
-                },
-                {
-                  value: '9',
-                  label: 'Class 9'
-                },
-                {
-                  value: '10',
-                  label: 'Class 10'
-                }]
-                }
-                className="w-32" />
-
-              <Select
-                options={[
-                {
-                  value: '2025-26',
-                  label: '2025-26'
-                },
-                {
-                  value: '2024-25',
-                  label: '2024-25'
-                }]
-                }
-                className="w-32" />
-
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {['Section A', 'Section B', 'Section C'].map((section, i) =>
-              <Card key={i} title={`Class 8 - ${section}`}>
-                  <div className="space-y-1">
-                    {days.slice(0, 5).map((day) =>
-                  <div key={day} className="flex items-center gap-2">
-                        <span className="text-xs text-gray-500 w-8">
-                          {day.slice(0, 3)}
-                        </span>
-                        <div className="flex gap-0.5 flex-1">
-                          {['Math', 'Sci', 'Eng', 'Hin', 'SS', 'PE'].map(
-                        (sub, si) =>
-                        <span
-                          key={si}
-                          className={`flex-1 text-center text-[9px] py-0.5 rounded ${['bg-blue-100 text-blue-700', 'bg-green-100 text-green-700', 'bg-purple-100 text-purple-700', 'bg-orange-100 text-orange-700', 'bg-yellow-100 text-yellow-700', 'bg-teal-100 text-teal-700'][si]}`}>
-
-                                {sub}
-                              </span>
-
-                      )}
-                        </div>
-                      </div>
-                  )}
-                  </div>
-                  <div className="flex gap-2 mt-3">
-                    <Button variant="outline" className="flex-1 text-xs h-7">
-                      View Full
-                    </Button>
-                    <Button
-                    variant="ghost"
-                    className="text-xs h-7 px-2"
-                    leftIcon={<EditIcon className="w-3 h-3" />}>
-
-                      Edit
-                    </Button>
-                  </div>
-                </Card>
-              )}
-            </div>
-          </TabsContent>
-        </Tabs>
+          </div>
+        </div>
       </Card>
     </div>);
 

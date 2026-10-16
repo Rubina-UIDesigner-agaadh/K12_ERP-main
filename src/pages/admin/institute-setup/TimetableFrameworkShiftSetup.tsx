@@ -41,6 +41,7 @@ import {
   Moon,
   Sunrise } from
 'lucide-react';
+import { TimetableSetup } from '../../more/timetable/TimetableSetup';
 
 // Type definitions
 interface Period {
@@ -404,7 +405,7 @@ export function TimetableFrameworkShiftSetup() {
   // State management
   const [shifts, setShifts] = useState<Shift[]>(initialShifts);
   const [templates, setTemplates] = useState<TimetableTemplate[]>(initialTemplates);
-  const [activeTab, setActiveTab] = useState<'shifts' | 'periods' | 'templates'>('shifts');
+  const [activeTab, setActiveTab] = useState<'shifts' | 'periods' | 'templates' | 'setup'>('shifts');
   const [savedAcademicStructure] = useState(readSavedAcademicStructure);
   const savedSettings = (Object.keys(DEFAULT_ACADEMIC_SETTINGS) as (keyof AcademicYearSettings)[]).reduce<Partial<AcademicYearSettings>>((settings, key) => {
     const value = savedAcademicStructure[key];
@@ -2114,7 +2115,7 @@ export function TimetableFrameworkShiftSetup() {
             Configure school timings, shifts, and period structures
           </p>
         </div>
-        {activeTab !== 'periods' && <div className="flex gap-2">
+        {activeTab !== 'periods' && activeTab !== 'setup' && <div className="flex gap-2">
           <Button variant="outline" onClick={handleExportData}>
             <Download className="w-4 h-4 mr-2" />
             Export
@@ -2130,47 +2131,8 @@ export function TimetableFrameworkShiftSetup() {
         </div>}
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <Card className="p-4">
-          <div className="text-center">
-            <Clock className="w-6 h-6 mx-auto mb-1 text-blue-500" />
-            <p className="text-2xl font-bold">{stats.totalShifts}</p>
-            <p className="text-xs text-gray-500">Total Shifts</p>
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-center">
-            <CheckCircle className="w-6 h-6 mx-auto mb-1 text-green-500" />
-            <p className="text-2xl font-bold">{stats.activeShifts}</p>
-            <p className="text-xs text-gray-500">Active Shifts</p>
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-center">
-            <BookOpen className="w-6 h-6 mx-auto mb-1 text-purple-500" />
-            <p className="text-2xl font-bold">{stats.totalPeriods}</p>
-            <p className="text-xs text-gray-500">Total Periods</p>
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-center">
-            <FileText className="w-6 h-6 mx-auto mb-1 text-orange-500" />
-            <p className="text-2xl font-bold">{stats.totalTemplates}</p>
-            <p className="text-xs text-gray-500">Templates</p>
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-center">
-            <Layers className="w-6 h-6 mx-auto mb-1 text-indigo-500" />
-            <p className="text-2xl font-bold">{stats.activeTemplates}</p>
-            <p className="text-xs text-gray-500">Active Templates</p>
-          </div>
-        </Card>
-      </div>
-
       {/* Tabs */}
-      <div className="flex gap-2 border-b">
+      <div className="flex gap-2 border-b flex-wrap">
         <Button
           variant={activeTab === 'shifts' ? 'primary' : 'ghost'}
           onClick={() => setActiveTab('shifts')}>
@@ -2179,22 +2141,22 @@ export function TimetableFrameworkShiftSetup() {
           Shifts
         </Button>
         <Button
-          variant={activeTab === 'periods' ? 'primary' : 'ghost'}
-          onClick={() => setActiveTab('periods')}>
-          <Calendar className="w-4 h-4 mr-2" />
-          Academic Structure
-        </Button>
-        <Button
           variant={activeTab === 'templates' ? 'primary' : 'ghost'}
           onClick={() => setActiveTab('templates')}>
 
           <FileText className="w-4 h-4 mr-2" />
           Templates
         </Button>
+        <Button
+          variant={activeTab === 'setup' ? 'primary' : 'ghost'}
+          onClick={() => setActiveTab('setup')}>
+          <Grid3X3 className="w-4 h-4 mr-2" />
+          Timetable Setup
+        </Button>
       </div>
 
       {/* Filters */}
-      {activeTab !== 'periods' && <Card className="p-4">
+      {activeTab !== 'periods' && activeTab !== 'setup' && <Card className="p-4">
         <div className="flex flex-wrap gap-4 items-center">
           <div className="flex-1 min-w-[200px]">
             <div className="relative">
@@ -2221,42 +2183,9 @@ export function TimetableFrameworkShiftSetup() {
       </Card>}
 
       {/* Content based on active tab */}
-      {activeTab === 'periods' && <div className="space-y-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900">Academic Structure</h2>
-            <p className="mt-1 text-sm text-gray-500">Set the academic year, terms, school timing, period structure, and working-day pattern. Saved working days are reflected in Institute Calendar.</p>
-          </div>
-          <Badge variant="info">AY {academicSettings.academicYear}</Badge>
-        </div>
-
-        <Card title="Academic Year Setup">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <Input label="Academic Year Name *" value={academicSettings.academicYear} onChange={(event) => setAcademicSettings((previous) => ({ ...previous, academicYear: event.target.value }))} placeholder="2025-26" />
-            <Select label="Display Format" options={['2025-26', '2025-2026', 'AY 2025-26'].map((value) => ({ value, label: value }))} value={academicSettings.displayFormat} onChange={(event) => setAcademicSettings((previous) => ({ ...previous, displayFormat: event.target.value }))} />
-            <Select label="Board" options={['CBSE', 'Gujarat State Board', 'ICSE', 'Other'].map((value) => ({ value, label: value }))} value={academicSettings.board} onChange={(event) => setAcademicSettings((previous) => ({ ...previous, board: event.target.value }))} />
-            <Input label="Academic Year Start" type="date" value={academicSettings.startDate} onChange={(event) => setAcademicSettings((previous) => ({ ...previous, startDate: event.target.value }))} />
-            <Input label="Academic Year End" type="date" value={academicSettings.endDate} onChange={(event) => setAcademicSettings((previous) => ({ ...previous, endDate: event.target.value }))} />
-            <Input label="First Day for Students" type="date" value={academicSettings.firstStudentDay} onChange={(event) => setAcademicSettings((previous) => ({ ...previous, firstStudentDay: event.target.value }))} />
-            <Input label="Staff Reporting Date" type="date" value={academicSettings.staffReporting} onChange={(event) => setAcademicSettings((previous) => ({ ...previous, staffReporting: event.target.value }))} />
-            <Input label="Last Day for Students" type="date" value={academicSettings.lastStudentDay} onChange={(event) => setAcademicSettings((previous) => ({ ...previous, lastStudentDay: event.target.value }))} />
-            <Select label="Number of Terms" options={['2 Terms', '3 Terms', '2 Semesters', 'Annual'].map((value) => ({ value, label: value }))} value={academicSettings.termCount} onChange={(event) => setAcademicSettings((previous) => ({ ...previous, termCount: event.target.value }))} />
-          </div>
-          <div className="mt-5 border-t pt-4">
-            <p className="mb-2 text-sm font-medium text-gray-700">Working Days Pattern</p>
-            <div className="flex flex-wrap gap-2">
-              {academicWorkingDays.map((day, index) => <label key={day.day} className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs ${day.working ? 'border-blue-200 bg-blue-50 text-blue-800' : 'border-gray-200 bg-gray-50 text-gray-500'}`}>
-                <input type="checkbox" checked={day.working} onChange={(event) => setAcademicWorkingDays((previous) => previous.map((item, itemIndex) => itemIndex === index ? { ...item, working: event.target.checked } : item))} />
-                {day.day}
-              </label>)}
-            </div>
-            <div className="mt-4 max-w-md">
-              <Select label="Saturday Pattern" options={['All Saturdays working', 'Alternate Saturdays — 2nd & 4th Saturday off', 'All Saturdays off'].map((value) => ({ value, label: value }))} value={saturdayPattern} onChange={(event) => setSaturdayPattern(event.target.value)} />
-            </div>
-          </div>
-        </Card>
-
-        <Card title="School Timing & Period Structure">
+      {activeTab === 'setup' && <Card title="Timetable Setup">
+        <div className="space-y-6">
+          <p className="text-sm text-gray-500">One setup for school timings, working days, period structure, and class / teacher timetables.</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <Input label="Gate Opening" type="time" value={academicSettings.gateOpening} onChange={(event) => setAcademicSettings((previous) => ({ ...previous, gateOpening: event.target.value }))} />
             <Input label="Assembly Start" type="time" value={academicSettings.assemblyStart} onChange={(event) => setAcademicSettings((previous) => ({ ...previous, assemblyStart: event.target.value }))} />
@@ -2269,36 +2198,27 @@ export function TimetableFrameworkShiftSetup() {
             <Input label="Period Duration (minutes)" type="number" min={1} value={academicSettings.periodMinutes} onChange={(event) => setAcademicSettings((previous) => ({ ...previous, periodMinutes: event.target.value }))} />
             <Input label="Lunch / Break Duration (minutes)" type="number" min={0} value={academicSettings.breakMinutes} onChange={(event) => setAcademicSettings((previous) => ({ ...previous, breakMinutes: event.target.value }))} />
           </div>
-        </Card>
-
-        <Card title="Terms / Semesters">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            <Input label="Term / Semester Name" value={termForm.name} onChange={(event) => setTermForm((previous) => ({ ...previous, name: event.target.value }))} placeholder="e.g. Term 1" />
-            <Input label="Term Start Date" type="date" value={termForm.startDate} onChange={(event) => setTermForm((previous) => ({ ...previous, startDate: event.target.value }))} />
-            <Input label="Term End Date" type="date" value={termForm.endDate} onChange={(event) => setTermForm((previous) => ({ ...previous, endDate: event.target.value }))} />
-            <Select label="Exam at End of Term?" options={['Yes — Half-Yearly Exam', 'No'].map((value) => ({ value, label: value }))} value={termForm.examAtEnd} onChange={(event) => setTermForm((previous) => ({ ...previous, examAtEnd: event.target.value }))} />
-            <Select label="Report Card?" options={['Yes', 'No'].map((value) => ({ value, label: value }))} value={termForm.reportCard} onChange={(event) => setTermForm((previous) => ({ ...previous, reportCard: event.target.value }))} />
-            <Input label="Fee Due Date" type="date" value={termForm.feeDueDate} onChange={(event) => setTermForm((previous) => ({ ...previous, feeDueDate: event.target.value }))} />
-            <div className="flex items-end sm:col-span-2 xl:col-span-3">
-              <Button onClick={addAcademicTerm}><Plus className="w-4 h-4 mr-2" /> Add Term / Semester</Button>
+          <div>
+            <p className="mb-2 text-sm font-medium text-gray-700">Working Days</p>
+            <div className="flex flex-wrap gap-2">
+              {academicWorkingDays.map((day, index) => <label key={day.day} className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs ${day.working ? 'border-blue-200 bg-blue-50 text-blue-800' : 'border-gray-200 bg-gray-50 text-gray-500'}`}>
+                <input type="checkbox" checked={day.working} onChange={(event) => setAcademicWorkingDays((previous) => previous.map((item, itemIndex) => itemIndex === index ? { ...item, working: event.target.checked } : item))} />
+                {day.day}
+              </label>)}
+            </div>
+            <div className="mt-4 max-w-md">
+              <Select label="Saturday Pattern" options={['All Saturdays working', 'Alternate Saturdays — 2nd & 4th Saturday off', 'All Saturdays off'].map((value) => ({ value, label: value }))} value={saturdayPattern} onChange={(event) => setSaturdayPattern(event.target.value)} />
             </div>
           </div>
-          <div className="mt-4 space-y-2">
-            {academicTerms.length ? academicTerms.map((term) => <div key={term.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
-              <div>
-                <p className="font-semibold text-gray-800">{term.name}</p>
-                <p className="text-xs text-gray-500">{term.startDate} – {term.endDate} · Exam: {term.examAtEnd} · Report card: {term.reportCard}{term.feeDueDate ? ` · Fee due: ${term.feeDueDate}` : ''}</p>
-              </div>
-              <Button variant="ghost" size="xs" title={`Remove ${term.name}`} onClick={() => setAcademicTerms((previous) => previous.filter((item) => item.id !== term.id))}><Trash2 className="w-4 h-4 text-red-500" /></Button>
-            </div>) : <p className="rounded-lg border border-dashed border-gray-300 p-4 text-sm text-gray-500">No terms are configured yet. Add a term or semester above.</p>}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+            <p className="text-xs text-gray-500">Timing and working-day settings are stored in this browser and used with the timetable below.</p>
+            <Button onClick={saveAcademicStructure}><Save className="w-4 h-4 mr-2" /> Save Timetable Setup</Button>
           </div>
-        </Card>
-
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
-          <p className="text-xs text-gray-500">These settings are shared with Institute Calendar. Changes are stored in this browser.</p>
-          <Button onClick={saveAcademicStructure}><Save className="w-4 h-4 mr-2" /> Save Academic Structure</Button>
+          <div className="border-t pt-4">
+            <TimetableSetup />
+          </div>
         </div>
-      </div>}
+      </Card>}
       {activeTab === 'shifts' &&
       <Card>
           {filteredShifts.length === 0 ?
@@ -2409,7 +2329,7 @@ export function TimetableFrameworkShiftSetup() {
       }
 
       {/* Quick Reference Card */}
-      <Card className="p-4">
+      {activeTab !== 'setup' && <Card className="p-4">
         <h3 className="font-semibold mb-3">Active Shifts Overview</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {shifts.filter((s) => s.status === 'Active').map((shift) =>
@@ -2439,7 +2359,8 @@ export function TimetableFrameworkShiftSetup() {
             </div>
           )}
         </div>
-      </Card>
+      </Card>}
+
     </div>);
 
 }
