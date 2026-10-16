@@ -390,6 +390,90 @@ export function downloadPlanningCsv(filename: string, rows: Array<Record<string,
   link.href = url; link.download = filename; document.body.appendChild(link); link.click(); link.remove(); window.URL.revokeObjectURL(url);
 }
 
+export type TeachingPlanFilters = {
+  academicYear: string;
+  className: string;
+  section: string;
+  subject: string;
+  teacher: string;
+  department: string;
+};
+
+export const DEFAULT_TEACHING_PLAN_FILTERS: TeachingPlanFilters = {
+  academicYear: '2025-26',
+  className: 'All Classes',
+  section: 'All Sections',
+  subject: 'All Subjects',
+  teacher: 'All Teachers',
+  department: 'All Departments',
+};
+
+export function parseCsvLine(line: string): string[] {
+  const out: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    if (inQuotes) {
+      if (char === '"') {
+        if (line[index + 1] === '"') { current += '"'; index += 1; }
+        else inQuotes = false;
+      } else current += char;
+    } else if (char === '"') inQuotes = true;
+    else if (char === ',') { out.push(current); current = ''; }
+    else current += char;
+  }
+  out.push(current);
+  return out.map((cell) => cell.trim());
+}
+
+export function isoFromDate(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+export function mondayOfDate(date = new Date()): string {
+  const next = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const day = next.getDay();
+  next.setDate(next.getDate() + (day === 0 ? -6 : 1 - day));
+  return isoFromDate(next);
+}
+
+export function academicYearForDate(iso: string): string {
+  const date = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return '';
+  const year = date.getFullYear();
+  return date.getMonth() >= 3 ? `${year}-${String((year + 1) % 100).padStart(2, '0')}` : `${year - 1}-${String(year % 100).padStart(2, '0')}`;
+}
+
+export function academicYearForMonthYear(month: string, calendarYear: string): string {
+  const index = MONTHS.indexOf(month);
+  const year = Number(calendarYear);
+  if (!year) return '';
+  if (index >= 0 && index <= 8) return `${year}-${String((year + 1) % 100).padStart(2, '0')}`;
+  return `${year - 1}-${String(year % 100).padStart(2, '0')}`;
+}
+
+export function shiftCalendarMonth(month: string, calendarYear: string, delta: number): { month: string; year: string } {
+  const index = MONTHS.indexOf(month);
+  const jsMonth = index <= 8 ? index + 3 : index - 9;
+  const date = new Date(Number(calendarYear) || new Date().getFullYear(), jsMonth, 1);
+  date.setMonth(date.getMonth() + delta);
+  return { month: MONTHS[(date.getMonth() + 9) % 12], year: String(date.getFullYear()) };
+}
+
+export function matchesTeachingPlanFilters(
+  item: { className?: string; section?: string; sections?: string; subject?: string; teacher?: string; department?: string },
+  filters: TeachingPlanFilters
+): boolean {
+  const sectionValue = item.section || item.sections || '';
+  const sectionOk = filters.section === 'All Sections' || sectionValue.split(',').map((part) => part.trim()).includes(filters.section);
+  return (filters.className === 'All Classes' || item.className === filters.className)
+    && sectionOk
+    && (filters.subject === 'All Subjects' || item.subject === filters.subject)
+    && (filters.teacher === 'All Teachers' || item.teacher === filters.teacher)
+    && (filters.department === 'All Departments' || !item.department || item.department === filters.department);
+}
+
 const blankTopic = (chapterId = ''): CurriculumTopic => ({ id: newPlanningId('topic'), chapterId, number: '', name: '', code: '', hasSubtopics: false, subtopics: [], periods: 1, plannedWeek: '', hasRevisionPeriod: false, learningObjectives: [], textbookPages: '', referenceBooks: '', videoLinks: '', worksheets: '', labEquipment: '', digitalTools: '', expectedExamMarks: 0, questionTypes: [], difficulty: 'Medium', bloomLevel: 'Understand', commonlyConfusedWith: '', completionPercent: 0, status: 'Not Started' });
 export const createBlankTopic = blankTopic;
 export const createBlankChapter = (): CurriculumChapter => ({ id: newPlanningId('chapter'), academicYear: '2025-26', className: 'Class 10', subject: 'Science', chapterNumber: 1, name: '', code: '', term: 'Term 1', boardReference: '', syllabusUrl: '', status: 'Active', allocatedPeriods: 10, scheduledMonthFrom: 'April', scheduledMonthTo: 'May', expectedStartDate: '', expectedEndDate: '', bufferPeriods: 1, introduction: '', keyConcepts: '', keyVocabulary: '', ncertExercises: '', importantFormulas: '', commonMisconceptions: '', realLifeConnection: '', teachingMethods: ['Lecture', 'Discussion'], hasLab: false, labDescription: '', labPeriods: 0, labRoom: '', labGroupSize: 30, avResources: '', fieldTripRequired: false, fieldTripDetails: '', classTestAtEnd: true, testType: 'Written', testMarks: 20, assignment: true, assignmentDetails: '', boardExamMarks: 0, highImportanceTopics: '', questionTypes: ['MCQ', 'Short Answer'], connectedSubjects: '', connectionDetails: '', cocurricularIntegration: '', completionPercent: 0, topics: [] });

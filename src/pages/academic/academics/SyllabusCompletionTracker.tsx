@@ -63,17 +63,31 @@ function LineChart({ labels, series }: { labels: string[]; series: Array<{ name:
   );
 }
 
-export function SyllabusCompletionTracker() {
+export function SyllabusCompletionTracker({
+  embedded = false,
+  classFilter: classFilterProp,
+  teacherFilter: teacherFilterProp,
+  termFilter: termFilterProp,
+}: {
+  embedded?: boolean;
+  classFilter?: string;
+  teacherFilter?: string;
+  termFilter?: string;
+} = {}) {
   const [chapters] = useState<CurriculumChapter[]>(() => loadPlanningCollection<CurriculumChapter>(ACADEMIC_PLANNING_KEYS.chapters, DEFAULT_CURRICULUM_CHAPTERS));
   const [atps] = useState<AnnualTeachingPlanRecord[]>(() => loadPlanningCollection<AnnualTeachingPlanRecord>(ACADEMIC_PLANNING_KEYS.atps, DEFAULT_ATPS));
   const [lessons] = useState<LessonPlanRecord[]>(() => loadPlanningCollection<LessonPlanRecord>(ACADEMIC_PLANNING_KEYS.lessons, DEFAULT_LESSON_PLANS));
   const [logs, setLogs] = useState<ProgressLog[]>(() => loadPlanningCollection<ProgressLog>(REVIEW_KEYS.progressLogs, buildSeedProgressLogs(DEFAULT_CURRICULUM_CHAPTERS)));
   const [assessments] = useState<AssessmentRecord[]>(() => loadPlanningCollection<AssessmentRecord>(REVIEW_KEYS.assessments, SEED_ASSESSMENTS));
   const [rules, setRules] = useState<NotificationRule[]>(() => loadPlanningCollection<NotificationRule>(REVIEW_KEYS.notificationRules, NOTIFICATION_RULE_DEFAULTS));
-  const [classFilter, setClassFilter] = useState('All Classes');
+  const [classFilterLocal, setClassFilter] = useState('All Classes');
   const [subjectFilter, setSubjectFilter] = useState('All Subjects');
-  const [teacherFilter, setTeacherFilter] = useState('All Teachers');
-  const [termFilter, setTermFilter] = useState('All Terms');
+  const [teacherFilterLocal, setTeacherFilter] = useState('All Teachers');
+  const [termFilterLocal, setTermFilter] = useState('All Terms');
+  const classFilter = classFilterProp ?? classFilterLocal;
+  const teacherFilter = teacherFilterProp ?? teacherFilterLocal;
+  const termFilter = termFilterProp ?? (termFilterProp === undefined && embedded ? 'Term 1' : termFilterLocal);
+  const resolvedTerm = termFilter === 'Full Year' ? 'All Terms' : termFilter;
   const [asOfMode, setAsOfMode] = useState<AsOfMode>('today');
   const [specificDate, setSpecificDate] = useState(todayIso());
   const [expanded, setExpanded] = useState<string[]>([]);
@@ -93,14 +107,14 @@ export function SyllabusCompletionTracker() {
     const ends = scoped.map((chapter) => monthRangeIso(chapter.scheduledMonthTo || chapter.scheduledMonthFrom).end).sort();
     return ends.length ? ends[ends.length - 1] : toIsoDate(new Date(CURRENT_AY_START + 1, 2, 31));
   };
-  const asOf = asOfMode === 'today' ? today : asOfMode === 'specific' ? specificDate : termEnd(termFilter);
+  const asOf = asOfMode === 'today' ? today : asOfMode === 'specific' ? specificDate : termEnd(resolvedTerm === 'All Terms' ? 'Term 2' : resolvedTerm);
 
   const scopedChapters = useMemo(() => chapters.filter((chapter) =>
-    (classFilter === 'All Classes' || chapter.className === classFilter) &&
+    (classFilter === 'All Classes' || chapter.className === classFilter || chapter.className.replace(/-[A-Z]$/i, '') === classFilter.replace(/-[A-Z]$/i, '')) &&
     (subjectFilter === 'All Subjects' || chapter.subject === subjectFilter) &&
-    (termFilter === 'All Terms' || chapter.term === termFilter) &&
+    (resolvedTerm === 'All Terms' || chapter.term === resolvedTerm) &&
     (teacherFilter === 'All Teachers' || teacherFor(atps, chapter.className, chapter.subject) === teacherFilter)
-  ), [chapters, atps, classFilter, subjectFilter, termFilter, teacherFilter]);
+  ), [chapters, atps, classFilter, subjectFilter, resolvedTerm, teacherFilter]);
 
   const scopedIds = new Set(scopedChapters.map((chapter) => chapter.id));
   const scopedLogs = logs.filter((log) => scopedIds.has(log.chapterId));
@@ -301,28 +315,36 @@ export function SyllabusCompletionTracker() {
     return { topic, done, lastTaught, status, remaining: Math.max(0, topic.periods - done) };
   });
 
+  const syllabusActions = (
+    <>
+      <Button onClick={() => openUpdate()}><Plus className="h-4 w-4" />Update Progress</Button>
+      <Button variant="outline" onClick={exportProgress}><Download className="h-4 w-4" />Export Progress</Button>
+      <Button variant="outline" onClick={exportGapReport}><Download className="h-4 w-4" />Syllabus Gap Report</Button>
+      <Button variant="outline" onClick={exportCompletionRecord}><Download className="h-4 w-4" />Completion Record (CBSE)</Button>
+      <Button variant="outline" onClick={() => window.print()}><Printer className="h-4 w-4" />Print</Button>
+    </>
+  );
+
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="📋 Syllabus Completion Tracker"
-        description="See what has been taught against the plan, and spot gaps before exams."
-        actions={<>
-          <Button onClick={() => openUpdate()}><Plus className="h-4 w-4" />Update Progress</Button>
-          <Button variant="outline" onClick={exportProgress}><Download className="h-4 w-4" />Export Progress</Button>
-          <Button variant="outline" onClick={exportGapReport}><Download className="h-4 w-4" />Syllabus Gap Report</Button>
-          <Button variant="outline" onClick={exportCompletionRecord}><Download className="h-4 w-4" />Completion Record (CBSE)</Button>
-          <Button variant="outline" onClick={() => window.print()}><Printer className="h-4 w-4" />Print</Button>
-        </>} />
+      {embedded ? (
+        <div className="flex flex-wrap items-center justify-end gap-2">{syllabusActions}</div>
+      ) : (
+        <PageHeader
+          title="📋 Syllabus Completion Tracker"
+          description="See what has been taught against the plan, and spot gaps before exams."
+          actions={syllabusActions} />
+      )}
 
       {toast && <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{toast}</div>}
 
       {/* Filters */}
       <Card title="Filters">
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-          <SelectField label="Class" value={classFilter} onChange={setClassFilter} options={classOptions} />
+          {!embedded && <SelectField label="Class" value={classFilter} onChange={setClassFilter} options={classOptions} />}
           <SelectField label="Subject" value={subjectFilter} onChange={setSubjectFilter} options={subjectOptions} />
-          <SelectField label="Teacher" value={teacherFilter} onChange={setTeacherFilter} options={teacherOptions} />
-          <SelectField label="Term" value={termFilter} onChange={setTermFilter} options={TERMS} />
+          {!embedded && <SelectField label="Teacher" value={teacherFilter} onChange={setTeacherFilter} options={teacherOptions} />}
+          {!embedded && <SelectField label="Term" value={termFilter} onChange={setTermFilter} options={TERMS} />}
           <SelectField label="As of" value={asOfMode} onChange={(value) => setAsOfMode(value as AsOfMode)} options={[{ value: 'today', label: 'Today' }, { value: 'specific', label: 'Specific date' }, { value: 'projection', label: 'End of term projection' }]} />
           {asOfMode === 'specific' && <TextField label="Date" type="date" value={specificDate} onChange={setSpecificDate} />}
         </div>

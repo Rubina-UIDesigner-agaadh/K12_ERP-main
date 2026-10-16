@@ -261,12 +261,12 @@ export function TeacherManagement() {
   return (
     <div className="space-y-6 p-6 bg-gray-50 min-h-full">
       <div>
-        <p className="text-xs text-gray-500">Home → HR → Employee → Teacher's Management</p>
-        <h1 className="text-2xl font-bold text-gray-900 mt-1">Teacher's Management</h1>
-        <p className="text-sm text-gray-500">{mode === 'setup' ? 'Set up class / subject allocation and timetable. Duties are view-only.' : 'View timetable, class/subject allocation, and daily, weekly or monthly duties'}</p>
+        <p className="text-xs text-gray-500">Home → HR → Employee → Teacher's Timetable</p>
+        <h1 className="text-2xl font-bold text-gray-900 mt-1">Teacher's Timetable</h1>
+        <p className="text-sm text-gray-500">{mode === 'setup' ? 'Set up the selected teacher’s weekly timetable. Click a slot to assign class, subject and room.' : 'Teachers can view their weekly timetable. Use Setup to place periods.'}</p>
         <div className="mt-3 flex gap-2">
           <button type="button" onClick={() => setMode('view')} className={`px-4 py-2 rounded-lg text-sm font-medium ${mode === 'view' ? 'bg-indigo-600 text-white' : 'bg-white border text-gray-700'}`}>View</button>
-          <button type="button" onClick={() => { setMode('setup'); if (tab === 'duties') setTab('allocation'); }} className={`px-4 py-2 rounded-lg text-sm font-medium ${mode === 'setup' ? 'bg-indigo-600 text-white' : 'bg-white border text-gray-700'}`}>Setup</button>
+          <button type="button" onClick={() => { setMode('setup'); setTab('timetable'); }} className={`px-4 py-2 rounded-lg text-sm font-medium ${mode === 'setup' ? 'bg-indigo-600 text-white' : 'bg-white border text-gray-700'}`}>Setup timetable</button>
         </div>
       </div>
 

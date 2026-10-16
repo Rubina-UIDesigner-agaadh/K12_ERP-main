@@ -1,11 +1,25 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDownToLine, Bell, Check, CheckCircle2, Copy, Download, Eye, FileText, Plus, Search, Send, XCircle } from 'lucide-react';
 import { Badge } from '../../../components/ui/Badge';
 import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
 import { Modal } from '../../../components/ui/Modal';
-import { ACADEMIC_PLANNING_KEYS, ACADEMIC_YEARS, CLASSES, DEFAULT_ATPS, DEFAULT_CURRICULUM_CHAPTERS, MONTHS, SUBJECTS, createBlankAtp, downloadPlanningCsv, loadPlanningCollection, newPlanningId, savePlanningCollection, type AnnualTeachingPlanRecord, type CurriculumChapter, type PlanStatus } from './academicPlanningData';
-import { EmptyState, PageHeader, PlanningPanel, SelectField, StatusPill, TextAreaField, TextField } from './academicPlanningData';
+import {
+  ACADEMIC_YEARS,
+  CLASSES,
+  MONTHS,
+  SUBJECTS,
+  createBlankAtp,
+  downloadPlanningCsv,
+  matchesTeachingPlanFilters,
+  newPlanningId,
+  parseCsvLine,
+  type AnnualTeachingPlanRecord,
+  type CurriculumChapter,
+  type PlanStatus,
+  type TeachingPlanFilters,
+} from './academicPlanningData';
+import { EmptyState, PlanningPanel, SelectField, StatusPill, TextAreaField, TextField } from './academicPlanningData';
 
 const reviewCriteria = ['All chapters included?', 'Period allocation realistic?', 'Syllabus completable within year?', 'Exam periods accounted for?', 'Adequate revision time?', 'Lab periods planned?', 'Buffer periods included?', 'Difficult chapters given more time?'];
 const statuses = ['All', 'Draft', 'Submitted', 'HOD Approved', 'Principal Viewed', 'Returned'];
@@ -13,44 +27,70 @@ const dateNow = () => new Date().toISOString().slice(0, 10);
 const atpNumber = (record: AnnualTeachingPlanRecord) => `ATP-${record.academicYear.slice(0, 4)}-${record.className.replace(/\D/g, '')}${record.sections || 'A'}-${record.subject.slice(0, 3).toUpperCase()}-${record.id.slice(-3).toUpperCase()}`;
 const atpTitle = (record: AnnualTeachingPlanRecord) => record.planTitle || `ATP — ${record.className} ${record.subject} — AY ${record.academicYear}`;
 
-export function AnnualTeachingPlan() {
-  const [records, setRecords] = useState<AnnualTeachingPlanRecord[]>(() => loadPlanningCollection(ACADEMIC_PLANNING_KEYS.atps, DEFAULT_ATPS));
-  const [chapters] = useState<CurriculumChapter[]>(() => loadPlanningCollection(ACADEMIC_PLANNING_KEYS.chapters, DEFAULT_CURRICULUM_CHAPTERS));
-  const [classFilter, setClassFilter] = useState('All Classes');
-  const [sectionFilter, setSectionFilter] = useState('All Sections');
-  const [subjectFilter, setSubjectFilter] = useState('All Subjects');
-  const [teacherFilter, setTeacherFilter] = useState('All Teachers');
+export function AnnualTeachingPlan({
+  atps,
+  persistAtps,
+  chapters,
+  filters,
+  createTick = 0,
+  onPrint,
+}: {
+  atps: AnnualTeachingPlanRecord[];
+  persistAtps: (next: AnnualTeachingPlanRecord[]) => void;
+  chapters: CurriculumChapter[];
+  filters: TeachingPlanFilters;
+  createTick?: number;
+  onPrint?: () => void;
+}) {
   const [statusFilter, setStatusFilter] = useState('All');
-  const [departmentFilter, setDepartmentFilter] = useState('All Departments');
   const [search, setSearch] = useState('');
   const [form, setForm] = useState<AnnualTeachingPlanRecord | null>(null);
+  const [copySource, setCopySource] = useState<AnnualTeachingPlanRecord | null>(null);
+  const [copyYear, setCopyYear] = useState(ACADEMIC_YEARS[0]);
   const [message, setMessage] = useState('');
   const importRef = useRef<HTMLInputElement>(null);
-  const persist = (next: AnnualTeachingPlanRecord[]) => { setRecords(next); savePlanningCollection(ACADEMIC_PLANNING_KEYS.atps, next); };
+  const lastCreateTick = useRef(createTick);
+
+  const persistMessage = (text: string) => { setMessage(text); window.setTimeout(() => setMessage(''), 4000); };
   const update = <K extends keyof AnnualTeachingPlanRecord,>(key: K, value: AnnualTeachingPlanRecord[K]) => setForm((current) => current ? { ...current, [key]: value } : current);
-  const filtered = useMemo(() => records.filter((item) => (classFilter === 'All Classes' || item.className === classFilter) && (sectionFilter === 'All Sections' || item.sections.split(',').map((part) => part.trim()).includes(sectionFilter)) && (subjectFilter === 'All Subjects' || item.subject === subjectFilter) && (teacherFilter === 'All Teachers' || item.teacher === teacherFilter) && (statusFilter === 'All' || item.status === statusFilter) && (departmentFilter === 'All Departments' || item.department === departmentFilter) && (!search || `${item.teacher} ${item.subject} ${item.className} ${item.department}`.toLowerCase().includes(search.toLowerCase()))), [records, classFilter, sectionFilter, subjectFilter, teacherFilter, statusFilter, departmentFilter, search]);
-  const missingAtpTeachers = useMemo(() => {
-    const expected = [
-      { teacher: 'Mr. J. Khan', department: 'Social Science', className: 'Class 10', subject: 'Social Science' },
-      { teacher: 'Ms. M. Verma', department: 'Arts', className: 'Class 10', subject: 'Art' },
-      { teacher: 'Mr. H. Nair', department: 'Technology', className: 'Class 10', subject: 'Computer Science' },
-      { teacher: 'Ms. R. Nair', department: 'Languages', className: 'Class 10', subject: 'Hindi' }
-    ];
-    return expected.filter((person) => !records.some((record) => record.teacher === person.teacher && record.className === person.className && record.subject === person.subject));
-  }, [records]);
-  const pendingReview = records.filter((item) => item.status === 'Submitted');
+
+  const scoped = useMemo(() => atps.filter((item) => item.academicYear === filters.academicYear && matchesTeachingPlanFilters(item, filters)), [atps, filters]);
+  const filtered = useMemo(() => scoped.filter((item) => (statusFilter === 'All' || item.status === statusFilter) && (!search || `${item.teacher} ${item.subject} ${item.className} ${item.department} ${item.planTitle}`.toLowerCase().includes(search.toLowerCase()))), [scoped, statusFilter, search]);
+  const pendingReview = filtered.filter((item) => item.status === 'Submitted');
+  const notSubmitted = filtered.filter((item) => item.status === 'Draft' || item.status === 'Returned');
   const classChapters = chapters.filter((chapter) => form && chapter.className === form.className && chapter.subject === form.subject && chapter.academicYear === form.academicYear);
   const curriculumPeriods = classChapters.reduce((sum, chapter) => sum + chapter.allocatedPeriods, 0);
   const gross = (form?.periodsPerWeek || 0) * (form?.teachingWeeks || 0);
   const net = gross - (form?.examPeriods || 0) - (form?.periodicTestPeriods || 0) - (form?.revisionPeriods || 0) - (form?.labPeriods || 0) - (form?.bufferPeriods || 0);
   const distribution = form?.monthlyDistribution || {};
-  const persistMessage = (text: string) => { setMessage(text); window.setTimeout(() => setMessage(''), 4000); };
-  const openNew = () => { const blank = createBlankAtp(); blank.curriculumPeriodsRequired = chapters.filter((item) => item.className === blank.className && item.subject === blank.subject).reduce((sum, item) => sum + item.allocatedPeriods, 0); setForm(blank); };
-  const openEdit = (record: AnnualTeachingPlanRecord) => setForm({ ...record, planTitle: atpTitle(record), reviewChecklist: { ...record.reviewChecklist }, monthlyDistribution: { ...record.monthlyDistribution } });
+
+  const openNew = () => {
+    const blank = createBlankAtp();
+    blank.academicYear = filters.academicYear;
+    blank.className = filters.className === 'All Classes' ? blank.className : filters.className;
+    blank.subject = filters.subject === 'All Subjects' ? blank.subject : filters.subject;
+    blank.teacher = filters.teacher === 'All Teachers' ? blank.teacher : filters.teacher;
+    blank.department = filters.department === 'All Departments' ? blank.department : filters.department;
+    blank.sections = filters.section === 'All Sections' ? blank.sections : filters.section;
+    blank.planTitle = `ATP — ${blank.className} ${blank.subject} — AY ${blank.academicYear}`;
+    blank.curriculumPeriodsRequired = chapters.filter((item) => item.className === blank.className && item.subject === blank.subject && item.academicYear === blank.academicYear).reduce((sum, item) => sum + item.allocatedPeriods, 0);
+    setForm(blank);
+  };
+
+  useEffect(() => {
+    if (createTick && createTick !== lastCreateTick.current) {
+      lastCreateTick.current = createTick;
+      openNew();
+    }
+  }, [createTick]);
+
+  const openEdit = (record: AnnualTeachingPlanRecord) => setForm({ ...record, planTitle: atpTitle(record), reviewChecklist: { ...record.reviewChecklist }, monthlyDistribution: JSON.parse(JSON.stringify(record.monthlyDistribution || {})) });
   const updateIdentity = (key: 'className' | 'subject' | 'academicYear', value: string) => setForm((current) => {
     if (!current) return current;
     const next = { ...current, [key]: value };
-    const className = key === 'className' ? value : next.className; const subject = key === 'subject' ? value : next.subject; const year = key === 'academicYear' ? value : next.academicYear;
+    const className = key === 'className' ? value : next.className;
+    const subject = key === 'subject' ? value : next.subject;
+    const year = key === 'academicYear' ? value : next.academicYear;
     if (!current.planTitle || current.planTitle.startsWith('ATP — ')) next.planTitle = `ATP — ${className} ${subject} — AY ${year}`;
     next.curriculumPeriodsRequired = chapters.filter((chapter) => chapter.className === className && chapter.subject === subject && chapter.academicYear === year).reduce((sum, chapter) => sum + chapter.allocatedPeriods, 0);
     return next;
@@ -59,18 +99,20 @@ export function AnnualTeachingPlan() {
     if (!form) return;
     const next: Record<string, Record<string, number>> = {};
     classChapters.forEach((chapter) => {
-      const from = Math.max(0, MONTHS.indexOf(chapter.scheduledMonthFrom)); const to = Math.max(from, MONTHS.indexOf(chapter.scheduledMonthTo)); const activeMonths = MONTHS.slice(from, to + 1);
+      const from = Math.max(0, MONTHS.indexOf(chapter.scheduledMonthFrom));
+      const to = Math.max(from, MONTHS.indexOf(chapter.scheduledMonthTo));
+      const activeMonths = MONTHS.slice(from, to + 1);
       let left = chapter.allocatedPeriods;
       const plan: Record<string, number> = {};
       activeMonths.forEach((month, index) => { const count = Math.ceil(left / (activeMonths.length - index)); plan[month] = count; left -= count; });
       next[chapter.name] = plan;
     });
-    update('monthlyDistribution', next); persistMessage('Periods auto-distributed using the chapter schedule defaults.');
+    update('monthlyDistribution', next);
+    persistMessage('Periods auto-distributed using the chapter schedule defaults.');
   };
   const changeDistribution = (chapterName: string, month: string, value: number) => {
     if (!form) return;
-    const next = { ...form.monthlyDistribution, [chapterName]: { ...(form.monthlyDistribution[chapterName] || {}), [month]: Math.max(0, value) } };
-    update('monthlyDistribution', next);
+    update('monthlyDistribution', { ...form.monthlyDistribution, [chapterName]: { ...(form.monthlyDistribution[chapterName] || {}), [month]: Math.max(0, value) } });
   };
   const monthData = (month: string) => {
     const chapterPeriods = Object.values(distribution).reduce((sum, row) => sum + (row[month] || 0), 0);
@@ -85,32 +127,231 @@ export function AnnualTeachingPlan() {
     if (!form) return;
     if (!form.teacher.trim() || !form.subject.trim()) { persistMessage('Select a teacher and subject before saving.'); return; }
     if ((action === 'HOD Approved' || action === 'Returned') && !form.hodFeedback.trim()) { persistMessage('HOD feedback is required before an approval or return decision.'); return; }
-    const finalStatus = action as PlanStatus;
-    const submittedDate = action === 'Submitted' ? dateNow() : form.submittedDate;
-    const reviewChecklist = form.reviewChecklist || {};
-    const saved: AnnualTeachingPlanRecord = { ...form, status: finalStatus, submittedDate, hodReviewDate: ['HOD Approved', 'Returned'].includes(action) ? dateNow() : form.hodReviewDate, principalViewed: action === 'Principal Viewed' ? true : form.principalViewed, grossAvailablePeriods: gross, netTeachingPeriods: net, curriculumPeriodsRequired: curriculumPeriods, completeness: Math.min(100, Math.round([form.teacher, form.department, form.className, form.subject, form.periodsPerWeek, Object.keys(form.monthlyDistribution).length, form.remedialPlan, form.revisionPeriods].filter(Boolean).length / 8 * 100)), reviewChecklist };
-    persist(records.some((item) => item.id === saved.id) ? records.map((item) => item.id === saved.id ? saved : item) : [saved, ...records]); setForm(null); persistMessage(`ATP ${action.toLowerCase()} successfully.`);
+    const saved: AnnualTeachingPlanRecord = {
+      ...form,
+      status: action as PlanStatus,
+      submittedDate: action === 'Submitted' ? dateNow() : form.submittedDate,
+      hodReviewDate: ['HOD Approved', 'Returned'].includes(action) ? dateNow() : form.hodReviewDate,
+      principalViewed: action === 'Principal Viewed' ? true : form.principalViewed,
+      grossAvailablePeriods: gross,
+      netTeachingPeriods: net,
+      curriculumPeriodsRequired: curriculumPeriods,
+      completeness: Math.min(100, Math.round([form.teacher, form.department, form.className, form.subject, form.periodsPerWeek, Object.keys(form.monthlyDistribution).length, form.remedialPlan, form.revisionPeriods].filter(Boolean).length / 8 * 100)),
+      reviewChecklist: form.reviewChecklist || {},
+      monthlyDistribution: JSON.parse(JSON.stringify(form.monthlyDistribution || {})),
+    };
+    persistAtps(atps.some((item) => item.id === saved.id) ? atps.map((item) => item.id === saved.id ? saved : item) : [saved, ...atps]);
+    setForm(null);
+    persistMessage(`ATP ${action.toLowerCase()} saved.`);
   };
-  const duplicateFromLastYear = (record: AnnualTeachingPlanRecord) => { const next = { ...record, id: newPlanningId('ATP'), academicYear: '2025-26', planTitle: `ATP — ${record.className} ${record.subject} — AY 2025-26`, createdDate: dateNow(), submittedDate: '', hodReviewDate: '', status: 'Draft' as const, completeness: Math.min(record.completeness, 60), monthlyDistribution: { ...record.monthlyDistribution }, reviewChecklist: {} }; persist([next, ...records]); persistMessage(`Copied ${record.teacher}’s ATP as a new draft for 2025-26.`); };
+  const confirmCopy = () => {
+    if (!copySource) return;
+    const next: AnnualTeachingPlanRecord = {
+      ...copySource,
+      id: newPlanningId('ATP'),
+      academicYear: copyYear,
+      planTitle: `ATP — ${copySource.className} ${copySource.subject} — AY ${copyYear}`,
+      createdDate: dateNow(),
+      submittedDate: '',
+      hodReviewDate: '',
+      status: 'Draft',
+      completeness: Math.min(copySource.completeness, 60),
+      principalViewed: false,
+      hodFeedback: '',
+      submissionNote: '',
+      monthlyDistribution: JSON.parse(JSON.stringify(copySource.monthlyDistribution || {})),
+      reviewChecklist: {},
+    };
+    persistAtps([next, ...atps]);
+    setCopySource(null);
+    persistMessage(`Copied ${copySource.teacher}’s ATP as a new draft for ${copyYear}.`);
+  };
   const exportReport = () => downloadPlanningCsv('annual-teaching-plan-compliance.csv', filtered.map((item) => ({ ATP: atpNumber(item), PlanTitle: atpTitle(item), Teacher: item.teacher, Department: item.department, Class: item.className, Section: item.sections, Subject: item.subject, Created: item.createdDate, Submitted: item.submittedDate, Status: item.status, Completeness: completion(item), NetPeriods: item.netTeachingPeriods, CurriculumPeriods: item.curriculumPeriodsRequired })));
-  const importCsv = async (file?: File) => { if (!file) return; try { const lines = (await file.text()).split(/\r?\n/).slice(1).filter(Boolean); const imported = lines.map((line) => { const cells = line.split(',').map((cell) => cell.trim().replace(/^"|"$/g, '')); const blank = createBlankAtp(); const exportedReport = (cells[0] || '').startsWith('ATP-'); const teacher = cells[exportedReport ? 2 : 0] || blank.teacher; const department = cells[exportedReport ? 3 : 1] || blank.department; const className = cells[exportedReport ? 4 : 2] || blank.className; const sections = cells[exportedReport ? 5 : -1] || blank.sections; const subject = cells[exportedReport ? 6 : 3] || blank.subject; const planTitle = (exportedReport ? cells[1] : '') || `ATP — ${className} ${subject} — AY ${blank.academicYear}`; return { ...blank, teacher, department, className, sections, subject, planTitle }; }); if (imported.length) persist([...imported, ...records]); persistMessage(`Imported ${imported.length} ATP row(s) from CSV.`); } catch { persistMessage('Unable to read ATP CSV file.'); } if (importRef.current) importRef.current.value = ''; };
+  const importCsv = async (file?: File) => {
+    if (!file) return;
+    try {
+      const lines = (await file.text()).split(/\r?\n/).slice(1).filter(Boolean);
+      const imported = lines.map((line) => {
+        const cells = parseCsvLine(line);
+        const blank = createBlankAtp();
+        const exportedReport = (cells[0] || '').startsWith('ATP-');
+        const teacher = cells[exportedReport ? 2 : 0] || blank.teacher;
+        const department = cells[exportedReport ? 3 : 1] || blank.department;
+        const className = cells[exportedReport ? 4 : 2] || blank.className;
+        const sections = cells[exportedReport ? 5 : 3] || blank.sections;
+        const subject = cells[exportedReport ? 6 : 4] || blank.subject;
+        const planTitle = (exportedReport ? cells[1] : '') || `ATP — ${className} ${subject} — AY ${filters.academicYear}`;
+        return { ...blank, academicYear: filters.academicYear, teacher, department, className, sections, subject, planTitle };
+      });
+      if (imported.length) persistAtps([...imported, ...atps]);
+      persistMessage(`Imported ${imported.length} ATP row(s) from CSV.`);
+    } catch { persistMessage('Unable to read ATP CSV file.'); }
+    if (importRef.current) importRef.current.value = '';
+  };
 
-  return <div className="space-y-5 p-4 md:p-6">
-    <PageHeader title="📋 Annual Teaching Plan (ATP)" description="Plan year-long chapter distribution, period availability, submission and HOD review." actions={<><Button onClick={openNew}><Plus className="h-4 w-4" />Create ATP</Button><Button variant="outline" onClick={exportReport}><Download className="h-4 w-4" />Compliance Report</Button><Button variant="outline" onClick={() => window.print()}><FileText className="h-4 w-4" />Print / PDF</Button><Button variant="outline" onClick={() => importRef.current?.click()}><ArrowDownToLine className="h-4 w-4" />Import CSV</Button><input ref={importRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(event) => importCsv(event.target.files?.[0])} /></>} />
-    <Card><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6"><SelectField label="Class" value={classFilter} onChange={setClassFilter} options={['All Classes', ...CLASSES]} /><SelectField label="Section" value={sectionFilter} onChange={setSectionFilter} options={['All Sections', 'A', 'B', 'C', 'D']} /><SelectField label="Subject" value={subjectFilter} onChange={setSubjectFilter} options={['All Subjects', ...SUBJECTS]} /><SelectField label="Teacher" value={teacherFilter} onChange={setTeacherFilter} options={['All Teachers', ...new Set(records.map((item) => item.teacher))]} /><SelectField label="Department" value={departmentFilter} onChange={setDepartmentFilter} options={['All Departments', ...new Set(records.map((item) => item.department))]} /><SelectField label="Status" value={statusFilter} onChange={setStatusFilter} options={statuses} /></div><div className="relative mt-3 max-w-lg"><Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" /><input className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-sm" placeholder="Search teacher, class or subject..." value={search} onChange={(event) => setSearch(event.target.value)} /></div></Card>
-    {message && <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm text-indigo-800">{message}</div>}
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Card><p className="text-2xl font-bold text-indigo-700">{records.filter((item) => ['Submitted','HOD Approved','Principal Viewed'].includes(item.status)).length} / 42</p><p className="text-xs text-slate-500">ATPs Submitted</p></Card><Card><p className="text-2xl font-bold text-amber-700">{records.filter((item) => item.status === 'Submitted').length}</p><p className="text-xs text-slate-500">Pending HOD Review</p></Card><Card><p className="text-2xl font-bold text-emerald-700">{records.filter((item) => item.status === 'HOD Approved').length}</p><p className="text-xs text-slate-500">HOD Approved</p></Card><Card><p className="text-2xl font-bold text-rose-700">{missingAtpTeachers.length + records.filter((item) => item.status === 'Draft' || item.status === 'Returned').length}</p><p className="text-xs text-slate-500">Missing / Not Submitted</p></Card></div>
-    <div className="grid gap-4 xl:grid-cols-2"><Card title="Missing ATP Alert Panel" headerAction={<Button size="xs" variant="outline" onClick={() => persistMessage(`Reminder queued for ${missingAtpTeachers.length + records.filter((item) => item.status === 'Draft').length} pending teacher(s).`)}><Bell className="h-3.5 w-3.5" />Send Reminder to Pending Teachers</Button>}>{missingAtpTeachers.length ? <div className="space-y-2">{missingAtpTeachers.map((item) => <div key={item.teacher} className="flex items-center justify-between rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs"><span><b>{item.teacher}</b> · {item.className} · {item.subject}</span><Badge variant="warning">Not created</Badge></div>)}</div> : <EmptyState>No missing ATPs in the expected sample list.</EmptyState>}<div className="mt-3 border-t border-slate-100 pt-3"><p className="mb-2 text-xs font-bold text-slate-700">Submitted ATPs awaiting HOD review: {pendingReview.length}</p>{pendingReview.map((item) => <p key={item.id} className="text-[11px] text-slate-500">{item.teacher} · {item.subject} · submitted {item.submittedDate || 'date not set'}</p>)}</div></Card><Card title="Submission Status"><div className="space-y-2">{['Draft','Submitted','HOD Approved','Principal Viewed','Returned'].map((status) => { const count = records.filter((item) => item.status === status).length; return <div key={status} className="flex items-center gap-3"><span className="w-28 text-xs text-slate-600">{status}</span><div className="h-2 flex-1 rounded-full bg-slate-100"><div className={`h-full rounded-full ${status === 'HOD Approved' ? 'bg-emerald-500' : status === 'Returned' ? 'bg-rose-500' : status === 'Submitted' ? 'bg-amber-500' : 'bg-indigo-400'}`} style={{ width: `${records.length ? count / records.length * 100 : 0}%` }} /></div><span className="w-8 text-right text-xs font-bold">{count}</span></div>; })}</div></Card></div>
-    <Card title={`ATP Status Table · ${filtered.length} plan(s)`} noPadding><div className="overflow-x-auto"><table className="w-full min-w-[1120px] text-left text-sm"><thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500"><tr><th className="px-3 py-3">Teacher</th><th className="px-3 py-3">Class / Section</th><th className="px-3 py-3">Subject / Dept</th><th className="px-3 py-3">Created / Submitted</th><th className="px-3 py-3">HOD Reviewed</th><th className="px-3 py-3">Status</th><th className="px-3 py-3">Completeness</th><th className="px-3 py-3">Actions</th></tr></thead><tbody className="divide-y divide-slate-100">{filtered.map((item) => <tr key={item.id}><td className="px-3 py-3"><p className="font-semibold text-slate-800">{item.teacher}</p><p className="text-[10px] text-slate-600">{atpTitle(item)}</p><p className="font-mono text-[10px] text-slate-400">{atpNumber(item)}</p></td><td className="px-3 py-3">{item.className} · {item.sections}</td><td className="px-3 py-3">{item.subject}<p className="text-[10px] text-slate-400">{item.department}</p></td><td className="px-3 py-3 text-xs">{item.createdDate}<p className="text-slate-400">{item.submittedDate || 'Not submitted'}</p></td><td className="px-3 py-3 text-xs">{item.hodReviewDate || '—'}</td><td className="px-3 py-3"><StatusPill status={item.status} /></td><td className="px-3 py-3"><div className="flex items-center gap-2"><div className="h-2 w-20 rounded bg-slate-100"><div className="h-2 rounded bg-indigo-500" style={{ width: `${completion(item)}%` }} /></div><span className="text-xs">{completion(item)}%</span></div></td><td className="px-3 py-3"><div className="flex flex-wrap gap-1"><Button size="xs" variant="outline" onClick={() => openEdit(item)}>View / Edit</Button><Button size="xs" variant="outline" onClick={() => duplicateFromLastYear(item)}><Copy className="h-3 w-3" />Copy</Button>{item.status === 'HOD Approved' && <Button size="xs" variant="outline" onClick={() => { const updated = { ...item, status: 'Principal Viewed' as const, principalViewed: true }; persist(records.map((record) => record.id === item.id ? updated : record)); }}><Eye className="h-3 w-3" />Principal View</Button>}</div></td></tr>)}{filtered.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-sm text-slate-400">No ATP records match these filters.</td></tr>}</tbody></table></div></Card>
-    <Modal isOpen={Boolean(form)} onClose={() => setForm(null)} title={form ? `Annual Teaching Plan · ${form.teacher}` : 'Annual Teaching Plan'} size="xl" footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="outline" onClick={() => setForm(null)}>Cancel</Button><Button variant="outline" onClick={() => save('Draft')}>Save Draft</Button><Button variant="outline" onClick={() => save('Submitted')}><Send className="h-4 w-4" />Submit to HOD</Button>{form && (form.status === 'Submitted' || form.hodReviewDate) && <><Button onClick={() => save('HOD Approved')}><Check className="h-4 w-4" />Approve</Button><Button variant="danger" onClick={() => save('Returned')}><XCircle className="h-4 w-4" />Return for Revision</Button></>}</div>}>
-      {form && <div className="max-h-[76vh] space-y-4 overflow-y-auto pr-1"><PlanningPanel title="Panel 1 · ATP Identity"><div className="grid gap-3 md:grid-cols-3"><TextField label="Teacher Name · login / Staff Master" value={form.teacher} onChange={(value) => update('teacher', value)} /><TextField label="Employee ID" value={form.employeeId} onChange={(value) => update('employeeId', value)} /><TextField label="Department" value={form.department} onChange={(value) => update('department', value)} /><SelectField label="Class" value={form.className} onChange={(value) => updateIdentity('className', value)} options={CLASSES} /><TextField label="Section(s)" value={form.sections} onChange={(value) => update('sections', value)} placeholder="A, B, C" /><SelectField label="Subject" value={form.subject} onChange={(value) => updateIdentity('subject', value)} options={SUBJECTS} /><TextField label="Plan Title" value={form.planTitle} onChange={(value) => update('planTitle', value)} placeholder="ATP — Class 10 Science — AY 2025-26" /><SelectField label="Academic Year" value={form.academicYear} onChange={(value) => updateIdentity('academicYear', value)} options={ACADEMIC_YEARS} /><TextField label="ATP Reference Number · Auto-generated" value={atpNumber(form)} readOnly /><SelectField label="Submission Status" value={form.status} onChange={(value) => update('status', value as PlanStatus)} options={['Draft','Submitted','HOD Approved','Principal Viewed','Returned']} /><TextField label="Created Date" type="date" value={form.createdDate} onChange={(value) => update('createdDate', value)} /></div></PlanningPanel>
-        <PlanningPanel title="Panel 2 · Period Availability Calculator"><div className="grid gap-3 md:grid-cols-4"><TextField label="Periods per Week · Subject Master" type="number" min="1" value={form.periodsPerWeek} onChange={(value) => update('periodsPerWeek', Number(value) || 0)} /><TextField label="Teaching Weeks · Academic Calendar" type="number" min="1" value={form.teachingWeeks} onChange={(value) => update('teachingWeeks', Number(value) || 0)} /><TextField label="Gross Available Periods" value={gross} readOnly /><TextField label="Exam Periods Reserved" type="number" min="0" value={form.examPeriods} onChange={(value) => update('examPeriods', Number(value) || 0)} /><TextField label="Periodic Test Periods" type="number" min="0" value={form.periodicTestPeriods} onChange={(value) => update('periodicTestPeriods', Number(value) || 0)} /><TextField label="Revision Periods" type="number" min="0" value={form.revisionPeriods} onChange={(value) => update('revisionPeriods', Number(value) || 0)} /><TextField label="Lab / Practical Periods" type="number" min="0" value={form.labPeriods} onChange={(value) => update('labPeriods', Number(value) || 0)} /><TextField label="Buffer Periods" type="number" min="0" value={form.bufferPeriods} onChange={(value) => update('bufferPeriods', Number(value) || 0)} /><TextField label="NET Teaching Periods" value={net} readOnly /><TextField label="Curriculum Periods Required" value={curriculumPeriods} readOnly /><div className="rounded-lg border p-3 text-xs"><span className="font-semibold">Balance Check</span><p className={net >= curriculumPeriods ? 'mt-1 text-emerald-700' : 'mt-1 text-rose-700'}>{net >= curriculumPeriods ? `✓ ${net - curriculumPeriods} periods buffer remaining` : `⚠️ ${curriculumPeriods - net} more periods required than available`}</p></div></div></PlanningPanel>
-        <PlanningPanel title="Panel 3 · Chapter–Month Distribution" description="Enter planned periods by month. Row totals should match each curriculum chapter’s allocated periods; month totals should fit available teaching capacity."><div className="mb-2 flex justify-end"><Button size="xs" variant="outline" onClick={distribute}><CheckCircle2 className="h-3.5 w-3.5" />Auto-distribute</Button></div>{classChapters.length ? <div className="overflow-x-auto"><table className="w-full min-w-[1150px] text-left text-[10px]"><thead className="bg-slate-50 uppercase text-slate-500"><tr><th className="sticky left-0 bg-slate-50 px-2 py-2">Chapter</th>{MONTHS.map((month) => <th key={month} className="px-1 py-2">{month.slice(0,3)}</th>)}<th className="px-2 py-2">Row Total</th></tr></thead><tbody className="divide-y divide-slate-100">{classChapters.map((chapter) => { const plan = distribution[chapter.name] || {}; const rowTotal = Object.values(plan).reduce((sum, value) => sum + Number(value || 0), 0); return <tr key={chapter.id}><td className="sticky left-0 bg-white px-2 py-2 font-semibold">Ch {chapter.chapterNumber}: {chapter.name}<span className="block text-[9px] font-normal text-slate-400">Required {chapter.allocatedPeriods}</span></td>{MONTHS.map((month) => <td key={month} className="px-1 py-2"><input type="number" min="0" className="w-12 rounded border border-slate-200 px-1 py-1 text-center" value={plan[month] || ''} onChange={(event) => changeDistribution(chapter.name, month, Number(event.target.value) || 0)} /></td>)}<td className={rowTotal === chapter.allocatedPeriods ? 'px-2 py-2 font-bold text-emerald-700' : 'px-2 py-2 font-bold text-amber-700'}>{rowTotal}/{chapter.allocatedPeriods}</td></tr>; })}<tr className="bg-slate-50 font-bold"><td className="sticky left-0 bg-slate-50 px-2 py-2">Month Total</td>{MONTHS.map((month) => { const totals = monthData(month); return <td key={month} className={totals.chapterPeriods > totals.available ? 'px-1 py-2 text-rose-700' : 'px-1 py-2 text-slate-700'}>{totals.chapterPeriods}/{totals.available}</td>; })}<td className="px-2 py-2">{Object.values(distribution).reduce((total, row) => total + Object.values(row).reduce((sum, value) => sum + Number(value || 0), 0), 0)}</td></tr></tbody></table></div> : <EmptyState>No chapters in Curriculum Master for this class and subject.</EmptyState>}</PlanningPanel>
-        <PlanningPanel title="Panel 4 · Month-wise Period Utilization"><div className="overflow-x-auto"><table className="w-full min-w-[750px] text-left text-xs"><thead className="bg-slate-50 text-[10px] uppercase text-slate-500"><tr><th className="px-3 py-2">Month</th><th className="px-3 py-2">Available</th><th className="px-3 py-2">Chapter Periods</th><th className="px-3 py-2">Test Periods</th><th className="px-3 py-2">Revision</th><th className="px-3 py-2">Balance</th></tr></thead><tbody className="divide-y divide-slate-100">{MONTHS.map((month) => { const item = monthData(month); return <tr key={month}><td className="px-3 py-2 font-semibold">{month}</td><td className="px-3 py-2">{item.available}</td><td className="px-3 py-2">{item.chapterPeriods}</td><td className="px-3 py-2">{item.tests}</td><td className="px-3 py-2">{item.revision}</td><td className={item.balance < 0 ? 'px-3 py-2 font-bold text-rose-700' : 'px-3 py-2 text-emerald-700'}>{item.balance} {item.balance < 0 ? '⚠️ Over' : '✓'}</td></tr>; })}</tbody></table></div></PlanningPanel>
-        <PlanningPanel title="Panel 5 · Special Pedagogical Notes"><div className="grid gap-3 md:grid-cols-2"><TextAreaField label="Chapters Marked Difficult" value={form.difficultChapters} onChange={(value) => update('difficultChapters', value)} /><TextAreaField label="Chapters Students Typically Struggle With" value={form.studentChallenges} onChange={(value) => update('studentChallenges', value)} /><TextAreaField label="Integration Plans" value={form.integrationPlans} onChange={(value) => update('integrationPlans', value)} /><TextAreaField label="Teaching Strategy for Difficult Concepts" value={form.difficultConceptStrategy} onChange={(value) => update('difficultConceptStrategy', value)} /><TextAreaField label="Remedial Plan" value={form.remedialPlan} onChange={(value) => update('remedialPlan', value)} /><TextAreaField label="Enrichment Plan" value={form.enrichmentPlan} onChange={(value) => update('enrichmentPlan', value)} /><TextAreaField label="Co-curricular Integration" value={form.cocurricularIntegration} onChange={(value) => update('cocurricularIntegration', value)} /></div></PlanningPanel>
-        <PlanningPanel title="Panel 6 · ATP Annual Summary"><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><div className="rounded-lg bg-slate-50 p-3"><p className="text-[10px] text-slate-500">Total chapters</p><p className="text-xl font-bold">{classChapters.length}</p></div><div className="rounded-lg bg-slate-50 p-3"><p className="text-[10px] text-slate-500">Total periods planned</p><p className="text-xl font-bold">{Object.values(distribution).reduce((total, row) => total + Object.values(row).reduce((sum, value) => sum + Number(value || 0), 0), 0)}</p></div><div className="rounded-lg bg-slate-50 p-3"><p className="text-[10px] text-slate-500">Theory / lab</p><p className="text-xl font-bold">{Math.max(0, net - form.labPeriods)} / {form.labPeriods}</p></div><div className="rounded-lg bg-slate-50 p-3"><p className="text-[10px] text-slate-500">Tests / revision / buffer</p><p className="text-xl font-bold">{form.periodicTestPeriods} / {form.revisionPeriods} / {form.bufferPeriods}</p></div></div><p className="text-xs text-slate-600">Term 1 → {classChapters.filter((chapter) => chapter.term === 'Term 1').length} chapters · Term 2 → {classChapters.filter((chapter) => chapter.term === 'Term 2').length} chapters · Term 3 → {classChapters.filter((chapter) => chapter.term === 'Term 3').length} chapters</p></PlanningPanel>
-        <PlanningPanel title="Panel 7 · HOD Submission & Review"><div className="grid gap-3 md:grid-cols-3"><TextField label="Submit To · HOD from Department" value={form.submitTo} onChange={(value) => update('submitTo', value)} /><TextField label="Submission Deadline" type="date" value={form.submissionDeadline} onChange={(value) => update('submissionDeadline', value)} /><SelectField label="Status" value={form.status} onChange={(value) => update('status', value as PlanStatus)} options={['Draft','Submitted','HOD Approved','Principal Viewed','Returned']} /><TextAreaField label="Submission Note" value={form.submissionNote} onChange={(value) => update('submissionNote', value)} /><TextAreaField label="HOD Feedback · required for decision" value={form.hodFeedback} onChange={(value) => update('hodFeedback', value)} /></div><div className="grid gap-2 sm:grid-cols-2">{reviewCriteria.map((criterion) => <label key={criterion} className="flex items-center gap-2 rounded-lg border border-slate-100 px-3 py-2 text-xs"><input type="checkbox" checked={Boolean(form.reviewChecklist[criterion])} onChange={(event) => update('reviewChecklist', { ...form.reviewChecklist, [criterion]: event.target.checked })} />{criterion}</label>)}</div></PlanningPanel>
-      </div>}
-    </Modal>
-  </div>;
+  return (
+    <div className="space-y-5 border-t border-slate-200 pt-6">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <h2 className="text-lg font-bold text-slate-900">Annual Teaching Plans</h2>
+          <p className="text-sm text-slate-500">Plan curriculum coverage, allocate teaching periods, and manage annual plan submission and review.</p>
+        </div>
+        <div className="tp-no-print flex flex-wrap gap-2">
+          <Button onClick={openNew}><Plus className="h-4 w-4" />Create ATP</Button>
+          <Button variant="outline" onClick={exportReport}><Download className="h-4 w-4" />Compliance Report</Button>
+          <Button variant="outline" onClick={() => importRef.current?.click()}><ArrowDownToLine className="h-4 w-4" />Import CSV</Button>
+          <Button variant="outline" onClick={onPrint}><FileText className="h-4 w-4" />Print Annual Plans</Button>
+          <input ref={importRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(event) => importCsv(event.target.files?.[0])} />
+        </div>
+      </div>
+
+      <Card className="tp-no-print">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <SelectField label="Annual workflow status" value={statusFilter} onChange={setStatusFilter} options={statuses} />
+          <div className="relative sm:col-span-2">
+            <label className="mb-1 block text-xs font-medium text-slate-600">Search</label>
+            <Search className="absolute left-3 top-8 h-4 w-4 text-slate-400" />
+            <input className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-sm" placeholder="Search teacher, class or subject..." value={search} onChange={(event) => setSearch(event.target.value)} />
+          </div>
+        </div>
+      </Card>
+
+      {message && <div className="tp-no-print rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm text-indigo-800">{message}</div>}
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Card><p className="text-2xl font-bold text-indigo-700">{filtered.filter((item) => ['Submitted', 'HOD Approved', 'Principal Viewed'].includes(item.status)).length} / {filtered.length}</p><p className="text-xs text-slate-500">ATPs submitted in this filter</p></Card>
+        <Card><p className="text-2xl font-bold text-amber-700">{pendingReview.length}</p><p className="text-xs text-slate-500">Pending HOD Review</p></Card>
+        <Card><p className="text-2xl font-bold text-emerald-700">{filtered.filter((item) => item.status === 'HOD Approved' || item.status === 'Principal Viewed' || item.principalViewed).length}</p><p className="text-xs text-slate-500">Approved (incl. Principal Viewed)</p></Card>
+        <Card><p className="text-2xl font-bold text-rose-700">{notSubmitted.length}</p><p className="text-xs text-slate-500">Draft / Returned</p></Card>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Card title="Missing ATP Alert Panel" headerAction={<Button size="xs" variant="outline" className="tp-no-print" onClick={() => persistMessage(`Local reminder list prepared for ${notSubmitted.length} draft or returned plan(s). No email was sent.`)}><Bell className="h-3.5 w-3.5" />Send Reminder to Pending Teachers</Button>}>
+          {notSubmitted.length ? (
+            <div className="space-y-2">{notSubmitted.map((item) => <div key={item.id} className="flex items-center justify-between rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs"><span><b>{item.teacher}</b> · {item.className} · {item.subject}</span><Badge variant="warning">{item.status}</Badge></div>)}</div>
+          ) : <EmptyState>No draft or returned ATPs in the current filter.</EmptyState>}
+          <p className="mt-3 text-[11px] text-slate-500">Expected teacher-assignment coverage is not available, so this list is not school-wide compliance. It only shows existing plans that are still Draft or Returned.</p>
+          <div className="mt-3 border-t border-slate-100 pt-3">
+            <p className="mb-2 text-xs font-bold text-slate-700">Submitted ATPs awaiting HOD review: {pendingReview.length}</p>
+            {pendingReview.map((item) => <p key={item.id} className="text-[11px] text-slate-500">{item.teacher} · {item.subject} · submitted {item.submittedDate || 'date not set'}</p>)}
+          </div>
+        </Card>
+        <Card title="Submission Status">
+          <div className="space-y-2">{['Draft', 'Submitted', 'HOD Approved', 'Principal Viewed', 'Returned'].map((status) => {
+            const count = filtered.filter((item) => item.status === status).length;
+            return <div key={status} className="flex items-center gap-3"><span className="w-28 text-xs text-slate-600">{status}</span><div className="h-2 flex-1 rounded-full bg-slate-100"><div className={`h-full rounded-full ${status === 'HOD Approved' || status === 'Principal Viewed' ? 'bg-emerald-500' : status === 'Returned' ? 'bg-rose-500' : status === 'Submitted' ? 'bg-amber-500' : 'bg-indigo-400'}`} style={{ width: `${filtered.length ? count / filtered.length * 100 : 0}%` }} /></div><span className="w-8 text-right text-xs font-bold">{count}</span></div>;
+          })}</div>
+        </Card>
+      </div>
+
+      <Card title={`ATP Status Table · ${filtered.length} plan(s)`} noPadding>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[1120px] text-left text-sm">
+            <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500"><tr><th className="px-3 py-3">Teacher</th><th className="px-3 py-3">Class / Section</th><th className="px-3 py-3">Subject / Dept</th><th className="px-3 py-3">Created / Submitted</th><th className="px-3 py-3">HOD Reviewed</th><th className="px-3 py-3">Status</th><th className="px-3 py-3">Completeness</th><th className="px-3 py-3 tp-no-print">Actions</th></tr></thead>
+            <tbody className="divide-y divide-slate-100">
+              {filtered.map((item) => (
+                <tr key={item.id}>
+                  <td className="px-3 py-3"><p className="font-semibold text-slate-800">{item.teacher}</p><p className="text-[10px] text-slate-600">{atpTitle(item)}</p><p className="font-mono text-[10px] text-slate-400">{atpNumber(item)}</p></td>
+                  <td className="px-3 py-3">{item.className} · {item.sections}</td>
+                  <td className="px-3 py-3">{item.subject}<p className="text-[10px] text-slate-400">{item.department}</p></td>
+                  <td className="px-3 py-3 text-xs">{item.createdDate}<p className="text-slate-400">{item.submittedDate || 'Not submitted'}</p></td>
+                  <td className="px-3 py-3 text-xs">{item.hodReviewDate || '—'}</td>
+                  <td className="px-3 py-3"><StatusPill status={item.status} /></td>
+                  <td className="px-3 py-3"><div className="flex items-center gap-2"><div className="h-2 w-20 rounded bg-slate-100"><div className="h-2 rounded bg-indigo-500" style={{ width: `${completion(item)}%` }} /></div><span className="text-xs">{completion(item)}%</span></div></td>
+                  <td className="px-3 py-3 tp-no-print"><div className="flex flex-wrap gap-1"><Button size="xs" variant="outline" onClick={() => openEdit(item)}>View / Edit</Button><Button size="xs" variant="outline" onClick={() => { setCopySource(item); setCopyYear(filters.academicYear); }}><Copy className="h-3 w-3" />Copy</Button>{item.status === 'HOD Approved' && <Button size="xs" variant="outline" onClick={() => persistAtps(atps.map((record) => record.id === item.id ? { ...record, status: 'Principal Viewed' as const, principalViewed: true } : record))}><Eye className="h-3 w-3" />Principal View</Button>}</div></td>
+                </tr>
+              ))}
+              {filtered.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-sm text-slate-400">No ATP records match these filters.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      <Modal isOpen={Boolean(form)} onClose={() => setForm(null)} title={form ? `Annual Teaching Plan · ${form.teacher}` : 'Annual Teaching Plan'} size="xl" footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="outline" onClick={() => setForm(null)}>Cancel</Button><Button variant="outline" onClick={() => save('Draft')}>Save Draft</Button><Button variant="outline" onClick={() => save('Submitted')}><Send className="h-4 w-4" />Submit to HOD</Button>{form && (form.status === 'Submitted' || form.hodReviewDate) && <><Button onClick={() => save('HOD Approved')}><Check className="h-4 w-4" />Approve</Button><Button variant="danger" onClick={() => save('Returned')}><XCircle className="h-4 w-4" />Return for Revision</Button></>}</div>}>
+        {form && (
+          <div className="max-h-[76vh] space-y-4 overflow-y-auto pr-1">
+            <PlanningPanel title="Panel 1 · ATP Identity">
+              <div className="grid gap-3 md:grid-cols-3">
+                <TextField label="Teacher Name · login / Staff Master" value={form.teacher} onChange={(value) => update('teacher', value)} />
+                <TextField label="Employee ID" value={form.employeeId} onChange={(value) => update('employeeId', value)} />
+                <TextField label="Department" value={form.department} onChange={(value) => update('department', value)} />
+                <SelectField label="Class" value={form.className} onChange={(value) => updateIdentity('className', value)} options={CLASSES} />
+                <TextField label="Section(s)" value={form.sections} onChange={(value) => update('sections', value)} placeholder="A, B, C" />
+                <SelectField label="Subject" value={form.subject} onChange={(value) => updateIdentity('subject', value)} options={SUBJECTS} />
+                <TextField label="Plan Title" value={form.planTitle} onChange={(value) => update('planTitle', value)} />
+                <SelectField label="Academic Year" value={form.academicYear} onChange={(value) => updateIdentity('academicYear', value)} options={ACADEMIC_YEARS} />
+                <TextField label="ATP Reference Number · Auto-generated" value={atpNumber(form)} readOnly />
+                <SelectField label="Submission Status" value={form.status} onChange={(value) => update('status', value as PlanStatus)} options={['Draft', 'Submitted', 'HOD Approved', 'Principal Viewed', 'Returned']} />
+                <TextField label="Created Date" type="date" value={form.createdDate} onChange={(value) => update('createdDate', value)} />
+              </div>
+            </PlanningPanel>
+            <PlanningPanel title="Panel 2 · Period Availability Calculator">
+              <div className="grid gap-3 md:grid-cols-4">
+                <TextField label="Periods per Week · Subject Master" type="number" min="1" value={form.periodsPerWeek} onChange={(value) => update('periodsPerWeek', Number(value) || 0)} />
+                <TextField label="Teaching Weeks · Academic Calendar" type="number" min="1" value={form.teachingWeeks} onChange={(value) => update('teachingWeeks', Number(value) || 0)} />
+                <TextField label="Gross Available Periods" value={gross} readOnly />
+                <TextField label="Exam Periods Reserved" type="number" min="0" value={form.examPeriods} onChange={(value) => update('examPeriods', Number(value) || 0)} />
+                <TextField label="Periodic Test Periods" type="number" min="0" value={form.periodicTestPeriods} onChange={(value) => update('periodicTestPeriods', Number(value) || 0)} />
+                <TextField label="Revision Periods" type="number" min="0" value={form.revisionPeriods} onChange={(value) => update('revisionPeriods', Number(value) || 0)} />
+                <TextField label="Lab / Practical Periods" type="number" min="0" value={form.labPeriods} onChange={(value) => update('labPeriods', Number(value) || 0)} />
+                <TextField label="Buffer Periods" type="number" min="0" value={form.bufferPeriods} onChange={(value) => update('bufferPeriods', Number(value) || 0)} />
+                <TextField label="NET Teaching Periods" value={net} readOnly />
+                <TextField label="Curriculum Periods Required" value={curriculumPeriods} readOnly />
+                <div className="rounded-lg border p-3 text-xs"><span className="font-semibold">Balance Check</span><p className={net >= curriculumPeriods ? 'mt-1 text-emerald-700' : 'mt-1 text-rose-700'}>{net >= curriculumPeriods ? `✓ ${net - curriculumPeriods} periods buffer remaining` : `⚠️ ${curriculumPeriods - net} more periods required than available`}</p></div>
+              </div>
+            </PlanningPanel>
+            <PlanningPanel title="Panel 3 · Chapter–Month Distribution" description="Enter planned periods by month. Row totals should match each curriculum chapter’s allocated periods; month totals should fit available teaching capacity.">
+              <div className="mb-2 flex justify-end"><Button size="xs" variant="outline" onClick={distribute}><CheckCircle2 className="h-3.5 w-3.5" />Auto-distribute</Button></div>
+              {classChapters.length ? (
+                <div className="overflow-x-auto"><table className="w-full min-w-[1150px] text-left text-[10px]"><thead className="bg-slate-50 uppercase text-slate-500"><tr><th className="sticky left-0 bg-slate-50 px-2 py-2">Chapter</th>{MONTHS.map((month) => <th key={month} className="px-1 py-2">{month.slice(0, 3)}</th>)}<th className="px-2 py-2">Row Total</th></tr></thead>
+                  <tbody className="divide-y divide-slate-100">{classChapters.map((chapter) => { const plan = distribution[chapter.name] || {}; const rowTotal = Object.values(plan).reduce((sum, value) => sum + Number(value || 0), 0); return <tr key={chapter.id}><td className="sticky left-0 bg-white px-2 py-2 font-semibold">Ch {chapter.chapterNumber}: {chapter.name}<span className="block text-[9px] font-normal text-slate-400">Required {chapter.allocatedPeriods}</span></td>{MONTHS.map((month) => <td key={month} className="px-1 py-2"><input type="number" min="0" className="w-12 rounded border border-slate-200 px-1 py-1 text-center" value={plan[month] || ''} onChange={(event) => changeDistribution(chapter.name, month, Number(event.target.value) || 0)} /></td>)}<td className={rowTotal === chapter.allocatedPeriods ? 'px-2 py-2 font-bold text-emerald-700' : 'px-2 py-2 font-bold text-amber-700'}>{rowTotal}/{chapter.allocatedPeriods}</td></tr>; })}<tr className="bg-slate-50 font-bold"><td className="sticky left-0 bg-slate-50 px-2 py-2">Month Total</td>{MONTHS.map((month) => { const totals = monthData(month); return <td key={month} className={totals.chapterPeriods > totals.available ? 'px-1 py-2 text-rose-700' : 'px-1 py-2 text-slate-700'}>{totals.chapterPeriods}/{totals.available}</td>; })}<td className="px-2 py-2">{Object.values(distribution).reduce((total, row) => total + Object.values(row).reduce((sum, value) => sum + Number(value || 0), 0), 0)}</td></tr></tbody></table></div>
+              ) : <EmptyState>No chapters in Curriculum Master for this class and subject.</EmptyState>}
+            </PlanningPanel>
+            <PlanningPanel title="Panel 4 · Month-wise Period Utilization">
+              <div className="overflow-x-auto"><table className="w-full min-w-[750px] text-left text-xs"><thead className="bg-slate-50 text-[10px] uppercase text-slate-500"><tr><th className="px-3 py-2">Month</th><th className="px-3 py-2">Available</th><th className="px-3 py-2">Chapter Periods</th><th className="px-3 py-2">Test Periods</th><th className="px-3 py-2">Revision</th><th className="px-3 py-2">Balance</th></tr></thead><tbody className="divide-y divide-slate-100">{MONTHS.map((month) => { const item = monthData(month); return <tr key={month}><td className="px-3 py-2 font-semibold">{month}</td><td className="px-3 py-2">{item.available}</td><td className="px-3 py-2">{item.chapterPeriods}</td><td className="px-3 py-2">{item.tests}</td><td className="px-3 py-2">{item.revision}</td><td className={item.balance < 0 ? 'px-3 py-2 font-bold text-rose-700' : 'px-3 py-2 text-emerald-700'}>{item.balance} {item.balance < 0 ? '⚠️ Over' : '✓'}</td></tr>; })}</tbody></table></div>
+            </PlanningPanel>
+            <PlanningPanel title="Panel 5 · Special Pedagogical Notes">
+              <div className="grid gap-3 md:grid-cols-2">
+                <TextAreaField label="Chapters Marked Difficult" value={form.difficultChapters} onChange={(value) => update('difficultChapters', value)} />
+                <TextAreaField label="Chapters Students Typically Struggle With" value={form.studentChallenges} onChange={(value) => update('studentChallenges', value)} />
+                <TextAreaField label="Integration Plans" value={form.integrationPlans} onChange={(value) => update('integrationPlans', value)} />
+                <TextAreaField label="Teaching Strategy for Difficult Concepts" value={form.difficultConceptStrategy} onChange={(value) => update('difficultConceptStrategy', value)} />
+                <TextAreaField label="Remedial Plan" value={form.remedialPlan} onChange={(value) => update('remedialPlan', value)} />
+                <TextAreaField label="Enrichment Plan" value={form.enrichmentPlan} onChange={(value) => update('enrichmentPlan', value)} />
+                <TextAreaField label="Co-curricular Integration" value={form.cocurricularIntegration} onChange={(value) => update('cocurricularIntegration', value)} />
+              </div>
+            </PlanningPanel>
+            <PlanningPanel title="Panel 6 · ATP Annual Summary">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-lg bg-slate-50 p-3"><p className="text-[10px] text-slate-500">Total chapters</p><p className="text-xl font-bold">{classChapters.length}</p></div>
+                <div className="rounded-lg bg-slate-50 p-3"><p className="text-[10px] text-slate-500">Total periods planned</p><p className="text-xl font-bold">{Object.values(distribution).reduce((total, row) => total + Object.values(row).reduce((sum, value) => sum + Number(value || 0), 0), 0)}</p></div>
+                <div className="rounded-lg bg-slate-50 p-3"><p className="text-[10px] text-slate-500">Theory / lab</p><p className="text-xl font-bold">{Math.max(0, net - form.labPeriods)} / {form.labPeriods}</p></div>
+                <div className="rounded-lg bg-slate-50 p-3"><p className="text-[10px] text-slate-500">Tests / revision / buffer</p><p className="text-xl font-bold">{form.periodicTestPeriods} / {form.revisionPeriods} / {form.bufferPeriods}</p></div>
+              </div>
+              <p className="text-xs text-slate-600">Term 1 → {classChapters.filter((chapter) => chapter.term === 'Term 1').length} chapters · Term 2 → {classChapters.filter((chapter) => chapter.term === 'Term 2').length} chapters · Term 3 → {classChapters.filter((chapter) => chapter.term === 'Term 3').length} chapters</p>
+            </PlanningPanel>
+            <PlanningPanel title="Panel 7 · HOD Submission & Review">
+              <div className="grid gap-3 md:grid-cols-3">
+                <TextField label="Submit To · HOD from Department" value={form.submitTo} onChange={(value) => update('submitTo', value)} />
+                <TextField label="Submission Deadline" type="date" value={form.submissionDeadline} onChange={(value) => update('submissionDeadline', value)} />
+                <SelectField label="Status" value={form.status} onChange={(value) => update('status', value as PlanStatus)} options={['Draft', 'Submitted', 'HOD Approved', 'Principal Viewed', 'Returned']} />
+                <TextAreaField label="Submission Note" value={form.submissionNote} onChange={(value) => update('submissionNote', value)} />
+                <TextAreaField label="HOD Feedback · required for decision" value={form.hodFeedback} onChange={(value) => update('hodFeedback', value)} />
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">{reviewCriteria.map((criterion) => <label key={criterion} className="flex items-center gap-2 rounded-lg border border-slate-100 px-3 py-2 text-xs"><input type="checkbox" checked={Boolean(form.reviewChecklist[criterion])} onChange={(event) => update('reviewChecklist', { ...form.reviewChecklist, [criterion]: event.target.checked })} />{criterion}</label>)}</div>
+            </PlanningPanel>
+          </div>
+        )}
+      </Modal>
+
+      <Modal isOpen={Boolean(copySource)} onClose={() => setCopySource(null)} title="Copy Annual Teaching Plan" size="sm" footer={<div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setCopySource(null)}>Cancel</Button><Button onClick={confirmCopy}>Create Draft Copy</Button></div>}>
+        {copySource && (
+          <div className="space-y-3">
+            <p className="text-sm text-slate-600">Copy <b>{copySource.teacher}</b> · {copySource.className} {copySource.subject} into a new Draft with a new ID.</p>
+            <SelectField label="Target academic year" value={copyYear} onChange={setCopyYear} options={ACADEMIC_YEARS} />
+          </div>
+        )}
+      </Modal>
+    </div>
+  );
 }

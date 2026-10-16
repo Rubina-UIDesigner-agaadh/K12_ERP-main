@@ -66,10 +66,8 @@ const studentManagementSidebar: SidebarSection[] = [
     title: 'Stream Selection (Admin)',
     items: [
       { label: 'Applications Dashboard', id: 'applications-dashboard' },
-      { label: 'Eligibility Check Results', id: 'eligibility-check-results' },
       { label: 'Allotment Control Panel', id: 'allotment-control-panel' },
       { label: 'Manual Counselling / Allotment', id: 'manual-counselling-allotment' },
-      { label: 'Waitlist Manager', id: 'waitlist-manager' },
       { label: 'Stream Reports / Analytics', id: 'stream-reports-analytics' }]
 
   },
@@ -283,7 +281,7 @@ const expensesSidebar: SidebarSection[] = [
 
 const employeeSidebar: SidebarSection[] = [
   { title: 'List Screens', items: [{ label: 'Employee Summary Dashboard', id: 'employee-summary-dashboard' }, { label: 'Employee Directory & Profile', id: 'employee-list-directory' }, { label: 'Probation & Confirmation', id: 'probation-confirmation-list' }, { label: 'Employee Exit & Separation Management', id: 'exit-relieved-employees' }] },
-  { title: 'Transactions', items: [{ label: 'Add / Edit Employee Profile', id: 'add-edit-employee-profile' }, { label: 'Employee Letters & Document Generation', id: 'employee-service-register' }, { label: 'Employee Transfer', id: 'employee-transfer' }, { label: 'Shift View and Switch', id: 'shift-view-and-switch' }, { label: 'Employee ID Card', id: 'employee-id-card' }, { label: 'Staff Achievement', id: 'staff-achievement' }, { label: "Teacher's Management", id: 'teacher-management' }, { label: 'Teacher Assignment Management', id: 'teacher-class-subject-allocation' }] },
+  { title: 'Transactions', items: [{ label: 'Add / Edit Employee Profile', id: 'add-edit-employee-profile' }, { label: 'Employee Letters & Document Generation', id: 'employee-service-register' }, { label: 'Employee Transfer', id: 'employee-transfer' }, { label: 'Shift View and Switch', id: 'shift-view-and-switch' }, { label: 'Employee ID Card', id: 'employee-id-card' }, { label: 'Staff Achievement', id: 'staff-achievement' }, { label: "Teacher's Timetable", id: 'teacher-management' }, { label: 'Teacher Assignment Management', id: 'teacher-class-subject-allocation' }] },
   { title: 'Report Criteria', items: [{ label: 'Employee Reports', id: 'employee-reports' }] }
 ];
 
@@ -472,8 +470,7 @@ const administrationSidebar: SidebarSection[] = [
   ] }
 ];
 const academicsSidebar: SidebarSection[] = [
-  { title: 'Planning & Tracking', items: [{ label: 'Academic Planning & Execution', id: 'academic-planning-execution' }] },
-  { title: 'Operations', items: [{ label: 'Classroom Operations', id: 'classroom-operations' }, { label: 'School Diary', id: 'school-diary' }] }
+  { title: 'Operations', items: [{ label: 'School Diary', id: 'school-diary' }] }
 ];
 const curriculumSidebar: SidebarSection[] = [{ title: 'Curriculum', items: [
   { label: 'Classwork', id: 'classwork' },
@@ -481,14 +478,14 @@ const curriculumSidebar: SidebarSection[] = [{ title: 'Curriculum', items: [
   { label: 'Study Material', id: 'study-material' }
 ] }];
 const curriculumAcademicPlanningSidebar: SidebarSection[] = [
-  { title: 'Curriculum & Academic Planning', items: [
-    { label: 'Academic Planning Dashboard', id: 'academic-planning-dashboard' },
+  { title: 'Planning', items: [
+    { label: 'Academic Management Dashboard', id: 'academic-planning-dashboard' },
     { label: 'Teaching Plan', id: 'teaching-plan' },
+    { label: 'Teacher Plan Progress', id: 'teacher-plan-progress' },
     { label: 'Lesson Plan Creation', id: 'lesson-plan-creation' },
-    { label: 'HOD Lesson Plan Review', id: 'lesson-plan-review' },
-    { label: 'Syllabus Completion Tracker', id: 'syllabus-completion-tracker' },
-    { label: 'Teaching Progress Dashboard', id: 'teaching-progress-dashboard' },
-    { label: 'Question Bank', id: 'question-bank' },
+    { label: 'Lesson Plan Review', id: 'lesson-plan-review' }
+  ] },
+  { title: 'Progress & Reports', items: [
     { label: 'Curriculum & Academic Planning Reports', id: 'curriculum-academic-reports' }
   ] },
   ...academicsSidebar,

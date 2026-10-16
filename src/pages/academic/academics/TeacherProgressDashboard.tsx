@@ -122,7 +122,7 @@ const recentActivities = [
   type: 'approval'
 }];
 
-const pendingApprovalsList = [
+const PENDING_APPROVALS_SEED = [
 {
   id: 1,
   teacher: 'Ms. Priya Sharma',
@@ -180,11 +180,40 @@ const pendingApprovalsList = [
   daysWaiting: 1
 }];
 
-export function TeacherProgressDashboard() {
-  const [dateFrom, setDateFrom] = useState('2026-02-01');
-  const [dateTo, setDateTo] = useState('2026-02-28');
-  const [filterTeacher, setFilterTeacher] = useState('');
-  const [filterClass, setFilterClass] = useState('');
+export function TeacherProgressDashboard({
+  embedded = false,
+  teacherFilter: teacherFilterProp,
+  classFilter: classFilterProp,
+  dateFrom: dateFromProp,
+  dateTo: dateToProp,
+  onDateFromChange,
+  onDateToChange,
+}: {
+  embedded?: boolean;
+  teacherFilter?: string;
+  classFilter?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  onDateFromChange?: (value: string) => void;
+  onDateToChange?: (value: string) => void;
+} = {}) {
+  const [dateFromLocal, setDateFromLocal] = useState('2026-04-01');
+  const [dateToLocal, setDateToLocal] = useState('2026-10-16');
+  const [filterTeacherLocal, setFilterTeacher] = useState('');
+  const [filterClassLocal, setFilterClass] = useState('');
+  const [pendingApprovalsList, setPendingApprovalsList] = useState(PENDING_APPROVALS_SEED);
+  const dateFrom = dateFromProp ?? dateFromLocal;
+  const dateTo = dateToProp ?? dateToLocal;
+  const setDateFrom = onDateFromChange ?? setDateFromLocal;
+  const setDateTo = onDateToChange ?? setDateToLocal;
+  const filterTeacher =
+    teacherFilterProp && teacherFilterProp !== 'All Teachers'
+      ? teacherFilterProp
+      : filterTeacherLocal;
+  const filterClass =
+    classFilterProp && classFilterProp !== 'All Classes'
+      ? classFilterProp
+      : filterClassLocal;
   const totalActivePlans = teacherStats.reduce((s, t) => s + t.activePlans, 0);
   const totalPending = teacherStats.reduce((s, t) => s + t.pendingApprovals, 0);
   const avgCurriculum = Math.round(
@@ -202,9 +231,55 @@ export function TeacherProgressDashboard() {
     (s, t) => s + t.activitiesTotal,
     0
   );
+  const visibleTeachers = teacherStats.filter((t) => {
+    const teacherOk =
+      !filterTeacher ||
+      filterTeacher === 'All Teachers' ||
+      t.name === filterTeacher ||
+      t.name.toLowerCase().includes(filterTeacher.toLowerCase());
+    const classOk =
+      !filterClass ||
+      filterClass === 'All Classes' ||
+      t.class === filterClass ||
+      t.class.replace(/\s/g, '-').toLowerCase() === filterClass.toLowerCase();
+    return teacherOk && classOk;
+  });
+  const visibleApprovals = pendingApprovalsList.filter((item) => {
+    const teacherOk =
+      !filterTeacher ||
+      filterTeacher === 'All Teachers' ||
+      item.teacher === filterTeacher ||
+      item.teacher.toLowerCase().includes(filterTeacher.toLowerCase());
+    const classOk =
+      !filterClass ||
+      filterClass === 'All Classes' ||
+      item.class === filterClass;
+    return teacherOk && classOk;
+  });
+  const handleReset = () => {
+    setDateFrom('2026-04-01');
+    setDateTo('2026-10-16');
+    if (!teacherFilterProp) setFilterTeacher('');
+    if (!classFilterProp) setFilterClass('');
+  };
+  const exportSummary = () => {
+    const header = 'Teacher,Class,Subject,Active Plans,Pending,Curriculum %,Attendance %,Activities';
+    const rows = visibleTeachers.map(
+      (t) =>
+        `${t.name},${t.class},${t.subject},${t.activePlans},${t.pendingApprovals},${t.curriculumPct},${t.attendanceCompliance},${t.activitiesCompleted}/${t.activitiesTotal}`
+    );
+    const blob = new Blob([[header, ...rows].join('\n')], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'teacher-progress-summary.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
   return (
-    <div className="space-y-6 p-6">
+    <div className={embedded ? 'space-y-6' : 'space-y-6 p-6'}>
       {/* Header */}
+      {!embedded && (
       <div className="flex flex-wrap justify-between items-start gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
@@ -219,12 +294,25 @@ export function TeacherProgressDashboard() {
           <Button
             variant="outline"
             size="sm"
-            leftIcon={<DownloadIcon className="w-4 h-4" />}>
+            leftIcon={<DownloadIcon className="w-4 h-4" />}
+            onClick={exportSummary}>
 
             Export Summary
           </Button>
         </div>
       </div>
+      )}
+      {embedded && (
+        <div className="flex justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            leftIcon={<DownloadIcon className="w-4 h-4" />}
+            onClick={exportSummary}>
+            Export Summary
+          </Button>
+        </div>
+      )}
 
       {/* Filters */}
       <Card>
@@ -243,6 +331,7 @@ export function TeacherProgressDashboard() {
             onChange={(e) => setDateTo(e.target.value)}
             className="w-40" />
 
+          {!embedded && (
           <Select
             label="Teacher"
             options={[
@@ -251,30 +340,32 @@ export function TeacherProgressDashboard() {
               label: 'All Teachers'
             },
             {
-              value: 'priya',
+              value: 'Ms. Priya Sharma',
               label: 'Ms. Priya Sharma'
             },
             {
-              value: 'rajesh',
+              value: 'Mr. Rajesh Patel',
               label: 'Mr. Rajesh Patel'
             },
             {
-              value: 'anita',
+              value: 'Ms. Anita Verma',
               label: 'Ms. Anita Verma'
             },
             {
-              value: 'suresh',
+              value: 'Mr. Suresh Kumar',
               label: 'Mr. Suresh Kumar'
             },
             {
-              value: 'kavita',
+              value: 'Ms. Kavita Nair',
               label: 'Ms. Kavita Nair'
             }]
             }
             value={filterTeacher}
             onChange={setFilterTeacher}
             className="w-48" />
+          )}
 
+          {!embedded && (
           <Select
             label="Class"
             options={[
@@ -283,32 +374,33 @@ export function TeacherProgressDashboard() {
               label: 'All Classes'
             },
             {
-              value: 'class-1a',
+              value: 'Class 1-A',
               label: 'Class 1-A'
             },
             {
-              value: 'class-2a',
+              value: 'Class 2-A',
               label: 'Class 2-A'
             },
             {
-              value: 'class-2b',
+              value: 'Class 2-B',
               label: 'Class 2-B'
             },
             {
-              value: 'class-3a',
+              value: 'Class 3-A',
               label: 'Class 3-A'
             },
             {
-              value: 'class-4a',
+              value: 'Class 4-A',
               label: 'Class 4-A'
             }]
             }
             value={filterClass}
             onChange={setFilterClass}
             className="w-40" />
+          )}
 
           <div className="flex items-end gap-2 ml-auto">
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={handleReset}>
               Reset
             </Button>
             <Button variant="primary" size="sm">
@@ -319,6 +411,7 @@ export function TeacherProgressDashboard() {
       </Card>
 
       {/* Summary KPI Cards */}
+      {!embedded && (
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
           <div className="flex items-center gap-2 mb-2">
@@ -375,12 +468,13 @@ export function TeacherProgressDashboard() {
           </p>
         </div>
       </div>
+      )}
 
       {/* Teacher-wise Progress Table */}
       <Card
         title="Teacher-wise Progress Summary"
         headerAction={
-        <Badge variant="info">{teacherStats.length} Teachers</Badge>
+        <Badge variant="info">{visibleTeachers.length} Teachers</Badge>
         }>
 
         <div className="overflow-x-auto">
@@ -411,7 +505,7 @@ export function TeacherProgressDashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {teacherStats.map((t, i) =>
+              {visibleTeachers.map((t, i) =>
               <tr key={i} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
@@ -502,16 +596,26 @@ export function TeacherProgressDashboard() {
           headerAction={
           <div className="flex gap-2">
               <Badge variant="warning">
-                {pendingApprovalsList.length} Pending
+                {visibleApprovals.length} Pending
               </Badge>
-              <Button variant="primary" size="xs">
+              <Button
+                variant="primary"
+                size="xs"
+                onClick={() =>
+                  setPendingApprovalsList((list) =>
+                    list.filter((item) => !visibleApprovals.some((v) => v.id === item.id))
+                  )
+                }>
                 Approve All
               </Button>
             </div>
           }>
 
           <div className="space-y-2">
-            {pendingApprovalsList.map((item) =>
+            {visibleApprovals.length === 0 && (
+              <p className="text-sm text-gray-500">No pending approvals.</p>
+            )}
+            {visibleApprovals.map((item) =>
             <div
               key={item.id}
               className="flex items-center justify-between p-3 bg-yellow-50 border border-yellow-100 rounded-lg">
@@ -528,10 +632,18 @@ export function TeacherProgressDashboard() {
                   <span className="text-xs text-gray-400">
                     {item.daysWaiting}d ago
                   </span>
-                  <Button variant="primary" size="xs">
+                  <Button
+                    variant="primary"
+                    size="xs"
+                    onClick={() =>
+                      setPendingApprovalsList((list) => list.filter((row) => row.id !== item.id))
+                    }>
                     Approve
                   </Button>
-                  <Button variant="outline" size="xs">
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    onClick={() => window.alert(`Review: ${item.plan} — ${item.teacher} (${item.class})`)}>
                     Review
                   </Button>
                 </div>
@@ -601,7 +713,7 @@ export function TeacherProgressDashboard() {
       </div>
       <div className="mt-10 border-t border-gray-200 pt-6">
         <h2 className="mb-4 text-lg font-semibold text-gray-900">Teaching Progress by Class, Subject, Teacher and Department</h2>
-        <TeachingProgressDashboard />
+        <TeachingProgressDashboard embedded={embedded} />
       </div>
     </div>);
 
