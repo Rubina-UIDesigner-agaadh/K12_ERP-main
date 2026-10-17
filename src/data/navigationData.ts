@@ -274,7 +274,7 @@ const scholarshipSidebar: SidebarSection[] = [
 
 const expensesSidebar: SidebarSection[] = [
   { title: 'List Screen', items: [{ label: 'Expense Summary Dashboard', id: 'expense-summary-dashboard' }] },
-  { title: 'Transaction', items: [{ label: 'Expense Request, Approval & Recurring Rules', id: 'expense-request' }, { label: 'Expense Voucher Entry', id: 'expense-voucher-entry' }, { label: 'Bill / Invoice Management, Approval & Payment', id: 'bill-invoice-management' }, { label: 'Petty Cash Issue', id: 'petty-cash-issue' }, { label: 'Bulk Expense Import', id: 'bulk-expense-import' }] },
+  { title: 'Transaction', items: [{ label: 'Expense Request, Approval & Recurring Rules', id: 'expense-request' }, { label: 'Bill / Invoice Management, Approval & Payment', id: 'bill-invoice-management' }, { label: 'Petty Cash Issue', id: 'petty-cash-issue' }, { label: 'Bulk Expense Import', id: 'bulk-expense-import' }] },
   { title: 'Budget & Controls', items: [{ label: 'Expense Budget & Utilization', id: 'expense-budget-master' }] },
   { title: 'Report Criteria', items: [{ label: 'Expense Reports — All Reports (Unified)', id: 'expense-report' }] }
 ];
@@ -393,8 +393,6 @@ const mastersSidebar: SidebarSection[] = [
     { label: 'Eligibility Rules Builder', id: 'eligibility-rules-builder' },
     { label: 'Application Schedule Manager', id: 'application-schedule-manager' },
     { label: 'Curriculum Master', id: 'curriculum-master' },
-    { label: 'Learning Objectives Master', id: 'learning-objectives-master' },
-    { label: 'Textbook & Resource Master', id: 'textbook-resource-master' },
     { label: 'Class Timetable', id: 'class-timetable' }
   ] },
   { title: 'Charge', items: [{ label: 'Charge Master', id: 'charge-master' }] },
@@ -421,26 +419,19 @@ const frontOfficeSidebar: SidebarSection[] = [{ title: 'Front Office', items: [{
 const communicationsSidebar: SidebarSection[] = [{ title: 'Communications', items: [{ label: 'Messaging', id: 'messaging' }, { label: 'Circulars & Notices', id: 'circulars-notices' }, { label: 'Announcements', id: 'announcements' }, { label: 'Parent Interaction', id: 'parent-interaction' }, { label: 'Communication Logs', id: 'communication-logs' }, { label: 'Private Chats', id: 'private-chats' }] }];
 const eventActivitiesSidebar: SidebarSection[] = [
   { title: 'Event Management', items: [
-    { label: 'Media & Gallery Management', id: 'media-gallery-management' }
-  ] },
-  { title: 'Event Section', items: [
-    { label: 'Event Master', id: 'event-master' },
+    { label: 'Media & Gallery Management', id: 'media-gallery-management' },
     { label: 'Event Planning & Schedule', id: 'event-planning-schedule' },
     { label: 'Event Execution', id: 'event-execution' },
     { label: 'Event Feedback & Review', id: 'event-feedback-review' }
   ] },
-  { title: 'TEACHER ACTIVITIES SECTION', items: [
-    { label: 'Professional Development', id: 'professional-development' },
-    { label: 'Teacher Achievements', id: 'teacher-achievements' }
+  { title: 'Teacher Activities', items: [
+    { label: 'Professional Development', id: 'professional-development' }
   ] },
-  { title: 'TEACHER DUTIES SECTION', items: [
-    { label: 'Duty Master', id: 'duty-master' },
+  { title: 'Teacher Duties', items: [
     { label: 'Duty Roster', id: 'duty-roster' },
     { label: 'Duty Attendance', id: 'duty-attendance' }
   ] },
   { title: 'Activity Planning', items: [
-    { label: 'Activity Calendar', id: 'activity-calendar' },
-    { label: 'Activity Types & Settings', id: 'activity-types-settings' },
     { label: 'Recurring Activities', id: 'recurring-activities' }
   ] },
   { title: 'Teacher & Department Coordination', items: [
@@ -448,13 +439,9 @@ const eventActivitiesSidebar: SidebarSection[] = [
     { label: 'Teacher Duty Report', id: 'teacher-duty-report' }
   ] },
   { title: 'Competition Management', items: [
-    { label: 'Competition Master', id: 'competition-master' },
     { label: 'Competition Events', id: 'competition-events' },
     { label: 'Student Participation', id: 'competition-student-participation' },
     { label: 'Results & Achievements', id: 'competition-results-achievements' }
-  ] },
-  { title: 'Co-curricular Activities', items: [
-    { label: 'Activity Attendance & Evaluation', id: 'activity-attendance-evaluation' }
   ] }
 ];
 const timetableSidebar: SidebarSection[] = [{ title: 'Timetable', items: [{ label: 'Timetable Setup', id: 'timetable-setup' }, { label: 'Class Timetable', id: 'class-timetable' }, { label: 'Teacher Timetable', id: 'teacher-timetable' }] }];

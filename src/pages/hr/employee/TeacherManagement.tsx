@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Search, Calendar, Clock, Users, Save, X, BookOpen, ClipboardList, AlertTriangle, Printer, Download } from 'lucide-react';
+import { Search, Clock, Users, Save, X, AlertTriangle, Printer, Download } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
 
@@ -18,23 +18,6 @@ interface PeriodSlot {
   className: string;
   subject: string;
   room: string;
-}
-
-interface Allocation {
-  className: string;
-  subject: string;
-  weekly: number;
-  role: 'Subject teacher' | 'Class teacher';
-}
-
-interface Duty {
-  id: string;
-  title: string;
-  when: string;
-  daily: boolean;
-  week: boolean;
-  month: boolean;
-  place: string;
 }
 
 const TEACHERS: Teacher[] = [
@@ -71,32 +54,6 @@ const SEED_TT: Record<string, PeriodSlot[]> = {
   ]
 };
 
-const SEED_ALLOC: Record<string, Allocation[]> = {
-  EMP001: [
-    { className: '10-A', subject: 'Mathematics', weekly: 8, role: 'Class teacher' },
-    { className: '10-B', subject: 'Mathematics', weekly: 8, role: 'Subject teacher' },
-    { className: '9-A', subject: 'Mathematics', weekly: 8, role: 'Subject teacher' }
-  ],
-  EMP002: [
-    { className: '8-A', subject: 'English', weekly: 7, role: 'Class teacher' },
-    { className: '9-B', subject: 'English', weekly: 7, role: 'Subject teacher' },
-    { className: '10-A', subject: 'English', weekly: 8, role: 'Subject teacher' }
-  ]
-};
-
-const SEED_DUTY: Record<string, Duty[]> = {
-  EMP001: [
-    { id: 'd1', title: 'Assembly in-charge', when: 'Mon–Sat 07:40', daily: true, week: true, month: true, place: 'Ground' },
-    { id: 'd2', title: 'Exam invigilation', when: 'Wed P3–P4', daily: false, week: true, month: false, place: 'Hall 2' },
-    { id: 'd3', title: 'PTA desk', when: 'Last Saturday', daily: false, week: false, month: true, place: 'Reception' },
-    { id: 'd1b', title: 'Corridor supervision', when: 'After Period 4', daily: true, week: true, month: false, place: 'Block A' }
-  ],
-  EMP002: [
-    { id: 'd4', title: 'Library duty', when: 'Tue 12:45', daily: false, week: true, month: true, place: 'Library' },
-    { id: 'd5', title: 'Bus dispersal', when: 'Every working day 15:10', daily: true, week: true, month: true, place: 'Gate 2' }
-  ]
-};
-
 export function TeacherManagement() {
   const [search, setSearch] = useState('');
   const [deptFilter, setDeptFilter] = useState('');
@@ -104,16 +61,10 @@ export function TeacherManagement() {
   const [classFilter, setClassFilter] = useState('');
   const [hasSearched, setHasSearched] = useState(false);
   const [selected, setSelected] = useState<Teacher | null>(null);
-  const [tab, setTab] = useState<'timetable' | 'allocation' | 'duties'>('timetable');
-  const [dutyView, setDutyView] = useState<'daily' | 'weekly' | 'monthly'>('daily');
   const [timetable, setTimetable] = useState<Record<string, PeriodSlot[]>>(SEED_TT);
-  const [alloc, setAlloc] = useState<Record<string, Allocation[]>>(SEED_ALLOC);
-  const [duties, setDuties] = useState<Record<string, Duty[]>>(SEED_DUTY);
   const [draft, setDraft] = useState({ day: 'Mon', period: 1, className: '', subject: '', room: '' });
   const [slotPicker, setSlotPicker] = useState<{ day: string; period: number } | null>(null);
   const [conflicts, setConflicts] = useState<string[]>([]);
-  const [allocDraft, setAllocDraft] = useState<Allocation>({ className: '', subject: '', weekly: 6, role: 'Subject teacher' });
-  const [dutyDraft, setDutyDraft] = useState({ title: '', when: '', place: '', daily: true, week: false, month: false });
   const [notice, setNotice] = useState<string | null>(null);
   const [mode, setMode] = useState<'view' | 'setup'>('view');
 
@@ -130,11 +81,6 @@ export function TeacherManagement() {
 
   const slots = selected ? (timetable[selected.id] ?? []) : [];
   const slotAt = (day: string, period: number) => slots.find((s) => s.day === day && s.period === period);
-  const allocRows = selected ? (alloc[selected.id] ?? []) : [];
-  const dutyRows = selected
-    ? (duties[selected.id] ?? []).filter((d) => (dutyView === 'daily' ? d.daily : dutyView === 'weekly' ? d.week : d.month))
-    : [];
-
   const teacherName = (id: string) => TEACHERS.find((t) => t.id === id)?.name || id;
 
   const findConflicts = (teacherId: string, day: string, period: number, className: string, room: string) => {
@@ -156,9 +102,7 @@ export function TeacherManagement() {
     }
     const weekly = (timetable[teacherId] ?? []).filter((s) => !(s.day === day && s.period === period)).length + 1;
     const cap = TEACHERS.find((t) => t.id === teacherId)?.periodsPerWeek || 24;
-    if (weekly > cap) {
-      issues.push(`Weekly load would be ${weekly} periods (cap ${cap}).`);
-    }
+    if (weekly > cap) issues.push(`Weekly load would be ${weekly} periods (cap ${cap}).`);
     return issues;
   };
 
@@ -253,9 +197,9 @@ export function TeacherManagement() {
     setNotice(`Timetable downloaded for ${selected.name}.`);
   };
 
-  const saveTeacherSetup = () => {
+  const saveTimetable = () => {
     if (!selected) return;
-    setNotice(`Class/subject allocation and timetable saved for ${selected.name}.`);
+    setNotice(`Timetable saved for ${selected.name}.`);
   };
 
   return (
@@ -263,10 +207,10 @@ export function TeacherManagement() {
       <div>
         <p className="text-xs text-gray-500">Home → HR → Employee → Teacher's Timetable</p>
         <h1 className="text-2xl font-bold text-gray-900 mt-1">Teacher's Timetable</h1>
-        <p className="text-sm text-gray-500">{mode === 'setup' ? 'Set up the selected teacher’s weekly timetable. Click a slot to assign class, subject and room.' : 'Teachers can view their weekly timetable. Use Setup to place periods.'}</p>
+        <p className="text-sm text-gray-500">{mode === 'setup' ? 'Create or edit the selected teacher’s weekly timetable. Click a slot to assign class, subject and room.' : 'View the weekly timetable. Use Setup timetable to place periods.'}</p>
         <div className="mt-3 flex gap-2">
           <button type="button" onClick={() => setMode('view')} className={`px-4 py-2 rounded-lg text-sm font-medium ${mode === 'view' ? 'bg-indigo-600 text-white' : 'bg-white border text-gray-700'}`}>View</button>
-          <button type="button" onClick={() => { setMode('setup'); setTab('timetable'); }} className={`px-4 py-2 rounded-lg text-sm font-medium ${mode === 'setup' ? 'bg-indigo-600 text-white' : 'bg-white border text-gray-700'}`}>Setup timetable</button>
+          <button type="button" onClick={() => setMode('setup')} className={`px-4 py-2 rounded-lg text-sm font-medium ${mode === 'setup' ? 'bg-indigo-600 text-white' : 'bg-white border text-gray-700'}`}>Setup timetable</button>
         </div>
       </div>
 
@@ -318,7 +262,7 @@ export function TeacherManagement() {
               <button
                 type="button"
                 key={teacher.id}
-                onClick={() => { setSelected(teacher); setDraft((d) => ({ ...d, subject: teacher.subject, className: teacher.classes[0] || '' })); setAllocDraft((d) => ({ ...d, subject: teacher.subject })); setSlotPicker(null); }}
+                onClick={() => { setSelected(teacher); setDraft((d) => ({ ...d, subject: teacher.subject, className: teacher.classes[0] || '' })); setSlotPicker(null); }}
                 className="w-full text-left px-4 py-3 flex items-center justify-between hover:bg-indigo-50"
               >
                 <div className="flex items-center gap-3">
@@ -356,208 +300,93 @@ export function TeacherManagement() {
 
       {selected && (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-5">
-          <div className="flex flex-wrap gap-2 border-b pb-3">
-            {([
-              ['timetable', 'Timetable', Calendar],
-              ['allocation', 'Class / Subject', BookOpen],
-              ['duties', 'Duties', ClipboardList]
-            ] as const).filter(([id]) => mode === 'view' || id !== 'duties').map(([id, label, Icon]) => (
-              <button key={id} type="button" onClick={() => setTab(id)} className={`px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 ${tab === id ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700'}`}>
-                <Icon className="w-4 h-4" /> {label}
-              </button>
-            ))}
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Timetable — {selected.name}</h2>
+              <p className="text-sm text-gray-500">{mode === 'setup' ? 'Click a slot to choose class and subject, then assign' : 'Read-only weekly timetable'}</p>
+            </div>
+            <div className="flex flex-wrap gap-2 items-center">
+              <Badge variant="info">{slots.length} periods placed</Badge>
+              <Button variant="outline" onClick={printTimetable}><Printer className="w-4 h-4 mr-1" /> Print</Button>
+              <Button variant="outline" onClick={downloadTimetable}><Download className="w-4 h-4 mr-1" /> Download</Button>
+              {mode === 'setup' && <Button onClick={saveTimetable}><Save className="w-4 h-4 mr-1" /> Save timetable</Button>}
+            </div>
           </div>
 
-          {tab === 'timetable' && (
-            <>
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-900">Timetable — {selected.name}</h2>
-                  <p className="text-sm text-gray-500">{mode === 'setup' ? 'Click a slot to choose class and subject, then assign' : 'Read-only weekly timetable'}</p>
-                </div>
-                <div className="flex flex-wrap gap-2 items-center">
-                  <Badge variant="info">{slots.length} periods placed</Badge>
-                  <Button variant="outline" onClick={printTimetable}><Printer className="w-4 h-4 mr-1" /> Print</Button>
-                  <Button variant="outline" onClick={downloadTimetable}><Download className="w-4 h-4 mr-1" /> Download</Button>
-                  {mode === 'setup' && <Button onClick={saveTeacherSetup}><Save className="w-4 h-4 mr-1" /> Save</Button>}
-                </div>
+          {mode === 'setup' && slotPicker && (
+            <div className="rounded-lg border border-indigo-200 bg-indigo-50/40 p-4 space-y-3">
+              <p className="text-sm font-medium text-gray-900">Assign {slotPicker.day} · Period {slotPicker.period}</p>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                <select value={draft.className} onChange={(e) => setDraft({ ...draft, className: e.target.value })} className="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                  <option value="">Select class</option>
+                  {CLASSES.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <select value={draft.subject} onChange={(e) => setDraft({ ...draft, subject: e.target.value })} className="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                  <option value="">Select subject</option>
+                  {SUBJECTS.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+                <input value={draft.room} onChange={(e) => setDraft({ ...draft, room: e.target.value })} placeholder="Room" className="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                <Button onClick={addSlot}><Save className="w-4 h-4 mr-1" /> Assign</Button>
+                <Button variant="outline" onClick={() => { clearSlot(slotPicker.day, slotPicker.period); setConflicts([]); }}>Clear slot</Button>
               </div>
-
-              {mode === 'setup' && slotPicker && (
-                <div className="rounded-lg border border-indigo-200 bg-indigo-50/40 p-4 space-y-3">
-                  <p className="text-sm font-medium text-gray-900">Assign {slotPicker.day} · Period {slotPicker.period}</p>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                    <select value={draft.className} onChange={(e) => setDraft({ ...draft, className: e.target.value })} className="px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                      <option value="">Select class</option>
-                      {CLASSES.map((c) => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                    <select value={draft.subject} onChange={(e) => setDraft({ ...draft, subject: e.target.value })} className="px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                      <option value="">Select subject</option>
-                      {SUBJECTS.map((s) => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                    <input value={draft.room} onChange={(e) => setDraft({ ...draft, room: e.target.value })} placeholder="Room" className="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-                    <Button onClick={addSlot}><Save className="w-4 h-4 mr-1" /> Assign</Button>
-                    <Button variant="outline" onClick={() => { clearSlot(slotPicker.day, slotPicker.period); setConflicts([]); }}>Clear slot</Button>
-                  </div>
-                  {conflicts.length > 0 && (
-                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 space-y-1">
-                      <p className="font-medium flex items-center gap-1"><AlertTriangle className="w-4 h-4" /> Conflicts</p>
-                      {conflicts.map((c) => <p key={c}>• {c}</p>)}
-                    </div>
-                  )}
+              {conflicts.length > 0 && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 space-y-1">
+                  <p className="font-medium flex items-center gap-1"><AlertTriangle className="w-4 h-4" /> Conflicts</p>
+                  {conflicts.map((c) => <p key={c}>• {c}</p>)}
                 </div>
               )}
-
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-xs border border-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-3 py-2 text-left border-r">Day</th>
-                      {PERIODS.map((p) => <th key={p} className="px-3 py-2 text-center">P{p}</th>)}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {DAYS.map((day) => (
-                      <tr key={day} className="border-t">
-                        <td className="px-3 py-2 font-medium bg-gray-50 border-r">{day}</td>
-                        {PERIODS.map((p) => {
-                          const slot = slotAt(day, p);
-                          const active = slotPicker?.day === day && slotPicker.period === p;
-                          return (
-                            <td key={p} className="px-1 py-1 text-center align-top">
-                              {slot ? (
-                                mode === 'setup' ? (
-                                <button type="button" onClick={() => openSlot(day, p)} className={`w-full rounded border px-1 py-1 ${active ? 'bg-indigo-100 border-indigo-400' : 'bg-indigo-50 border-indigo-200 hover:bg-indigo-100'}`}>
-                                  <p className="font-semibold text-indigo-800">{slot.className}</p>
-                                  <p className="text-[10px] text-gray-500">{slot.subject} · {slot.room}</p>
-                                </button>
-                                ) : (
-                                <div className="w-full rounded border px-1 py-1 bg-indigo-50 border-indigo-200">
-                                  <p className="font-semibold text-indigo-800">{slot.className}</p>
-                                  <p className="text-[10px] text-gray-500">{slot.subject} · {slot.room}</p>
-                                </div>
-                                )
-                              ) : mode === 'setup' ? (
-                                <button type="button" onClick={() => openSlot(day, p)} className={`w-full min-h-[40px] rounded border border-dashed px-1 py-1 text-gray-400 hover:border-indigo-400 hover:text-indigo-600 ${active ? 'border-indigo-400 bg-indigo-50 text-indigo-700' : 'border-gray-200'}`}>
-                                  +
-                                </button>
-                              ) : (
-                                <span className="text-gray-300">—</span>
-                              )}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {mode === 'setup' && <p className="text-xs text-gray-500 flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> Click any cell to pick class and subject. Conflicts show before assign (class clash, room clash, overload).</p>}
-            </>
+            </div>
           )}
 
-          {tab === 'allocation' && (
-            <>
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <h2 className="text-lg font-semibold">Class / subject allocation — {selected.name}</h2>
-                {mode === 'setup' && <Button onClick={saveTeacherSetup}><Save className="w-4 h-4 mr-1" /> Save allocation</Button>}
-              </div>
-              {mode === 'setup' && (
-                <div className="rounded-lg border border-indigo-100 bg-indigo-50/40 p-4 space-y-3">
-                  <p className="text-sm font-medium text-gray-800">Assign class and subject (same mapping as Teacher Assignment Management)</p>
-                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-                    <select className="px-3 py-2 border rounded-lg text-sm bg-white" defaultValue="2025-26">
-                      <option>2025-26</option><option>2024-25</option>
-                    </select>
-                    <select className="px-3 py-2 border rounded-lg text-sm bg-white" defaultValue="CBSE">
-                      <option>CBSE</option><option>State</option><option>ICSE</option>
-                    </select>
-                    <select className="px-3 py-2 border rounded-lg text-sm bg-white" defaultValue="English">
-                      <option>English</option><option>Hindi</option><option>Gujarati</option>
-                    </select>
-                    <select className="px-3 py-2 border rounded-lg text-sm bg-white" defaultValue="General">
-                      <option>General</option><option>Science</option><option>Commerce</option><option>Arts</option>
-                    </select>
-                    <select className="px-3 py-2 border rounded-lg text-sm" value={allocDraft.className} onChange={(e) => setAllocDraft({ ...allocDraft, className: e.target.value })}>
-                      <option value="">Class / Section</option>
-                      {CLASSES.map((c) => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                    <select className="px-3 py-2 border rounded-lg text-sm" value={allocDraft.subject} onChange={(e) => setAllocDraft({ ...allocDraft, subject: e.target.value })}>
-                      <option value="">Subject</option>
-                      {SUBJECTS.map((s) => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                    <input type="number" min={1} className="px-3 py-2 border rounded-lg text-sm" placeholder="Periods / week" value={allocDraft.weekly} onChange={(e) => setAllocDraft({ ...allocDraft, weekly: Number(e.target.value) || 0 })} />
-                  </div>
-                  <div className="flex flex-wrap gap-3 items-center">
-                    <select className="px-3 py-2 border rounded-lg text-sm" value={allocDraft.role} onChange={(e) => setAllocDraft({ ...allocDraft, role: e.target.value as Allocation['role'] })}>
-                      <option>Subject teacher</option>
-                      <option>Class teacher</option>
-                    </select>
-                    <Button onClick={() => {
-                      if (!selected || !allocDraft.className || !allocDraft.subject) { setNotice('Enter class and subject.'); return; }
-                      const clash = Object.entries(alloc).some(([tid, rows]) => tid !== selected.id && rows.some((r) => r.className === allocDraft.className && r.subject === allocDraft.subject));
-                      const classTeacherClash = allocDraft.role === 'Class teacher' && Object.entries(alloc).some(([tid, rows]) => tid !== selected.id && rows.some((r) => r.className === allocDraft.className && r.role === 'Class teacher'));
-                      if (clash) { setNotice(`Another teacher already has ${allocDraft.subject} for ${allocDraft.className}.`); return; }
-                      if (classTeacherClash) { setNotice(`${allocDraft.className} already has a class teacher.`); return; }
-                      setAlloc((prev) => ({ ...prev, [selected.id]: [...(prev[selected.id] || []), { ...allocDraft }] }));
-                      setNotice(`Allocated ${allocDraft.subject} for ${allocDraft.className} (${allocDraft.role}).`);
-                      setAllocDraft({ className: '', subject: selected.subject, weekly: 6, role: 'Subject teacher' });
-                    }}>Add allocation</Button>
-                  </div>
-                </div>
-              )}
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-gray-50 text-xs uppercase text-gray-500"><tr>{['Class / Section', 'Subject', 'Weekly periods', 'Role', mode === 'setup' ? 'Action' : ''].filter(Boolean).map((h) => <th key={h} className="px-3 py-2 text-left">{h}</th>)}</tr></thead>
-                  <tbody>
-                    {allocRows.length === 0 && <tr><td colSpan={5} className="px-3 py-6 text-center text-gray-400">No class/subject allocation yet.</td></tr>}
-                    {allocRows.map((row, i) => (
-                      <tr key={row.className + row.subject + i} className="border-t">
-                        <td className="px-3 py-2">{row.className}</td>
-                        <td className="px-3 py-2">{row.subject}</td>
-                        <td className="px-3 py-2">{row.weekly}</td>
-                        <td className="px-3 py-2"><Badge variant={row.role === 'Class teacher' ? 'info' : 'secondary'}>{row.role}</Badge></td>
-                        {mode === 'setup' && <td className="px-3 py-2"><button type="button" className="text-red-600 text-xs" onClick={() => setAlloc((prev) => ({ ...prev, [selected.id]: (prev[selected.id] || []).filter((_, idx) => idx !== i) }))}>Remove</button></td>}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {mode === 'view' && (
-                <p className="text-xs text-gray-500">Class teacher of: {allocRows.filter((r) => r.role === 'Class teacher').map((r) => r.className).join(', ') || '—'}</p>
-              )}
-            </>
-          )}
-
-          {tab === 'duties' && (
-            <>
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold">Duties — {selected.name}</h2>
-                <div className="flex gap-2">
-                  <button type="button" onClick={() => setDutyView('daily')} className={`px-3 py-1.5 rounded-lg text-sm ${dutyView === 'daily' ? 'bg-indigo-600 text-white' : 'bg-gray-100'}`}>Daily</button>
-                  <button type="button" onClick={() => setDutyView('weekly')} className={`px-3 py-1.5 rounded-lg text-sm ${dutyView === 'weekly' ? 'bg-indigo-600 text-white' : 'bg-gray-100'}`}>Weekly</button>
-                  <button type="button" onClick={() => setDutyView('monthly')} className={`px-3 py-1.5 rounded-lg text-sm ${dutyView === 'monthly' ? 'bg-indigo-600 text-white' : 'bg-gray-100'}`}>Monthly</button>
-                </div>
-              </div>
-              <table className="min-w-full text-sm">
-                <thead className="bg-gray-50 text-xs uppercase text-gray-500"><tr>{['Duty', 'When', 'Place', 'Cadence', ''].map((h) => <th key={h} className="px-3 py-2 text-left">{h}</th>)}</tr></thead>
-                <tbody>
-                  {dutyRows.length === 0 && <tr><td colSpan={5} className="px-3 py-6 text-center text-gray-400">No {dutyView} duties.</td></tr>}
-                  {dutyRows.map((d) => (
-                    <tr key={d.id} className="border-t">
-                      <td className="px-3 py-2 font-medium">{d.title}</td>
-                      <td className="px-3 py-2">{d.when}</td>
-                      <td className="px-3 py-2">{d.place}</td>
-                      <td className="px-3 py-2 text-xs text-gray-600">
-                        {[d.daily && 'Daily', d.week && 'Weekly', d.month && 'Monthly'].filter(Boolean).join(' · ')}
-                      </td>
-                      <td className="px-3 py-2">{mode === 'setup' && <button type="button" className="text-red-600 text-xs" onClick={() => { setDuties((prev) => ({ ...prev, [selected.id]: (prev[selected.id] || []).filter((x) => x.id !== d.id) })); setNotice('Duty removed.'); }}>Remove</button>}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </>
-          )}
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[880px] table-fixed text-xs border border-gray-200">
+              <colgroup>
+                <col style={{ width: '72px' }} />
+                {PERIODS.map((p) => <col key={p} />)}
+              </colgroup>
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-2 py-2 text-left border-r">Day</th>
+                  {PERIODS.map((p) => <th key={p} className="px-1 py-2 text-center">P{p}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {DAYS.map((day) => (
+                  <tr key={day} className="border-t">
+                    <td className="px-2 py-2 font-medium bg-gray-50 border-r">{day}</td>
+                    {PERIODS.map((p) => {
+                      const slot = slotAt(day, p);
+                      const active = slotPicker?.day === day && slotPicker.period === p;
+                      return (
+                        <td key={p} className="p-1 text-center align-middle h-[76px]">
+                          {slot ? (
+                            mode === 'setup' ? (
+                              <button type="button" onClick={() => openSlot(day, p)} className={`flex h-16 w-full flex-col items-center justify-center rounded border px-1 ${active ? 'bg-indigo-100 border-indigo-400' : 'bg-indigo-50 border-indigo-200 hover:bg-indigo-100'}`}>
+                                <p className="font-semibold text-indigo-800 leading-tight">{slot.className}</p>
+                                <p className="text-[10px] text-gray-500 leading-tight">{slot.subject} · {slot.room}</p>
+                              </button>
+                            ) : (
+                              <div className="flex h-16 w-full flex-col items-center justify-center rounded border bg-indigo-50 border-indigo-200 px-1">
+                                <p className="font-semibold text-indigo-800 leading-tight">{slot.className}</p>
+                                <p className="text-[10px] text-gray-500 leading-tight">{slot.subject} · {slot.room}</p>
+                              </div>
+                            )
+                          ) : mode === 'setup' ? (
+                            <button type="button" onClick={() => openSlot(day, p)} className={`flex h-16 w-full items-center justify-center rounded border border-dashed text-gray-400 hover:border-indigo-400 hover:text-indigo-600 ${active ? 'border-indigo-400 bg-indigo-50 text-indigo-700' : 'border-gray-200'}`}>
+                              +
+                            </button>
+                          ) : (
+                            <div className="flex h-16 w-full items-center justify-center text-gray-300">—</div>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {mode === 'setup' && <p className="text-xs text-gray-500 flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> Click any cell to pick class and subject. Conflicts show before assign (class clash, room clash, overload).</p>}
         </div>
       )}
     </div>

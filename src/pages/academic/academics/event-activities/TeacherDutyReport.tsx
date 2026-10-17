@@ -73,7 +73,7 @@ const INITIAL_REPORT_DATA: TeacherDutyData[] = [
   missedDuties: 0,
   pendingDuties: 0,
   complianceRate: 100,
-  lastDutyDate: '2024-01-15',
+  lastDutyDate: '2026-10-15',
   remarks: 'Excellent performance'
 },
 {
@@ -87,7 +87,7 @@ const INITIAL_REPORT_DATA: TeacherDutyData[] = [
   missedDuties: 1,
   pendingDuties: 0,
   complianceRate: 93,
-  lastDutyDate: '2024-01-14',
+  lastDutyDate: '2026-10-14',
   remarks: 'Good performance'
 },
 {
@@ -101,7 +101,7 @@ const INITIAL_REPORT_DATA: TeacherDutyData[] = [
   missedDuties: 2,
   pendingDuties: 0,
   complianceRate: 80,
-  lastDutyDate: '2024-01-13',
+  lastDutyDate: '2026-10-13',
   remarks: 'Needs improvement'
 },
 {
@@ -115,7 +115,7 @@ const INITIAL_REPORT_DATA: TeacherDutyData[] = [
   missedDuties: 0,
   pendingDuties: 0,
   complianceRate: 100,
-  lastDutyDate: '2024-01-15',
+  lastDutyDate: '2026-10-15',
   remarks: 'Excellent performance'
 },
 {
@@ -129,7 +129,7 @@ const INITIAL_REPORT_DATA: TeacherDutyData[] = [
   missedDuties: 2,
   pendingDuties: 0,
   complianceRate: 90,
-  lastDutyDate: '2024-01-12',
+  lastDutyDate: '2026-10-12',
   remarks: 'Good performance'
 },
 {
@@ -143,8 +143,134 @@ const INITIAL_REPORT_DATA: TeacherDutyData[] = [
   missedDuties: 4,
   pendingDuties: 0,
   complianceRate: 71,
-  lastDutyDate: '2024-01-10',
+  lastDutyDate: '2026-10-10',
   remarks: 'Requires attention'
+},
+{
+  id: '7',
+  teacherId: 'TCH007',
+  name: 'N. Iyer',
+  email: 'n.iyer@school.edu',
+  department: 'Computer Science',
+  assignedDuties: 11,
+  completedDuties: 11,
+  missedDuties: 0,
+  pendingDuties: 0,
+  complianceRate: 100,
+  lastDutyDate: '2026-10-16',
+  remarks: 'Consistent bus and lab duty coverage'
+},
+{
+  id: '8',
+  teacherId: 'TCH008',
+  name: 'D. Joshi',
+  email: 'd.joshi@school.edu',
+  department: 'Science',
+  assignedDuties: 16,
+  completedDuties: 13,
+  missedDuties: 2,
+  pendingDuties: 1,
+  complianceRate: 81,
+  lastDutyDate: '2026-10-15',
+  remarks: 'Covered lunch and assembly duties'
+},
+{
+  id: '9',
+  teacherId: 'TCH009',
+  name: 'L. Mehta',
+  email: 'l.mehta@school.edu',
+  department: 'Arts',
+  assignedDuties: 9,
+  completedDuties: 7,
+  missedDuties: 1,
+  pendingDuties: 1,
+  complianceRate: 78,
+  lastDutyDate: '2026-10-09',
+  remarks: 'One missed corridor duty'
+},
+{
+  id: '10',
+  teacherId: 'TCH010',
+  name: 'H. Nair',
+  email: 'h.nair@school.edu',
+  department: 'English',
+  assignedDuties: 13,
+  completedDuties: 12,
+  missedDuties: 0,
+  pendingDuties: 1,
+  complianceRate: 92,
+  lastDutyDate: '2026-10-16',
+  remarks: 'On time for all assigned slots'
+},
+{
+  id: '11',
+  teacherId: 'TCH011',
+  name: 'S. Banerjee',
+  email: 's.banerjee@school.edu',
+  department: 'Music',
+  assignedDuties: 8,
+  completedDuties: 6,
+  missedDuties: 2,
+  pendingDuties: 0,
+  complianceRate: 75,
+  lastDutyDate: '2026-10-08',
+  remarks: 'Two absences this month'
+},
+{
+  id: '12',
+  teacherId: 'TCH012',
+  name: 'P. Gupta',
+  email: 'p.gupta@school.edu',
+  department: 'Social Studies',
+  assignedDuties: 18,
+  completedDuties: 17,
+  missedDuties: 1,
+  pendingDuties: 0,
+  complianceRate: 94,
+  lastDutyDate: '2026-10-17',
+  remarks: 'Strong gate duty record'
+},
+{
+  id: '13',
+  teacherId: 'TCH013',
+  name: 'A. Roy',
+  email: 'a.roy@school.edu',
+  department: 'Computer Science',
+  assignedDuties: 10,
+  completedDuties: 9,
+  missedDuties: 0,
+  pendingDuties: 1,
+  complianceRate: 90,
+  lastDutyDate: '2026-10-17',
+  remarks: 'Lab and exam duty on track'
+},
+{
+  id: '14',
+  teacherId: 'TCH014',
+  name: 'M. Verma',
+  email: 'm.verma@school.edu',
+  department: 'Arts',
+  assignedDuties: 7,
+  completedDuties: 7,
+  missedDuties: 0,
+  pendingDuties: 0,
+  complianceRate: 100,
+  lastDutyDate: '2026-10-16',
+  remarks: 'Covered corridor and assembly'
+},
+{
+  id: '15',
+  teacherId: 'TCH015',
+  name: 'R. Desai',
+  email: 'r.desai@school.edu',
+  department: 'Physical Education',
+  assignedDuties: 22,
+  completedDuties: 19,
+  missedDuties: 2,
+  pendingDuties: 1,
+  complianceRate: 86,
+  lastDutyDate: '2026-10-17',
+  remarks: 'Sports day and bus duty completed'
 }];
 
 
@@ -204,7 +330,7 @@ const TABLE_COLUMNS: TableColumn[] = [
 
 
 const INITIAL_FILTERS: FilterOptions = {
-  timePeriod: 'this_month',
+  timePeriod: 'this_year',
   department: 'all',
   complianceStatus: 'all',
   searchQuery: ''
@@ -311,7 +437,7 @@ const getDateRange = (timePeriod: string): {startDate: Date;endDate: Date;} => {
 // Main Component
 export function TeacherDutyReport() {
   // State Management
-  const [reportData, setReportData] = useState<TeacherDutyData[]>([]);
+  const [reportData, setReportData] = useState<TeacherDutyData[]>(INITIAL_REPORT_DATA);
   const [filters, setFilters] = useState<FilterOptions>(INITIAL_FILTERS);
   const [sortConfig, setSortConfig] = useState<SortConfig>(INITIAL_SORT_CONFIG);
   const [pagination, setPagination] = useState<PaginationConfig>(INITIAL_PAGINATION);
@@ -326,19 +452,8 @@ export function TeacherDutyReport() {
 
   // Load Report Data
   const loadReportData = useCallback(async () => {
-    setIsLoading(true);
     setError(null);
-
-    try {
-      // Simulated API call - replace with actual API integration
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      setReportData(INITIAL_REPORT_DATA);
-    } catch (err) {
-      setError('Failed to load report data. Please try again.');
-      console.error('Error loading report data:', err);
-    } finally {
-      setIsLoading(false);
-    }
+    setReportData(INITIAL_REPORT_DATA);
   }, []);
 
   // Filter Data
@@ -370,13 +485,6 @@ export function TeacherDutyReport() {
         teacher.department.toLowerCase().includes(query)
       );
     }
-
-    // Filter by time period (simulated - in real implementation, this would be handled by API)
-    const { startDate, endDate } = getDateRange(filters.timePeriod);
-    result = result.filter((teacher) => {
-      const dutyDate = new Date(teacher.lastDutyDate);
-      return dutyDate >= startDate && dutyDate <= endDate;
-    });
 
     return result;
   }, [reportData, filters]);

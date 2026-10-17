@@ -157,6 +157,8 @@ export interface POItem {
   quantity: number;
   unitRate: number;
   gstRate: number;
+  gstAmount: number;
+  sgstAmount: number;
   total: number;
 }
 
@@ -213,7 +215,7 @@ export interface GRNRecord {
   shortDamagedNotes: string;
   deliveryChallanNo: string;
   verifiedBy: string;
-  status: 'Full Receipt' | 'Partial Receipt' | 'Rejected';
+  status: string;
 }
 
 const INITIAL_PURCHASE_ORDERS: PurchaseOrderRecord[] = [
@@ -234,8 +236,8 @@ const INITIAL_PURCHASE_ORDERS: PurchaseOrderRecord[] = [
     deliveryTerms: 'Doorstep delivery with onsite lab calibration',
     category: 'Lab Equipment',
     items: [
-      { id: '1', name: 'Microscope (Lab Grade)', quantity: 10, unitRate: 7500, gstRate: 18, total: 88500 },
-      { id: '2', name: 'Lab Stand & Clamp Set', quantity: 20, unitRate: 500, gstRate: 12, total: 11200 }
+      { id: '1', name: 'Microscope (Lab Grade)', quantity: 10, unitRate: 7500, gstRate: 18, gstAmount: 6750, sgstAmount: 6750, total: 88500 },
+      { id: '2', name: 'Lab Stand & Clamp Set', quantity: 20, unitRate: 500, gstRate: 12, gstAmount: 600, sgstAmount: 600, total: 11200 }
     ],
     subTotal: 85000,
     totalGst: 14700,
@@ -263,8 +265,8 @@ const INITIAL_PURCHASE_ORDERS: PurchaseOrderRecord[] = [
     deliveryTerms: 'Direct delivery at central store',
     category: 'Stationery',
     items: [
-      { id: '1', name: 'A4 Paper Reams', quantity: 50, unitRate: 250, gstRate: 12, total: 14000 },
-      { id: '2', name: 'Whiteboard Marker', quantity: 100, unitRate: 30, gstRate: 18, total: 3540 }
+      { id: '1', name: 'A4 Paper Reams', quantity: 50, unitRate: 250, gstRate: 12, gstAmount: 750, sgstAmount: 750, total: 14000 },
+      { id: '2', name: 'Whiteboard Marker', quantity: 100, unitRate: 30, gstRate: 18, gstAmount: 270, sgstAmount: 270, total: 3540 }
     ],
     subTotal: 15500,
     totalGst: 1550,
@@ -292,8 +294,8 @@ const INITIAL_PURCHASE_ORDERS: PurchaseOrderRecord[] = [
     deliveryTerms: 'Freight prepaid',
     category: 'Sports Equip.',
     items: [
-      { id: '1', name: 'Football (Match Grade)', quantity: 15, unitRate: 1000, gstRate: 12, total: 16800 },
-      { id: '2', name: 'Basketballs (Size 7)', quantity: 10, unitRate: 1000, gstRate: 12, total: 11200 }
+      { id: '1', name: 'Football (Match Grade)', quantity: 15, unitRate: 1000, gstRate: 12, gstAmount: 900, sgstAmount: 900, total: 16800 },
+      { id: '2', name: 'Basketballs (Size 7)', quantity: 10, unitRate: 1000, gstRate: 12, gstAmount: 600, sgstAmount: 600, total: 11200 }
     ],
     subTotal: 25000,
     totalGst: 3750,
@@ -321,7 +323,7 @@ const INITIAL_PURCHASE_ORDERS: PurchaseOrderRecord[] = [
     deliveryTerms: 'Installation & OEM 3-year warranty included',
     category: 'IT Equipment',
     items: [
-      { id: '1', name: '24-inch IPS LED Monitors', quantity: 20, unitRate: 10000, gstRate: 18, total: 236000 }
+      { id: '1', name: '24-inch IPS LED Monitors', quantity: 20, unitRate: 10000, gstRate: 18, gstAmount: 18000, sgstAmount: 18000, total: 236000 }
     ],
     subTotal: 200000,
     totalGst: 36000,
@@ -2130,18 +2132,32 @@ function CreatePurchaseOrderModal({
   );
   const [deliveryByDate, setDeliveryByDate] = useState('2025-10-15');
   const [deliveryTerms, setDeliveryTerms] = useState('Doorstep delivery to science lab');
-  const [paymentMode, setPaymentMode] = useState('Advance');
+  const [paymentMode, setPaymentMode] = useState('Percentage');
   const [advancePct, setAdvancePct] = useState(30);
+  const [advanceAmtInput, setAdvanceAmtInput] = useState(0);
 
   const [items, setItems] = useState<POItem[]>([
-    { id: '1', name: 'Microscope (Lab Grade)', quantity: 10, unitRate: 7500, gstRate: 18, total: 88500 },
-    { id: '2', name: 'Lab Stand & Clamp Set', quantity: 20, unitRate: 500, gstRate: 12, total: 11200 }
+    { id: '1', name: 'Microscope (Lab Grade)', quantity: 10, unitRate: 7500, gstRate: 18, gstAmount: 6750, sgstAmount: 6750, total: 88500 },
+    { id: '2', name: 'Lab Stand & Clamp Set', quantity: 20, unitRate: 500, gstRate: 12, gstAmount: 600, sgstAmount: 600, total: 11200 }
   ]);
 
   const subTotal = items.reduce((acc, it) => acc + it.quantity * it.unitRate, 0);
-  const totalGst = items.reduce((acc, it) => acc + (it.quantity * it.unitRate * it.gstRate) / 100, 0);
+  const totalGstAmt = items.reduce((acc, it) => acc + (it.gstAmount || 0), 0);
+  const totalSgstAmt = items.reduce((acc, it) => acc + (it.sgstAmount || 0), 0);
+  const totalGst = totalGstAmt + totalSgstAmt;
   const grandTotal = subTotal + totalGst;
-  const advanceAmount = Math.round((grandTotal * advancePct) / 100);
+  const advanceAmount = paymentMode === 'Percentage'
+    ? Math.round((grandTotal * advancePct) / 100)
+    : Number(advanceAmtInput) || 0;
+
+  const handlePoItemChange = (id: string, field: 'gstAmount' | 'sgstAmount', value: number) => {
+    setItems((prev) => prev.map((it) => {
+      if (it.id !== id) return it;
+      const next = { ...it, [field]: value };
+      next.total = next.quantity * next.unitRate + (next.gstAmount || 0) + (next.sgstAmount || 0);
+      return next;
+    }));
+  };
 
   const handleCreate = (status: 'Sent' | 'Draft') => {
     const poNum = `PO-2025-${String(Math.floor(100 + Math.random() * 899))}`;
@@ -2272,7 +2288,8 @@ function CreatePurchaseOrderModal({
                 <th className="p-2">Item Name</th>
                 <th className="p-2">Quantity</th>
                 <th className="p-2">Unit Rate</th>
-                <th className="p-2">GST %</th>
+                <th className="p-2 text-right">GST Amount</th>
+                <th className="p-2 text-right">SGST Amount</th>
                 <th className="p-2 text-right">Total</th>
               </tr>
             </thead>
@@ -2283,7 +2300,22 @@ function CreatePurchaseOrderModal({
                   <td className="p-2 font-medium text-gray-900">{it.name}</td>
                   <td className="p-2">{it.quantity}</td>
                   <td className="p-2">₹{it.unitRate.toLocaleString('en-IN')}</td>
-                  <td className="p-2">{it.gstRate}%</td>
+                  <td className="p-2">
+                    <input
+                      type="number"
+                      value={it.gstAmount || 0}
+                      onChange={(e) => handlePoItemChange(it.id, 'gstAmount', Number(e.target.value))}
+                      className="w-24 p-1 border border-gray-300 rounded text-xs text-right"
+                    />
+                  </td>
+                  <td className="p-2">
+                    <input
+                      type="number"
+                      value={it.sgstAmount || 0}
+                      onChange={(e) => handlePoItemChange(it.id, 'sgstAmount', Number(e.target.value))}
+                      className="w-24 p-1 border border-gray-300 rounded text-xs text-right"
+                    />
+                  </td>
                   <td className="p-2 text-right font-semibold">₹{it.total.toLocaleString('en-IN')}</td>
                 </tr>
               ))}
@@ -2291,7 +2323,9 @@ function CreatePurchaseOrderModal({
           </table>
           <div className="p-3 bg-gray-50 border-t border-gray-200 space-y-1 text-right text-xs">
             <div>Sub Total: <b className="text-gray-800">₹{subTotal.toLocaleString('en-IN')}</b></div>
-            <div>Total GST: <b className="text-gray-800">₹{totalGst.toLocaleString('en-IN')}</b></div>
+            <div>GST Amount: <b className="text-gray-800">₹{totalGstAmt.toLocaleString('en-IN')}</b></div>
+            <div>SGST Amount: <b className="text-gray-800">₹{totalSgstAmt.toLocaleString('en-IN')}</b></div>
+            <div>Advance Amount: <b className="text-blue-800">₹{advanceAmount.toLocaleString('en-IN')}</b></div>
             <div className="text-sm font-bold text-blue-700">
               Grand Total: ₹{grandTotal.toLocaleString('en-IN')}
             </div>
@@ -2299,7 +2333,7 @@ function CreatePurchaseOrderModal({
         </div>
 
         {/* Payment Terms */}
-        <div className="p-3 bg-blue-50/60 border border-blue-200 rounded-lg grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="p-3 bg-blue-50/60 border border-blue-200 rounded-lg grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
             <label className="block text-gray-600 mb-1">Payment Mode</label>
             <select
@@ -2307,31 +2341,31 @@ function CreatePurchaseOrderModal({
               onChange={(e) => setPaymentMode(e.target.value)}
               className="w-full p-1.5 border border-gray-300 rounded text-xs bg-white"
             >
-              <option value="Advance">Advance</option>
-              <option value="On Delivery">On Delivery</option>
-              <option value="Net-30">Net-30</option>
-              <option value="Net-45">Net-45</option>
-              <option value="Net-60">Net-60</option>
+              <option value="Percentage">Percentage</option>
+              <option value="Amount">Amount</option>
             </select>
           </div>
-          <div>
-            <label className="block text-gray-600 mb-1">Advance %</label>
-            <input
-              type="number"
-              value={advancePct}
-              onChange={(e) => setAdvancePct(Number(e.target.value))}
-              className="w-full p-1.5 border border-gray-300 rounded text-xs bg-white"
-            />
-          </div>
-          <div>
-            <label className="block text-gray-600 mb-1">Advance Amount 🔒</label>
-            <input
-              type="text"
-              readOnly
-              value={`₹ ${advanceAmount.toLocaleString('en-IN')}`}
-              className="w-full p-1.5 border border-gray-300 rounded text-xs bg-gray-100 font-semibold text-blue-800"
-            />
-          </div>
+          {paymentMode === 'Percentage' ? (
+            <div>
+              <label className="block text-gray-600 mb-1">Advance %</label>
+              <input
+                type="number"
+                value={advancePct}
+                onChange={(e) => setAdvancePct(Number(e.target.value))}
+                className="w-full p-1.5 border border-gray-300 rounded text-xs bg-white"
+              />
+            </div>
+          ) : (
+            <div>
+              <label className="block text-gray-600 mb-1">Advance Amount</label>
+              <input
+                type="number"
+                value={advanceAmtInput}
+                onChange={(e) => setAdvanceAmtInput(Number(e.target.value))}
+                className="w-full p-1.5 border border-gray-300 rounded text-xs bg-white"
+              />
+            </div>
+          )}
         </div>
 
         {/* Action Buttons */}
@@ -2398,7 +2432,8 @@ function ViewPurchaseOrderModal({
                 <th className="p-2">Item Name</th>
                 <th className="p-2">Qty</th>
                 <th className="p-2">Unit Rate</th>
-                <th className="p-2">GST %</th>
+                <th className="p-2 text-right">GST Amount</th>
+                <th className="p-2 text-right">SGST Amount</th>
                 <th className="p-2 text-right">Total</th>
               </tr>
             </thead>
@@ -2408,7 +2443,8 @@ function ViewPurchaseOrderModal({
                   <td className="p-2 font-medium">{it.name}</td>
                   <td className="p-2">{it.quantity}</td>
                   <td className="p-2">₹{it.unitRate.toLocaleString('en-IN')}</td>
-                  <td className="p-2">{it.gstRate}%</td>
+                  <td className="p-2 text-right">₹{(it.gstAmount || 0).toLocaleString('en-IN')}</td>
+                  <td className="p-2 text-right">₹{(it.sgstAmount || 0).toLocaleString('en-IN')}</td>
                   <td className="p-2 text-right font-semibold">₹{it.total.toLocaleString('en-IN')}</td>
                 </tr>
               ))}
@@ -2416,7 +2452,9 @@ function ViewPurchaseOrderModal({
           </table>
           <div className="p-2.5 bg-gray-50 border-t border-gray-200 text-right space-y-0.5">
             <div>Sub Total: ₹{po.subTotal.toLocaleString('en-IN')}</div>
-            <div>Total GST: ₹{po.totalGst.toLocaleString('en-IN')}</div>
+            <div>GST Amount: ₹{po.items.reduce((s, it) => s + (it.gstAmount || 0), 0).toLocaleString('en-IN')}</div>
+            <div>SGST Amount: ₹{po.items.reduce((s, it) => s + (it.sgstAmount || 0), 0).toLocaleString('en-IN')}</div>
+            <div>Advance Amount: ₹{po.advanceAmount.toLocaleString('en-IN')}</div>
             <div className="font-bold text-sm text-blue-700">Grand Total: ₹{po.grandTotal.toLocaleString('en-IN')}</div>
           </div>
         </div>
@@ -2458,7 +2496,7 @@ function CreateGRNModal({
   );
   const [challanNo, setChallanNo] = useState('DC-2025-99214');
   const [verifiedBy, setVerifiedBy] = useState('HOD — Ms. Joshi');
-  const [status, setStatus] = useState<'Full Receipt' | 'Partial Receipt' | 'Rejected'>('Partial Receipt');
+  const [status, setStatus] = useState('Partial Receipt');
 
   const [items, setItems] = useState<GRNItem[]>([
     { id: '1', name: 'Microscope', poQty: 10, rcvdQty: 9, rejectedQty: 1, condition: 'Good', remarks: '1 broken eyepiece' },
@@ -2656,19 +2694,15 @@ function CreateGRNModal({
         </div>
 
         {/* Status choices */}
-        <div className="flex items-center gap-4 p-2.5 bg-gray-50 border border-gray-200 rounded-lg">
-          <span className="font-semibold text-gray-700">GRN Status:</span>
-          {(['Full Receipt', 'Partial Receipt', 'Rejected'] as const).map((st) => (
-            <label key={st} className="flex items-center gap-1 cursor-pointer">
-              <input
-                type="radio"
-                name="grnStatus"
-                checked={status === st}
-                onChange={() => setStatus(st)}
-              />
-              <span>{st}</span>
-            </label>
-          ))}
+        <div className="p-2.5 bg-gray-50 border border-gray-200 rounded-lg">
+          <label className="block font-semibold text-gray-700 mb-1">GRN Status</label>
+          <input
+            type="text"
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+            className="w-full p-1.5 border border-gray-300 rounded text-xs bg-white"
+            placeholder="Enter GRN status"
+          />
         </div>
 
         {/* Action Buttons */}

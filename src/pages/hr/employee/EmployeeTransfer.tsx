@@ -1,47 +1,40 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Toggle } from '../../../components/ui/Toggle';
 import {
-  Search,
+  AlertCircle,
+  AlertTriangle,
+  ArrowDownToLine,
   ArrowRight,
   ArrowRightLeft,
-  User,
+  ArrowUpFromLine,
   Building2,
   Calendar,
-  FileText,
-  History,
-  X,
   CheckCircle,
-  MapPin,
-  ChevronRight,
-  Home,
-  AlertCircle,
-  Loader2,
-  Clock,
-  Send,
-  Inbox,
-  UserCheck,
-  ClipboardList,
-  ArrowDownToLine,
-  ArrowUpFromLine,
   CheckCircle2,
-  Phone,
-  Mail,
-  Eye,
-  MoreHorizontal,
-  Download,
-  Printer,
-  XCircle,
-  RefreshCw,
-  Filter,
-  ChevronDown,
-  ChevronUp,
   ChevronLeft,
-  DollarSign,
-  ShieldCheck,
+  ChevronRight,
+  ClipboardList,
+  Clock,
+  Download,
+  Eye,
+  FileText,
+  Filter,
+  History,
+  Home,
+  Inbox,
+  Loader2,
+  Mail,
+  MapPin,
   Paperclip,
+  Phone,
+  Search,
+  Send,
+  ShieldCheck,
   Upload,
-  AlertTriangle,
-  Briefcase
+  User,
+  UserCheck,
+  X,
+  XCircle
 } from 'lucide-react';
 
 interface Employee {
@@ -76,18 +69,18 @@ interface TransferRequest {
   currentStep: number;
   initiatedBy: string;
   remarks: string;
+  type: 'Outgoing' | 'Incoming';
+  nature?: string;
+  duration?: string;
   approvalDate?: string;
   approvedBy?: string;
-  type: 'Outgoing' | 'Incoming';
+  rejectReason?: string;
 }
 
 interface TransferStep {
   id: number;
   title: string;
   description: string;
-  status: 'completed' | 'current' | 'pending';
-  completedDate?: string;
-  completedBy?: string;
 }
 
 const mockEmployees: Employee[] = [
@@ -95,23 +88,34 @@ const mockEmployees: Employee[] = [
   { id: 'EMP002', name: 'Sarah Jenkins', avatar: 'SJ', designation: 'Senior Teacher', department: 'English', branch: 'Main Campus', reportingManager: 'Dr. Rajesh Kumar', email: 'sarah.j@school.edu', phone: '+91 9876543202', joiningDate: '2019-04-01', staffType: 'Teaching' },
   { id: 'EMP003', name: 'Michael Chen', avatar: 'MC', designation: 'Admin Officer', department: 'Administration', branch: 'Main Campus', reportingManager: 'HR Manager', email: 'michael.c@school.edu', phone: '+91 9876543203', joiningDate: '2020-01-10', staffType: 'Non-Teaching' },
   { id: 'EMP004', name: 'Priya Sharma', avatar: 'PS', designation: 'Lab Assistant', department: 'Science', branch: 'Main Campus', reportingManager: 'Science HOD', email: 'priya.s@school.edu', phone: '+91 9876543204', joiningDate: '2023-08-01', staffType: 'Support' },
-  { id: 'EMP005', name: 'David Wilson', avatar: 'DW', designation: 'Sports Coach', department: 'Physical Education', branch: 'Main Campus', reportingManager: 'Vice Principal', email: 'david.w@school.edu', phone: '+91 9876543205', joiningDate: '2021-03-15', staffType: 'Teaching' }
+  { id: 'EMP005', name: 'David Wilson', avatar: 'DW', designation: 'Sports Coach', department: 'Physical Education', branch: 'Main Campus', reportingManager: 'Vice Principal', email: 'david.w@school.edu', phone: '+91 9876543205', joiningDate: '2021-03-15', staffType: 'Teaching' },
+  { id: 'EMP006', name: 'Anita Desai', avatar: 'AD', designation: 'Librarian', department: 'Library', branch: 'North Campus', reportingManager: 'Academic Coordinator', email: 'anita.d@school.edu', phone: '+91 9876543206', joiningDate: '2017-11-20', staffType: 'Non-Teaching' },
+  { id: 'EMP007', name: 'Farhan Qureshi', avatar: 'FQ', designation: 'IT Administrator', department: 'IT', branch: 'Main Campus', reportingManager: 'IT Manager', email: 'farhan.q@school.edu', phone: '+91 9876543207', joiningDate: '2022-02-01', staffType: 'Non-Teaching' },
+  { id: 'EMP008', name: 'Kavita Nair', avatar: 'KN', designation: 'Hindi Teacher', department: 'Hindi', branch: 'South Campus', reportingManager: 'Hindi HOD', email: 'kavita.n@school.edu', phone: '+91 9876543208', joiningDate: '2016-07-12', staffType: 'Teaching' },
+  { id: 'EMP009', name: 'Rohit Mehta', avatar: 'RM', designation: 'Accounts Officer', department: 'Accounts', branch: 'Main Campus', reportingManager: 'HR Manager', email: 'rohit.m@school.edu', phone: '+91 9876543209', joiningDate: '2024-09-01', staffType: 'Contract' },
+  { id: 'EMP010', name: 'Neha Patel', avatar: 'NP', designation: 'Art Teacher', department: 'Arts', branch: 'West Campus', reportingManager: 'Arts Coordinator', email: 'neha.p@school.edu', phone: '+91 9876543210', joiningDate: '2019-12-05', staffType: 'Teaching' }
 ];
 
 const mockIncomingTransfers: TransferRequest[] = [
-  { id: 'TRF-IN-001', employeeId: 'EMP101', employeeName: 'Arun Krishnan', employeeAvatar: 'AK', employeeDesignation: 'Mathematics Teacher', fromBranch: 'South Campus', toBranch: 'Main Campus', fromDepartment: 'Mathematics', toDepartment: 'Mathematics', newDesignation: 'Senior Mathematics Teacher', newManager: 'Dr. Rajesh Kumar', requestDate: '2024-03-01', effectiveDate: '2024-04-01', status: 'Pending', currentStep: 1, initiatedBy: 'South Campus Admin', remarks: 'Requested transfer due to family relocation', type: 'Incoming' },
-  { id: 'TRF-IN-002', employeeId: 'EMP102', employeeName: 'Kavitha Nair', employeeAvatar: 'KN', employeeDesignation: 'Hindi Teacher', fromBranch: 'East Campus', toBranch: 'Main Campus', fromDepartment: 'Hindi', toDepartment: 'Hindi', newDesignation: 'Hindi Teacher', newManager: 'Hindi HOD', requestDate: '2024-02-20', effectiveDate: '2024-03-15', status: 'In Progress', currentStep: 3, initiatedBy: 'East Campus Admin', remarks: 'Promotion and transfer', approvalDate: '2024-02-25', approvedBy: 'Principal', type: 'Incoming' },
-  { id: 'TRF-IN-003', employeeId: 'EMP103', employeeName: 'Robert Williams', employeeAvatar: 'RW', employeeDesignation: 'IT Administrator', fromBranch: 'West Campus', toBranch: 'Main Campus', fromDepartment: 'IT', toDepartment: 'IT', newDesignation: 'Senior IT Administrator', newManager: 'IT Manager', requestDate: '2024-02-10', effectiveDate: '2024-03-01', status: 'Completed', currentStep: 5, initiatedBy: 'West Campus Admin', remarks: 'Centralization of IT operations', approvalDate: '2024-02-15', approvedBy: 'Director', type: 'Incoming' }
+  { id: 'TRF-IN-001', employeeId: 'EMP101', employeeName: 'Arun Krishnan', employeeAvatar: 'AK', employeeDesignation: 'Mathematics Teacher', fromBranch: 'East Campus', toBranch: 'Main Campus', fromDepartment: 'Mathematics', toDepartment: 'Mathematics', newDesignation: 'Senior Mathematics Teacher', newManager: 'Dr. Rajesh Kumar', requestDate: '2026-09-15', effectiveDate: '2026-10-10', status: 'Pending', currentStep: 1, initiatedBy: 'East Campus Admin', remarks: 'Family relocation', type: 'Incoming', nature: 'Lateral', duration: 'Permanent' },
+  { id: 'TRF-IN-002', employeeId: 'EMP102', employeeName: 'Kavitha Nair', employeeAvatar: 'KN', employeeDesignation: 'Hindi Teacher', fromBranch: 'South Campus', toBranch: 'Main Campus', fromDepartment: 'Hindi', toDepartment: 'Hindi', newDesignation: 'Hindi Teacher', newManager: 'Hindi HOD', requestDate: '2026-10-01', effectiveDate: '2026-10-25', status: 'Pending', currentStep: 1, initiatedBy: 'South Campus Admin', remarks: 'Vacancy fill', type: 'Incoming', nature: 'Replacement', duration: 'Permanent' },
+  { id: 'TRF-IN-003', employeeId: 'EMP103', employeeName: 'Anita Desai', employeeAvatar: 'AD', employeeDesignation: 'Librarian', fromBranch: 'North Campus', toBranch: 'Main Campus', fromDepartment: 'Library', toDepartment: 'Library', newDesignation: 'Librarian', newManager: 'Academic Coordinator', requestDate: '2026-09-12', effectiveDate: '2026-11-02', status: 'In Progress', currentStep: 3, initiatedBy: 'North Campus Admin', remarks: 'Workload balancing', type: 'Incoming' },
+  { id: 'TRF-IN-004', employeeId: 'EMP104', employeeName: 'Meera Iyer', employeeAvatar: 'MI', employeeDesignation: 'Coordinator', fromBranch: 'Mumbai Campus', toBranch: 'Main Campus', fromDepartment: 'English', toDepartment: 'English', newDesignation: 'Coordinator', newManager: 'Principal', requestDate: '2026-08-20', effectiveDate: '2026-10-30', status: 'In Progress', currentStep: 4, initiatedBy: 'Mumbai Campus Admin', remarks: 'Inter-state posting', type: 'Incoming' },
+  { id: 'TRF-IN-005', employeeId: 'EMP105', employeeName: 'Robert Williams', employeeAvatar: 'RW', employeeDesignation: 'Senior IT Administrator', fromBranch: 'West Campus', toBranch: 'Main Campus', fromDepartment: 'IT', toDepartment: 'IT', newDesignation: 'Senior IT Administrator', newManager: 'IT Manager', requestDate: '2026-08-01', effectiveDate: '2026-10-02', status: 'Completed', currentStep: 6, initiatedBy: 'West Campus Admin', remarks: 'IT centralisation', type: 'Incoming' }
 ];
 
 const mockOutgoingTransfers: TransferRequest[] = [
-  { id: 'TRF-OUT-001', employeeId: 'EMP005', employeeName: 'David Wilson', employeeAvatar: 'DW', employeeDesignation: 'Sports Coach', fromBranch: 'Main Campus', toBranch: 'North Campus', fromDepartment: 'Physical Education', toDepartment: 'Physical Education', newDesignation: 'Head Coach', newManager: 'North Campus Principal', requestDate: '2024-03-05', effectiveDate: '2024-04-15', status: 'Approved', currentStep: 2, initiatedBy: 'HR Manager', remarks: 'Promotion to Head Coach position', approvalDate: '2024-03-08', approvedBy: 'Principal', type: 'Outgoing' }
+  { id: 'TRF-OUT-001', employeeId: 'EMP005', employeeName: 'David Wilson', employeeAvatar: 'DW', employeeDesignation: 'Sports Coach', fromBranch: 'Main Campus', toBranch: 'North Campus', fromDepartment: 'Physical Education', toDepartment: 'Physical Education', newDesignation: 'Head Coach', newManager: 'North Campus Principal', requestDate: '2026-10-05', effectiveDate: '2026-11-01', status: 'Pending', currentStep: 1, initiatedBy: 'HR Manager', remarks: 'Promotion to Head Coach', type: 'Outgoing', nature: 'Promotional', duration: 'Permanent' },
+  { id: 'TRF-OUT-002', employeeId: 'EMP002', employeeName: 'Sarah Jenkins', employeeAvatar: 'SJ', employeeDesignation: 'Senior Teacher', fromBranch: 'Main Campus', toBranch: 'South Campus', fromDepartment: 'English', toDepartment: 'English', newDesignation: 'Senior Teacher', newManager: 'South Campus Principal', requestDate: '2026-09-20', effectiveDate: '2026-10-28', status: 'Approved', currentStep: 2, initiatedBy: 'HR Manager', remarks: 'Operational requirement', type: 'Outgoing', approvalDate: '2026-09-25', approvedBy: 'Principal' },
+  { id: 'TRF-OUT-003', employeeId: 'EMP007', employeeName: 'Farhan Qureshi', employeeAvatar: 'FQ', employeeDesignation: 'IT Administrator', fromBranch: 'Main Campus', toBranch: 'Mumbai Campus', fromDepartment: 'IT', toDepartment: 'IT', newDesignation: 'Senior IT Administrator', newManager: 'IT Manager', requestDate: '2026-09-01', effectiveDate: '2026-11-15', status: 'In Progress', currentStep: 4, initiatedBy: 'IT Manager', remarks: 'Centralisation of IT', type: 'Outgoing' },
+  { id: 'TRF-OUT-004', employeeId: 'EMP003', employeeName: 'Michael Chen', employeeAvatar: 'MC', employeeDesignation: 'Admin Officer', fromBranch: 'Main Campus', toBranch: 'City Center Branch', fromDepartment: 'Administration', toDepartment: 'Administration', newDesignation: 'Admin Officer', newManager: 'HR Manager', requestDate: '2026-08-18', effectiveDate: '2026-10-20', status: 'In Progress', currentStep: 6, initiatedBy: 'HR Manager', remarks: 'Job rotation', type: 'Outgoing' },
+  { id: 'TRF-OUT-005', employeeId: 'EMP010', employeeName: 'Neha Patel', employeeAvatar: 'NP', employeeDesignation: 'Art Teacher', fromBranch: 'West Campus', toBranch: 'Main Campus', fromDepartment: 'Arts', toDepartment: 'Arts', newDesignation: 'Art Teacher', newManager: 'Arts Coordinator', requestDate: '2026-07-10', effectiveDate: '2026-08-15', status: 'Rejected', currentStep: 2, initiatedBy: 'West Campus Admin', remarks: 'Personal request', type: 'Outgoing', rejectReason: 'No vacancy' }
 ];
 
-const mockTransferredInEmployees: Employee[] = [
-  { id: 'EMP103', name: 'Robert Williams', avatar: 'RW', designation: 'Senior IT Administrator', department: 'IT', branch: 'Main Campus', reportingManager: 'IT Manager', email: 'robert.w@school.edu', phone: '+91 9876543310', joiningDate: '2024-03-01', staffType: 'Non-Teaching' },
-  { id: 'EMP098', name: 'Meera Patel', avatar: 'MP', designation: 'Librarian', department: 'Library', branch: 'Main Campus', reportingManager: 'Academic Coordinator', email: 'meera.p@school.edu', phone: '+91 9876543311', joiningDate: '2024-02-01', staffType: 'Non-Teaching' },
-  { id: 'EMP087', name: 'James Anderson', avatar: 'JA', designation: 'Music Teacher', department: 'Arts', branch: 'Main Campus', reportingManager: 'Arts Coordinator', email: 'james.a@school.edu', phone: '+91 9876543312', joiningDate: '2024-01-15', staffType: 'Teaching' }
+const mockTransferredIn: Employee[] = [
+  { id: 'EMP103', name: 'Robert Williams', avatar: 'RW', designation: 'Senior IT Administrator', department: 'IT', branch: 'Main Campus', reportingManager: 'IT Manager', email: 'robert.w@school.edu', phone: '+91 9876543310', joiningDate: '2026-10-02', staffType: 'Non-Teaching' },
+  { id: 'EMP098', name: 'Meera Patel', avatar: 'MP', designation: 'Librarian', department: 'Library', branch: 'Main Campus', reportingManager: 'Academic Coordinator', email: 'meera.p@school.edu', phone: '+91 9876543311', joiningDate: '2026-09-01', staffType: 'Non-Teaching' },
+  { id: 'EMP087', name: 'James Anderson', avatar: 'JA', designation: 'Music Teacher', department: 'Arts', branch: 'Main Campus', reportingManager: 'Arts Coordinator', email: 'james.a@school.edu', phone: '+91 9876543312', joiningDate: '2026-08-15', staffType: 'Teaching' }
 ];
 
 const branches = [
@@ -120,7 +124,8 @@ const branches = [
   { value: 'south-campus', label: 'South Campus' },
   { value: 'east-campus', label: 'East Campus' },
   { value: 'west-campus', label: 'West Campus' },
-  { value: 'city-center', label: 'City Center Branch' }
+  { value: 'city-center', label: 'City Center Branch' },
+  { value: 'mumbai-campus', label: 'Mumbai Campus' }
 ];
 
 const departments = [
@@ -155,24 +160,16 @@ const managers = [
   { value: 'it-manager', label: 'IT Manager' }
 ];
 
-const outgoingTransferSteps: TransferStep[] = [
-  { id: 1, title: 'Initiate Transfer', description: 'Submit transfer request with details', status: 'pending' },
-  { id: 2, title: 'Manager Approval', description: 'Approval from current reporting manager', status: 'pending' },
-  { id: 3, title: 'HR Review', description: 'HR reviews and processes documentation', status: 'pending' },
-  { id: 4, title: 'Destination Acceptance', description: 'Receiving branch accepts the transfer', status: 'pending' },
-  { id: 5, title: 'Handover', description: 'Complete work handover and clearance', status: 'pending' },
-  { id: 6, title: 'Transfer Complete', description: 'Employee relocated to new branch', status: 'pending' }
+const TRANSFER_NATURES = [
+  { value: 'Lateral', label: 'Lateral', hint: 'Same grade, no pay change' },
+  { value: 'Promotional', label: 'Promotional', hint: 'Higher grade, pay increase' },
+  { value: 'Remedial', label: 'Remedial', hint: 'Corrective placement' },
+  { value: 'Production', label: 'Production', hint: 'Workload balancing' },
+  { value: 'Replacement', label: 'Replacement', hint: 'Fill a vacancy' },
+  { value: 'Versatility', label: 'Versatility / Job Rotation', hint: 'Skill development' }
 ];
 
-const incomingTransferSteps: TransferStep[] = [
-  { id: 1, title: 'Request Received', description: 'Transfer request received from source branch', status: 'pending' },
-  { id: 2, title: 'Review & Verify', description: 'Verify employee records and eligibility', status: 'pending' },
-  { id: 3, title: 'Accept Transfer', description: 'Formally accept the incoming transfer', status: 'pending' },
-  { id: 4, title: 'Assignment Setup', description: 'Assign department, manager, and workspace', status: 'pending' },
-  { id: 5, title: 'Onboarding', description: 'Complete onboarding and orientation', status: 'pending' }
-];
-
-const TRANSFER_REASON_OPTIONS = [
+const TRANSFER_JUSTIFICATIONS = [
   { value: 'promotion', label: 'Promotion' },
   { value: 'restructuring', label: 'Restructuring' },
   { value: 'performance', label: 'Performance' },
@@ -183,24 +180,10 @@ const TRANSFER_REASON_OPTIONS = [
   { value: 'family', label: 'Family Circumstances' },
   { value: 'mutual', label: 'Mutual Transfer' },
   { value: 'skills', label: 'Skills Utilization' },
-  { value: 'closure', label: 'Branch Closure / Merger' },
   { value: 'vacancy', label: 'Vacancy / Staffing Shortage' },
-  { value: 'directive', label: 'Management Directive' },
-  { value: 'self', label: 'Employee Request (self-initiated)' },
   { value: 'other', label: 'Other' }
 ];
 
-const FORM_WIZARD_STEPS = [
-  { id: 1, title: 'Employee & Location', hint: 'Identity and current posting' },
-  { id: 2, title: 'Transfer Details', hint: 'Destination, type and reason' },
-  { id: 3, title: 'Conditions', hint: 'Pay, role and benefits' },
-  { id: 4, title: 'Handover & Documents', hint: 'Clearance and attachments' },
-  { id: 5, title: 'Approvals', hint: 'Consent and submit' }
-];
-const transferFieldClass = 'w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white';
-const transferLabelClass = 'block text-sm font-medium text-gray-700 mb-1';
-const transferSectionHeadingClass = 'flex items-center gap-2 text-base font-semibold text-gray-900 mb-4';
-const transferCardClass = 'rounded-xl border border-gray-200 bg-white p-5 shadow-sm';
 const HANDOVER_ITEMS = [
   { id: 'docs', label: 'Work documentation handed over to replacement' },
   { id: 'tasks', label: 'Pending tasks briefed to team' },
@@ -209,91 +192,101 @@ const HANDOVER_ITEMS = [
   { id: 'email', label: 'Email auto-responder set up pointing to new contact' },
   { id: 'clearance', label: 'Exit clearance form signed by HOD' }
 ];
+
+const FORM_STEPS = [
+  { id: 1, title: 'Employee & Location' },
+  { id: 2, title: 'Transfer Details' },
+  { id: 3, title: 'Conditions' },
+  { id: 4, title: 'Handover & Documents' },
+  { id: 5, title: 'Approvals' }
+];
+
+const outgoingTransferSteps: TransferStep[] = [
+  { id: 1, title: 'Request Initiated', description: 'HR/Manager submits form' },
+  { id: 2, title: 'Manager Approval', description: 'Current manager reviews' },
+  { id: 3, title: 'HR Review', description: 'Eligibility and records' },
+  { id: 4, title: 'Compensation Review', description: 'Payroll confirms changes' },
+  { id: 5, title: 'Destination Acceptance', description: 'Receiving branch accepts' },
+  { id: 6, title: 'Employee Acknowledgment', description: 'Employee signs' },
+  { id: 7, title: 'Handover', description: 'Clearance and assets' },
+  { id: 8, title: 'Transfer Executed', description: 'Employee reports to new branch' }
+];
+
+const incomingTransferSteps: TransferStep[] = [
+  { id: 1, title: 'Request Received', description: 'From source branch' },
+  { id: 2, title: 'Review & Verify', description: 'Records and vacancy' },
+  { id: 3, title: 'Acceptance', description: 'Formally accept' },
+  { id: 4, title: 'Assignment Setup', description: 'Dept, manager, workspace' },
+  { id: 5, title: 'Onboarding', description: 'New-branch induction' },
+  { id: 6, title: '30-Day Check-in', description: 'Post-transfer review' }
+];
+
+const fieldClass = 'w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white';
+const labelClass = 'block text-sm font-medium text-gray-700 mb-1';
+const cardClass = 'rounded-xl border border-gray-200 bg-white p-5 shadow-sm';
+const dateNowIso = () => new Date().toISOString().slice(0, 10);
+const labelOf = (opts: { value: string; label: string }[], value: string) => opts.find((o) => o.value === value)?.label || value;
 const stepsForType = (type: TransferRequest['type']) => type === 'Incoming' ? incomingTransferSteps : outgoingTransferSteps;
 const maxStepForType = (type: TransferRequest['type']) => stepsForType(type).length;
-const initialsFrom = (name: string) => name.split(' ').filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
-const dateNowIso = () => new Date().toISOString().slice(0, 10);
+const initialsFrom = (name: string) => name.split(' ').filter(Boolean).slice(0, 2).map((p) => p[0]).join('').toUpperCase();
 
 export function EmployeeTransfer() {
   const [activeTab, setActiveTab] = useState<'outgoing' | 'incoming' | 'history'>('outgoing');
   const [searchQuery, setSearchQuery] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [showSearchFilters, setShowSearchFilters] = useState(false);
+  const [searchDept, setSearchDept] = useState('');
+  const [searchType, setSearchType] = useState('');
+  const [searchBranch, setSearchBranch] = useState('');
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
-  const [currentTransferStep, setCurrentTransferStep] = useState(0);
+  const [formStep, setFormStep] = useState(1);
   const searchRef = useRef<HTMLDivElement>(null);
 
-  const [newBranch, setNewBranch] = useState('');
-  const [newDepartment, setNewDepartment] = useState('');
-  const [newDesignation, setNewDesignation] = useState('');
-  const [newManager, setNewManager] = useState('');
-  const [effectiveDate, setEffectiveDate] = useState('');
-  const [remarks, setRemarks] = useState('');
   const [empFullName, setEmpFullName] = useState('');
   const [empId, setEmpId] = useState('');
+  const [staffType, setStaffType] = useState('');
   const [empJobTitle, setEmpJobTitle] = useState('');
   const [empDepartment, setEmpDepartment] = useState('');
   const [empEmail, setEmpEmail] = useState('');
   const [empMobile, setEmpMobile] = useState('');
-  const [staffType, setStaffType] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState('');
-  const [gender, setGender] = useState('');
-  const [nationality, setNationality] = useState('Indian');
   const [emergencyContact, setEmergencyContact] = useState('');
-  const [contractType, setContractType] = useState('');
   const [currentAddress, setCurrentAddress] = useState('');
-  const [payrollCostCenter, setPayrollCostCenter] = useState('');
-  const [assetAssignment, setAssetAssignment] = useState('');
-  const [accessPermissions, setAccessPermissions] = useState('');
-  const [probationStatus, setProbationStatus] = useState('');
-  const [lastAppraisal, setLastAppraisal] = useState('');
-  const [lastTransferDate, setLastTransferDate] = useState('');
-  const [transferCategory, setTransferCategory] = useState('');
-  const [priorityLevel, setPriorityLevel] = useState('Normal');
-  const [newProbation, setNewProbation] = useState('');
-  const [newWorkSchedule, setNewWorkSchedule] = useState('');
-  const [newCostCenter, setNewCostCenter] = useState('');
-  const [newOfficeRoom, setNewOfficeRoom] = useState('');
-  const [initiatedByWhom, setInitiatedByWhom] = useState('HR');
-  const [payGradeChange, setPayGradeChange] = useState(false);
-  const [taxLocationChange, setTaxLocationChange] = useState(false);
-  const [pfTransfer, setPfTransfer] = useState('');
-  const [insuranceUpdate, setInsuranceUpdate] = useState(false);
-  const [transportAllowance, setTransportAllowance] = useState('');
-  const [housingAllowance, setHousingAllowance] = useState('');
-  const [leaveCarryForward, setLeaveCarryForward] = useState(true);
-  const [handoverTo, setHandoverTo] = useState('');
-  const [handoverDate, setHandoverDate] = useState('');
-  const [pendingTasks, setPendingTasks] = useState('');
-  const [docUploads, setDocUploads] = useState<string[]>([]);
-  const [formStep, setFormStep] = useState(1);
-  const [historyPage, setHistoryPage] = useState(1);
-  const [historySort, setHistorySort] = useState<'id' | 'employee' | 'type' | 'status' | 'date'>('date');
-  const [searchDept, setSearchDept] = useState('');
-  const [searchType, setSearchType] = useState('');
-  const [searchBranch, setSearchBranch] = useState('');
-  const [showSearchFilters, setShowSearchFilters] = useState(false);
   const [currentBranch, setCurrentBranch] = useState('');
   const [currentManager, setCurrentManager] = useState('');
   const [shiftStart, setShiftStart] = useState('');
   const [shiftEnd, setShiftEnd] = useState('');
   const [officeRoomNo, setOfficeRoomNo] = useState('');
+  const [newBranch, setNewBranch] = useState('');
+  const [newDepartment, setNewDepartment] = useState('');
+  const [newDesignation, setNewDesignation] = useState('');
+  const [newManager, setNewManager] = useState('');
+  const [effectiveDate, setEffectiveDate] = useState('');
   const [reportingDateNewBranch, setReportingDateNewBranch] = useState('');
-  const [transferType, setTransferType] = useState('');
+  const [transferNature, setTransferNature] = useState('');
+  const [transferDuration, setTransferDuration] = useState('');
   const [durationFrom, setDurationFrom] = useState('');
   const [durationTo, setDurationTo] = useState('');
   const [transferReasons, setTransferReasons] = useState<string[]>([]);
+  const [remarks, setRemarks] = useState('');
   const [salaryChange, setSalaryChange] = useState(false);
   const [newSalary, setNewSalary] = useState('');
   const [benefitsChange, setBenefitsChange] = useState(false);
   const [roleChange, setRoleChange] = useState(false);
   const [roleChangeDetails, setRoleChangeDetails] = useState('');
   const [relocationAssistance, setRelocationAssistance] = useState(false);
-
-  const toggleTransferReason = (value: string) => {
-    setTransferReasons((prev) => prev.includes(value) ? prev.filter((reason) => reason !== value) : [...prev, value]);
-  };
+  const [handoverTo, setHandoverTo] = useState('');
+  const [handoverDate, setHandoverDate] = useState('');
+  const [pendingTasks, setPendingTasks] = useState('');
+  const [handoverChecks, setHandoverChecks] = useState<Record<string, boolean>>({});
+  const [docUploads, setDocUploads] = useState<string[]>([]);
+  const [consentInformed, setConsentInformed] = useState(false);
+  const [consentManager, setConsentManager] = useState(false);
+  const [consentAccurate, setConsentAccurate] = useState(false);
+  const [initiatedBy, setInitiatedBy] = useState('');
+  const [hrDesignation, setHrDesignation] = useState('');
 
   const [incomingTransfers, setIncomingTransfers] = useState<TransferRequest[]>(mockIncomingTransfers);
   const [outgoingTransfers, setOutgoingTransfers] = useState<TransferRequest[]>(mockOutgoingTransfers);
@@ -301,97 +294,88 @@ export function EmployeeTransfer() {
   const [historySearch, setHistorySearch] = useState('');
   const [historyType, setHistoryType] = useState('All Types');
   const [historyStatus, setHistoryStatus] = useState('All Status');
-  const [actionError, setActionError] = useState<{ message: string; action: string } | null>(null);
-  const [consentInformed, setConsentInformed] = useState(false);
-  const [consentManager, setConsentManager] = useState(false);
-  const [consentAccurate, setConsentAccurate] = useState(false);
-  const [initiatedBy, setInitiatedBy] = useState('');
-  const [hrDesignation, setHrDesignation] = useState('');
+  const [historySort, setHistorySort] = useState<'id' | 'employee' | 'type' | 'status' | 'date'>('date');
+  const [historyPage, setHistoryPage] = useState(1);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [eligibilityReady, setEligibilityReady] = useState(false);
   const [eligibilityOverride, setEligibilityOverride] = useState(false);
-  const [handoverChecks, setHandoverChecks] = useState<Record<string, Record<string, boolean>>>({});
-  const [activityOpen, setActivityOpen] = useState<Record<string, boolean>>({});
   const [letterPreview, setLetterPreview] = useState<TransferRequest | null>(null);
-  const [transferredInEmployees] = useState<Employee[]>(mockTransferredInEmployees);
-  const [expandedSection, setExpandedSection] = useState<string | null>('transferred-list');
+  const [rejectTarget, setRejectTarget] = useState<TransferRequest | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [expandedIn, setExpandedIn] = useState(true);
 
   const filteredEmployees = mockEmployees.filter((emp) => {
-    const matchesSearch = emp.name.toLowerCase().includes(searchQuery.toLowerCase()) || emp.id.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesDept = !searchDept || emp.department === searchDept;
-    const matchesType = !searchType || emp.staffType === searchType;
-    const matchesBranch = !searchBranch || emp.branch === searchBranch;
-    return matchesSearch && matchesDept && matchesType && matchesBranch;
+    const q = searchQuery.toLowerCase();
+    const matchesSearch = emp.name.toLowerCase().includes(q) || emp.id.toLowerCase().includes(q);
+    return matchesSearch && (!searchDept || emp.department === searchDept) && (!searchType || emp.staffType === searchType) && (!searchBranch || emp.branch === searchBranch);
   });
 
-  const filteredIncomingTransfers = incomingTransfers.filter((transfer) => {
-    if (incomingFilter === 'all') return true;
-    return transfer.status.toLowerCase() === incomingFilter.toLowerCase();
-  });
+  const filteredIncoming = incomingTransfers.filter((t) => incomingFilter === 'all' || t.status.toLowerCase() === incomingFilter.toLowerCase());
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
-        setShowSuggestions(false);
-      }
+    const onClick = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) setShowSuggestions(false);
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
   }, []);
 
   const handleSelectEmployee = (employee: Employee) => {
     setSelectedEmployee(employee);
     setSearchQuery('');
     setShowSuggestions(false);
-    setCurrentTransferStep(0);
+    setFormStep(1);
+    setShowSuccess(false);
+    setEmpFullName(employee.name);
+    setEmpId(employee.id);
+    setStaffType(employee.staffType);
+    setEmpJobTitle(employee.designation);
+    setEmpDepartment(departments.find((d) => d.label === employee.department)?.value ?? '');
+    setEmpEmail(employee.email);
+    setEmpMobile(employee.phone);
+    setCurrentBranch(branches.find((b) => b.label === employee.branch)?.value ?? '');
+    setCurrentManager(employee.reportingManager);
     setNewBranch('');
     setNewDepartment('');
     setNewDesignation('');
     setNewManager('');
     setEffectiveDate('');
-    setRemarks('');
-    setShowSuccess(false);
-    setEmpFullName(employee.name);
-    setEmpId(employee.id);
-    setEmpJobTitle(employee.designation);
-    setEmpDepartment(departments.find((dept) => dept.label === employee.department)?.value ?? '');
-    setEmpEmail(employee.email);
-    setEmpMobile(employee.phone);
-    setStaffType(employee.staffType);
-    setContractType(employee.staffType === 'Contract' ? 'Contract' : 'Permanent');
-    setFormStep(1);
-    setCurrentBranch(branches.find((branch) => branch.label === employee.branch)?.value ?? '');
-    setCurrentManager(employee.reportingManager);
-    setShiftStart('');
-    setShiftEnd('');
-    setOfficeRoomNo('');
     setReportingDateNewBranch('');
-    setTransferType('');
+    setTransferNature('');
+    setTransferDuration('');
     setDurationFrom('');
     setDurationTo('');
     setTransferReasons([]);
+    setRemarks('');
     setSalaryChange(false);
     setNewSalary('');
     setBenefitsChange(false);
     setRoleChange(false);
     setRoleChangeDetails('');
     setRelocationAssistance(false);
+    setConsentInformed(false);
+    setConsentManager(false);
+    setConsentAccurate(false);
+    setInitiatedBy('');
+    setHrDesignation('');
+    setHandoverChecks({});
+    setDocUploads([]);
   };
 
   const handleClearSelection = () => {
     setSelectedEmployee(null);
-    setCurrentTransferStep(0);
     setFormStep(1);
     setShowSuccess(false);
+    setEligibilityOverride(false);
   };
 
-  const fakeRequest = async () => new Promise<void>((resolve) => { window.setTimeout(resolve, 800); });
+  const fakeRequest = async () => new Promise<void>((resolve) => { window.setTimeout(resolve, 700); });
 
   const handleInitiateTransfer = async () => {
     setIsProcessing(true);
     setActionError(null);
     try {
       await fakeRequest();
-      setCurrentTransferStep(1);
       setShowSuccess(true);
       setOutgoingTransfers((prev) => [{
         id: `TRF-OUT-${String(prev.length + 1).padStart(3, '0')}`,
@@ -399,1026 +383,653 @@ export function EmployeeTransfer() {
         employeeName: empFullName,
         employeeAvatar: selectedEmployee?.avatar || initialsFrom(empFullName),
         employeeDesignation: empJobTitle,
-        fromBranch: selectedEmployee?.branch || currentBranch,
-        toBranch: branches.find((item) => item.value === newBranch)?.label || newBranch,
+        fromBranch: selectedEmployee?.branch || labelOf(branches, currentBranch),
+        toBranch: labelOf(branches, newBranch),
         fromDepartment: selectedEmployee?.department || empDepartment,
-        toDepartment: departments.find((item) => item.value === newDepartment)?.label || newDepartment,
-        newDesignation: designations.find((item) => item.value === newDesignation)?.label || newDesignation,
-        newManager: managers.find((item) => item.value === newManager)?.label || newManager,
+        toDepartment: labelOf(departments, newDepartment) || empDepartment,
+        newDesignation: labelOf(designations, newDesignation) || empJobTitle,
+        newManager: labelOf(managers, newManager),
         requestDate: dateNowIso(),
         effectiveDate,
         status: 'Pending',
         currentStep: 1,
         initiatedBy: initiatedBy || 'HR Manager',
         remarks,
-        type: 'Outgoing'
+        type: 'Outgoing',
+        nature: transferNature,
+        duration: transferDuration
       }, ...prev]);
+      handleClearSelection();
+      setShowSuccess(true);
     } catch {
-      setActionError({ message: 'Failed to initiate transfer.', action: 'initiate' });
+      setActionError('Failed to initiate transfer.');
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const handleProcessIncomingTransfer = async (transfer: TransferRequest, action: 'accept' | 'reject') => {
+  const handleProcessIncoming = async (transfer: TransferRequest, action: 'accept' | 'reject', reason?: string) => {
     setIsProcessing(true);
     setActionError(null);
     try {
       await fakeRequest();
-      setIncomingTransfers((prev) =>
-        prev.map((t) => t.id === transfer.id
-          ? action === 'accept'
-            ? { ...t, status: 'In Progress' as const, currentStep: Math.min(t.currentStep + 1, maxStepForType(t.type)) }
-            : { ...t, status: 'Rejected' as const }
-          : t)
-      );
+      setIncomingTransfers((prev) => prev.map((t) => t.id !== transfer.id ? t : action === 'accept'
+        ? { ...t, status: 'In Progress', currentStep: Math.min(t.currentStep + 1, maxStepForType(t.type)) }
+        : { ...t, status: 'Rejected', rejectReason: reason }));
     } catch {
-      setActionError({ message: `Failed to ${action} transfer. Server not responding.`, action });
+      setActionError(`Failed to ${action} transfer.`);
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const handleAdvanceIncomingStep = async (transfer: TransferRequest) => {
-    if (transfer.type !== 'Incoming' && transfer.type !== 'Outgoing') return;
+  const handleAdvance = async (transfer: TransferRequest) => {
     const max = maxStepForType(transfer.type);
     if (transfer.currentStep >= max) return;
     setIsProcessing(true);
-    setActionError(null);
     try {
       await fakeRequest();
       const newStep = Math.min(transfer.currentStep + 1, max);
-      const newStatus: TransferRequest['status'] = newStep >= max ? 'Completed' : 'In Progress';
-      const updater = (list: TransferRequest[]) => list.map((t) => t.id === transfer.id ? { ...t, currentStep: newStep, status: newStatus } : t);
+      const updater = (list: TransferRequest[]) => list.map((t) => t.id === transfer.id ? { ...t, currentStep: newStep, status: newStep >= max ? 'Completed' : 'In Progress' } : t);
       if (transfer.type === 'Incoming') setIncomingTransfers(updater);
       else setOutgoingTransfers(updater);
     } catch {
-      setActionError({ message: 'Failed to advance transfer step.', action: 'advance' });
+      setActionError('Failed to advance step.');
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const formatDate = (dateString: string): string => {
-    return new Date(dateString).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' });
-  };
-
+  const formatDate = (value: string) => new Date(value).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' });
   const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Pending': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'Approved': return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'In Progress': return 'bg-indigo-100 text-indigo-800 border-indigo-200';
-      case 'Completed': return 'bg-green-100 text-green-800 border-green-200';
-      case 'Rejected': return 'bg-red-100 text-red-800 border-red-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
+    if (status === 'Pending') return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+    if (status === 'Approved') return 'bg-blue-100 text-blue-800 border-blue-200';
+    if (status === 'In Progress') return 'bg-indigo-100 text-indigo-800 border-indigo-200';
+    if (status === 'Completed') return 'bg-green-100 text-green-800 border-green-200';
+    if (status === 'Rejected') return 'bg-red-100 text-red-800 border-red-200';
+    return 'bg-gray-100 text-gray-800 border-gray-200';
   };
-
-  const getStepStatus = (stepId: number, currentStep: number): 'completed' | 'current' | 'pending' => {
-    if (stepId < currentStep) return 'completed';
-    if (stepId === currentStep) return 'current';
-    return 'pending';
-  };
+  const getStepStatus = (stepId: number, current: number) => (stepId < current ? 'completed' : stepId === current ? 'current' : 'pending');
 
   const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
+  const noticeDate = new Date(); noticeDate.setDate(noticeDate.getDate() + 7);
   const tomorrowIso = tomorrow.toISOString().slice(0, 10);
+  const noticeIso = noticeDate.toISOString().slice(0, 10);
+
   const formErrors = {
-    newBranch: !newBranch ? 'Please select a destination branch' : '',
-    effectiveDate: !effectiveDate ? 'Effective date is required' : effectiveDate <= dateNowIso() ? 'Effective date must be a future date' : '',
-    transferReasons: transferReasons.length === 0 ? 'Select at least one transfer reason' : '',
-    transferType: !['Permanent', 'Temporary', 'Provisional'].includes(transferType) ? 'Select a transfer type' : '',
-    durationFrom: transferType === 'Temporary' && !durationFrom ? 'Start date is required' : '',
-    durationTo: transferType === 'Temporary' && !durationTo ? 'End date is required' : transferType === 'Temporary' && durationFrom && durationTo && durationTo <= durationFrom ? 'End date must be after start date' : '',
-    newSalary: salaryChange && !(Number(newSalary) > 0) ? 'Please enter a valid salary amount' : '',
-    roleChangeDetails: roleChange && roleChangeDetails.trim().length < 20 ? 'Describe the role change in at least 20 characters' : '',
+    newBranch: !newBranch ? 'Please select a destination branch' : newBranch === currentBranch ? 'Destination must differ from current branch' : '',
+    effectiveDate: !effectiveDate ? 'Effective date is required' : effectiveDate <= dateNowIso() ? 'Must be a future date' : effectiveDate < noticeIso ? 'Allow at least 7 days’ notice' : '',
+    transferNature: !transferNature ? 'Select transfer nature' : '',
+    transferDuration: !transferDuration ? 'Select transfer duration' : '',
+    durationFrom: transferDuration !== 'Permanent' && transferDuration && !durationFrom ? 'Start date required' : '',
+    durationTo: transferDuration !== 'Permanent' && transferDuration && !durationTo ? 'End date required' : transferDuration !== 'Permanent' && durationFrom && durationTo && durationTo <= durationFrom ? 'End date must be after start' : '',
+    transferReasons: transferReasons.length === 0 ? 'Select at least one justification' : '',
+    newSalary: salaryChange && !(Number(newSalary) > 0) ? 'Enter a valid salary' : '',
+    roleChangeDetails: roleChange && roleChangeDetails.trim().length < 20 ? 'Describe role change (20+ chars)' : '',
     consent: !(consentInformed && consentManager && consentAccurate) ? 'Required' : '',
     initiatedBy: !initiatedBy.trim() ? 'Required' : '',
-    hrDesignation: !hrDesignation.trim() ? 'Required' : ''
+    hrDesignation: !hrDesignation.trim() ? 'Required' : '',
+    empFullName: empFullName.trim().length < 2 ? 'Required' : '',
+    empId: !/^EMP\d{3,}$/i.test(empId) ? 'ID must be EMP + digits' : '',
+    staffType: !staffType ? 'Required' : '',
+    empEmail: !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(empEmail) ? 'Valid email required' : '',
+    empMobile: !empMobile.trim() ? 'Required' : ''
   };
-  const isFormValid = Object.values(formErrors).every((error) => !error);
-  const stepValid = {
-    1: Boolean(empFullName.trim() && empId.trim() && staffType && empEmail.trim() && empMobile.trim()),
-    2: !formErrors.newBranch && !formErrors.effectiveDate && !formErrors.transferReasons && !formErrors.transferType && !formErrors.durationFrom && !formErrors.durationTo,
+  const stepValid: Record<number, boolean> = {
+    1: !formErrors.empFullName && !formErrors.empId && !formErrors.staffType && !formErrors.empEmail && !formErrors.empMobile,
+    2: !formErrors.newBranch && !formErrors.effectiveDate && !formErrors.transferNature && !formErrors.transferDuration && !formErrors.durationFrom && !formErrors.durationTo && !formErrors.transferReasons,
     3: !formErrors.newSalary && !formErrors.roleChangeDetails,
     4: true,
     5: !formErrors.consent && !formErrors.initiatedBy && !formErrors.hrDesignation
-  } as Record<number, boolean>;
-  const yearsOfService = selectedEmployee ? Math.max(0, Math.floor((Date.now() - new Date(selectedEmployee.joiningDate).getTime()) / (1000 * 60 * 60 * 24 * 365))) : 0;
-  const outgoingActiveCount = outgoingTransfers.filter((t) => t.status !== 'Completed' && t.status !== 'Rejected' && t.status !== 'Cancelled').length;
-  const incomingPendingCount = incomingTransfers.filter((t) => t.status === 'Pending').length;
-  const historyCount = [...incomingTransfers, ...outgoingTransfers].filter((item) => ['Completed', 'Rejected', 'Cancelled'].includes(item.status)).length;
-  const isUrgentIncoming = (transfer: TransferRequest) => {
-    if (transfer.status !== 'Pending') return false;
-    const days = (new Date(transfer.effectiveDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
-    return days <= 14;
   };
+  const isFormValid = Object.values(formErrors).every((e) => !e);
 
   const historyRecords = useMemo(() => {
-    const combined = [...incomingTransfers, ...outgoingTransfers].filter((item) => ['Completed', 'Rejected', 'Cancelled'].includes(item.status));
+    const combined = [...incomingTransfers, ...outgoingTransfers].filter((i) => ['Completed', 'Rejected', 'Cancelled'].includes(i.status));
     const filtered = combined.filter((item) => {
-      const matchesSearch = !historySearch || item.employeeName.toLowerCase().includes(historySearch.toLowerCase()) || item.id.toLowerCase().includes(historySearch.toLowerCase());
-      const matchesType = historyType === 'All Types' || item.type === historyType;
-      const matchesStatus = historyStatus === 'All Status' || item.status === historyStatus;
-      return matchesSearch && matchesType && matchesStatus;
+      const q = historySearch.toLowerCase();
+      const matchesSearch = !historySearch || item.employeeName.toLowerCase().includes(q) || item.id.toLowerCase().includes(q);
+      return matchesSearch && (historyType === 'All Types' || item.type === historyType) && (historyStatus === 'All Status' || item.status === historyStatus);
     });
     return filtered.sort((a, b) => {
       if (historySort === 'id') return a.id.localeCompare(b.id);
       if (historySort === 'employee') return a.employeeName.localeCompare(b.employeeName);
       if (historySort === 'type') return a.type.localeCompare(b.type);
       if (historySort === 'status') return a.status.localeCompare(b.status);
-      return new Date(b.effectiveDate).getTime() - new Date(a.effectiveDate).getTime();
+      return b.effectiveDate.localeCompare(a.effectiveDate);
     });
   }, [incomingTransfers, outgoingTransfers, historySearch, historyType, historyStatus, historySort]);
+
   const historyPageSize = 5;
   const historyPages = Math.max(1, Math.ceil(historyRecords.length / historyPageSize));
   const pagedHistory = historyRecords.slice((historyPage - 1) * historyPageSize, historyPage * historyPageSize);
 
+  useEffect(() => { setHistoryPage(1); }, [historySearch, historyType, historyStatus, historySort]);
+  useEffect(() => { if (historyPage > historyPages) setHistoryPage(historyPages); }, [historyPage, historyPages]);
   useEffect(() => {
     if (!showSuccess) return undefined;
-    const timer = window.setTimeout(() => setShowSuccess(false), 6000);
-    return () => window.clearTimeout(timer);
+    const t = window.setTimeout(() => setShowSuccess(false), 6000);
+    return () => window.clearTimeout(t);
   }, [showSuccess]);
 
-  useEffect(() => {
-    setHistoryPage(1);
-  }, [historySearch, historyType, historyStatus, historySort]);
-
-  useEffect(() => {
-    if (historyPage > historyPages) setHistoryPage(historyPages);
-  }, [historyPage, historyPages]);
-
-  const tenureOk = selectedEmployee ? (Date.now() - new Date(selectedEmployee.joiningDate).getTime()) / (1000 * 60 * 60 * 24) > 182 : false;
-  const noActiveTransfer = selectedEmployee ? !outgoingTransfers.some((item) => item.employeeId === selectedEmployee.id && ['Pending', 'Approved', 'In Progress'].includes(item.status)) : false;
+  const tenureOk = selectedEmployee ? (Date.now() - new Date(selectedEmployee.joiningDate).getTime()) / 86400000 > 182 : false;
+  const noActiveTransfer = selectedEmployee ? !outgoingTransfers.some((i) => i.employeeId === selectedEmployee.id && ['Pending', 'Approved', 'In Progress'].includes(i.status)) : false;
   const employmentOk = selectedEmployee ? selectedEmployee.staffType !== 'Contract' : false;
   const contactOk = selectedEmployee ? Boolean(selectedEmployee.email && selectedEmployee.phone) : false;
   const eligibilityPass = tenureOk && noActiveTransfer && employmentOk && contactOk;
+
   useEffect(() => {
     if (!selectedEmployee) { setEligibilityReady(false); setEligibilityOverride(false); return undefined; }
     setEligibilityReady(false);
-    const timer = window.setTimeout(() => setEligibilityReady(true), 1000);
-    return () => window.clearTimeout(timer);
+    const t = window.setTimeout(() => setEligibilityReady(true), 900);
+    return () => window.clearTimeout(t);
   }, [selectedEmployee]);
 
-  return (
-    <div className="space-y-6 p-6 bg-gray-50 min-h-screen">
-      <nav className="flex items-center text-sm text-gray-500">
-        <Home className="w-4 h-4" />
-        <ChevronRight className="w-4 h-4 mx-2" />
-        <span>HR</span>
-        <ChevronRight className="w-4 h-4 mx-2" />
-        <span>Employee</span>
-        <ChevronRight className="w-4 h-4 mx-2" />
-        <span className="text-gray-900 font-medium">Branch Transfer</span>
-      </nav>
+  const isUrgent = (t: TransferRequest) => t.status === 'Pending' && (new Date(t.effectiveDate).getTime() - Date.now()) / 86400000 <= 14;
+  const outgoingActiveCount = outgoingTransfers.filter((t) => !['Completed', 'Rejected', 'Cancelled'].includes(t.status)).length;
+  const incomingPendingCount = incomingTransfers.filter((t) => t.status === 'Pending').length;
+  const historyCount = [...incomingTransfers, ...outgoingTransfers].filter((t) => ['Completed', 'Rejected', 'Cancelled'].includes(t.status)).length;
+  const toggleReason = (value: string) => setTransferReasons((prev) => prev.includes(value) ? prev.filter((r) => r !== value) : [...prev, value]);
 
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Employee Branch Transfer</h1>
-          <p className="text-sm text-gray-500 mt-1">Manage employee transfers between branches with complete process tracking</p>
-        </div>
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg">
-          <Building2 className="w-4 h-4" />
-          <span className="text-sm font-medium">Main Campus</span>
-        </div>
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-2 text-sm text-gray-500">
+        <Home className="w-4 h-4" /> <ChevronRight className="w-3 h-3" /> HR <ChevronRight className="w-3 h-3" /> <Building2 className="w-4 h-4" /> Employee <ChevronRight className="w-3 h-3" /> Employee Transfer
+      </div>
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Employee Transfer</h1>
+        <p className="text-sm text-gray-500 mt-1">Initiate outgoing transfers, accept incoming staff, and review history.</p>
       </div>
 
-      {actionError &&
-        <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-lg">
-          <AlertCircle className="w-5 h-5 text-red-600" />
-          <p className="flex-1 text-sm text-red-800">{actionError.message}</p>
-          <button type="button" className="text-sm font-medium text-red-700" onClick={() => setActionError(null)}>Retry</button>
-          <button type="button" onClick={() => setActionError(null)}><X className="w-4 h-4 text-red-600" /></button>
-        </div>
-      }
-
-      {showSuccess &&
-        <div className="relative overflow-hidden flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-lg">
-          <CheckCircle className="w-5 h-5 text-green-600" />
+      {actionError && <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800" role="alert"><AlertCircle className="w-4 h-4" />{actionError}</div>}
+      {showSuccess && (
+        <div className="relative flex items-start gap-3 p-4 bg-green-50 border border-green-200 rounded-lg">
+          <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
           <div className="flex-1">
-            <p className="text-sm font-medium text-green-800">Transfer Request Initiated Successfully!</p>
-            <p className="text-sm text-green-700">The transfer request has been submitted and is pending approval.</p>
-            <button type="button" className="text-sm font-medium text-green-800 underline" onClick={() => setActiveTab('outgoing')}>View Request →</button>
+            <p className="text-sm font-medium text-green-800">Transfer request initiated</p>
+            <button type="button" className="text-sm font-medium text-green-800 underline" onClick={() => setActiveTab('outgoing')}>View request</button>
           </div>
-          <button type="button" onClick={() => setShowSuccess(false)} className="text-green-600 hover:text-green-800"><X className="w-4 h-4" /></button>
-          <span className="absolute bottom-0 left-0 h-[3px] w-full bg-green-500 origin-left animate-[pulse_6s_linear]" />
+          <button type="button" onClick={() => setShowSuccess(false)}><X className="w-4 h-4 text-green-700" /></button>
         </div>
-      }
+      )}
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
         <div className="flex border-b border-gray-200">
-          <button type="button" onClick={() => setActiveTab('outgoing')} className={`flex items-center gap-2 px-6 py-4 text-sm font-medium border-b-2 ${activeTab === 'outgoing' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
-            <ArrowUpFromLine className="w-4 h-4" /> Outgoing Transfers
-            <span className="px-2 py-0.5 text-xs bg-indigo-100 text-indigo-700 rounded-full">{outgoingActiveCount}</span>
+          <button type="button" onClick={() => setActiveTab('outgoing')} className={`flex items-center gap-2 px-6 py-4 text-sm font-medium border-b-2 ${activeTab === 'outgoing' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500'}`}>
+            <ArrowUpFromLine className="w-4 h-4" /> Outgoing Transfers <span className="px-2 py-0.5 text-xs bg-indigo-100 text-indigo-700 rounded-full">{outgoingActiveCount}</span>
           </button>
-          <button type="button" onClick={() => setActiveTab('incoming')} className={`flex items-center gap-2 px-6 py-4 text-sm font-medium border-b-2 ${activeTab === 'incoming' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
-            <ArrowDownToLine className="w-4 h-4" /> Incoming Transfers
-            <span className="px-2 py-0.5 text-xs bg-yellow-100 text-yellow-700 rounded-full">{incomingPendingCount}</span>
+          <button type="button" onClick={() => setActiveTab('incoming')} className={`flex items-center gap-2 px-6 py-4 text-sm font-medium border-b-2 ${activeTab === 'incoming' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500'}`}>
+            <ArrowDownToLine className="w-4 h-4" /> Incoming Transfers <span className="px-2 py-0.5 text-xs bg-yellow-100 text-yellow-700 rounded-full">{incomingPendingCount}</span>
           </button>
-          <button type="button" onClick={() => setActiveTab('history')} className={`flex items-center gap-2 px-6 py-4 text-sm font-medium border-b-2 ${activeTab === 'history' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
-            <History className="w-4 h-4" /> Transfer History
-            <span className="px-2 py-0.5 text-xs bg-gray-100 text-gray-700 rounded-full">{historyCount}</span>
+          <button type="button" onClick={() => setActiveTab('history')} className={`flex items-center gap-2 px-6 py-4 text-sm font-medium border-b-2 ${activeTab === 'history' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500'}`}>
+            <History className="w-4 h-4" /> Transfer History <span className="px-2 py-0.5 text-xs bg-gray-100 text-gray-700 rounded-full">{historyCount}</span>
           </button>
         </div>
 
         <div className="p-6">
-          {activeTab === 'outgoing' &&
+          {activeTab === 'outgoing' && (
             <div className="space-y-6">
               <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2"><Search className="w-5 h-5 text-gray-500" /> Select Employee for Transfer</h3>
+                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2"><Search className="w-5 h-5 text-gray-500" /> Select Employee for Transfer</h3>
                 <div ref={searchRef} className="relative">
-                  <div className="relative">
-                    <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input type="text" placeholder="Search by employee name or ID..." value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setShowSuggestions(true); }} onFocus={() => setShowSuggestions(true)} className="w-full pl-12 pr-4 py-3 text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white" />
-                    {searchQuery && <button type="button" onClick={() => setSearchQuery('')} className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>}
-                  </div>
-                  <button type="button" onClick={() => setShowSearchFilters((open) => !open)} className="mt-3 inline-flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-800">
-                    <Filter className="w-4 h-4" /> {showSearchFilters ? 'Hide filters' : 'More filters'}
-                  </button>
-                  {showSearchFilters &&
-                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <select value={searchDept} onChange={(e) => setSearchDept(e.target.value)} className={transferFieldClass}>
-                        <option value="">All departments</option>
-                        {departments.map((dept) => <option key={dept.value} value={dept.label}>{dept.label}</option>)}
-                      </select>
-                      <select value={searchType} onChange={(e) => setSearchType(e.target.value)} className={transferFieldClass}>
-                        <option value="">All staff types</option>
-                        {['Teaching', 'Non-Teaching', 'Support', 'Contract'].map((type) => <option key={type} value={type}>{type}</option>)}
-                      </select>
-                      <select value={searchBranch} onChange={(e) => setSearchBranch(e.target.value)} className={transferFieldClass}>
-                        <option value="">All branches</option>
-                        {branches.map((branch) => <option key={branch.value} value={branch.label}>{branch.label}</option>)}
-                      </select>
+                  <Search className="absolute left-4 top-3.5 w-5 h-5 text-gray-400" />
+                  <input placeholder="Search by employee name or ID..." value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setShowSuggestions(true); }} onFocus={() => setShowSuggestions(true)} className="w-full pl-12 pr-10 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white" />
+                  {searchQuery && <button type="button" className="absolute right-3 top-3.5 text-gray-400" onClick={() => setSearchQuery('')}><X className="w-5 h-5" /></button>}
+                  {showSuggestions && (
+                    <div className="absolute z-20 mt-2 w-full bg-white border rounded-lg shadow-lg max-h-80 overflow-y-auto">
+                      {filteredEmployees.length === 0 && <div className="p-4 text-center text-gray-500"><User className="w-8 h-8 mx-auto mb-2 text-gray-300" />No employees found</div>}
+                      {filteredEmployees.map((emp) => (
+                        <button type="button" key={emp.id} onMouseDown={(event) => event.preventDefault()} onClick={() => handleSelectEmployee(emp)} className="w-full flex items-center gap-4 p-4 hover:bg-gray-50 border-b last:border-b-0 text-left">
+                          <div className="w-12 h-12 rounded-full bg-indigo-600 text-white flex items-center justify-center font-semibold">{emp.avatar}</div>
+                          <div className="flex-1"><p className="font-medium">{emp.name}</p><p className="text-sm text-gray-500">{emp.id} · {emp.designation}</p></div>
+                          <div className="text-right text-sm text-gray-600"><p>{emp.department}</p><p className="text-xs text-gray-400">{emp.branch}</p></div>
+                        </button>
+                      ))}
                     </div>
-                  }
-                  {showSuggestions && searchQuery &&
-                    <div className="absolute z-10 w-full mt-2 bg-white border border-gray-200 rounded-lg shadow-lg max-h-80 overflow-y-auto">
-                      {filteredEmployees.length > 0 ?
-                        filteredEmployees.map((employee) =>
-                          <button type="button" key={employee.id} onClick={() => handleSelectEmployee(employee)} className="w-full flex items-center gap-4 p-4 hover:bg-gray-50 border-b border-gray-100 last:border-b-0">
-                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center text-lg font-semibold">{employee.avatar}</div>
-                            <div className="flex-1 text-left">
-                              <p className="font-medium text-gray-900">{employee.name}</p>
-                              <p className="text-sm text-gray-500">{employee.id} • {employee.designation}</p>
-                            </div>
-                            <div className="text-right">
-                              <p className="text-sm text-gray-600">{employee.department}</p>
-                              <p className="text-xs text-gray-400">{employee.branch}</p>
-                            </div>
-                          </button>
-                        ) :
-                        <div className="p-4 text-center text-gray-500"><User className="w-8 h-8 mx-auto mb-2 text-gray-300" /><p>No employees found</p></div>
-                      }
-                    </div>
-                  }
+                  )}
                 </div>
-
-                {selectedEmployee &&
+                <button type="button" onClick={() => setShowSearchFilters((v) => !v)} className="mt-3 inline-flex items-center gap-2 text-sm text-indigo-600"><Filter className="w-4 h-4" /> {showSearchFilters ? 'Hide filters' : 'More filters'}</button>
+                {showSearchFilters && (
+                  <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <select value={searchDept} onChange={(e) => setSearchDept(e.target.value)} className={fieldClass}><option value="">All departments</option>{departments.map((d) => <option key={d.value} value={d.label}>{d.label}</option>)}</select>
+                    <select value={searchType} onChange={(e) => setSearchType(e.target.value)} className={fieldClass}><option value="">All staff types</option>{['Teaching', 'Non-Teaching', 'Support', 'Contract'].map((t) => <option key={t}>{t}</option>)}</select>
+                    <select value={searchBranch} onChange={(e) => setSearchBranch(e.target.value)} className={fieldClass}><option value="">All branches</option>{branches.map((b) => <option key={b.value} value={b.label}>{b.label}</option>)}</select>
+                  </div>
+                )}
+                {!selectedEmployee && (
+                  <div className="mt-4 divide-y rounded-lg border bg-white">
+                    {filteredEmployees.map((emp) => (
+                      <button type="button" key={`list-${emp.id}`} onClick={() => handleSelectEmployee(emp)} className="w-full flex items-center gap-4 p-3 hover:bg-indigo-50 text-left">
+                        <div className="w-10 h-10 rounded-full bg-indigo-600 text-white flex items-center justify-center text-sm font-semibold">{emp.avatar}</div>
+                        <div className="flex-1"><p className="font-medium text-gray-900">{emp.name}</p><p className="text-xs text-gray-500">{emp.id} · {emp.designation} · {emp.department}</p></div>
+                        <span className="text-xs font-medium text-indigo-600">Select</span>
+                      </button>
+                    ))}
+                    {filteredEmployees.length === 0 && <p className="p-4 text-sm text-gray-500">No employees match the search.</p>}
+                  </div>
+                )}
+                {selectedEmployee && (
                   <div className="mt-4 flex items-center justify-between p-4 bg-white border border-indigo-200 rounded-lg">
                     <div className="flex items-center gap-4">
-                      <div className="w-14 h-14 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center text-xl font-bold">{selectedEmployee.avatar}</div>
+                      <div className="w-14 h-14 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xl font-bold">{selectedEmployee.avatar}</div>
                       <div>
-                        <h3 className="text-lg font-semibold text-gray-900">{selectedEmployee.name}</h3>
-                        <p className="text-sm text-gray-600">{selectedEmployee.id}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">{selectedEmployee.designation}</span>
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">{selectedEmployee.department}</span>
-                        </div>
+                        <h3 className="text-lg font-semibold">{selectedEmployee.name}</h3>
+                        <p className="text-sm text-gray-600">{selectedEmployee.id} · {selectedEmployee.designation}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-right">
-                        <p className="text-sm text-gray-500">Current Branch</p>
-                        <p className="text-sm font-medium text-gray-900 flex items-center gap-1"><MapPin className="w-4 h-4 text-gray-400" />{selectedEmployee.branch}</p>
-                      </div>
-                      <button type="button" onClick={handleClearSelection} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full"><X className="w-5 h-5" /></button>
-                    </div>
+                    <button type="button" onClick={handleClearSelection} className="p-2 text-gray-400"><X className="w-5 h-5" /></button>
                   </div>
-                }
-
-                {!selectedEmployee && !searchQuery &&
-                  <div className="mt-4 flex flex-col items-center justify-center py-8 text-gray-400">
-                    <ArrowUpFromLine className="w-12 h-12 mb-3 text-indigo-200" />
-                    <p className="text-lg font-medium text-gray-700">No Active Outgoing Transfers</p>
-                    <p className="text-sm">Search for an employee above to begin a branch transfer request</p>
-                  </div>
-                }
-
-                {selectedEmployee && !eligibilityReady &&
-                  <div className="mt-4 p-4 border border-gray-200 rounded-lg bg-white">
-                    <p className="text-sm font-medium text-gray-800">Checking eligibility for {selectedEmployee.name}...</p>
-                    <div className="mt-2 h-2 rounded bg-gray-100 overflow-hidden"><div className="h-2 w-2/3 bg-indigo-400 animate-pulse" /></div>
-                  </div>
-                }
-                {selectedEmployee && eligibilityReady &&
+                )}
+                {selectedEmployee && !eligibilityReady && <div className="mt-4 p-4 border rounded-lg bg-white"><p className="text-sm">Checking eligibility for {selectedEmployee.name}...</p><div className="mt-2 h-2 rounded bg-gray-100 overflow-hidden"><div className="h-2 w-2/3 bg-indigo-400 animate-pulse" /></div></div>}
+                {selectedEmployee && eligibilityReady && (
                   <div className={`mt-4 p-4 border rounded-lg ${eligibilityPass || eligibilityOverride ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
-                    <p className="font-semibold text-gray-900 mb-3">{eligibilityPass || eligibilityOverride ? '✅' : '❌'} Eligibility Check — {selectedEmployee.name}</p>
-                    <div className="space-y-1 text-sm">
-                      <p>{tenureOk ? '✅' : '❌'} Minimum Tenure — {tenureOk ? `Joined ${selectedEmployee.joiningDate}` : 'Less than 6 months'}</p>
-                      <p>{noActiveTransfer ? '✅' : '❌'} No Active Transfer — {noActiveTransfer ? 'No pending transfers found' : 'An active transfer already exists'}</p>
-                      <p>{employmentOk ? '✅' : '❌'} Employment Type — {selectedEmployee.staffType}</p>
-                      <p>{contactOk ? '✅' : '❌'} Contact Details — {contactOk ? 'Email & phone verified' : 'Missing email or phone'}</p>
-                    </div>
-                    {eligibilityPass || eligibilityOverride ? <p className="mt-3 text-sm text-green-800">Employee is eligible for branch transfer</p> : (
-                      <div className="mt-3">
-                        <p className="text-sm text-red-800">Transfer Not Recommended — resolve issues first</p>
-                        <button type="button" className="mt-2 px-3 py-1.5 border border-red-300 rounded-lg text-sm" onClick={() => { if (window.confirm('Override eligibility and proceed?')) setEligibilityOverride(true); }}>Admin Override & Proceed</button>
-                      </div>
-                    )}
+                    <p className="font-semibold mb-3">{eligibilityPass || eligibilityOverride ? 'Eligible' : 'Not eligible'} — {selectedEmployee.name}</p>
+                    <p className="text-sm">{tenureOk ? '✅' : '❌'} Minimum tenure — {tenureOk ? `Joined ${selectedEmployee.joiningDate}` : 'Less than 6 months'}</p>
+                    <p className="text-sm">{noActiveTransfer ? '✅' : '❌'} No active transfer</p>
+                    <p className="text-sm">{employmentOk ? '✅' : '❌'} Employment type — {selectedEmployee.staffType}</p>
+                    <p className="text-sm">{contactOk ? '✅' : '❌'} Contact details</p>
+                    {!eligibilityPass && !eligibilityOverride && <button type="button" className="mt-2 px-3 py-1.5 border border-red-300 rounded-lg text-sm" onClick={() => setEligibilityOverride(true)}>Admin override & proceed</button>}
                   </div>
-                }
+                )}
               </div>
 
-              {selectedEmployee && eligibilityReady && (eligibilityPass || eligibilityOverride) &&
-                <div className="bg-white rounded-lg border border-gray-200">
-                  <div className="p-4 border-b border-gray-200">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
+              {selectedEmployee && eligibilityReady && (eligibilityPass || eligibilityOverride) && (
+                <div className="bg-white rounded-lg border">
+                  <div className="p-4 border-b">
+                    <div className="flex flex-wrap justify-between gap-3">
                       <div>
-                        <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2"><ArrowRightLeft className="w-5 h-5 text-indigo-600" /> Transfer Request Form</h3>
-                        <p className="text-sm text-gray-500 mt-1">Step {formStep} of {FORM_WIZARD_STEPS.length} — {FORM_WIZARD_STEPS[formStep - 1].title} for {selectedEmployee.name}</p>
+                        <h3 className="text-lg font-semibold flex items-center gap-2"><ArrowRightLeft className="w-5 h-5 text-indigo-600" /> Transfer Request Form</h3>
+                        <p className="text-sm text-gray-500">Step {formStep} of 5 — {FORM_STEPS[formStep - 1].title}</p>
                       </div>
-                      <p className="text-xs text-gray-500"><span className="text-red-500">*</span> Required &nbsp;·&nbsp; unmarked fields are optional</p>
+                      <p className="text-xs text-gray-500"><span className="text-red-500">*</span> Required</p>
                     </div>
-                    <div className="mt-4 flex items-center gap-2 overflow-x-auto pb-1">
-                      {FORM_WIZARD_STEPS.map((step, index) =>
-                        <button type="button" key={step.id} onClick={() => { if (step.id <= formStep || stepValid[formStep]) setFormStep(step.id); }} className="flex items-center gap-2 min-w-0">
+                    <div className="mt-4 flex items-center gap-2 overflow-x-auto">
+                      {FORM_STEPS.map((step) => (
+                        <button type="button" key={step.id} onClick={() => { if (step.id <= formStep || stepValid[formStep]) setFormStep(step.id); }} className="flex items-center gap-2">
                           <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${formStep === step.id ? 'bg-indigo-600 text-white' : formStep > step.id ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600'}`}>{formStep > step.id ? <CheckCircle2 className="w-4 h-4" /> : step.id}</span>
                           <span className={`hidden sm:block text-xs ${formStep === step.id ? 'text-indigo-700 font-semibold' : 'text-gray-500'}`}>{step.title}</span>
-                          {index < FORM_WIZARD_STEPS.length - 1 && <span className={`hidden sm:block w-8 h-0.5 ${formStep > step.id ? 'bg-green-400' : 'bg-gray-200'}`} />}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="p-6 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_260px] gap-6">
+                    <div className="space-y-6 min-w-0">
+                      {formStep === 1 && (
+                        <>
+                          <section className={cardClass}>
+                            <h4 className="flex items-center gap-2 font-semibold mb-4"><User className="w-4 h-4 text-indigo-600" /> Employee Identification</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div><label className={labelClass}>Full name *</label><input readOnly value={empFullName} className={`${fieldClass} bg-gray-50`} /></div>
+                              <div><label className={labelClass}>Employee ID *</label><input readOnly value={empId} className={`${fieldClass} bg-gray-50`} /></div>
+                              <div><label className={labelClass}>Staff type *</label><select value={staffType} onChange={(e) => setStaffType(e.target.value)} className={fieldClass}><option value="">Select...</option>{['Teaching', 'Non-Teaching', 'Support', 'Contract'].map((t) => <option key={t}>{t}</option>)}</select></div>
+                              <div><label className={labelClass}>Email *</label><input value={empEmail} onChange={(e) => setEmpEmail(e.target.value)} className={fieldClass} /></div>
+                              <div><label className={labelClass}>Mobile *</label><input value={empMobile} onChange={(e) => setEmpMobile(e.target.value)} className={fieldClass} /></div>
+                              <div><label className={labelClass}>Designation</label><input value={empJobTitle} onChange={(e) => setEmpJobTitle(e.target.value)} className={fieldClass} /></div>
+                              <div><label className={labelClass}>Department</label><select value={empDepartment} onChange={(e) => setEmpDepartment(e.target.value)} className={fieldClass}><option value="">Select...</option>{departments.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}</select></div>
+                              <div><label className={labelClass}>Date of birth</label><input type="date" value={dateOfBirth} onChange={(e) => setDateOfBirth(e.target.value)} className={fieldClass} /></div>
+                              <div><label className={labelClass}>Emergency contact</label><input value={emergencyContact} onChange={(e) => setEmergencyContact(e.target.value)} className={fieldClass} /></div>
+                              <div className="md:col-span-2"><label className={labelClass}>Current address</label><textarea rows={2} value={currentAddress} onChange={(e) => setCurrentAddress(e.target.value)} className={fieldClass} /></div>
+                            </div>
+                          </section>
+                          <section className={cardClass}>
+                            <h4 className="flex items-center gap-2 font-semibold mb-4"><MapPin className="w-4 h-4 text-indigo-600" /> Current Branch</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div><label className={labelClass}>Current branch *</label><select value={currentBranch} onChange={(e) => setCurrentBranch(e.target.value)} className={fieldClass}><option value="">Select...</option>{branches.map((b) => <option key={b.value} value={b.value}>{b.label}</option>)}</select></div>
+                              <div><label className={labelClass}>Reporting manager</label><input value={currentManager} onChange={(e) => setCurrentManager(e.target.value)} className={fieldClass} /></div>
+                              <div><label className={labelClass}>Shift start</label><input type="time" value={shiftStart} onChange={(e) => setShiftStart(e.target.value)} className={fieldClass} /></div>
+                              <div><label className={labelClass}>Shift end</label><input type="time" value={shiftEnd} onChange={(e) => setShiftEnd(e.target.value)} className={fieldClass} /></div>
+                              <div><label className={labelClass}>Office / room</label><input value={officeRoomNo} onChange={(e) => setOfficeRoomNo(e.target.value)} className={fieldClass} /></div>
+                            </div>
+                          </section>
+                        </>
+                      )}
+                      {formStep === 2 && (
+                        <>
+                          <section className={cardClass}>
+                            <h4 className="flex items-center gap-2 font-semibold mb-4"><ArrowRight className="w-4 h-4 text-indigo-600" /> Transfer Details</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <label className={labelClass}>Destination branch *</label>
+                                <select value={newBranch} onChange={(e) => setNewBranch(e.target.value)} className={fieldClass}><option value="">Select...</option>{branches.filter((b) => b.value !== currentBranch).map((b) => <option key={b.value} value={b.value}>{b.label}</option>)}</select>
+                                {formErrors.newBranch && <p className="mt-1 text-xs text-red-600">{formErrors.newBranch}</p>}
+                              </div>
+                              <div><label className={labelClass}>New department</label><select value={newDepartment} onChange={(e) => setNewDepartment(e.target.value)} className={fieldClass}><option value="">Same as current</option>{departments.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}</select></div>
+                              <div><label className={labelClass}>New job title</label><select value={newDesignation} onChange={(e) => setNewDesignation(e.target.value)} className={fieldClass}><option value="">Same as current</option>{designations.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}</select></div>
+                              <div><label className={labelClass}>New manager</label><select value={newManager} onChange={(e) => setNewManager(e.target.value)} className={fieldClass}><option value="">Select...</option>{managers.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}</select></div>
+                              <div>
+                                <label className={labelClass}><Calendar className="w-4 h-4 inline" /> Effective date *</label>
+                                <input type="date" min={tomorrowIso} value={effectiveDate} onChange={(e) => setEffectiveDate(e.target.value)} className={fieldClass} />
+                                {formErrors.effectiveDate && <p className="mt-1 text-xs text-red-600">{formErrors.effectiveDate}</p>}
+                              </div>
+                              <div><label className={labelClass}>Reporting date</label><input type="date" value={reportingDateNewBranch} onChange={(e) => setReportingDateNewBranch(e.target.value)} className={fieldClass} /></div>
+                              <div className="md:col-span-2">
+                                <p className={labelClass}>Transfer nature *</p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                  {TRANSFER_NATURES.map((n) => (
+                                    <label key={n.value} className="flex items-start gap-2 text-sm border rounded-lg p-2 cursor-pointer">
+                                      <input type="radio" name="nature" checked={transferNature === n.value} onChange={() => setTransferNature(n.value)} />
+                                      <span><span className="font-medium">{n.label}</span><span className="block text-xs text-gray-500">{n.hint}</span></span>
+                                    </label>
+                                  ))}
+                                </div>
+                                {formErrors.transferNature && <p className="mt-1 text-xs text-red-600">{formErrors.transferNature}</p>}
+                              </div>
+                              <div className="md:col-span-2">
+                                <p className={labelClass}>Transfer duration *</p>
+                                <div className="flex flex-wrap gap-4">
+                                  {['Permanent', 'Temporary', 'Deputation'].map((d) => (
+                                    <label key={d} className="inline-flex items-center gap-2 text-sm"><input type="radio" name="duration" checked={transferDuration === d} onChange={() => setTransferDuration(d)} />{d}</label>
+                                  ))}
+                                </div>
+                                {formErrors.transferDuration && <p className="mt-1 text-xs text-red-600">{formErrors.transferDuration}</p>}
+                              </div>
+                              {transferDuration && transferDuration !== 'Permanent' && (
+                                <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
+                                  <div><label className={labelClass}>From</label><input type="date" value={durationFrom} onChange={(e) => setDurationFrom(e.target.value)} className={fieldClass} /></div>
+                                  <div><label className={labelClass}>To</label><input type="date" value={durationTo} onChange={(e) => setDurationTo(e.target.value)} className={fieldClass} /></div>
+                                </div>
+                              )}
+                            </div>
+                          </section>
+                          <section className={cardClass}>
+                            <h4 className="flex items-center gap-2 font-semibold mb-4"><FileText className="w-4 h-4 text-indigo-600" /> Transfer Justification</h4>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {TRANSFER_JUSTIFICATIONS.map((r) => (
+                                <label key={r.value} className="inline-flex items-center gap-2 text-sm"><input type="checkbox" checked={transferReasons.includes(r.value)} onChange={() => toggleReason(r.value)} />{r.label}</label>
+                              ))}
+                            </div>
+                            {formErrors.transferReasons && <p className="mt-2 text-xs text-red-600">{formErrors.transferReasons}</p>}
+                            <div className="mt-4"><label className={labelClass}>Additional notes</label><textarea rows={3} value={remarks} onChange={(e) => setRemarks(e.target.value)} className={fieldClass} /></div>
+                          </section>
+                        </>
+                      )}
+                      {formStep === 3 && (
+                        <section className={cardClass}>
+                          <h4 className="font-semibold mb-4">Employment condition changes</h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="p-4 border rounded-lg space-y-3">
+                              <div className="flex items-center justify-between"><span className="text-sm font-medium">Salary change?</span><Toggle checked={salaryChange} onChange={setSalaryChange} label={salaryChange ? 'Yes' : 'No'} /></div>
+                              {salaryChange && <div><label className={labelClass}>New salary (₹ / month)</label><input type="number" min={0} value={newSalary} onChange={(e) => setNewSalary(e.target.value)} className={fieldClass} />{formErrors.newSalary && <p className="text-xs text-red-600">{formErrors.newSalary}</p>}</div>}
+                            </div>
+                            <div className="p-4 border rounded-lg flex items-center justify-between"><span className="text-sm font-medium">Benefits change?</span><Toggle checked={benefitsChange} onChange={setBenefitsChange} label={benefitsChange ? 'Yes' : 'No'} /></div>
+                            <div className="p-4 border rounded-lg space-y-3 md:col-span-2">
+                              <div className="flex items-center justify-between"><span className="text-sm font-medium">Role change?</span><Toggle checked={roleChange} onChange={setRoleChange} label={roleChange ? 'Yes' : 'No'} /></div>
+                              {roleChange && <textarea rows={3} value={roleChangeDetails} onChange={(e) => setRoleChangeDetails(e.target.value)} className={fieldClass} placeholder="Describe the change..." />}
+                            </div>
+                            <div className="p-4 border rounded-lg flex items-center justify-between md:col-span-2"><span className="text-sm font-medium">Relocation assistance?</span><Toggle checked={relocationAssistance} onChange={setRelocationAssistance} label={relocationAssistance ? 'Yes' : 'No'} /></div>
+                          </div>
+                        </section>
+                      )}
+                      {formStep === 4 && (
+                        <>
+                          <section className={cardClass}>
+                            <h4 className="font-semibold mb-4">Handover</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div><label className={labelClass}>Handover to</label><input value={handoverTo} onChange={(e) => setHandoverTo(e.target.value)} className={fieldClass} /></div>
+                              <div><label className={labelClass}>Handover date</label><input type="date" value={handoverDate} onChange={(e) => setHandoverDate(e.target.value)} className={fieldClass} /></div>
+                              <div className="md:col-span-2"><label className={labelClass}>Pending tasks</label><textarea rows={3} value={pendingTasks} onChange={(e) => setPendingTasks(e.target.value)} className={fieldClass} /></div>
+                            </div>
+                            <ul className="mt-4 space-y-2">
+                              {HANDOVER_ITEMS.map((item) => (
+                                <li key={item.id}><label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={Boolean(handoverChecks[item.id])} onChange={(e) => setHandoverChecks((p) => ({ ...p, [item.id]: e.target.checked }))} />{item.label}</label></li>
+                              ))}
+                            </ul>
+                          </section>
+                          <section className={cardClass}>
+                            <h4 className="flex items-center gap-2 font-semibold mb-4"><Paperclip className="w-4 h-4 text-indigo-600" /> Documents</h4>
+                            <label className="flex flex-col items-center gap-2 border-2 border-dashed rounded-lg p-6 cursor-pointer">
+                              <Upload className="w-6 h-6 text-gray-400" />
+                              <span className="text-sm text-gray-600">PDF, DOC, JPG, PNG</span>
+                              <input type="file" multiple className="hidden" onChange={(e) => setDocUploads((p) => [...p, ...Array.from(e.target.files || []).map((f) => f.name)])} />
+                            </label>
+                            {docUploads.map((n) => <p key={n} className="text-sm mt-2 flex items-center gap-1"><Paperclip className="w-3.5 h-3.5" />{n}</p>)}
+                          </section>
+                        </>
+                      )}
+                      {formStep === 5 && (
+                        <section className={cardClass}>
+                          <h4 className="flex items-center gap-2 font-semibold mb-4"><ShieldCheck className="w-4 h-4 text-indigo-600" /> Authorization & review</h4>
+                          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm mb-4">
+                            <div><dt className="text-xs text-gray-500">Employee</dt><dd>{empFullName} ({empId})</dd></div>
+                            <div><dt className="text-xs text-gray-500">From → To</dt><dd>{labelOf(branches, currentBranch)} → {labelOf(branches, newBranch) || '—'}</dd></div>
+                            <div><dt className="text-xs text-gray-500">Nature / duration</dt><dd>{transferNature || '—'} · {transferDuration || '—'}</dd></div>
+                            <div><dt className="text-xs text-gray-500">Effective</dt><dd>{effectiveDate || '—'}</dd></div>
+                          </dl>
+                          <div className="space-y-3">
+                            <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={consentInformed} onChange={(e) => setConsentInformed(e.target.checked)} />Employee has been informed</label>
+                            <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={consentManager} onChange={(e) => setConsentManager(e.target.checked)} />Manager has acknowledged</label>
+                            <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={consentAccurate} onChange={(e) => setConsentAccurate(e.target.checked)} />Information is accurate</label>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div><label className={labelClass}>Initiated by *</label><input value={initiatedBy} onChange={(e) => setInitiatedBy(e.target.value)} className={fieldClass} /></div>
+                              <div><label className={labelClass}>HR designation *</label><input value={hrDesignation} onChange={(e) => setHrDesignation(e.target.value)} className={fieldClass} /></div>
+                            </div>
+                          </div>
+                        </section>
+                      )}
+                      {!stepValid[formStep] && <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">Complete required fields on this step before continuing.</div>}
+                    </div>
+                    <aside className="h-fit rounded-xl border border-indigo-100 bg-indigo-50/60 p-4 space-y-2 text-sm">
+                      <h4 className="font-semibold text-indigo-900">Live summary</h4>
+                      <p><span className="text-xs text-indigo-700">Employee</span><br />{empFullName || '—'}</p>
+                      <p><span className="text-xs text-indigo-700">From → To</span><br />{labelOf(branches, currentBranch) || '—'} → {labelOf(branches, newBranch) || 'Select'}</p>
+                      <p><span className="text-xs text-indigo-700">Nature</span><br />{transferNature || '—'}</p>
+                      <p><span className="text-xs text-indigo-700">Effective</span><br />{effectiveDate || 'Not set'}</p>
+                      <button type="button" className="w-full mt-2 px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm" onClick={() => setFormStep(5)}>Review & Submit</button>
+                    </aside>
+                  </div>
+                  <div className="px-6 pb-4">
+                    <div className="bg-gray-50 rounded-lg p-4 border">
+                      <h4 className="font-semibold text-gray-700 mb-3 flex items-center gap-2"><ClipboardList className="w-4 h-4" /> Process after submit</h4>
+                      <div className="flex items-center overflow-x-auto">
+                        {outgoingTransferSteps.map((step, i) => (
+                          <div key={step.id} className="flex items-center">
+                            <div className="flex flex-col items-center">
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${getStepStatus(step.id, 1) === 'current' ? 'bg-indigo-500 text-white' : 'bg-gray-200 text-gray-500'}`}>{step.id}</div>
+                              <p className="text-[10px] text-gray-600 mt-1 text-center max-w-[72px]">{step.title}</p>
+                            </div>
+                            {i < outgoingTransferSteps.length - 1 && <div className="w-6 h-0.5 mx-1 bg-gray-200" />}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="px-6 pb-6 flex flex-wrap justify-between gap-3">
+                    <button type="button" onClick={handleClearSelection} className="px-4 py-2 border rounded-lg">Cancel</button>
+                    <div className="flex gap-3">
+                      {formStep > 1 && <button type="button" onClick={() => setFormStep((s) => s - 1)} className="inline-flex items-center gap-1 px-4 py-2 border rounded-lg"><ChevronLeft className="w-4 h-4" /> Back</button>}
+                      {formStep < 5 && <button type="button" disabled={!stepValid[formStep]} onClick={() => setFormStep((s) => s + 1)} className="inline-flex items-center gap-1 px-4 py-2 bg-indigo-600 text-white rounded-lg disabled:opacity-50">Next <ChevronRight className="w-4 h-4" /></button>}
+                      {formStep === 5 && (
+                        <button type="button" onClick={handleInitiateTransfer} disabled={!isFormValid || isProcessing} className="inline-flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-lg disabled:opacity-50">
+                          {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Initiate Transfer
                         </button>
                       )}
                     </div>
                   </div>
-                  <div className="p-6 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_280px] gap-6">
-                    <div className="space-y-6 min-w-0">
-                    {formStep === 1 &&
-                    <section className={transferCardClass}>
-                      <h4 className={transferSectionHeadingClass}><User className="w-4 h-4 text-indigo-600" /> Employee Identification</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div><label className={transferLabelClass}>Employee Full Name <span className="text-red-500">*</span></label><input type="text" value={empFullName} onChange={(e) => setEmpFullName(e.target.value)} className={transferFieldClass} /></div>
-                        <div><label className={transferLabelClass}>Employee ID <span className="text-red-500">*</span></label><input type="text" value={empId} onChange={(e) => setEmpId(e.target.value)} className={transferFieldClass} /></div>
-                        <div>
-                          <label className={transferLabelClass}>Staff Type <span className="text-red-500">*</span></label>
-                          <select value={staffType} onChange={(e) => setStaffType(e.target.value)} className={transferFieldClass}>
-                            <option value="">Select...</option>
-                            {['Teaching', 'Non-Teaching', 'Support', 'Contract'].map((type) => <option key={type} value={type}>{type}</option>)}
-                          </select>
-                        </div>
-                        <div>
-                          <label className={transferLabelClass}>Contract Type</label>
-                          <select value={contractType} onChange={(e) => setContractType(e.target.value)} className={transferFieldClass}>
-                            <option value="">Select...</option>
-                            {['Permanent', 'Contract', 'Probation', 'Visiting'].map((type) => <option key={type} value={type}>{type}</option>)}
-                          </select>
-                        </div>
-                        <div><label className={transferLabelClass}>Designation / Job Title</label><input type="text" value={empJobTitle} onChange={(e) => setEmpJobTitle(e.target.value)} className={transferFieldClass} /></div>
-                        <div>
-                          <label className={transferLabelClass}>Department</label>
-                          <select value={empDepartment} onChange={(e) => setEmpDepartment(e.target.value)} className={transferFieldClass}>
-                            <option value="">Select Department...</option>
-                            {departments.map((dept) => <option key={dept.value} value={dept.value}>{dept.label}</option>)}
-                          </select>
-                        </div>
-                        <div><label className={transferLabelClass}>Date of Birth</label><input type="date" value={dateOfBirth} onChange={(e) => setDateOfBirth(e.target.value)} className={transferFieldClass} /></div>
-                        <div>
-                          <label className={transferLabelClass}>Gender</label>
-                          <select value={gender} onChange={(e) => setGender(e.target.value)} className={transferFieldClass}>
-                            <option value="">Select...</option>
-                            {['Male', 'Female', 'Other', 'Prefer not to say'].map((g) => <option key={g} value={g}>{g}</option>)}
-                          </select>
-                        </div>
-                        <div><label className={transferLabelClass}>Nationality</label><input type="text" value={nationality} onChange={(e) => setNationality(e.target.value)} className={transferFieldClass} /></div>
-                        <div><label className={transferLabelClass}>Email Address <span className="text-red-500">*</span></label><input type="email" value={empEmail} onChange={(e) => setEmpEmail(e.target.value)} className={transferFieldClass} /></div>
-                        <div><label className={transferLabelClass}>Mobile Number <span className="text-red-500">*</span></label><input type="tel" value={empMobile} onChange={(e) => setEmpMobile(e.target.value)} className={transferFieldClass} /></div>
-                        <div><label className={transferLabelClass}>Emergency Contact</label><input type="tel" value={emergencyContact} onChange={(e) => setEmergencyContact(e.target.value)} className={transferFieldClass} /></div>
-                        <div className="md:col-span-2"><label className={transferLabelClass}>Current Address</label><textarea value={currentAddress} onChange={(e) => setCurrentAddress(e.target.value)} rows={2} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" /></div>
-                        <div><label className={transferLabelClass}>Years of Service</label><input type="text" readOnly value={`${yearsOfService} year${yearsOfService === 1 ? '' : 's'}`} className={`${transferFieldClass} bg-gray-50`} /></div>
-                        <div>
-                          <label className={transferLabelClass}>Probation Status</label>
-                          <select value={probationStatus} onChange={(e) => setProbationStatus(e.target.value)} className={transferFieldClass}>
-                            <option value="">Select...</option>
-                            {['Confirmed', 'On Probation', 'Extended Probation'].map((s) => <option key={s} value={s}>{s}</option>)}
-                          </select>
-                        </div>
-                        <div><label className={transferLabelClass}>Last Appraisal Date</label><input type="date" value={lastAppraisal} onChange={(e) => setLastAppraisal(e.target.value)} className={transferFieldClass} /></div>
-                        <div><label className={transferLabelClass}>Last Transfer Date</label><input type="date" value={lastTransferDate} onChange={(e) => setLastTransferDate(e.target.value)} className={transferFieldClass} /></div>
-                      </div>
-                    </section>
-                    }
-
-                    {formStep === 1 &&
-                    <section className={transferCardClass}>
-                      <h4 className={transferSectionHeadingClass}><MapPin className="w-4 h-4 text-indigo-600" /> Current Branch Details</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label className={transferLabelClass}>Current Branch / Location</label>
-                          <select value={currentBranch} onChange={(e) => setCurrentBranch(e.target.value)} className={transferFieldClass}>
-                            <option value="">Select Branch...</option>
-                            {branches.map((branch) => <option key={branch.value} value={branch.value}>{branch.label}</option>)}
-                          </select>
-                        </div>
-                        <div><label className={transferLabelClass}>Current Reporting Manager</label><input type="text" value={currentManager} onChange={(e) => setCurrentManager(e.target.value)} className={transferFieldClass} /></div>
-                        <div className="md:col-span-2">
-                          <p className={transferLabelClass}><Clock className="w-4 h-4 inline mr-1" /> Current Work Schedule (Start & End Shift)</p>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div><label className="block text-xs font-medium text-gray-600 mb-1">Shift Start</label><input type="time" value={shiftStart} onChange={(e) => setShiftStart(e.target.value)} className={transferFieldClass} /></div>
-                            <div><label className="block text-xs font-medium text-gray-600 mb-1">Shift End</label><input type="time" value={shiftEnd} onChange={(e) => setShiftEnd(e.target.value)} className={transferFieldClass} /></div>
-                          </div>
-                        </div>
-                        <div><label className={transferLabelClass}>Office / Floor / Room No.</label><input type="text" value={officeRoomNo} onChange={(e) => setOfficeRoomNo(e.target.value)} className={transferFieldClass} /></div>
-                        <div><label className={transferLabelClass}>Payroll Cost Center</label><input type="text" value={payrollCostCenter} onChange={(e) => setPayrollCostCenter(e.target.value)} className={transferFieldClass} /></div>
-                        <div><label className={transferLabelClass}>Asset Assignment</label><input type="text" value={assetAssignment} onChange={(e) => setAssetAssignment(e.target.value)} placeholder="Laptop, ID card, keys..." className={transferFieldClass} /></div>
-                        <div className="md:col-span-2"><label className={transferLabelClass}>Access Permissions</label><textarea value={accessPermissions} onChange={(e) => setAccessPermissions(e.target.value)} rows={2} placeholder="ERP, biometric, campus access..." className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" /></div>
-                      </div>
-                    </section>
-                    }
-
-                    {formStep === 2 &&
-                    <section className={transferCardClass}>
-                      <h4 className={transferSectionHeadingClass}><ArrowRight className="w-4 h-4 text-indigo-600" /> Transfer Details</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label className={transferLabelClass}>New Branch / Location <span className="text-red-500">*</span></label>
-                          <select value={newBranch} onChange={(e) => setNewBranch(e.target.value)} className={transferFieldClass}>
-                            <option value="">Select Branch...</option>
-                            {branches.filter((b) => b.label !== selectedEmployee.branch).map((branch) => <option key={branch.value} value={branch.value}>{branch.label}</option>)}
-                          </select>
-                          {formErrors.newBranch && <p className="mt-1 text-xs text-red-600">{formErrors.newBranch}</p>}
-                        </div>
-                        <div>
-                          <label className={transferLabelClass}>New Department</label>
-                          <select value={newDepartment} onChange={(e) => setNewDepartment(e.target.value)} className={transferFieldClass}>
-                            <option value="">Same as current</option>
-                            {departments.map((dept) => <option key={dept.value} value={dept.value}>{dept.label}</option>)}
-                          </select>
-                        </div>
-                        <div>
-                          <label className={transferLabelClass}>New Job Title / Position</label>
-                          <select value={newDesignation} onChange={(e) => setNewDesignation(e.target.value)} className={transferFieldClass}>
-                            <option value="">Same as current</option>
-                            {designations.map((desig) => <option key={desig.value} value={desig.value}>{desig.label}</option>)}
-                          </select>
-                        </div>
-                        <div>
-                          <label className={transferLabelClass}><span className="inline-flex items-center gap-2"><Calendar className="w-4 h-4" /> Transfer Effective Date <span className="text-red-500">*</span></span></label>
-                          <input type="date" value={effectiveDate} onChange={(e) => setEffectiveDate(e.target.value)} min={tomorrowIso} className={transferFieldClass} />
-                          {formErrors.effectiveDate && <p className="mt-1 text-xs text-red-600">{formErrors.effectiveDate}</p>}
-                        </div>
-                        <div><label className={transferLabelClass}>Reporting Date at New Branch</label><input type="date" value={reportingDateNewBranch} onChange={(e) => setReportingDateNewBranch(e.target.value)} className={transferFieldClass} /></div>
-                        <div>
-                          <label className={transferLabelClass}>New Reporting Manager</label>
-                          <select value={newManager} onChange={(e) => setNewManager(e.target.value)} className={transferFieldClass}>
-                            <option value="">Select Manager...</option>
-                            {managers.map((mgr) => <option key={mgr.value} value={mgr.value}>{mgr.label}</option>)}
-                          </select>
-                        </div>
-                        <div className="md:col-span-2">
-                          <p className={transferLabelClass}>Transfer Type</p>
-                          <div className="flex flex-wrap gap-6">
-                            {['Permanent', 'Temporary', 'Provisional'].map((type) =>
-                              <label key={type} className="inline-flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                                <input type="radio" name="transferType" value={type} checked={transferType === type} onChange={() => setTransferType(type)} className="h-4 w-4 text-indigo-600 border-gray-300" />
-                                {type}
-                              </label>
-                            )}
-                          </div>
-                        </div>
-                        {transferType === 'Temporary' &&
-                          <div className="md:col-span-2 p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
-                            <p className={transferLabelClass}>Transfer Duration (if Temporary)</p>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                              <div><label className="block text-xs font-medium text-gray-600 mb-1">From</label><input type="date" value={durationFrom} onChange={(e) => setDurationFrom(e.target.value)} className={transferFieldClass} /></div>
-                              <div><label className="block text-xs font-medium text-gray-600 mb-1">To</label><input type="date" value={durationTo} min={durationFrom || undefined} onChange={(e) => setDurationTo(e.target.value)} className={transferFieldClass} /></div>
-                            </div>
-                          </div>
-                        }
-                        <div>
-                          <label className={transferLabelClass}>Transfer Category</label>
-                          <select value={transferCategory} onChange={(e) => setTransferCategory(e.target.value)} className={transferFieldClass}>
-                            <option value="">Select...</option>
-                            {['Inter-branch', 'Intra-city', 'Inter-city', 'Inter-state', 'International'].map((c) => <option key={c} value={c}>{c}</option>)}
-                          </select>
-                        </div>
-                        <div>
-                          <label className={transferLabelClass}>Priority</label>
-                          <select value={priorityLevel} onChange={(e) => setPriorityLevel(e.target.value)} className={transferFieldClass}>
-                            {['Normal', 'High', 'Urgent'].map((p) => <option key={p} value={p}>{p}</option>)}
-                          </select>
-                        </div>
-                        <div>
-                          <label className={transferLabelClass}>Initiated By</label>
-                          <select value={initiatedByWhom} onChange={(e) => setInitiatedByWhom(e.target.value)} className={transferFieldClass}>
-                            {['HR', 'Employee', 'Manager', 'Management'].map((who) => <option key={who} value={who}>{who}</option>)}
-                          </select>
-                        </div>
-                        <div>
-                          <label className={transferLabelClass}>New Work Schedule</label>
-                          <input type="text" value={newWorkSchedule} onChange={(e) => setNewWorkSchedule(e.target.value)} placeholder="e.g. 08:30–15:30" className={transferFieldClass} />
-                        </div>
-                        <div>
-                          <label className={transferLabelClass}>New Office / Room</label>
-                          <input type="text" value={newOfficeRoom} onChange={(e) => setNewOfficeRoom(e.target.value)} className={transferFieldClass} />
-                        </div>
-                        <div>
-                          <label className={transferLabelClass}>New Cost Center</label>
-                          <input type="text" value={newCostCenter} onChange={(e) => setNewCostCenter(e.target.value)} className={transferFieldClass} />
-                        </div>
-                        <div>
-                          <label className={transferLabelClass}>New Probation (if applicable)</label>
-                          <input type="text" value={newProbation} onChange={(e) => setNewProbation(e.target.value)} placeholder="e.g. 3 months" className={transferFieldClass} />
-                        </div>
-                      </div>
-                    </section>
-                    }
-
-                    {formStep === 2 &&
-                    <section className={transferCardClass}>
-                      <h4 className={transferSectionHeadingClass}><FileText className="w-4 h-4 text-indigo-600" /> Reason for Transfer</h4>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {TRANSFER_REASON_OPTIONS.map((reason) =>
-                          <label key={reason.value} className="inline-flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                            <input type="checkbox" checked={transferReasons.includes(reason.value)} onChange={() => toggleTransferReason(reason.value)} className="h-4 w-4 rounded text-indigo-600 border-gray-300" />
-                            {reason.label}
-                          </label>
-                        )}
-                      </div>
-                      <div className="mt-4">
-                        <label className={transferLabelClass}>Additional Notes / Comments</label>
-                        <textarea value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Enter any additional notes or instructions..." rows={3} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
-                      </div>
-                      {formErrors.transferReasons && <p className="mt-2 text-xs text-red-600">{formErrors.transferReasons}</p>}
-                    </section>
-                    }
-
-                    {formStep === 3 &&
-                    <section className={transferCardClass}>
-                      <h4 className={transferSectionHeadingClass}><DollarSign className="w-4 h-4 text-indigo-600" /> Employment Condition Changes</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="p-4 border border-gray-200 rounded-lg space-y-3">
-                          <div className="flex items-center justify-between gap-4">
-                            <span className="text-sm font-medium text-gray-700">Salary Change?</span>
-                            <Toggle checked={salaryChange} onChange={(checked) => setSalaryChange(checked)} label={salaryChange ? 'Yes' : 'No'} />
-                          </div>
-                          {salaryChange && <div><label className={transferLabelClass}>New Salary (₹ per month)</label><input type="number" min={0} value={newSalary} onChange={(e) => setNewSalary(e.target.value)} className={transferFieldClass} />{formErrors.newSalary && <p className="mt-1 text-xs text-red-600">{formErrors.newSalary}</p>}</div>}
-                        </div>
-                        <div className="p-4 border border-gray-200 rounded-lg flex items-center justify-between gap-4">
-                          <span className="text-sm font-medium text-gray-700">Benefits Change?</span>
-                          <Toggle checked={benefitsChange} onChange={(checked) => setBenefitsChange(checked)} label={benefitsChange ? 'Yes' : 'No'} />
-                        </div>
-                        <div className="p-4 border border-gray-200 rounded-lg space-y-3 md:col-span-2">
-                          <div className="flex items-center justify-between gap-4">
-                            <span className="text-sm font-medium text-gray-700">Role / Responsibilities Change?</span>
-                            <Toggle checked={roleChange} onChange={(checked) => setRoleChange(checked)} label={roleChange ? 'Yes' : 'No'} />
-                          </div>
-                          {roleChange && <textarea value={roleChangeDetails} onChange={(e) => setRoleChangeDetails(e.target.value)} placeholder="Describe the change in role or responsibilities..." rows={3} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />}
-                        </div>
-                        <div className="p-4 border border-gray-200 rounded-lg flex items-center justify-between gap-4 md:col-span-2">
-                          <span className="text-sm font-medium text-gray-700">Relocation Assistance Provided?</span>
-                          <Toggle checked={relocationAssistance} onChange={(checked) => setRelocationAssistance(checked)} label={relocationAssistance ? 'Yes' : 'No'} />
-                        </div>
-                        <div className="p-4 border border-gray-200 rounded-lg flex items-center justify-between gap-4">
-                          <span className="text-sm font-medium text-gray-700">Pay Grade Change?</span>
-                          <Toggle checked={payGradeChange} onChange={setPayGradeChange} label={payGradeChange ? 'Yes' : 'No'} />
-                        </div>
-                        <div className="p-4 border border-gray-200 rounded-lg flex items-center justify-between gap-4">
-                          <span className="text-sm font-medium text-gray-700">Tax Location Change?</span>
-                          <Toggle checked={taxLocationChange} onChange={setTaxLocationChange} label={taxLocationChange ? 'Yes' : 'No'} />
-                        </div>
-                        <div className="p-4 border border-gray-200 rounded-lg flex items-center justify-between gap-4">
-                          <span className="text-sm font-medium text-gray-700">Insurance Update Required?</span>
-                          <Toggle checked={insuranceUpdate} onChange={setInsuranceUpdate} label={insuranceUpdate ? 'Yes' : 'No'} />
-                        </div>
-                        <div className="p-4 border border-gray-200 rounded-lg flex items-center justify-between gap-4">
-                          <span className="text-sm font-medium text-gray-700">Leave Carry Forward?</span>
-                          <Toggle checked={leaveCarryForward} onChange={setLeaveCarryForward} label={leaveCarryForward ? 'Yes' : 'No'} />
-                        </div>
-                        <div>
-                          <label className={transferLabelClass}>PF / ESI Transfer Note</label>
-                          <input type="text" value={pfTransfer} onChange={(e) => setPfTransfer(e.target.value)} className={transferFieldClass} />
-                        </div>
-                        <div>
-                          <label className={transferLabelClass}>Transport Allowance (₹)</label>
-                          <input type="number" min={0} value={transportAllowance} onChange={(e) => setTransportAllowance(e.target.value)} className={transferFieldClass} />
-                        </div>
-                        <div>
-                          <label className={transferLabelClass}>Housing Allowance (₹)</label>
-                          <input type="number" min={0} value={housingAllowance} onChange={(e) => setHousingAllowance(e.target.value)} className={transferFieldClass} />
-                        </div>
-                      </div>
-                    </section>
-                    }
-
-                    {formStep === 4 &&
-                    <section className={transferCardClass}>
-                      <h4 className={transferSectionHeadingClass}><Briefcase className="w-4 h-4 text-indigo-600" /> Handover</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div><label className={transferLabelClass}>Handover To</label><input type="text" value={handoverTo} onChange={(e) => setHandoverTo(e.target.value)} placeholder="Replacement / colleague name" className={transferFieldClass} /></div>
-                        <div><label className={transferLabelClass}>Handover Date</label><input type="date" value={handoverDate} onChange={(e) => setHandoverDate(e.target.value)} className={transferFieldClass} /></div>
-                        <div className="md:col-span-2"><label className={transferLabelClass}>Pending Tasks</label><textarea value={pendingTasks} onChange={(e) => setPendingTasks(e.target.value)} rows={3} placeholder="List pending work, classes, or files to hand over..." className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" /></div>
-                      </div>
-                      <ul className="mt-4 space-y-2">
-                        {HANDOVER_ITEMS.map((item) =>
-                          <li key={item.id} className="flex items-start gap-2 text-sm text-gray-700">
-                            <CheckCircle2 className="w-4 h-4 text-indigo-500 mt-0.5 shrink-0" /> {item.label}
-                          </li>
-                        )}
-                      </ul>
-                    </section>
-                    }
-                    {formStep === 4 &&
-                    <section className={transferCardClass}>
-                      <h4 className={transferSectionHeadingClass}><Paperclip className="w-4 h-4 text-indigo-600" /> Supporting Documents</h4>
-                      <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-300 rounded-lg p-6 cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/40">
-                        <Upload className="w-6 h-6 text-gray-400" />
-                        <span className="text-sm text-gray-600">Upload request letter, NOC, medical certificate, or other attachments</span>
-                        <input type="file" multiple className="hidden" onChange={(e) => {
-                          const names = Array.from(e.target.files || []).map((file) => file.name);
-                          setDocUploads((prev) => [...prev, ...names]);
-                        }} />
-                      </label>
-                      {docUploads.length > 0 &&
-                        <ul className="mt-3 space-y-1">
-                          {docUploads.map((name) => <li key={name} className="text-sm text-gray-700 flex items-center gap-2"><Paperclip className="w-3.5 h-3.5" /> {name}</li>)}
-                        </ul>
-                      }
-                    </section>
-                    }
-
-                    {formStep === 5 &&
-                    <section className={transferCardClass}>
-                      <h4 className={transferSectionHeadingClass}><ShieldCheck className="w-4 h-4 text-indigo-600" /> Authorization & Consent</h4>
-                      <div className="space-y-3">
-                        <label className="flex items-start gap-2 text-sm text-gray-700"><input type="checkbox" checked={consentInformed} onChange={(e) => setConsentInformed(e.target.checked)} className="mt-1" />The employee has been verbally informed of this transfer</label>
-                        <label className="flex items-start gap-2 text-sm text-gray-700"><input type="checkbox" checked={consentManager} onChange={(e) => setConsentManager(e.target.checked)} className="mt-1" />The reporting manager has acknowledged this request{!consentManager && <span className="block text-xs text-red-600">This confirmation is required</span>}</label>
-                        <label className="flex items-start gap-2 text-sm text-gray-700"><input type="checkbox" checked={consentAccurate} onChange={(e) => setConsentAccurate(e.target.checked)} className="mt-1" />All information provided is accurate to the best of my knowledge</label>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div><label className={transferLabelClass}>Initiated By *</label><input value={initiatedBy} onChange={(e) => setInitiatedBy(e.target.value)} className={transferFieldClass} /></div>
-                          <div><label className={transferLabelClass}>HR Officer Designation *</label><input value={hrDesignation} onChange={(e) => setHrDesignation(e.target.value)} className={transferFieldClass} /></div>
-                        </div>
-                        <div className="rounded-lg bg-gray-50 border border-gray-200 p-3 text-xs text-gray-600">By submitting this form, you confirm the above statements are true. This submission will be logged with your user ID, timestamp, and IP address for audit purposes.</div>
-                      </div>
-                    </section>
-                    }
-
-                    {!stepValid[formStep] &&
-                      <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                        <AlertCircle className="w-4 h-4 text-amber-600" />
-                        <p className="text-sm text-amber-800">{formStep === 5 ? 'Please complete required fields, future effective date, consent checkboxes, and officer details.' : 'Please complete the required fields on this step before continuing.'}</p>
-                      </div>
-                    }
-                    </div>
-
-                    <aside className="xl:sticky xl:top-4 h-fit rounded-xl border border-indigo-100 bg-indigo-50/60 p-4 space-y-3">
-                      <h4 className="text-sm font-semibold text-indigo-900">Live summary</h4>
-                      <dl className="space-y-2 text-sm">
-                        <div><dt className="text-xs text-indigo-700">Employee</dt><dd className="font-medium text-gray-900">{empFullName || '—'}</dd></div>
-                        <div><dt className="text-xs text-indigo-700">From → To</dt><dd className="font-medium text-gray-900">{branches.find((b) => b.value === currentBranch)?.label || selectedEmployee.branch} → {branches.find((b) => b.value === newBranch)?.label || 'Select branch'}</dd></div>
-                        <div><dt className="text-xs text-indigo-700">Effective</dt><dd className="font-medium text-gray-900">{effectiveDate || 'Not set'}</dd></div>
-                        <div><dt className="text-xs text-indigo-700">Type</dt><dd className="font-medium text-gray-900">{transferType || '—'}</dd></div>
-                        <div><dt className="text-xs text-indigo-700">Priority</dt><dd className="font-medium text-gray-900">{priorityLevel}</dd></div>
-                        <div><dt className="text-xs text-indigo-700">Reasons</dt><dd className="font-medium text-gray-900">{transferReasons.length ? TRANSFER_REASON_OPTIONS.filter((r) => transferReasons.includes(r.value)).map((r) => r.label).join(', ') : 'None selected'}</dd></div>
-                        <div><dt className="text-xs text-indigo-700">New manager</dt><dd className="font-medium text-gray-900">{managers.find((m) => m.value === newManager)?.label || '—'}</dd></div>
-                        <div><dt className="text-xs text-indigo-700">Documents</dt><dd className="font-medium text-gray-900">{docUploads.length} file(s)</dd></div>
-                      </dl>
-                      <p className="text-xs text-indigo-700">Process after submit: Initiate → Manager → HR → Destination → Handover → Complete</p>
-                    </aside>
-                  </div>
-
-                  <div className="px-6 pb-6">
-                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                      <h4 className="font-semibold text-gray-700 mb-4 flex items-center gap-2"><ClipboardList className="w-4 h-4" /> Transfer Process Steps</h4>
-                      <div className="flex items-center justify-between">
-                        {outgoingTransferSteps.map((step, index) =>
-                          <div key={step.id} className="flex items-center">
-                            <div className="flex flex-col items-center">
-                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${getStepStatus(step.id, currentTransferStep + 1) === 'completed' ? 'bg-green-500 text-white' : getStepStatus(step.id, currentTransferStep + 1) === 'current' ? 'bg-indigo-500 text-white' : 'bg-gray-200 text-gray-500'}`}>
-                                {getStepStatus(step.id, currentTransferStep + 1) === 'completed' ? <CheckCircle2 className="w-5 h-5" /> : step.id}
-                              </div>
-                              <p className="text-xs text-gray-600 mt-1 text-center max-w-[80px]">{step.title}</p>
-                            </div>
-                            {index < outgoingTransferSteps.length - 1 && <div className={`w-12 h-0.5 mx-1 ${getStepStatus(step.id, currentTransferStep + 1) === 'completed' ? 'bg-green-500' : 'bg-gray-200'}`} />}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="px-6 pb-6 flex flex-wrap justify-between gap-3">
-                    <button type="button" onClick={handleClearSelection} className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
-                    <div className="flex gap-3">
-                      {formStep > 1 && <button type="button" onClick={() => setFormStep((s) => s - 1)} className="inline-flex items-center gap-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"><ChevronLeft className="w-4 h-4" /> Back</button>}
-                      {formStep < FORM_WIZARD_STEPS.length && <button type="button" disabled={!stepValid[formStep]} onClick={() => setFormStep((s) => s + 1)} className="inline-flex items-center gap-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50">Next <ChevronRight className="w-4 h-4" /></button>}
-                      {formStep === FORM_WIZARD_STEPS.length &&
-                        <button type="button" onClick={handleInitiateTransfer} disabled={!isFormValid || isProcessing} className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed">
-                          {isProcessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Processing...</> : <><Send className="w-4 h-4" /> Initiate Transfer</>}
-                        </button>
-                      }
-                    </div>
-                  </div>
                 </div>
-              }
+              )}
 
-              {outgoingTransfers.length > 0 &&
-                <div className="bg-white rounded-lg border border-gray-200">
-                  <div className="p-4 border-b border-gray-200">
-                    <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2"><Clock className="w-5 h-5 text-gray-500" /> Active Outgoing Transfers</h3>
-                  </div>
-                  <div className="divide-y divide-gray-200">
-                    {outgoingTransfers.map((transfer) =>
-                      <div key={transfer.id} className="p-4 hover:bg-gray-50">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center text-lg font-semibold">{transfer.employeeAvatar}</div>
-                            <div>
-                              <p className="font-medium text-gray-900">{transfer.employeeName}</p>
-                              <p className="text-sm text-gray-500">{transfer.employeeId}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-6">
-                            <div className="text-center"><p className="text-xs text-gray-500">From</p><p className="text-sm font-medium text-gray-700">{transfer.fromBranch}</p></div>
-                            <ArrowRight className="w-5 h-5 text-gray-400" />
-                            <div className="text-center"><p className="text-xs text-gray-500">To</p><p className="text-sm font-medium text-gray-700">{transfer.toBranch}</p></div>
-                            <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(transfer.status)}`}>{transfer.status}</span>
-                            <button type="button" className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"><Eye className="w-4 h-4" /></button>
-                          </div>
+              {outgoingTransfers.filter((t) => !['Completed', 'Rejected', 'Cancelled'].includes(t.status)).length > 0 && (
+                <div className="bg-white rounded-lg border">
+                  <div className="p-4 border-b"><h3 className="text-lg font-semibold flex items-center gap-2"><Clock className="w-5 h-5" /> Active outgoing transfers</h3></div>
+                  {outgoingTransfers.filter((t) => !['Completed', 'Rejected', 'Cancelled'].includes(t.status)).map((t) => (
+                    <div key={t.id} className="p-4 border-b last:border-b-0">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-11 h-11 rounded-full bg-indigo-600 text-white flex items-center justify-center font-semibold">{t.employeeAvatar}</div>
+                          <div><p className="font-medium">{t.employeeName}</p><p className="text-sm text-gray-500">{t.id} · {t.employeeDesignation}</p></div>
                         </div>
-                        <div className="mt-3 flex items-center gap-2 text-sm text-gray-500">
-                          <Calendar className="w-4 h-4" /> Effective: {formatDate(transfer.effectiveDate)}
-                          <span className="mx-2">•</span> Step {transfer.currentStep} of 6
+                        <div className="flex items-center gap-3 text-sm">
+                          <span>{t.fromBranch}</span><ArrowRight className="w-4 h-4 text-gray-400" /><span className="font-medium">{t.toBranch}</span>
+                          <span className={`px-2.5 py-0.5 rounded-full text-xs border ${getStatusColor(t.status)}`}>{t.status}</span>
+                          {['Approved', 'In Progress'].includes(t.status) && t.currentStep < maxStepForType(t.type) && <button type="button" onClick={() => handleAdvance(t)} className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-sm">Advance</button>}
+                          <button type="button" onClick={() => setLetterPreview(t)} className="p-2 text-gray-400" aria-label="View letter"><Eye className="w-4 h-4" /></button>
                         </div>
                       </div>
-                    )}
-                  </div>
+                      <p className="mt-2 text-sm text-gray-500 flex items-center gap-1"><Calendar className="w-4 h-4" /> Effective {formatDate(t.effectiveDate)} · Step {t.currentStep} of {maxStepForType(t.type)}</p>
+                    </div>
+                  ))}
                 </div>
-              }
+              )}
             </div>
-          }
+          )}
 
-          {activeTab === 'incoming' &&
+          {activeTab === 'incoming' && (
             <div className="space-y-6">
-              {incomingTransfers.filter(isUrgentIncoming).length > 0 &&
+              {incomingTransfers.filter(isUrgent).length > 0 && (
                 <div className="flex items-start gap-3 p-4 rounded-lg border border-amber-200 bg-amber-50">
                   <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5" />
                   <div>
-                    <p className="text-sm font-semibold text-amber-900">{incomingTransfers.filter(isUrgentIncoming).length} urgent incoming transfer{incomingTransfers.filter(isUrgentIncoming).length === 1 ? '' : 's'}</p>
-                    <p className="text-xs text-amber-800">Pending requests with reporting dates in the next 14 days (or overdue) need acceptance.</p>
+                    <p className="text-sm font-semibold text-amber-900">{incomingTransfers.filter(isUrgent).length} urgent incoming transfer(s)</p>
+                    <p className="text-xs text-amber-800">Pending requests due within 14 days or overdue need acceptance.</p>
                   </div>
                 </div>
-              }
+              )}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Filter className="w-4 h-4 text-gray-500" />
-                  <span className="text-sm text-gray-600">Filter:</span>
-                  <div className="flex gap-2">
-                    {['all', 'pending', 'in progress', 'completed'].map((filter) =>
-                      <button type="button" key={filter} onClick={() => setIncomingFilter(filter)} className={`px-3 py-1 rounded-full text-xs font-medium ${incomingFilter === filter ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-                        {filter.charAt(0).toUpperCase() + filter.slice(1)}
-                      </button>
-                    )}
-                  </div>
+                  {['all', 'pending', 'in progress', 'completed'].map((f) => (
+                    <button type="button" key={f} onClick={() => setIncomingFilter(f)} className={`px-3 py-1 rounded-full text-xs font-medium ${incomingFilter === f ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'}`}>{f}</button>
+                  ))}
                 </div>
-                <button type="button" className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"><RefreshCw className="w-4 h-4" /> Refresh</button>
               </div>
-
-              <div className="bg-white rounded-lg border border-gray-200">
-                <div className="p-4 border-b border-gray-200">
-                  <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                    <Inbox className="w-5 h-5 text-gray-500" /> Incoming Transfer Requests
-                    {filteredIncomingTransfers.filter((t) => t.status === 'Pending').length > 0 && <span className="px-2 py-0.5 text-xs bg-yellow-100 text-yellow-700 rounded-full">{filteredIncomingTransfers.filter((t) => t.status === 'Pending').length} Pending</span>}
-                  </h3>
-                </div>
-                {filteredIncomingTransfers.length > 0 ?
-                  <div className="divide-y divide-gray-200">
-                    {filteredIncomingTransfers.map((transfer) =>
-                      <div key={transfer.id} className={`p-4 ${isUrgentIncoming(transfer) ? 'bg-amber-50/70' : ''}`}>
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-start gap-4">
-                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-teal-500 to-green-600 text-white flex items-center justify-center text-lg font-semibold">{transfer.employeeAvatar}</div>
-                            <div>
-                              <p className="font-medium text-gray-900 flex items-center gap-2">{transfer.employeeName}{isUrgentIncoming(transfer) && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-800 uppercase"><AlertTriangle className="w-3 h-3" /> Urgent</span>}</p>
-                              <p className="text-sm text-gray-500">{transfer.employeeId} • {transfer.employeeDesignation}</p>
-                              <div className="flex items-center gap-2 mt-2 text-sm">
-                                <span className="text-gray-600">{transfer.fromBranch}</span>
-                                <ArrowRight className="w-4 h-4 text-gray-400" />
-                                <span className="font-medium text-indigo-600">{transfer.toBranch}</span>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex flex-col items-end gap-2">
-                            <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(transfer.status)}`}>{transfer.status}</span>
-                            <p className="text-xs text-gray-500">Requested: {formatDate(transfer.requestDate)}</p>
-                          </div>
-                        </div>
-                        <div className="mt-4 bg-gray-50 rounded-lg p-4">
-                          <div className="flex items-center justify-between mb-3">
-                            <span className="text-sm font-medium text-gray-700">Transfer Progress</span>
-                            <span className="text-sm text-gray-500">Step {transfer.currentStep} of {incomingTransferSteps.length}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {incomingTransferSteps.map((step, index) =>
-                              <React.Fragment key={step.id}>
-                                <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium ${step.id <= transfer.currentStep ? step.id < transfer.currentStep ? 'bg-green-500 text-white' : 'bg-indigo-500 text-white' : 'bg-gray-200 text-gray-500'}`}>
-                                  {step.id < transfer.currentStep ? <CheckCircle2 className="w-4 h-4" /> : step.id}
-                                </div>
-                                {index < incomingTransferSteps.length - 1 && <div className={`flex-1 h-1 rounded ${step.id < transfer.currentStep ? 'bg-green-500' : 'bg-gray-200'}`} />}
-                              </React.Fragment>
-                            )}
-                          </div>
-                        </div>
-                        <div className="mt-4 flex items-center justify-between">
-                          <div className="flex items-center gap-4 text-sm text-gray-500">
-                            <span className="flex items-center gap-1"><Calendar className="w-4 h-4" /> Effective: {formatDate(transfer.effectiveDate)}</span>
-                            <span className="flex items-center gap-1"><User className="w-4 h-4" /> By: {transfer.initiatedBy}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {transfer.status === 'Pending' &&
-                              <>
-                                <button type="button" onClick={() => handleProcessIncomingTransfer(transfer, 'reject')} className="flex items-center gap-1 px-3 py-1.5 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 text-sm"><XCircle className="w-4 h-4" /> Reject</button>
-                                <button type="button" onClick={() => handleProcessIncomingTransfer(transfer, 'accept')} className="flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"><CheckCircle className="w-4 h-4" /> Accept</button>
-                              </>
-                            }
-                            {transfer.status === 'In Progress' && transfer.currentStep < maxStepForType(transfer.type) &&
-                              <button type="button" onClick={() => handleAdvanceIncomingStep(transfer)} className="flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm"><ArrowRight className="w-4 h-4" /> Advance to Next Step</button>
-                            }
-                            {transfer.currentStep >= maxStepForType(transfer.type) && <span className="px-3 py-1.5 bg-green-100 text-green-800 rounded-lg text-sm font-medium">✓ Transfer Complete</span>}
-                            {(transfer.status === 'Approved' || transfer.status === 'Completed') &&
-                              <button type="button" onClick={() => setLetterPreview(transfer)} className="flex items-center gap-1 px-3 py-1.5 border border-indigo-200 text-indigo-700 rounded-lg text-sm">Generate Letter</button>
-                            }
-                            <button type="button" className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"><Eye className="w-4 h-4" /></button>
-                          </div>
+              <div className="bg-white rounded-lg border">
+                <div className="p-4 border-b"><h3 className="font-semibold flex items-center gap-2"><Inbox className="w-5 h-5" /> Incoming transfer requests</h3></div>
+                {filteredIncoming.length === 0 && <div className="p-12 text-center text-gray-500"><Inbox className="w-12 h-12 mx-auto mb-3 text-gray-300" />No incoming transfers</div>}
+                {filteredIncoming.map((t) => (
+                  <div key={t.id} className={`p-4 border-b last:border-b-0 ${isUrgent(t) ? 'bg-amber-50/70' : ''}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex gap-3">
+                        <div className="w-12 h-12 rounded-full bg-teal-600 text-white flex items-center justify-center font-semibold">{t.employeeAvatar}</div>
+                        <div>
+                          <p className="font-medium flex items-center gap-2">{t.employeeName}{isUrgent(t) && <span className="text-[10px] uppercase bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">Urgent</span>}</p>
+                          <p className="text-sm text-gray-500">{t.employeeId} · {t.employeeDesignation}</p>
+                          <p className="text-sm mt-1 flex items-center gap-2">{t.fromBranch} <ArrowRight className="w-4 h-4 text-gray-400" /> <span className="text-indigo-600 font-medium">{t.toBranch}</span></p>
                         </div>
                       </div>
-                    )}
-                  </div> :
-                  <div className="p-12 text-center">
-                    <Inbox className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                    <p className="text-lg font-medium text-gray-500">No incoming transfers</p>
-                  </div>
-                }
-              </div>
-
-              <div className="bg-white rounded-lg border border-gray-200">
-                <button type="button" onClick={() => setExpandedSection(expandedSection === 'transferred-list' ? null : 'transferred-list')} className="w-full p-4 flex items-center justify-between border-b border-gray-200 hover:bg-gray-50">
-                  <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                    <UserCheck className="w-5 h-5 text-green-500" /> Employees Transferred In
-                    <span className="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full">{transferredInEmployees.length}</span>
-                  </h3>
-                  {expandedSection === 'transferred-list' ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
-                </button>
-                {expandedSection === 'transferred-list' &&
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          {['Employee', 'Department', 'Designation', 'Transfer Date', 'Reporting To', 'Contact', 'Actions'].map((h) => <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">{h}</th>)}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200">
-                        {transferredInEmployees.map((employee) =>
-                          <tr key={employee.id} className="hover:bg-gray-50">
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-500 to-teal-600 text-white flex items-center justify-center font-semibold">{employee.avatar}</div>
-                                <div><p className="font-medium text-gray-900">{employee.name}</p><p className="text-xs text-gray-500">{employee.id}</p></div>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 text-sm text-gray-700">{employee.department}</td>
-                            <td className="px-4 py-3 text-sm text-gray-700">{employee.designation}</td>
-                            <td className="px-4 py-3 text-sm text-gray-700">{formatDate(employee.joiningDate)}</td>
-                            <td className="px-4 py-3 text-sm text-gray-700">{employee.reportingManager}</td>
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-2">
-                                <button type="button" className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded" title={employee.email}><Mail className="w-4 h-4" /></button>
-                                <button type="button" className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded" title={employee.phone}><Phone className="w-4 h-4" /></button>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-1">
-                                <button type="button" className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"><Eye className="w-4 h-4" /></button>
-                                <button type="button" className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"><MoreHorizontal className="w-4 h-4" /></button>
-                              </div>
-                            </td>
-                          </tr>
+                      <span className={`px-2.5 py-0.5 rounded-full text-xs border ${getStatusColor(t.status)}`}>{t.status}</span>
+                    </div>
+                    <div className="mt-3 flex items-center justify-between text-sm text-gray-500">
+                      <span className="flex items-center gap-1"><Calendar className="w-4 h-4" /> {formatDate(t.effectiveDate)} · Step {t.currentStep} of {incomingTransferSteps.length}</span>
+                      <div className="flex gap-2">
+                        {t.status === 'Pending' && (
+                          <>
+                            <button type="button" onClick={() => { setRejectTarget(t); setRejectReason(''); }} className="px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-sm inline-flex items-center gap-1"><XCircle className="w-4 h-4" /> Reject</button>
+                            <button type="button" onClick={() => handleProcessIncoming(t, 'accept')} className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm inline-flex items-center gap-1"><CheckCircle className="w-4 h-4" /> Accept</button>
+                          </>
                         )}
-                      </tbody>
-                    </table>
-                  </div>
-                }
-              </div>
-            </div>
-          }
-
-          {activeTab === 'history' &&
-            <div className="space-y-6">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <input type="text" value={historySearch} onChange={(e) => setHistorySearch(e.target.value)} placeholder="Search name or ID..." className="pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm" />
-                  </div>
-                  <select value={historyType} onChange={(e) => setHistoryType(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm">
-                    <option>All Types</option><option>Incoming</option><option>Outgoing</option>
-                  </select>
-                  <select value={historyStatus} onChange={(e) => setHistoryStatus(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm">
-                    <option>All Status</option><option>Completed</option><option>Rejected</option><option>Cancelled</option>
-                  </select>
-                  <select value={historySort} onChange={(e) => setHistorySort(e.target.value as typeof historySort)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm">
-                    <option value="date">Sort: Date</option>
-                    <option value="id">Sort: ID</option>
-                    <option value="employee">Sort: Employee</option>
-                    <option value="type">Sort: Type</option>
-                    <option value="status">Sort: Status</option>
-                  </select>
-                  <button type="button" onClick={() => { setHistorySearch(''); setHistoryType('All Types'); setHistoryStatus('All Status'); setHistorySort('date'); }} className="px-3 py-2 border border-gray-200 rounded-lg text-sm">Clear Filters</button>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button type="button" onClick={() => {
-                    const header = 'Transfer ID,Employee,Type,From,To,Date,Status';
-                    const rows = historyRecords.map((t) => [t.id, t.employeeName, t.type, t.fromBranch, t.toBranch, t.effectiveDate, t.status].join(','));
-                    const blob = new Blob([[header, ...rows].join('\n')], { type: 'text/csv' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a'); a.href = url; a.download = 'transfer-history.csv'; a.click(); URL.revokeObjectURL(url);
-                  }} className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm hover:bg-gray-50"><Download className="w-4 h-4" /> Export</button>
-                  <button type="button" onClick={() => window.print()} className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm hover:bg-gray-50"><Printer className="w-4 h-4" /> Print</button>
-                </div>
-              </div>
-              <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      {['Transfer ID', 'Employee', 'Type', 'From → To', 'Date', 'Status', 'Actions'].map((h) => <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">{h}</th>)}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {pagedHistory.map((transfer) =>
-                      <tr key={transfer.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 font-mono text-sm text-gray-600">{transfer.id}</td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gray-400 to-gray-600 text-white flex items-center justify-center text-sm font-semibold">{transfer.employeeAvatar}</div>
-                            <div><p className="text-sm font-medium text-gray-900">{transfer.employeeName}</p><p className="text-xs text-gray-500">{transfer.employeeId}</p></div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${transfer.type === 'Incoming' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
-                            {transfer.type === 'Incoming' ? <ArrowDownToLine className="w-3 h-3" /> : <ArrowUpFromLine className="w-3 h-3" />}
-                            {transfer.type}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2 text-sm"><span className="text-gray-600">{transfer.fromBranch}</span><ArrowRight className="w-4 h-4 text-gray-400" /><span className="text-gray-900 font-medium">{transfer.toBranch}</span></div>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-700">{formatDate(transfer.effectiveDate)}</td>
-                        <td className="px-4 py-3"><span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(transfer.status)}`}>{transfer.status}</span></td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-1">
-                            <button type="button" className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded"><Eye className="w-4 h-4" /></button>
-                            <button type="button" className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"><Download className="w-4 h-4" /></button>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-                {historyRecords.length === 0 &&
-                  <div className="p-12 text-center">
-                    <History className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                    <p className="text-lg font-medium text-gray-700">No transfers match your current filters</p>
-                    <button type="button" className="mt-3 px-3 py-1.5 border rounded-lg text-sm" onClick={() => { setHistorySearch(''); setHistoryType('All Types'); setHistoryStatus('All Status'); }}>Clear Filters</button>
-                  </div>
-                }
-                {historyRecords.length > 0 &&
-                  <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500">
-                    <p>Showing {(historyPage - 1) * historyPageSize + 1}–{Math.min(historyPage * historyPageSize, historyRecords.length)} of {historyRecords.length}</p>
-                    <div className="flex items-center gap-2">
-                      <button type="button" disabled={historyPage <= 1} onClick={() => setHistoryPage((p) => Math.max(1, p - 1))} className="px-2 py-1 border rounded disabled:opacity-40">Prev</button>
-                      <span>Page {historyPage} of {historyPages}</span>
-                      <button type="button" disabled={historyPage >= historyPages} onClick={() => setHistoryPage((p) => Math.min(historyPages, p + 1))} className="px-2 py-1 border rounded disabled:opacity-40">Next</button>
+                        {t.status === 'In Progress' && t.currentStep < maxStepForType(t.type) && <button type="button" onClick={() => handleAdvance(t)} className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-sm">Advance</button>}
+                        <button type="button" onClick={() => setLetterPreview(t)} className="px-3 py-1.5 border rounded-lg text-sm">Letter</button>
+                      </div>
                     </div>
                   </div>
-                }
+                ))}
+              </div>
+              <div className="bg-white rounded-lg border">
+                <button type="button" onClick={() => setExpandedIn((v) => !v)} className="w-full p-4 flex items-center justify-between">
+                  <h3 className="font-semibold flex items-center gap-2"><UserCheck className="w-5 h-5 text-green-500" /> Employees transferred in <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">{mockTransferredIn.length}</span></h3>
+                </button>
+                {expandedIn && (
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50"><tr>{['Employee', 'Department', 'Designation', 'Date', 'Reporting to', 'Contact'].map((h) => <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600">{h}</th>)}</tr></thead>
+                    <tbody>
+                      {mockTransferredIn.map((e) => (
+                        <tr key={e.id} className="border-t">
+                          <td className="px-4 py-3"><div className="flex items-center gap-2"><div className="w-9 h-9 rounded-full bg-teal-600 text-white flex items-center justify-center text-xs font-semibold">{e.avatar}</div><div><p className="font-medium">{e.name}</p><p className="text-xs text-gray-500">{e.id}</p></div></div></td>
+                          <td className="px-4 py-3">{e.department}</td>
+                          <td className="px-4 py-3">{e.designation}</td>
+                          <td className="px-4 py-3">{formatDate(e.joiningDate)}</td>
+                          <td className="px-4 py-3">{e.reportingManager}</td>
+                          <td className="px-4 py-3"><button type="button" title={e.email} className="p-1.5 text-gray-400"><Mail className="w-4 h-4" /></button><button type="button" title={e.phone} className="p-1.5 text-gray-400"><Phone className="w-4 h-4" /></button></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
               </div>
             </div>
-          }
+          )}
+
+          {activeTab === 'history' && (
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap gap-2">
+                  <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" /><input value={historySearch} onChange={(e) => setHistorySearch(e.target.value)} placeholder="Search name or ID..." className="pl-10 pr-4 py-2 border rounded-lg text-sm" /></div>
+                  <select value={historyType} onChange={(e) => setHistoryType(e.target.value)} className="px-3 py-2 border rounded-lg text-sm"><option>All Types</option><option>Incoming</option><option>Outgoing</option></select>
+                  <select value={historyStatus} onChange={(e) => setHistoryStatus(e.target.value)} className="px-3 py-2 border rounded-lg text-sm"><option>All Status</option><option>Completed</option><option>Rejected</option><option>Cancelled</option></select>
+                  <select value={historySort} onChange={(e) => setHistorySort(e.target.value as typeof historySort)} className="px-3 py-2 border rounded-lg text-sm"><option value="date">Sort: Date</option><option value="id">Sort: ID</option><option value="employee">Sort: Employee</option><option value="type">Sort: Type</option><option value="status">Sort: Status</option></select>
+                </div>
+                <button type="button" className="inline-flex items-center gap-2 px-3 py-2 border rounded-lg text-sm" onClick={() => {
+                  const header = 'Transfer ID,Employee,Type,From,To,Date,Status,Nature,Duration';
+                  const rows = historyRecords.map((t) => [t.id, t.employeeName, t.type, t.fromBranch, t.toBranch, t.effectiveDate, t.status, t.nature || '', t.duration || ''].join(','));
+                  const blob = new Blob([[header, ...rows].join('\n')], { type: 'text/csv' });
+                  const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'transfer-history.csv'; a.click(); URL.revokeObjectURL(url);
+                }}><Download className="w-4 h-4" /> Export</button>
+              </div>
+              <div className="bg-white rounded-lg border overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50"><tr>{['Transfer ID', 'Employee', 'Type', 'From → To', 'Date', 'Status', 'Actions'].map((h) => <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600">{h}</th>)}</tr></thead>
+                  <tbody>
+                    {pagedHistory.map((t) => (
+                      <tr key={t.id} className="border-t hover:bg-gray-50">
+                        <td className="px-4 py-3 font-mono text-xs">{t.id}</td>
+                        <td className="px-4 py-3"><div className="flex items-center gap-2"><div className="w-8 h-8 rounded-full bg-gray-600 text-white flex items-center justify-center text-xs">{t.employeeAvatar}</div><div><p className="font-medium">{t.employeeName}</p><p className="text-xs text-gray-500">{t.employeeId}</p></div></div></td>
+                        <td className="px-4 py-3"><span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${t.type === 'Incoming' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>{t.type === 'Incoming' ? <ArrowDownToLine className="w-3 h-3" /> : <ArrowUpFromLine className="w-3 h-3" />}{t.type}</span></td>
+                        <td className="px-4 py-3">{t.fromBranch} → {t.toBranch}</td>
+                        <td className="px-4 py-3">{formatDate(t.effectiveDate)}</td>
+                        <td className="px-4 py-3"><span className={`px-2.5 py-0.5 rounded-full text-xs border ${getStatusColor(t.status)}`}>{t.status}</span></td>
+                        <td className="px-4 py-3"><button type="button" onClick={() => setLetterPreview(t)} className="p-1.5 text-gray-400" aria-label="View"><Eye className="w-4 h-4" /></button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {historyRecords.length === 0 && <div className="p-12 text-center text-gray-500"><History className="w-12 h-12 mx-auto mb-3 text-gray-300" />No transfers match your filters</div>}
+                {historyRecords.length > 0 && (
+                  <div className="px-4 py-3 flex items-center justify-between text-xs text-gray-500">
+                    <p>Showing {(historyPage - 1) * historyPageSize + 1}–{Math.min(historyPage * historyPageSize, historyRecords.length)} of {historyRecords.length}</p>
+                    <div className="flex gap-2">
+                      <button type="button" disabled={historyPage <= 1} onClick={() => setHistoryPage((p) => p - 1)} className="px-2 py-1 border rounded disabled:opacity-40">Prev</button>
+                      <span>Page {historyPage} of {historyPages}</span>
+                      <button type="button" disabled={historyPage >= historyPages} onClick={() => setHistoryPage((p) => p + 1)} className="px-2 py-1 border rounded disabled:opacity-40">Next</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      {letterPreview &&
+      {letterPreview && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="max-w-lg w-full bg-white rounded-xl p-6 space-y-3">
-            <div className="flex justify-between"><h3 className="font-semibold">Transfer Letter Preview</h3><button type="button" onClick={() => setLetterPreview(null)}><X className="w-4 h-4" /></button></div>
+            <div className="flex justify-between"><h3 className="font-semibold">Transfer letter</h3><button type="button" onClick={() => setLetterPreview(null)}><X className="w-4 h-4" /></button></div>
             <div className="border rounded-lg p-4 text-sm space-y-2">
               <p className="font-bold">SCHOOL NAME</p>
-              <p className="text-xs text-gray-500">Address Line, City - PIN</p>
               <p>Date: {new Date().toLocaleDateString('en-IN')}</p>
-              <p>To,<br />{letterPreview.employeeName}<br />{letterPreview.employeeDesignation}</p>
+              <p>To, {letterPreview.employeeName}</p>
               <p className="font-medium">Sub: Transfer Order — {letterPreview.id}</p>
-              <p>This is to inform you that you are hereby transferred to {letterPreview.toBranch} effective {formatDate(letterPreview.effectiveDate)}, reporting to {letterPreview.newManager} in {letterPreview.toDepartment} as {letterPreview.newDesignation}.</p>
-              <p className="text-xs text-gray-500">This is a computer-generated document.</p>
+              <p>You are transferred from {letterPreview.fromBranch} to {letterPreview.toBranch} effective {formatDate(letterPreview.effectiveDate)}, reporting to {letterPreview.newManager} as {letterPreview.newDesignation}.</p>
             </div>
-            <button type="button" className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm" onClick={() => { const blob = new Blob([`Transfer Order ${letterPreview.id}\n${letterPreview.employeeName}\nTo ${letterPreview.toBranch} effective ${letterPreview.effectiveDate}`], { type: 'text/plain' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `Transfer_${letterPreview.id}_${letterPreview.employeeName}.txt`; a.click(); URL.revokeObjectURL(url); }}>Download Letter</button>
+            <button type="button" className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm" onClick={() => {
+              const blob = new Blob([`Transfer Order ${letterPreview.id}\n${letterPreview.employeeName}\nTo ${letterPreview.toBranch}`], { type: 'text/plain' });
+              const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `Transfer_${letterPreview.id}.txt`; a.click(); URL.revokeObjectURL(url);
+            }}>Download</button>
           </div>
         </div>
-      }
+      )}
+
+      {rejectTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="max-w-md w-full bg-white rounded-xl p-6 space-y-3">
+            <h3 className="font-semibold">Reject {rejectTarget.employeeName}?</h3>
+            <textarea rows={3} value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} placeholder="Reason" className={fieldClass} />
+            <div className="flex justify-end gap-2">
+              <button type="button" className="px-4 py-2 border rounded-lg" onClick={() => setRejectTarget(null)}>Cancel</button>
+              <button type="button" disabled={rejectReason.trim().length < 3} className="px-4 py-2 bg-red-600 text-white rounded-lg disabled:opacity-50" onClick={() => { void handleProcessIncoming(rejectTarget, 'reject', rejectReason); setRejectTarget(null); }}>Reject</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

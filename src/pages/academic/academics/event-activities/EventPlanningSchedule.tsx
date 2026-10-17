@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, Download, Eye, MapPin, Pencil, Plus, Search, Trash2, Users } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowDown, ArrowUp, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Download, Eye, ImageIcon, MapPin, Pencil, Plus, Search, Star, Trash2, Users, X } from 'lucide-react';
 import { Badge } from '../../../../components/ui/Badge';
 import { Button } from '../../../../components/ui/Button';
 import { Card } from '../../../../components/ui/Card';
@@ -18,7 +18,11 @@ import {
   EventTypeRecord,
   SchoolEventRecord,
   createEventId,
-  createSchoolEvent,
+  DEFAULT_EVENT_REVIEWS,
+  EVENT_REVIEWS_STORAGE_KEY,
+  EventReviewRecord,
+  createBlankSchoolEvent,
+  createEmptyReview,
   downloadEventCsv,
   loadEventCollection,
   saveEventCollection,
@@ -36,6 +40,45 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return <section className="rounded-xl border border-slate-200 bg-white"><h3 className="border-b border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-800">{title}</h3><div className="space-y-4 p-4">{children}</div></section>;
 }
+
+function MultiSelect({ label, options, values, onChange }: { label: string; options: string[]; values: string[]; onChange: (next: string[]) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const close = (event: MouseEvent) => {
+      if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, []);
+  return (
+    <div ref={ref} className="relative">
+      <p className={labelClass}>{label}</p>
+      <button type="button" className={`${inputClass} flex items-center justify-between gap-2 text-left`} onClick={() => setOpen((current) => !current)}>
+        <span className={values.length ? 'truncate text-slate-800' : 'truncate text-slate-400'}>{values.length ? values.join(', ') : `Select ${label.toLowerCase()}`}</span>
+        <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="absolute z-30 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white p-2 shadow-lg">
+          {options.map((option) => (
+            <label key={option} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-xs text-slate-700 hover:bg-indigo-50">
+              <input type="checkbox" checked={values.includes(option)} onChange={() => onChange(values.includes(option) ? values.filter((item) => item !== option) : [...values, option])} />
+              {option}
+            </label>
+          ))}
+        </div>
+      )}
+      <p className="mt-1 text-[11px] text-slate-500">{values.length} selected</p>
+    </div>
+  );
+}
+const branchAudienceOptions = ['Main Campus', 'North Campus', 'South Campus', 'East Campus', 'West Campus'];
+const classAudienceOptions = Array.from({ length: 12 }, (_, index) => `Class ${index + 1}`);
+const divisionAudienceOptions = ['A', 'B', 'C', 'D'];
+const studentAudienceOptions = ['Arjun Sharma', 'Priya Patel', 'Rohan Mehta', 'Ananya Singh', 'Vikram Reddy', 'Sneha Gupta', 'Rahul Kumar', 'Kavya Nair'];
+const staffAudienceOptions = ['Mrs. P. Gupta', 'Mr. V. Patel', 'Ms. M. Verma', 'Mr. H. Nair', 'Ms. K. Singh', 'Mrs. A. Roy'];
+const parentAudienceOptions = ['All Parents', 'Class Parents', 'Selected Parents', 'PTA Members'];
+
 const statusVariant = (status: string): 'success' | 'warning' | 'info' | 'danger' | 'default' => {
   if (status === 'Completed' || status === 'Approved') return 'success';
   if (status === 'Planning' || status === 'Pending Approval') return 'warning';
@@ -49,11 +92,44 @@ const showDate = (date: string, endDate?: string) => {
   return endDate ? `${format(date)} – ${format(endDate)}` : format(date);
 };
 
+
+function EventFeedbackPanel({ event, reviews, setReviews }: { event: SchoolEventRecord; reviews: EventReviewRecord[]; setReviews: React.Dispatch<React.SetStateAction<EventReviewRecord[]>> }) {
+  const review = reviews.find((item) => item.eventId === event.id) || createEmptyReview(event.id);
+  const persist = (updated: EventReviewRecord) => {
+    const next = reviews.some((item) => item.eventId === updated.eventId) ? reviews.map((item) => item.eventId === updated.eventId ? updated : item) : [...reviews, updated];
+    setReviews(next);
+    saveEventCollection(EVENT_REVIEWS_STORAGE_KEY, next);
+  };
+  const update = (patch: Partial<EventReviewRecord>) => persist({ ...review, ...patch });
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-4 md:grid-cols-3">
+        <label><span className={labelClass}>Overall rating</span>
+          <select className={inputClass} value={review.rating} onChange={(event) => update({ rating: Number(event.target.value) })}>
+            {[0, 1, 2, 3, 4, 5].map((rating) => <option key={rating} value={rating}>{rating ? `${rating} / 5` : 'Not rated'}</option>)}
+          </select>
+          <div className="mt-2 flex gap-1 text-amber-500">{Array.from({ length: 5 }, (_, index) => <Star key={index} className={`h-4 w-4 ${index < Math.round(review.rating) ? 'fill-current' : ''}`} />)}</div>
+        </label>
+        <label><span className={labelClass}>Actual students</span><input type="number" min={0} className={inputClass} value={review.actualStudents} onChange={(event) => update({ actualStudents: Number(event.target.value) })} /></label>
+        <label><span className={labelClass}>Actual staff</span><input type="number" min={0} className={inputClass} value={review.actualStaff} onChange={(event) => update({ actualStaff: Number(event.target.value) })} /></label>
+      </div>
+      <div className="grid gap-4 md:grid-cols-3">
+        <label className="block"><span className={labelClass}>What went well</span><textarea className={`${inputClass} min-h-24`} value={review.whatWentWell} onChange={(event) => update({ whatWentWell: event.target.value })} /></label>
+        <label className="block"><span className={labelClass}>What to improve</span><textarea className={`${inputClass} min-h-24`} value={review.improvements} onChange={(event) => update({ improvements: event.target.value })} /></label>
+        <label className="block"><span className={labelClass}>Suggestions</span><textarea className={`${inputClass} min-h-24`} value={review.suggestions} onChange={(event) => update({ suggestions: event.target.value })} /></label>
+      </div>
+      <label className="block"><span className={labelClass}>Feedback summary</span><input className={inputClass} value={review.feedbackSummary} onChange={(event) => update({ feedbackSummary: event.target.value })} placeholder="Parent / staff feedback notes" /></label>
+      <div className="flex justify-end"><Button onClick={() => { persist({ ...review, reviewStatus: 'Saved' }); }}>Save feedback</Button></div>
+    </div>
+  );
+}
+
 export function EventPlanningSchedule() {
   const [events, setEvents] = useState<SchoolEventRecord[]>(() => loadEventCollection(SCHOOL_EVENTS_STORAGE_KEY, DEFAULT_SCHOOL_EVENTS));
   const [types] = useState<EventTypeRecord[]>(() => loadEventCollection(TYPES_KEY, DEFAULT_EVENT_TYPES));
   const [search, setSearch] = useState('');
-  const [typeFilter, setTypeFilter] = useState('All');
+  const [workspace, setWorkspace] = useState<{ eventId: string; mode: 'duties' | 'gallery' | 'feedback' } | null>(null);
+  const [reviews, setReviews] = useState<EventReviewRecord[]>(() => loadEventCollection(EVENT_REVIEWS_STORAGE_KEY, DEFAULT_EVENT_REVIEWS));
   const [monthFilter, setMonthFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
   const [classFilter, setClassFilter] = useState('All');
@@ -72,12 +148,11 @@ export function EventPlanningSchedule() {
     const type = typeById.get(event.typeId);
     const term = search.trim().toLowerCase();
     if (term && !`${event.name} ${event.typeName} ${event.code} ${event.venueName}`.toLowerCase().includes(term)) return false;
-    if (typeFilter !== 'All' && event.typeId !== typeFilter) return false;
     if (statusFilter !== 'All' && event.status !== statusFilter) return false;
     if (monthFilter !== 'All' && event.date.slice(5, 7) !== monthFilter) return false;
     if (classFilter !== 'All' && type && !type.appliesToAllClasses && !type.classes.includes(classFilter)) return false;
     return true;
-  }), [events, typeById, search, typeFilter, statusFilter, monthFilter, classFilter]);
+  }), [events, typeById, search, statusFilter, monthFilter, classFilter]);
 
   const persistEvents = (next: SchoolEventRecord[]) => {
     setEvents(next);
@@ -91,11 +166,10 @@ export function EventPlanningSchedule() {
     [key]: current[key].includes(value) ? current[key].filter((item) => item !== value) : [...current[key], value]
   } : current);
   const createNew = () => {
-    const type = types.find((item) => item.status === 'Active') || DEFAULT_EVENT_TYPES[0];
-    setForm(createSchoolEvent(type));
+    setForm(createBlankSchoolEvent());
   };
   const editEvent = (event: SchoolEventRecord) => {
-    setForm({ ...event, preparationDays: event.preparationDays.map((item) => ({ ...item })), programItems: event.programItems.map((item) => ({ ...item })), guests: event.guests.map((item) => ({ ...item })), responsibilities: event.responsibilities.map((item) => ({ ...item })), resources: [...event.resources], budgetItems: event.budgetItems.map((item) => ({ ...item })), notifyVia: [...event.notifyVia], postOn: [...event.postOn] });
+    setForm({ ...event, preparationDays: event.preparationDays.map((item) => ({ ...item })), programItems: event.programItems.map((item) => ({ ...item })), guests: event.guests.map((item) => ({ ...item })), responsibilities: event.responsibilities.map((item) => ({ ...item })), resources: [...event.resources], budgetItems: event.budgetItems.map((item) => ({ ...item })), notifyVia: [...event.notifyVia], postOn: [...event.postOn], audienceBranches: [...(event.audienceBranches || [])], audienceClasses: [...(event.audienceClasses || [])], audienceDivisions: [...(event.audienceDivisions || [])], audienceStudents: [...(event.audienceStudents || [])], audienceStaff: [...(event.audienceStaff || [])], audienceParents: [...(event.audienceParents || [])], galleryItems: (event.galleryItems || []).map((item) => ({ ...item })) });
   };
   const addPreparationDay = () => setForm((current) => current ? { ...current, preparationDays: [...current.preparationDays, { id: createEventId('prep'), kind: 'Rehearsal', date: '', activity: '', venue: current.venueName }] } : current);
   const updatePreparationDay = (id: string, patch: Partial<EventPreparationDay>) => setForm((current) => current ? { ...current, preparationDays: current.preparationDays.map((item) => item.id === id ? { ...item, ...patch } : item) } : current);
@@ -143,10 +217,15 @@ export function EventPlanningSchedule() {
     Name: event.name, Type: event.typeName, Category: typeById.get(event.typeId)?.category || 'Other', Date: event.date, EndDate: event.endDate, Venue: event.venueName,
     Status: event.status, AcademicYear: event.academicYear, ExpectedAttendance: event.expectedAttendance, Code: event.code
   })));
-  const followUp = (event: SchoolEventRecord, section: 'duties' | 'gallery') => {
+  const followUp = (event: SchoolEventRecord, section: 'duties' | 'gallery' | 'feedback') => {
     setActiveSchoolEvent(event.id);
-    setMessage(`${event.name} selected. ${section === 'duties' ? 'Open Event Execution for day-of duties and tracking.' : 'Open Media & Gallery Management to manage event media.'}`);
-    window.setTimeout(() => setMessage(''), 4500);
+    setWorkspace({ eventId: event.id, mode: section });
+    setMessage('');
+  };
+  const workspaceEvent = events.find((event) => event.id === workspace?.eventId) || null;
+  const patchWorkspaceEvent = (patch: Partial<SchoolEventRecord>) => {
+    if (!workspaceEvent) return;
+    persistEvents(events.map((event) => event.id === workspaceEvent.id ? { ...event, ...patch } : event));
   };
   const monthName = calendarMonth.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
   const calendarDays = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0).getDate();
@@ -155,21 +234,111 @@ export function EventPlanningSchedule() {
 
   return (
     <div className="space-y-6 p-4 md:p-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div><p className="text-xs font-semibold uppercase tracking-widest text-indigo-600">Event Section · Planning</p><h1 className="mt-1 text-2xl font-bold text-slate-900">📅 Event Planning &amp; Schedule</h1><p className="mt-1 max-w-3xl text-sm text-slate-500">Schedule school events, coordinate the program and manage approvals, resources, communication and budgets.</p></div><div className="flex flex-wrap gap-2"><Button variant="outline" leftIcon={<Download className="h-4 w-4" />} onClick={exportEvents}>Export</Button><Button variant={calendarView ? 'secondary' : 'outline'} leftIcon={<CalendarDays className="h-4 w-4" />} onClick={() => setCalendarView((value) => !value)}>{calendarView ? 'List View' : 'Calendar View'}</Button><Button leftIcon={<Plus className="h-4 w-4" />} onClick={createNew}>Create Event</Button></div></div>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div><p className="text-xs font-semibold uppercase tracking-widest text-indigo-600">Event Section · Planning</p><h1 className="mt-1 text-2xl font-bold text-slate-900">Event Planning &amp; Schedule</h1><p className="mt-1 max-w-3xl text-sm text-slate-500">Schedule school events, coordinate the program and manage approvals, resources, communication and budgets.</p></div><div className="flex flex-wrap gap-2"><Button variant="outline" leftIcon={<Download className="h-4 w-4" />} onClick={exportEvents}>Export</Button><Button variant={calendarView ? 'secondary' : 'outline'} leftIcon={<CalendarDays className="h-4 w-4" />} onClick={() => setCalendarView((value) => !value)}>{calendarView ? 'List View' : 'Calendar View'}</Button><Button leftIcon={<Plus className="h-4 w-4" />} onClick={createNew}>Create Event</Button></div></div>
       {message && <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm text-indigo-800">{message}</div>}
 
-      <Card noPadding className="overflow-hidden">
-        <div className="grid gap-3 border-b border-slate-100 bg-slate-50 p-4 md:grid-cols-2 xl:grid-cols-6"><div className="relative xl:col-span-2"><Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" /><input className={`${inputClass} pl-9`} placeholder="Search event, type, code or venue..." value={search} onChange={(event) => setSearch(event.target.value)} /></div><select className={inputClass} value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}><option value="All">Type: All</option>{types.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}</select><select className={inputClass} value={monthFilter} onChange={(event) => setMonthFilter(event.target.value)}><option value="All">Month: All</option>{Array.from({ length: 12 }, (_, index) => <option key={index} value={String(index + 1).padStart(2, '0')}>{new Date(2026, index, 1).toLocaleDateString('en-IN', { month: 'long' })}</option>)}</select><select className={inputClass} value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="All">Status: All</option>{EVENT_STATUSES.map((status) => <option key={status}>{status}</option>)}</select><select className={inputClass} value={classFilter} onChange={(event) => setClassFilter(event.target.value)}><option value="All">Class: All</option>{['Class 1','Class 2','Class 3','Class 4','Class 5','Class 6','Class 7','Class 8','Class 9','Class 10','Class 11','Class 12'].map((className) => <option key={className}>{className}</option>)}</select></div>
-        {!calendarView ? <div className="overflow-x-auto"><table className="w-full min-w-[960px] text-left text-sm"><thead className="bg-white text-[11px] uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3">#</th><th className="px-4 py-3">Event Name</th><th className="px-4 py-3">Type</th><th className="px-4 py-3">Date(s)</th><th className="px-4 py-3">Venue</th><th className="px-4 py-3">Status</th><th className="px-4 py-3 text-right">Actions</th></tr></thead><tbody className="divide-y divide-slate-100">{filteredEvents.map((event, index) => <tr key={event.id} className="hover:bg-indigo-50/30"><td className="px-4 py-3 text-slate-400">{index + 1}</td><td className="px-4 py-3"><p className="font-semibold text-slate-800">{event.name}</p><p className="font-mono text-[10px] text-slate-400">{event.code}</p></td><td className="px-4 py-3"><Badge variant="info">{typeById.get(event.typeId)?.category || event.typeName}</Badge><p className="mt-1 text-[10px] text-slate-500">{event.typeName}</p></td><td className="px-4 py-3 whitespace-nowrap text-slate-600">{showDate(event.date, event.isMultiDay ? event.endDate : '')}</td><td className="px-4 py-3 text-slate-600">{event.venueName || '—'}</td><td className="px-4 py-3"><Badge variant={statusVariant(event.status)}>{event.status}</Badge></td><td className="px-4 py-3"><div className="flex justify-end gap-1"><button title="View event" onClick={() => { setViewRecord(event); setActiveSchoolEvent(event.id); }} className="rounded p-2 text-slate-500 hover:bg-indigo-50 hover:text-indigo-700"><Eye className="h-4 w-4" /></button><button title="Edit event" onClick={() => editEvent(event)} className="rounded p-2 text-slate-500 hover:bg-indigo-50 hover:text-indigo-700"><Pencil className="h-4 w-4" /></button><button title="Duties / execution" onClick={() => followUp(event, 'duties')} className="rounded px-2 py-1 text-[10px] font-semibold text-indigo-700 hover:bg-indigo-50">Duties</button><button title="Gallery" onClick={() => followUp(event, 'gallery')} className="rounded px-2 py-1 text-[10px] font-semibold text-indigo-700 hover:bg-indigo-50">Gallery</button></div></td></tr>)}{filteredEvents.length === 0 && <tr><td colSpan={7} className="px-4 py-12 text-center text-sm text-slate-400">No events match the selected filters.</td></tr>}</tbody></table></div> : <div className="p-4"><div className="mb-4 flex items-center justify-between"><Button variant="outline" size="sm" onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))}><ChevronLeft className="h-4 w-4" />Previous</Button><h3 className="font-bold text-slate-800">{monthName}</h3><Button variant="outline" size="sm" onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))}>Next<ChevronRight className="h-4 w-4" /></Button></div><div className="grid grid-cols-7 gap-1 text-center text-[11px] font-semibold text-slate-500">{['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((day) => <div key={day} className="py-2">{day}</div>)}</div><div className="grid grid-cols-7 gap-1">{Array.from({ length: calendarOffset }, (_, index) => <div key={`empty-${index}`} className="min-h-24 rounded-lg bg-slate-50" />)}{Array.from({ length: calendarDays }, (_, index) => { const day = index + 1; const dateKey = `${calendarMonth.getFullYear()}-${String(calendarMonth.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`; const dayEvents = filteredEvents.filter((event) => event.date === dateKey); return <div key={dateKey} className="min-h-24 rounded-lg border border-slate-100 bg-white p-1.5"><span className="text-xs font-semibold text-slate-400">{day}</span><div className="mt-1 space-y-1">{dayEvents.map((event) => <button key={event.id} onClick={() => setViewRecord(event)} className="block w-full truncate rounded bg-indigo-50 px-1.5 py-1 text-left text-[10px] font-medium text-indigo-800" title={event.name}>{event.name}</button>)}</div></div>; })}</div></div>}
+      {!workspace && <Card noPadding className="overflow-hidden">
+        <div className="grid gap-3 border-b border-slate-100 bg-slate-50 p-4 md:grid-cols-2 xl:grid-cols-5"><div className="relative xl:col-span-2"><Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" /><input className={`${inputClass} pl-9`} placeholder="Search event, code or venue..." value={search} onChange={(event) => setSearch(event.target.value)} /></div><select className={inputClass} value={monthFilter} onChange={(event) => setMonthFilter(event.target.value)}><option value="All">Month: All</option>{Array.from({ length: 12 }, (_, index) => <option key={index} value={String(index + 1).padStart(2, '0')}>{new Date(2026, index, 1).toLocaleDateString('en-IN', { month: 'long' })}</option>)}</select><select className={inputClass} value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="All">Status: All</option>{EVENT_STATUSES.map((status) => <option key={status}>{status}</option>)}</select><select className={inputClass} value={classFilter} onChange={(event) => setClassFilter(event.target.value)}><option value="All">Class: All</option>{['Class 1','Class 2','Class 3','Class 4','Class 5','Class 6','Class 7','Class 8','Class 9','Class 10','Class 11','Class 12'].map((className) => <option key={className}>{className}</option>)}</select></div>
+        {!calendarView ? <div className="overflow-x-auto"><table className="w-full min-w-[960px] text-left text-sm"><thead className="bg-white text-[11px] uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3">#</th><th className="px-4 py-3">Event Name</th><th className="px-4 py-3">Type</th><th className="px-4 py-3">Date(s)</th><th className="px-4 py-3">Venue</th><th className="px-4 py-3">Status</th><th className="px-4 py-3 text-right">Actions</th></tr></thead><tbody className="divide-y divide-slate-100">{filteredEvents.map((event, index) => <tr key={event.id} className="hover:bg-indigo-50/30"><td className="px-4 py-3 text-slate-400">{index + 1}</td><td className="px-4 py-3"><p className="font-semibold text-slate-800">{event.name}</p><p className="font-mono text-[10px] text-slate-400">{event.code}</p></td><td className="px-4 py-3"><Badge variant="info">{typeById.get(event.typeId)?.category || event.typeName}</Badge><p className="mt-1 text-[10px] text-slate-500">{event.typeName}</p></td><td className="px-4 py-3 whitespace-nowrap text-slate-600">{showDate(event.date, event.isMultiDay ? event.endDate : '')}</td><td className="px-4 py-3 text-slate-600">{event.venueName || '—'}</td><td className="px-4 py-3"><Badge variant={statusVariant(event.status)}>{event.status}</Badge></td><td className="px-4 py-3"><div className="flex justify-end gap-1"><button title="View event" onClick={() => { setViewRecord(event); setActiveSchoolEvent(event.id); }} className="rounded p-2 text-slate-500 hover:bg-indigo-50 hover:text-indigo-700"><Eye className="h-4 w-4" /></button><button title="Edit event" onClick={() => editEvent(event)} className="rounded p-2 text-slate-500 hover:bg-indigo-50 hover:text-indigo-700"><Pencil className="h-4 w-4" /></button><button title="Duties / execution" onClick={() => followUp(event, 'duties')} className="rounded px-2 py-1 text-[10px] font-semibold text-indigo-700 hover:bg-indigo-50">Duties</button><button title="Gallery" onClick={() => followUp(event, 'gallery')} className="rounded px-2 py-1 text-[10px] font-semibold text-indigo-700 hover:bg-indigo-50">Gallery</button><button title="Feedback" onClick={() => followUp(event, 'feedback')} className="rounded px-2 py-1 text-[10px] font-semibold text-indigo-700 hover:bg-indigo-50">Feedback</button></div></td></tr>)}{filteredEvents.length === 0 && <tr><td colSpan={7} className="px-4 py-12 text-center text-sm text-slate-400">No events match the selected filters.</td></tr>}</tbody></table></div> : <div className="p-4"><div className="mb-4 flex items-center justify-between"><Button variant="outline" size="sm" onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))}><ChevronLeft className="h-4 w-4" />Previous</Button><h3 className="font-bold text-slate-800">{monthName}</h3><Button variant="outline" size="sm" onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))}>Next<ChevronRight className="h-4 w-4" /></Button></div><div className="grid grid-cols-7 gap-1 text-center text-[11px] font-semibold text-slate-500">{['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((day) => <div key={day} className="py-2">{day}</div>)}</div><div className="grid grid-cols-7 gap-1">{Array.from({ length: calendarOffset }, (_, index) => <div key={`empty-${index}`} className="min-h-24 rounded-lg bg-slate-50" />)}{Array.from({ length: calendarDays }, (_, index) => { const day = index + 1; const dateKey = `${calendarMonth.getFullYear()}-${String(calendarMonth.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`; const dayEvents = filteredEvents.filter((event) => event.date === dateKey); return <div key={dateKey} className="min-h-24 rounded-lg border border-slate-100 bg-white p-1.5"><span className="text-xs font-semibold text-slate-400">{day}</span><div className="mt-1 space-y-1">{dayEvents.map((event) => <button key={event.id} onClick={() => setViewRecord(event)} className="block w-full truncate rounded bg-indigo-50 px-1.5 py-1 text-left text-[10px] font-medium text-indigo-800" title={event.name}>{event.name}</button>)}</div></div>; })}</div></div>}
         <div className="border-t border-slate-100 px-4 py-3 text-xs text-slate-500">{filteredEvents.length} event(s) · Academic Year 2025-26 / 2026-27 · List and calendar views share the same filters.</div>
-      </Card>
+      </Card>}
+
+      {workspace && workspaceEvent && (
+        <Card>
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-widest text-indigo-600">{workspace.mode === 'duties' ? 'Duties' : workspace.mode === 'gallery' ? 'Gallery' : 'Feedback'}</p>
+              <h2 className="mt-1 text-lg font-bold text-slate-900">{workspaceEvent.name}</h2>
+              <p className="text-sm text-slate-500">{workspace.mode === 'duties' ? 'Assign and track event duties on this page.' : workspace.mode === 'gallery' ? 'Upload and review event media on this page.' : 'Capture outcomes, ratings and notes for this event.'}</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => setWorkspace(null)}><X className="h-4 w-4" />Back to schedule</Button>
+          </div>
+          {workspace.mode === 'duties' && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold text-slate-700">Assigned duties</p>
+                <Button size="sm" variant="outline" onClick={() => patchWorkspaceEvent({ responsibilities: [...workspaceEvent.responsibilities, { id: createEventId('role'), role: '', assignedTo: '' }] })}><Plus className="h-3.5 w-3.5" />Add Duty</Button>
+              </div>
+              {workspaceEvent.responsibilities.map((item) => (
+                <div key={item.id} className="grid gap-2 md:grid-cols-[1fr_2fr_auto]">
+                  <input className={inputClass} value={item.role} placeholder="Duty / role" onChange={(event) => patchWorkspaceEvent({ responsibilities: workspaceEvent.responsibilities.map((row) => row.id === item.id ? { ...row, role: event.target.value } : row) })} />
+                  <input className={inputClass} value={item.assignedTo} placeholder="Assigned staff / team" onChange={(event) => patchWorkspaceEvent({ responsibilities: workspaceEvent.responsibilities.map((row) => row.id === item.id ? { ...row, assignedTo: event.target.value } : row) })} />
+                  <Button size="sm" variant="ghost" onClick={() => patchWorkspaceEvent({ responsibilities: workspaceEvent.responsibilities.filter((row) => row.id !== item.id) })}><Trash2 className="h-4 w-4 text-rose-600" />Remove</Button>
+                </div>
+              ))}
+              {workspaceEvent.responsibilities.length === 0 && <p className="text-sm text-slate-400">No duties assigned yet. Add a duty above.</p>}
+            </div>
+          )}
+          {workspace.mode === 'gallery' && (
+            <div className="space-y-4">
+              <label className="flex cursor-pointer items-center justify-center rounded-xl border-2 border-dashed border-slate-200 p-6 text-sm text-slate-600 hover:border-indigo-300 hover:bg-indigo-50/40">
+                <input type="file" multiple accept="image/*" className="hidden" onChange={(event) => {
+                  const files = Array.from(event.target.files || []);
+                  if (!files.length) return;
+                  patchWorkspaceEvent({ galleryItems: [...(workspaceEvent.galleryItems || []), ...files.map((file) => ({ id: createEventId('img'), name: file.name }))] });
+                  event.target.value = '';
+                }} />
+                <ImageIcon className="mr-2 h-5 w-5 text-slate-400" />Add photos for this event
+              </label>
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                {(workspaceEvent.galleryItems || []).map((item) => (
+                  <div key={item.id} className="rounded-xl border border-slate-200 p-3">
+                    <div className="mb-2 flex aspect-square items-center justify-center rounded-lg bg-slate-100"><ImageIcon className="h-8 w-8 text-slate-400" /></div>
+                    <p className="truncate text-xs font-medium text-slate-700">{item.name}</p>
+                    <Button size="xs" variant="ghost" className="mt-1 text-rose-600" onClick={() => patchWorkspaceEvent({ galleryItems: (workspaceEvent.galleryItems || []).filter((row) => row.id !== item.id) })}>Remove</Button>
+                  </div>
+                ))}
+              </div>
+              {(workspaceEvent.galleryItems || []).length === 0 && <p className="text-sm text-slate-400">No photos added yet.</p>}
+            </div>
+          )}
+          {workspace.mode === 'feedback' && (
+            <EventFeedbackPanel event={workspaceEvent} reviews={reviews} setReviews={setReviews} />
+          )}
+        </Card>
+      )}
 
       <Modal isOpen={Boolean(form)} onClose={() => setForm(null)} title={form ? `Create / Edit Event — ${form.name || 'New Event'}` : 'Create Event'} size="xl" footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="outline" onClick={() => setForm(null)}>Cancel</Button><Button variant="outline" onClick={() => saveEvent(false, true)}><CalendarDays className="h-4 w-4" />Add to Calendar</Button><Button variant="outline" onClick={() => saveEvent(true)}>Submit for Approval</Button><Button onClick={() => saveEvent(false)}>Save Event</Button></div>}>
         {form && <div className="max-h-[75vh] space-y-4 overflow-y-auto pr-1">
           <Panel title="Panel 1 · Event Basics">
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3"><Field label="Event Name"><input className={inputClass} value={form.name} onChange={(event) => updateForm('name', event.target.value)} placeholder="Annual Day 2026 — Colours of India" /></Field><Field label="Event Type" hint="Choose an active Event Master record."><select className={inputClass} value={form.typeId} onChange={(event) => { const type = types.find((item) => item.id === event.target.value); if (type) setForm((current) => current ? { ...current, typeId: type.id, typeName: type.name, schoolHoliday: type.schoolHoliday, requiresPrincipalApproval: type.principalApproval, principalApprovalStatus: type.principalApproval ? 'Pending Approval' : 'Not Required', status: type.principalApproval ? 'Pending Approval' : 'Planning', parentsInvited: type.audience.includes('Parents'), notifyVia: type.notifyParents ? ['SMS', 'Email', 'Parent Portal'] : [], postOn: [...(type.parentPortal ? ['Parent Portal'] : []), ...(type.instituteCalendar ? ['Institute Calendar'] : [])] } : current); }}>{types.filter((type) => type.status === 'Active').map((type) => <option key={type.id} value={type.id}>{type.icon} {type.name}</option>)}</select></Field><Field label="Event Theme" hint="Optional — especially useful for cultural events."><input className={inputClass} value={form.theme} onChange={(event) => updateForm('theme', event.target.value)} placeholder="Colours of India" /></Field><Field label="Event Code"><input className={`${inputClass} bg-slate-50 font-mono`} value={form.code} readOnly /></Field><Field label="Academic Year" hint="Auto-filled from the active academic session."><input className={`${inputClass} bg-slate-50`} value={form.academicYear} readOnly /></Field><Field label="Status"><select className={inputClass} value={form.status} onChange={(event) => updateForm('status', event.target.value as SchoolEventRecord['status'])}>{EVENT_STATUSES.map((status) => <option key={status}>{status}</option>)}</select></Field></div>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3"><Field label="Event Name"><input className={inputClass} value={form.name} onChange={(event) => updateForm('name', event.target.value)} placeholder="Annual Day 2026 — Colours of India" /></Field><Field label="Event Theme" hint="Optional — especially useful for cultural events."><input className={inputClass} value={form.theme} onChange={(event) => updateForm('theme', event.target.value)} placeholder="Colours of India" /></Field><Field label="Event Code"><input className={`${inputClass} bg-slate-50 font-mono`} value={form.code} readOnly /></Field><Field label="Academic Year" hint="Auto-filled from the active academic session."><input className={`${inputClass} bg-slate-50`} value={form.academicYear} readOnly /></Field><Field label="Status"><select className={inputClass} value={form.status} onChange={(event) => updateForm('status', event.target.value as SchoolEventRecord['status'])}>{EVENT_STATUSES.map((status) => <option key={status}>{status}</option>)}</select></Field></div>
           </Panel>
 
+
+          <Panel title="Audience">
+            <p className="text-[11px] text-slate-500">Choose who this event is for. Each list supports multiple selections.</p>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <MultiSelect label="Branch" options={branchAudienceOptions} values={form.audienceBranches || []} onChange={(next) => updateForm('audienceBranches', next)} />
+              <MultiSelect label="Class" options={classAudienceOptions} values={form.audienceClasses || []} onChange={(next) => updateForm('audienceClasses', next)} />
+              <MultiSelect label="Division" options={divisionAudienceOptions} values={form.audienceDivisions || []} onChange={(next) => updateForm('audienceDivisions', next)} />
+              <MultiSelect label="Student" options={studentAudienceOptions} values={form.audienceStudents || []} onChange={(next) => updateForm('audienceStudents', next)} />
+              <MultiSelect label="Staff" options={staffAudienceOptions} values={form.audienceStaff || []} onChange={(next) => updateForm('audienceStaff', next)} />
+              <MultiSelect label="Parents" options={parentAudienceOptions} values={form.audienceParents || []} onChange={(next) => updateForm('audienceParents', next)} />
+            </div>
+          </Panel>
+          <Panel title="Default Settings">
+            <div className="grid gap-3 md:grid-cols-2">
+              {([['schoolHoliday', 'Mark as school holiday for students'], ['requiresPrincipalApproval', 'Require Principal approval to create'], ['notifyParents', 'Notify parents automatically'], ['parentPortal', 'Show on Parent Portal'], ['instituteCalendar', 'Appear on Institute Calendar']] as Array<[keyof SchoolEventRecord, string]>).map(([key, label]) => (
+                <label key={key} className="flex items-center gap-2 rounded-lg border border-slate-100 p-3 text-xs">
+                  <input type="checkbox" checked={Boolean(form[key])} onChange={(event) => {
+                    updateForm(key, event.target.checked as never);
+                    if (key === 'notifyParents') setForm((current) => current ? { ...current, notifyParents: event.target.checked, notifyVia: event.target.checked ? (current.notifyVia.length ? current.notifyVia : ['SMS', 'Email', 'Parent Portal']) : current.notifyVia.filter((item) => item !== 'Parent Portal') } : current);
+                    if (key === 'parentPortal') setForm((current) => current ? { ...current, parentPortal: event.target.checked, postOn: event.target.checked ? Array.from(new Set([...current.postOn, 'Parent Portal'])) : current.postOn.filter((item) => item !== 'Parent Portal') } : current);
+                    if (key === 'instituteCalendar') setForm((current) => current ? { ...current, instituteCalendar: event.target.checked, postOn: event.target.checked ? Array.from(new Set([...current.postOn, 'Institute Calendar'])) : current.postOn.filter((item) => item !== 'Institute Calendar') } : current);
+                    if (key === 'requiresPrincipalApproval') setForm((current) => current ? { ...current, requiresPrincipalApproval: event.target.checked, principalApprovalStatus: event.target.checked ? (current.principalApprovalStatus === 'Not Required' ? 'Pending Approval' : current.principalApprovalStatus) : 'Not Required', status: event.target.checked && current.status === 'Planning' ? 'Pending Approval' : current.status } : current);
+                  }} />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </Panel>
+          <Panel title="Certificates / Remembrances">
+            <div className="grid gap-3 md:grid-cols-3">
+              <label className="flex items-center gap-2 rounded-lg border border-slate-100 p-3 text-xs"><input type="checkbox" checked={form.participationCertificates} onChange={(event) => updateForm('participationCertificates', event.target.checked)} />Participation certificates for performers</label>
+              <label className="flex items-center gap-2 rounded-lg border border-slate-100 p-3 text-xs"><input type="checkbox" checked={form.achievementCertificates} onChange={(event) => updateForm('achievementCertificates', event.target.checked)} />Achievement certificates for winners</label>
+              <label className="flex items-center gap-2 rounded-lg border border-slate-100 p-3 text-xs"><input type="checkbox" checked={form.mementos} onChange={(event) => updateForm('mementos', event.target.checked)} />Mementos / gifts to guests</label>
+            </div>
+          </Panel>
           <Panel title="Panel 2 · Date, Time & Venue">
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"><Field label="Event Date"><input type="date" className={inputClass} value={form.date} onChange={(event) => updateForm('date', event.target.value)} /></Field><Field label="Is Multi-Day?"><select className={inputClass} value={form.isMultiDay ? 'Yes' : 'No'} onChange={(event) => updateForm('isMultiDay', event.target.value === 'Yes')}><option>No</option><option>Yes</option></select></Field>{form.isMultiDay && <Field label="End Date"><input type="date" className={inputClass} value={form.endDate} onChange={(event) => updateForm('endDate', event.target.value)} /></Field>}<Field label="Start Time"><input type="text" className={inputClass} value={form.startTime} placeholder="05:00 PM" onChange={(event) => updateForm('startTime', event.target.value)} /></Field><Field label="End Time"><input type="text" className={inputClass} value={form.endTime} placeholder="09:00 PM" onChange={(event) => updateForm('endTime', event.target.value)} /></Field><Field label="Venue / Campus Location"><select className={inputClass} value={venueOptions.includes(form.venueName) ? form.venueName : 'Other'} onChange={(event) => updateForm('venueName', event.target.value === 'Other' ? '' : event.target.value)}>{venueOptions.map((venue) => <option key={venue}>{venue}</option>)}</select>{(!form.venueName || !venueOptions.includes(form.venueName)) && <input className={`${inputClass} mt-2`} value={form.venueName} onChange={(event) => updateForm('venueName', event.target.value)} placeholder="Enter custom venue / room" />}</Field><Field label="Venue / Room Code"><input className={inputClass} value={form.venueCode} onChange={(event) => updateForm('venueCode', event.target.value)} placeholder="AUD-01, Admin Block" /></Field><Field label="Seating Capacity" hint="Can be linked to Campus setup when integrated."><input type="number" min="0" className={inputClass} value={form.seatingCapacity} onChange={(event) => updateForm('seatingCapacity', Number(event.target.value))} /></Field><Field label="Expected Attendance" hint="May exceed room capacity if overflow is planned."><input type="number" min="0" className={inputClass} value={form.expectedAttendance} onChange={(event) => updateForm('expectedAttendance', Number(event.target.value))} /></Field><Field label="Venue Address"><input className={inputClass} value={form.venueAddress} onChange={(event) => updateForm('venueAddress', event.target.value)} /></Field><Field label="Overflow Arrangements"><input className={inputClass} value={form.overflowArrangements} onChange={(event) => updateForm('overflowArrangements', event.target.value)} placeholder="Live stream to Computer Lab 1 and 2" /></Field></div>
             <label className="flex items-center gap-2 rounded-lg border border-slate-100 px-3 py-2 text-xs"><input type="checkbox" checked={form.schoolHoliday} onChange={(event) => updateForm('schoolHoliday', event.target.checked)} />School holiday for students on event day — no regular classes</label>

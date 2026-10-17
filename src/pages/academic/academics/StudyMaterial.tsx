@@ -203,11 +203,6 @@ export function StudyMaterial() {
   const [filterClass, setFilterClass] = useState('');
   const [filterStatus, setFilterStatus] = useState('Active');
   const [searchTitle, setSearchTitle] = useState('');
-  const activeCount = materialsData.filter((m) => m.status === 'Active').length;
-  const archivedCount = materialsData.filter(
-    (m) => m.status === 'Archived'
-  ).length;
-  const totalDownloads = materialsData.reduce((s, m) => s + m.downloads, 0);
   const filteredMaterials = materialsData.filter((m) => {
     if (filterSubject && m.subject !== filterSubject) return false;
     if (filterClass && !m.class.toLowerCase().includes(filterClass))
@@ -239,48 +234,6 @@ export function StudyMaterial() {
 
             Upload Material
           </Button>
-        </div>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <BookOpenIcon className="w-4 h-4 text-blue-600" />
-            <span className="text-xs font-medium text-blue-600 uppercase tracking-wide">
-              Total Materials
-            </span>
-          </div>
-          <p className="text-2xl font-bold text-blue-700">
-            {materialsData.length}
-          </p>
-        </div>
-        <div className="bg-green-50 border border-green-100 rounded-lg p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <FileTextIcon className="w-4 h-4 text-green-600" />
-            <span className="text-xs font-medium text-green-600 uppercase tracking-wide">
-              Active
-            </span>
-          </div>
-          <p className="text-2xl font-bold text-green-700">{activeCount}</p>
-        </div>
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <ArchiveIcon className="w-4 h-4 text-gray-500" />
-            <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-              Archived
-            </span>
-          </div>
-          <p className="text-2xl font-bold text-gray-600">{archivedCount}</p>
-        </div>
-        <div className="bg-purple-50 border border-purple-100 rounded-lg p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <DownloadIcon className="w-4 h-4 text-purple-600" />
-            <span className="text-xs font-medium text-purple-600 uppercase tracking-wide">
-              Total Downloads
-            </span>
-          </div>
-          <p className="text-2xl font-bold text-purple-700">{totalDownloads}</p>
         </div>
       </div>
 
