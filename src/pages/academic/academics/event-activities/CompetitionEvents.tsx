@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { CalendarDays, Download, Eye, MapPin, Pencil, Plus, Search, Users, X } from 'lucide-react';
+import { Download, Eye, MapPin, Pencil, Plus, Search, Users, X } from 'lucide-react';
 import { Badge } from '../../../../components/ui/Badge';
 import { Button } from '../../../../components/ui/Button';
 import { Card } from '../../../../components/ui/Card';
@@ -8,11 +8,17 @@ import {
   COMPETITION_EVENT_STATUSES,
   COMPETITION_EVENTS_STORAGE_KEY,
   COMPETITION_LEVELS,
+  COMPETITION_PARTICIPANTS_STORAGE_KEY,
+  COMPETITION_RESULTS_STORAGE_KEY,
   COMPETITION_TYPES_STORAGE_KEY,
   DEFAULT_COMPETITION_EVENTS,
+  DEFAULT_COMPETITION_PARTICIPANTS,
+  DEFAULT_COMPETITION_RESULTS,
   DEFAULT_COMPETITION_TYPES,
   ELIGIBLE_CLASS_GROUPS,
   CompetitionEventRecord,
+  CompetitionParticipantRecord,
+  CompetitionStudentResult,
   CompetitionTypeRecord,
   downloadCsv,
   loadCompetitionCollection,
@@ -69,12 +75,83 @@ const statusVariant = (status: string): 'info' | 'warning' | 'success' | 'danger
   return 'default';
 };
 
+
+function CompetitionFollowUpPage({ event, mode, onBack }: { event: CompetitionEventRecord; mode: 'students' | 'results'; onBack: () => void }) {
+  const [participants, setParticipants] = useState<CompetitionParticipantRecord[]>(() => loadCompetitionCollection(COMPETITION_PARTICIPANTS_STORAGE_KEY, DEFAULT_COMPETITION_PARTICIPANTS));
+  const [results, setResults] = useState<CompetitionStudentResult[]>(() => loadCompetitionCollection(COMPETITION_RESULTS_STORAGE_KEY, DEFAULT_COMPETITION_RESULTS));
+  const [draft, setDraft] = useState({ studentName: '', className: '10-A', rollNumber: '' });
+  const eventParticipants = participants.filter((item) => item.eventId === event.id);
+  const eventResults = results.filter((item) => item.eventId === event.id);
+  const persistParticipants = (next: CompetitionParticipantRecord[]) => { setParticipants(next); saveCompetitionCollection(COMPETITION_PARTICIPANTS_STORAGE_KEY, next); };
+  const persistResults = (next: CompetitionStudentResult[]) => { setResults(next); saveCompetitionCollection(COMPETITION_RESULTS_STORAGE_KEY, next); };
+  const addStudent = () => {
+    if (!draft.studentName.trim()) return;
+    persistParticipants([{ id: `part-${Date.now()}`, eventId: event.id, studentName: draft.studentName.trim(), className: draft.className, rollNumber: draft.rollNumber.trim() || '—', registrationStatus: 'Pending', parentConsent: 'Awaiting', attendance: 0, disciplineClear: true }, ...participants]);
+    setDraft({ studentName: '', className: '10-A', rollNumber: '' });
+  };
+  const updateResult = (id: string, patch: Partial<CompetitionStudentResult>) => {
+    persistResults(results.map((item) => item.id === id ? { ...item, ...patch } : item));
+  };
+  const seedResults = () => {
+    if (eventResults.length) return;
+    persistResults([...eventParticipants.map((participant) => ({ id: `res-${participant.id}`, eventId: event.id, studentName: participant.studentName, className: participant.className, score: '', position: 'Participation', award: 'Participation', house: 'Fire House', housePoints: 0 })), ...results]);
+  };
+  return (
+    <Card>
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-widest text-indigo-600">{mode === 'students' ? 'Students' : 'Results'}</p>
+          <h2 className="mt-1 text-lg font-bold text-slate-900">{event.name}</h2>
+          <p className="text-sm text-slate-500">{mode === 'students' ? 'Register and track students for this competition.' : 'Enter scores, positions and awards for this competition.'}</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={onBack}><X className="h-4 w-4" />Back to events</Button>
+      </div>
+      {mode === 'students' ? (
+        <div className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-4">
+            <input className={inputClass} placeholder="Student name" value={draft.studentName} onChange={(change) => setDraft((current) => ({ ...current, studentName: change.target.value }))} />
+            <input className={inputClass} placeholder="Class" value={draft.className} onChange={(change) => setDraft((current) => ({ ...current, className: change.target.value }))} />
+            <input className={inputClass} placeholder="Roll no." value={draft.rollNumber} onChange={(change) => setDraft((current) => ({ ...current, rollNumber: change.target.value }))} />
+            <Button onClick={addStudent}><Plus className="h-4 w-4" />Add student</Button>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px] text-left text-sm">
+              <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500"><tr><th className="px-3 py-2">Student</th><th className="px-3 py-2">Class</th><th className="px-3 py-2">Roll</th><th className="px-3 py-2">Status</th><th className="px-3 py-2">Consent</th></tr></thead>
+              <tbody className="divide-y divide-slate-100">{eventParticipants.map((participant) => (
+                <tr key={participant.id}><td className="px-3 py-2 font-medium">{participant.studentName}</td><td className="px-3 py-2">{participant.className}</td><td className="px-3 py-2">{participant.rollNumber}</td><td className="px-3 py-2"><Badge variant={participant.registrationStatus === 'Confirmed' ? 'success' : participant.registrationStatus === 'Rejected' ? 'danger' : 'warning'}>{participant.registrationStatus}</Badge></td><td className="px-3 py-2">{participant.parentConsent}</td></tr>
+              ))}{eventParticipants.length === 0 && <tr><td colSpan={5} className="px-3 py-8 text-center text-sm text-slate-400">No students registered yet.</td></tr>}</tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {!eventResults.length && <Button variant="outline" onClick={seedResults}>Load registered students</Button>}
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[800px] text-left text-sm">
+              <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500"><tr><th className="px-3 py-2">Student</th><th className="px-3 py-2">Class</th><th className="px-3 py-2">Score</th><th className="px-3 py-2">Position</th><th className="px-3 py-2">Award</th></tr></thead>
+              <tbody className="divide-y divide-slate-100">{eventResults.map((row) => (
+                <tr key={row.id}>
+                  <td className="px-3 py-2 font-medium">{row.studentName}</td>
+                  <td className="px-3 py-2">{row.className}</td>
+                  <td className="px-3 py-2"><input className={inputClass} value={row.score} onChange={(change) => updateResult(row.id, { score: change.target.value })} /></td>
+                  <td className="px-3 py-2"><select className={inputClass} value={row.position} onChange={(change) => updateResult(row.id, { position: change.target.value })}>{['1st', '2nd', '3rd', 'Participation'].map((position) => <option key={position}>{position}</option>)}</select></td>
+                  <td className="px-3 py-2"><input className={inputClass} value={row.award} onChange={(change) => updateResult(row.id, { award: change.target.value })} /></td>
+                </tr>
+              ))}{eventResults.length === 0 && <tr><td colSpan={5} className="px-3 py-8 text-center text-sm text-slate-400">No results yet. Load registered students or open this page after adding participants.</td></tr>}</tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 export function CompetitionEvents() {
   const [events, setEvents] = useState<CompetitionEventRecord[]>(() => loadCompetitionCollection(COMPETITION_EVENTS_STORAGE_KEY, DEFAULT_COMPETITION_EVENTS));
   const [types] = useState<CompetitionTypeRecord[]>(() => loadCompetitionCollection(COMPETITION_TYPES_STORAGE_KEY, DEFAULT_COMPETITION_TYPES));
   const [search, setSearch] = useState('');
   const [appliedSearch, setAppliedSearch] = useState('');
-  const [typeFilter, setTypeFilter] = useState('All');
+  const [workspace, setWorkspace] = useState<{ eventId: string; mode: 'students' | 'results' } | null>(null);
   const [levelFilter, setLevelFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
   const [fromDate, setFromDate] = useState('');
@@ -88,7 +165,6 @@ export function CompetitionEvents() {
   const filteredEvents = useMemo(() => events.filter((event) => {
     const term = appliedSearch.trim().toLowerCase();
     if (term && !`${event.name} ${event.typeName} ${event.code} ${event.venueName}`.toLowerCase().includes(term)) return false;
-    if (typeFilter !== 'All' && event.typeId !== typeFilter) return false;
     if (levelFilter !== 'All' && event.level !== levelFilter) return false;
     if (statusFilter !== 'All' && event.status !== statusFilter) return false;
     if (fromDate && event.startDate < fromDate) return false;
@@ -96,7 +172,7 @@ export function CompetitionEvents() {
     if (classFilter !== 'All' && !event.eligibleClasses.includes(classFilter)) return false;
     if (monthFilter !== 'All' && event.startDate.slice(5, 7) !== monthFilter) return false;
     return true;
-  }), [events, appliedSearch, typeFilter, levelFilter, statusFilter, fromDate, toDate, classFilter, monthFilter]);
+  }), [events, appliedSearch, levelFilter, statusFilter, fromDate, toDate, classFilter, monthFilter]);
 
   function updateForm<K extends keyof CompetitionEventRecord>(key: K, value: CompetitionEventRecord[K]) {
     setForm((current) => current ? { ...current, [key]: value } : current);
@@ -108,7 +184,7 @@ export function CompetitionEvents() {
   };
 
   const resetFilters = () => {
-    setSearch(''); setAppliedSearch(''); setTypeFilter('All'); setLevelFilter('All'); setStatusFilter('All'); setFromDate(''); setToDate(''); setClassFilter('All'); setMonthFilter('All');
+    setSearch(''); setAppliedSearch(''); setLevelFilter('All'); setStatusFilter('All'); setFromDate(''); setToDate(''); setClassFilter('All'); setMonthFilter('All');
   };
 
   const saveEvent = () => {
@@ -133,9 +209,10 @@ export function CompetitionEvents() {
 
   const selectForFollowUp = (event: CompetitionEventRecord, page: 'students' | 'results') => {
     setActiveCompetitionEvent(event.id);
-    setMessage(`${event.name} selected. Open ${page === 'students' ? 'Student Participation' : 'Results & Achievements'} from the Competition Management sidebar section.`);
-    window.setTimeout(() => setMessage(''), 4500);
+    setWorkspace({ eventId: event.id, mode: page });
+    setMessage('');
   };
+  const workspaceEvent = events.find((event) => event.id === workspace?.eventId) || null;
 
   const toggleFormArray = (key: 'eligibleClasses' | 'subjects' | 'notifyChannels', value: string) => {
     setForm((current) => current ? {
@@ -154,16 +231,15 @@ export function CompetitionEvents() {
   return (
     <div className="space-y-5 p-4 md:p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex items-start gap-3"><div className="rounded-xl bg-indigo-100 p-3 text-indigo-700"><CalendarDays className="h-6 w-6" /></div><div><p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Competition Management</p><h1 className="text-2xl font-bold text-slate-900">Competition Events</h1><p className="mt-1 text-sm text-slate-500">Schedule, manage, and track individual competition occurrences.</p></div></div>
+        <div><p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Competition Management</p><h1 className="text-2xl font-bold text-slate-900">Competition Events</h1><p className="mt-1 text-sm text-slate-500">Schedule, manage, and track individual competition occurrences.</p></div>
         <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={exportEvents}><Download className="h-4 w-4" />Export</Button><Button onClick={() => { setForm(createEventDraft(types)); setMessage(''); }}><Plus className="h-4 w-4" />Create Competition Event</Button></div>
       </div>
 
       {message && <div role="status" className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm text-indigo-800">{message}</div>}
 
-      <Card className="border-slate-200 p-4">
+      {!workspace && <><Card className="border-slate-200 p-4">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Field label="Search"><div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input className={`${inputClass} pl-9`} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Competition name or type…" /></div></Field>
-          <Field label="Competition Type"><select className={inputClass} value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}><option value="All">All Types</option>{types.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}</select></Field>
           <Field label="Level"><select className={inputClass} value={levelFilter} onChange={(event) => setLevelFilter(event.target.value)}><option value="All">All Levels</option>{COMPETITION_LEVELS.map((level) => <option key={level}>{level}</option>)}</select></Field>
           <Field label="Status"><select className={inputClass} value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="All">All Statuses</option>{COMPETITION_EVENT_STATUSES.map((status) => <option key={status}>{status}</option>)}</select></Field>
           <Field label="From date"><input type="date" className={inputClass} value={fromDate} onChange={(event) => setFromDate(event.target.value)} /></Field>
@@ -177,26 +253,29 @@ export function CompetitionEvents() {
       <Card noPadding className="overflow-hidden">
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3"><h2 className="font-semibold text-slate-900">Competition Events List</h2><span className="text-xs text-slate-500">Dates and status update with each event</span></div>
         <div className="overflow-x-auto"><table className="min-w-[1120px] w-full text-left text-sm">
-          <thead className="bg-slate-100 text-xs uppercase tracking-wide text-slate-600"><tr><th className="px-4 py-3">#</th><th className="px-4 py-3">Competition Name</th><th className="px-4 py-3">Type</th><th className="px-4 py-3">Level</th><th className="px-4 py-3">Date(s)</th><th className="px-4 py-3">Venue</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Actions</th></tr></thead>
+          <thead className="bg-slate-100 text-xs uppercase tracking-wide text-slate-600"><tr><th className="px-4 py-3">#</th><th className="px-4 py-3">Competition Name</th><th className="px-4 py-3">Level</th><th className="px-4 py-3">Date(s)</th><th className="px-4 py-3">Venue</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Actions</th></tr></thead>
           <tbody className="divide-y divide-slate-100">{filteredEvents.map((event, index) => <tr key={event.id} className="hover:bg-indigo-50/30">
             <td className="px-4 py-3 text-slate-400">{index + 1}</td>
             <td className="px-4 py-3"><div className="font-semibold text-slate-900">{event.name}</div><div className="font-mono text-[10px] text-slate-500">{event.code} · {event.academicYear}</div></td>
-            <td className="px-4 py-3 text-slate-700">{event.typeName}</td><td className="px-4 py-3 text-slate-600">{event.level}</td><td className="px-4 py-3 whitespace-nowrap">{formatDate(event.startDate, event.isMultiDay ? event.endDate : '')}</td>
+            <td className="px-4 py-3 text-slate-600">{event.level}</td><td className="px-4 py-3 whitespace-nowrap">{formatDate(event.startDate, event.isMultiDay ? event.endDate : '')}</td>
             <td className="px-4 py-3"><span className="inline-flex items-center gap-1 text-slate-600"><MapPin className="h-3.5 w-3.5" />{event.venueName || event.venueMode}</span></td>
             <td className="px-4 py-3"><Badge variant={statusVariant(event.status)}>{event.status}</Badge></td>
             <td className="px-4 py-3"><div className="flex items-center gap-1"><Button size="xs" variant="ghost" title="View event" onClick={() => setViewRecord(event)}><Eye className="h-4 w-4" /></Button><Button size="xs" variant="ghost" title="Edit event" onClick={() => { setForm({ ...event, eligibleClasses: [...event.eligibleClasses], subjects: [...event.subjects], notifyChannels: [...event.notifyChannels], prizes: event.prizes.map((prize) => ({ ...prize })) }); setMessage(''); }}><Pencil className="h-4 w-4" /></Button><Button size="xs" variant="outline" onClick={() => selectForFollowUp(event, 'students')}><Users className="h-3.5 w-3.5" />Students</Button><Button size="xs" variant="outline" onClick={() => selectForFollowUp(event, 'results')}>Results</Button></div></td>
           </tr>)}
-          {!filteredEvents.length && <tr><td colSpan={8} className="px-4 py-12 text-center text-sm text-slate-500">No events match the selected filters.</td></tr>}</tbody>
+          {!filteredEvents.length && <tr><td colSpan={7} className="px-4 py-12 text-center text-sm text-slate-500">No events match the selected filters.</td></tr>}</tbody>
         </table></div>
         <div className="border-t border-slate-100 px-4 py-3 text-xs text-slate-500">Status: Planning · Registration Open · Registration Closed · Ongoing · Completed · Cancelled</div>
-      </Card>
+      </Card></>}
+
+      {workspace && workspaceEvent && (
+        <CompetitionFollowUpPage event={workspaceEvent} mode={workspace.mode} onBack={() => setWorkspace(null)} />
+      )}
 
       <Modal isOpen={Boolean(form)} onClose={() => setForm(null)} title={form?.id && events.some((event) => event.id === form.id) ? 'Edit Competition Event' : 'Create Competition Event'} size="xl" footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="outline" onClick={() => setForm(null)}><X className="h-4 w-4" />Cancel</Button><Button onClick={saveEvent}>Save Competition Event</Button></div>}>
         {form && <div className="max-h-[72vh] space-y-4 overflow-y-auto pr-1">
-          <p className="text-xs text-slate-500">Create an event occurrence from an active Competition Master type. Event settings may override the type defaults.</p>
+          <p className="text-xs text-slate-500">Create a competition occurrence and manage students and results from this page.</p>
           <section className={panelClass}><h3 className="mb-3 text-sm font-bold text-slate-900">Panel 1 · Competition Identity</h3><div className="grid gap-3 md:grid-cols-2">
             <Field label="Competition Name *"><input className={inputClass} value={form.name} onChange={(event) => updateForm('name', event.target.value)} placeholder="District Science Olympiad 2026" /></Field>
-            <Field label="Competition Type"><select className={inputClass} value={form.typeId} onChange={(event) => { const selected = types.find((type) => type.id === event.target.value); setForm((current) => current ? { ...current, typeId: event.target.value, typeName: selected?.name || '' } : current); }}>{types.map((type) => <option key={type.id} value={type.id}>{type.name}{type.status === 'Inactive' ? ' (Inactive)' : ''}</option>)}</select></Field>
             <Field label="Competition Code · auto-generated"><input className={`${inputClass} bg-slate-50 font-mono`} readOnly value={form.code} /></Field>
             <Field label="Academic Year"><input className={`${inputClass} bg-slate-50`} value={form.academicYear} readOnly /></Field>
             <Field label="Status"><select className={inputClass} value={form.status} onChange={(event) => updateForm('status', event.target.value as CompetitionEventRecord['status'])}>{COMPETITION_EVENT_STATUSES.map((status) => <option key={status}>{status}</option>)}</select></Field>

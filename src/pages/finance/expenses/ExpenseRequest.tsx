@@ -49,6 +49,8 @@ export interface ExpenseRequestItem {
   unit: string;
   estRate: number;
   estAmount: number;
+  gstAmount: number;
+  sgstAmount: number;
 }
 
 export type ExpensePriority = 'Low' | 'Medium' | 'High' | 'Urgent';
@@ -95,8 +97,8 @@ const INITIAL_REQUESTS: ExpenseRequestRecord[] = [
     expenseHead: 'EXP-OFF-002 — Office Stationery',
     description: 'Quarterly office stationery requirements for examinations and administration.',
     items: [
-      { id: '1', name: 'A4 Paper Reams', quantity: 50, unit: 'Reams', estRate: 250, estAmount: 12500 },
-      { id: '2', name: 'Whiteboard Marker', quantity: 100, unit: 'Nos.', estRate: 30, estAmount: 3000 }
+      { id: '1', name: 'A4 Paper Reams', quantity: 50, unit: 'Reams', estRate: 250, estAmount: 12500, gstAmount: 1125, sgstAmount: 1125 },
+      { id: '2', name: 'Whiteboard Marker', quantity: 100, unit: 'Nos.', estRate: 30, estAmount: 3000, gstAmount: 270, sgstAmount: 270 }
     ],
     totalAmount: 15500,
     priority: 'Medium',
@@ -116,8 +118,8 @@ const INITIAL_REQUESTS: ExpenseRequestRecord[] = [
     expenseHead: 'EXP-LAB-001 — Lab Chemicals & Instruments',
     description: 'Advanced laboratory microscopes and stands for Senior Secondary Biology lab practicals.',
     items: [
-      { id: '1', name: 'Microscope (Lab Grade)', quantity: 10, unit: 'Nos.', estRate: 7500, estAmount: 75000 },
-      { id: '2', name: 'Lab Stand & Clamp Set', quantity: 20, unit: 'Sets', estRate: 500, estAmount: 10000 }
+      { id: '1', name: 'Microscope (Lab Grade)', quantity: 10, unit: 'Nos.', estRate: 7500, estAmount: 75000, gstAmount: 6750, sgstAmount: 6750 },
+      { id: '2', name: 'Lab Stand & Clamp Set', quantity: 20, unit: 'Sets', estRate: 500, estAmount: 10000, gstAmount: 900, sgstAmount: 900 }
     ],
     totalAmount: 85000,
     priority: 'High',
@@ -137,8 +139,8 @@ const INITIAL_REQUESTS: ExpenseRequestRecord[] = [
     expenseHead: 'EXP-SPT-001 — Sports Equipment & Kits',
     description: 'Annual inter-school tournament sporting kits and gear for football and basketball teams.',
     items: [
-      { id: '1', name: 'Football (Match Grade)', quantity: 15, unit: 'Nos.', estRate: 1000, estAmount: 15000 },
-      { id: '2', name: 'Basketballs (Size 7)', quantity: 10, unit: 'Nos.', estRate: 1000, estAmount: 10000 }
+      { id: '1', name: 'Football (Match Grade)', quantity: 15, unit: 'Nos.', estRate: 1000, estAmount: 15000, gstAmount: 1350, sgstAmount: 1350 },
+      { id: '2', name: 'Basketballs (Size 7)', quantity: 10, unit: 'Nos.', estRate: 1000, estAmount: 10000, gstAmount: 900, sgstAmount: 900 }
     ],
     totalAmount: 25000,
     priority: 'Medium',
@@ -158,7 +160,7 @@ const INITIAL_REQUESTS: ExpenseRequestRecord[] = [
     expenseHead: 'EXP-IT-005 — IT Equipment & Hardware',
     description: 'Upgradation of monitors and RAM in Senior Computer Lab.',
     items: [
-      { id: '1', name: '24-inch IPS LED Monitors', quantity: 15, unit: 'Nos.', estRate: 8000, estAmount: 120000 }
+      { id: '1', name: '24-inch IPS LED Monitors', quantity: 15, unit: 'Nos.', estRate: 8000, estAmount: 120000, gstAmount: 10800, sgstAmount: 10800 }
     ],
     totalAmount: 120000,
     priority: 'High',
@@ -179,7 +181,7 @@ const INITIAL_REQUESTS: ExpenseRequestRecord[] = [
     expenseHead: 'EXP-BLD-008 — Building Maintenance & Repairs',
     description: 'Urgent plumbing overhaul in North Wing washrooms and replacement of main booster valve.',
     items: [
-      { id: '1', name: 'Booster Pump Valve & Fittings', quantity: 1, unit: 'Set', estRate: 35000, estAmount: 35000 }
+      { id: '1', name: 'Booster Pump Valve & Fittings', quantity: 1, unit: 'Set', estRate: 35000, estAmount: 35000, gstAmount: 3150, sgstAmount: 3150 }
     ],
     totalAmount: 35000,
     priority: 'Urgent',
@@ -223,7 +225,7 @@ export interface RecurringRule {
 const RECURRING_FREQUENCIES = ['Monthly', 'Quarterly', 'Half-Yearly', 'Yearly', 'Custom'] as const;
 const RECURRING_ACTIONS = ['Auto-Voucher', 'Reminder Only', 'Auto-Payment'] as const;
 const RECURRING_DEPARTMENTS = ['Admin', 'Science Lab', 'IT', 'Library', 'Transport', 'Hostel', 'Sports', 'Accounts'];
-const RECURRING_COST_CENTERS = ['CC-ADM-01', 'CC-LAB-01', 'CC-IT-01', 'CC-LIB-01', 'CC-TRN-01', 'CC-ACC-01'];
+const BRANCH_COST_CENTERS = ['Main Campus', 'North Campus', 'South Campus', 'East Campus', 'West Campus'];
 const EXPENSE_REQUEST_DEPARTMENTS = ['Admin', 'Academic', 'Science', 'Science Lab', 'IT', 'Computer Lab', 'Library', 'Transport', 'Hostel', 'Sports', 'Accounts'];
 const REQUEST_PAYMENT_TERMS = [
   { value: 'immediate', label: 'Immediate' },
@@ -268,7 +270,7 @@ const INITIAL_RECURRING_RULES: RecurringRule[] = [
     reminderDays: 3,
     notifyVia: ['email', 'push'],
     department: 'Admin',
-    costCenter: 'CC-ADM-01',
+    costCenter: 'Main Campus',
     lastExecuted: '2025-09-05',
     executionCount: 6,
     totalAmountProcessed: 88500,
@@ -293,7 +295,7 @@ const INITIAL_RECURRING_RULES: RecurringRule[] = [
     reminderDays: 7,
     notifyVia: ['email'],
     department: 'IT',
-    costCenter: 'CC-IT-01',
+    costCenter: 'North Campus',
     lastExecuted: '2025-07-10',
     executionCount: 3,
     totalAmountProcessed: 106200,
@@ -318,7 +320,7 @@ const INITIAL_RECURRING_RULES: RecurringRule[] = [
     reminderDays: 2,
     notifyVia: ['email', 'sms'],
     department: 'Hostel',
-    costCenter: 'CC-ADM-01',
+    costCenter: 'Main Campus',
     lastExecuted: '2025-09-01',
     executionCount: 4,
     totalAmountProcessed: 384000,
@@ -343,7 +345,7 @@ const INITIAL_RECURRING_RULES: RecurringRule[] = [
     reminderDays: 15,
     notifyVia: ['email'],
     department: 'Accounts',
-    costCenter: 'CC-ACC-01',
+    costCenter: 'South Campus',
     lastExecuted: '2024-11-15',
     executionCount: 1,
     totalAmountProcessed: 92040,
@@ -368,7 +370,7 @@ const INITIAL_RECURRING_RULES: RecurringRule[] = [
     reminderDays: 5,
     notifyVia: ['email'],
     department: 'Transport',
-    costCenter: 'CC-TRN-01',
+    costCenter: 'East Campus',
     lastExecuted: '2025-06-01',
     executionCount: 1,
     totalAmountProcessed: 168000,
@@ -394,7 +396,7 @@ const INITIAL_RECURRING_RULES: RecurringRule[] = [
     reminderDays: 4,
     notifyVia: ['push'],
     department: 'Science Lab',
-    costCenter: 'CC-LAB-01',
+    costCenter: 'West Campus',
     lastExecuted: '2025-09-05',
     executionCount: 3,
     totalAmountProcessed: 127500,
@@ -613,7 +615,9 @@ export function ExpenseRequest() {
         quantity: 1,
         unit: 'Lot',
         estRate: rule.amount,
-        estAmount: rule.amount
+        estAmount: rule.amount,
+        gstAmount: 0,
+        sgstAmount: 0
       }
     ],
     totalAmount: rule.amount,
@@ -650,7 +654,7 @@ export function ExpenseRequest() {
       reminderDays: 3,
       notifyVia: ['email'],
       department: req.department,
-      costCenter: 'CC-ADM-01',
+      costCenter: 'Main Campus',
       executionCount: 0,
       totalAmountProcessed: 0,
       createdBy: req.requestedBy,
@@ -996,60 +1000,11 @@ export function ExpenseRequest() {
                           <Eye className="w-3.5 h-3.5" />
                         </Button>
 
-                        {req.status === 'Pending' && (
-                          <>
-                            <Button
-                              size="sm"
-                              onClick={() => handleApprove(req)}
-                              className="h-7 px-2 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
-                              title="Approve Request"
-                            >
-                              <Check className="w-3 h-3 mr-1" /> Approve
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                setRejectModalReq(req);
-                                setRejectReason('');
-                              }}
-                              className="h-7 px-2 text-xs text-rose-600 border-rose-200 hover:bg-rose-50"
-                              title="Reject Request"
-                            >
-                              <X className="w-3 h-3 mr-1" /> Reject
-                            </Button>
-                          </>
-                        )}
-
                         {req.status === 'Approved' && (
                           <span className="inline-flex items-center gap-1 text-[11px] text-blue-600 font-medium px-2 py-0.5 bg-blue-50 border border-blue-200 rounded">
                             <FileCheck className="w-3 h-3" /> PO Ready
                           </span>
                         )}
-
-                        {req.status === 'Rejected' && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              showToast(`Request ${req.requestNo} duplicated for revision.`);
-                              setShowNewModal(true);
-                            }}
-                            className="h-7 px-2 text-[11px] text-amber-700 border-amber-200 hover:bg-amber-50"
-                          >
-                            🔄 Revise & Resubmit
-                          </Button>
-                        )}
-
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleMakeRecurring(req)}
-                          className="h-7 px-2 text-[11px] text-indigo-700 border-indigo-200 hover:bg-indigo-50"
-                          title="Create a recurring rule from this request"
-                        >
-                          🔁 Recurring
-                        </Button>
                       </div>
                     </td>
                   </tr>
@@ -1169,6 +1124,8 @@ export function ExpenseRequest() {
                     <th className="p-2">Quantity</th>
                     <th className="p-2">Unit</th>
                     <th className="p-2">Est. Rate</th>
+                    <th className="p-2 text-right">GST Amount</th>
+                    <th className="p-2 text-right">SGST Amount</th>
                     <th className="p-2 text-right">Est. Amount</th>
                   </tr>
                 </thead>
@@ -1180,11 +1137,13 @@ export function ExpenseRequest() {
                       <td className="p-2">{it.quantity}</td>
                       <td className="p-2">{it.unit}</td>
                       <td className="p-2">₹{it.estRate.toLocaleString('en-IN')}</td>
+                      <td className="p-2 text-right">₹{(it.gstAmount || 0).toLocaleString('en-IN')}</td>
+                      <td className="p-2 text-right">₹{(it.sgstAmount || 0).toLocaleString('en-IN')}</td>
                       <td className="p-2 text-right font-semibold">₹{it.estAmount.toLocaleString('en-IN')}</td>
                     </tr>
                   ))}
                   <tr className="bg-gray-50 font-bold">
-                    <td colSpan={5} className="p-2 text-right">
+                    <td colSpan={7} className="p-2 text-right">
                       Total Estimated Amount:
                     </td>
                     <td className="p-2 text-right text-indigo-700">
@@ -1275,7 +1234,7 @@ function NewExpenseRequestModal({
   const [endDate, setEndDate] = useState('');
   const [ruleAction, setRuleAction] = useState<RecurringRule['actionType']>('Reminder Only');
   const [reminderDays, setReminderDays] = useState('7');
-  const [costCenter, setCostCenter] = useState('CC-ADM-01');
+  const [costCenter, setCostCenter] = useState('Main Campus');
   const [department, setDepartment] = useState('Admin');
   const [requestedBy, setRequestedBy] = useState('Mr. Verma');
   const [designation, setDesignation] = useState('HOD / Department Head');
@@ -1302,8 +1261,8 @@ function NewExpenseRequestModal({
   }, [vendorPayees, vendorPayee]);
 
   const [items, setItems] = useState<ExpenseRequestItem[]>([
-    { id: '1', name: 'A4 Paper Reams', quantity: 50, unit: 'Reams', estRate: 250, estAmount: 12500 },
-    { id: '2', name: 'Whiteboard Marker', quantity: 100, unit: 'Nos.', estRate: 30, estAmount: 3000 }
+    { id: '1', name: 'A4 Paper Reams', quantity: 50, unit: 'Reams', estRate: 250, estAmount: 12500, gstAmount: 1125, sgstAmount: 1125 },
+    { id: '2', name: 'Whiteboard Marker', quantity: 100, unit: 'Nos.', estRate: 30, estAmount: 3000, gstAmount: 270, sgstAmount: 270 }
   ]);
 
   useEffect(() => {
@@ -1315,19 +1274,13 @@ function NewExpenseRequestModal({
     setExpenseHead(fallback ? `${fallback.code} — ${fallback.name}` : '');
   }, [expenseMasterData, expenseHead, category]);
 
-  const categoryHeads = expenseMasterData.heads.filter((head) => head.isActive && head.category === category);
-  const expenseCategories = Array.from(new Set([...expenseMasterData.categories, ...expenseMasterData.heads.map((head) => head.category)])).sort();
   const handleBillDateChange = (date: string) => {
     setBillDate(date);
     setDueDate(calculateExpenseRequestDueDate(date, paymentTerms));
   };
-  const handlePaymentTermsChange = (terms: string) => {
-    setPaymentTerms(terms);
-    setDueDate(calculateExpenseRequestDueDate(billDate, terms));
-  };
 
   const totalAmount = useMemo(() => {
-    return items.reduce((acc, it) => acc + (it.estAmount || 0), 0);
+    return items.reduce((acc, it) => acc + (it.estAmount || 0) + (it.gstAmount || 0) + (it.sgstAmount || 0), 0);
   }, [items]);
 
   const handleItemChange = (index: number, field: keyof ExpenseRequestItem, val: any) => {
@@ -1351,7 +1304,9 @@ function NewExpenseRequestModal({
         quantity: 1,
         unit: 'Nos.',
         estRate: 0,
-        estAmount: 0
+        estAmount: 0,
+        gstAmount: 0,
+        sgstAmount: 0
       }
     ]);
   };
@@ -1520,15 +1475,6 @@ function NewExpenseRequestModal({
                   </div>
                 )}
                 <div>
-                  <label className="block text-gray-600 mb-1 font-medium">Next Due Date *</label>
-                  <input
-                    type="date"
-                    value={nextDueDate}
-                    onChange={(e) => setNextDueDate(e.target.value)}
-                    className="w-full p-1.5 border border-gray-300 rounded-md text-xs"
-                  />
-                </div>
-                <div>
                   <label className="block text-gray-600 mb-1 font-medium">End Date (optional)</label>
                   <input
                     type="date"
@@ -1561,29 +1507,13 @@ function NewExpenseRequestModal({
                   />
                 </div>
                 <div>
-                  <label className="block text-gray-600 mb-1 font-medium">Cost Center</label>
-                  <select
-                    value={costCenter}
-                    onChange={(e) => setCostCenter(e.target.value)}
-                    className="w-full p-1.5 border border-gray-300 rounded-md bg-white text-xs"
-                  >
-                    {RECURRING_COST_CENTERS.map((c) => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
                   <label className="block text-gray-600 mb-1 font-medium">Repeats</label>
                   <div className="p-1.5 border border-gray-200 rounded-md bg-gray-50 font-semibold text-gray-700">
                     ₹{totalAmount.toLocaleString('en-IN')} × {frequency === 'Monthly' ? '12 / year' : frequency === 'Quarterly' ? '4 / year' : frequency === 'Half-Yearly' ? '2 / year' : frequency === 'Yearly' ? '1 / year' : `${customDays} days`}
                   </div>
                 </div>
               </div>
-              <div className="p-2 bg-indigo-50 border border-indigo-200 rounded-md text-[11px] text-indigo-800 flex items-center gap-2">
-                <Repeat className="w-3.5 h-3.5" />
-                This will create recurring rule <strong>{`REC-2025-${String(existingRuleCount + 1).padStart(3, '0')}`}</strong> in the <strong>Recurring Expenses</strong> tab
-                {ruleAction === 'Auto-Voucher' ? ' and auto-raise a voucher on each due date.' : ruleAction === 'Auto-Payment' ? ' and auto-release payment on each due date.' : ' with a reminder before each due date.'}
-              </div>
+
             </div>
           )}
         </div>
@@ -1635,12 +1565,6 @@ function NewExpenseRequestModal({
               <input type="date" value={billDate} onChange={(event) => handleBillDateChange(event.target.value)} className="w-full p-1.5 border border-gray-300 rounded-md text-xs" />
             </div>
             <div>
-              <label className="block text-gray-600 mb-1 font-medium">Payment Terms</label>
-              <select value={paymentTerms} onChange={(event) => handlePaymentTermsChange(event.target.value)} className="w-full p-1.5 border border-gray-300 rounded-md bg-white text-xs">
-                {REQUEST_PAYMENT_TERMS.map((term) => <option key={term.value} value={term.value}>{term.label}</option>)}
-              </select>
-            </div>
-            <div>
               <label className="block text-gray-600 mb-1 font-medium">Due Date</label>
               <input type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} className="w-full p-1.5 border border-gray-300 rounded-md text-xs" />
             </div>
@@ -1657,7 +1581,7 @@ function NewExpenseRequestModal({
             <div>
               <label className="block text-gray-600 mb-1 font-medium">Cost Center</label>
               <select value={costCenter} onChange={(event) => setCostCenter(event.target.value)} className="w-full p-1.5 border border-gray-300 rounded-md bg-white text-xs">
-                {RECURRING_COST_CENTERS.map((item) => <option key={item} value={item}>{item}</option>)}
+                {BRANCH_COST_CENTERS.map((item) => <option key={item} value={item}>{item}</option>)}
               </select>
             </div>
           </div>
@@ -1693,24 +1617,7 @@ function NewExpenseRequestModal({
           <div className="font-semibold text-gray-800 uppercase tracking-wider text-[11px]">
             EXPENSE DETAILS:
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-gray-600 mb-1 font-medium">Expense Category</label>
-              <select
-                value={category}
-                onChange={(event) => {
-                  const nextCategory = event.target.value;
-                  const firstHead = expenseMasterData.heads.find((head) => head.isActive && head.category === nextCategory);
-                  setCategory(nextCategory);
-                  setExpenseHead(firstHead ? `${firstHead.code} — ${firstHead.name}` : '');
-                }}
-                className="w-full p-1.5 border border-gray-300 rounded-md bg-white text-xs"
-              >
-                <option value="">Select category...</option>
-                {expenseCategories.map((item) => <option key={item} value={item}>{item}</option>)}
-              </select>
-            </div>
-            <div>
+          <div>
               <label className="block text-gray-600 mb-1 font-medium">Expense Head</label>
               <select
                 value={expenseHead}
@@ -1718,13 +1625,11 @@ function NewExpenseRequestModal({
                 className="w-full p-1.5 border border-gray-300 rounded-md bg-white text-xs"
               >
                 <option value="">Select expense head...</option>
-                {categoryHeads.map((head) => {
+                {expenseMasterData.heads.filter((head) => head.isActive).map((head) => {
                   const value = `${head.code} — ${head.name}`;
                   return <option key={head.id} value={value}>{value}</option>;
                 })}
               </select>
-              {category && categoryHeads.length === 0 && <p className="mt-1 text-[10px] text-amber-700">No active expense head is set for this category yet. Add one in Expense Head &amp; Category Master.</p>}
-            </div>
           </div>
           <div>
             <label className="block text-gray-600 mb-1 font-medium">Description (What is needed and why)</label>
@@ -1754,6 +1659,8 @@ function NewExpenseRequestModal({
                 <th className="p-2 w-20">Quantity</th>
                 <th className="p-2 w-20">Unit</th>
                 <th className="p-2 w-24">Est. Rate</th>
+                <th className="p-2 w-24 text-right">GST Amount</th>
+                <th className="p-2 w-24 text-right">SGST Amount</th>
                 <th className="p-2 w-28 text-right">Est. Amount</th>
                 <th className="p-2 w-10 text-center"></th>
               </tr>
@@ -1793,6 +1700,22 @@ function NewExpenseRequestModal({
                       value={it.estRate}
                       onChange={(e) => handleItemChange(idx, 'estRate', e.target.value)}
                       className="w-full p-1 border border-gray-300 rounded text-xs"
+                    />
+                  </td>
+                  <td className="p-2">
+                    <input
+                      type="number"
+                      value={it.gstAmount || 0}
+                      onChange={(e) => handleItemChange(idx, 'gstAmount', Number(e.target.value))}
+                      className="w-full p-1 border border-gray-300 rounded text-xs text-right"
+                    />
+                  </td>
+                  <td className="p-2">
+                    <input
+                      type="number"
+                      value={it.sgstAmount || 0}
+                      onChange={(e) => handleItemChange(idx, 'sgstAmount', Number(e.target.value))}
+                      className="w-full p-1 border border-gray-300 rounded text-xs text-right"
                     />
                   </td>
                   <td className="p-2 text-right font-semibold text-gray-800">
@@ -1869,7 +1792,6 @@ function NewExpenseRequestModal({
           <Button
             size="sm"
             onClick={() => handleSubmit(false)}
-            disabled={requestType === 'Recurring' && !nextDueDate}
             className="bg-indigo-600 hover:bg-indigo-700 text-white"
           >
             {requestType === 'Recurring' ? '🔁 Create Recurring Expense' : '✅ Submit for Approval'}
@@ -2123,6 +2045,7 @@ function RecurringRulesSection({
   const [freqFilter, setFreqFilter] = useState('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editing, setEditing] = useState<RecurringRule | null>(null);
+  const [viewing, setViewing] = useState<RecurringRule | null>(null);
 
   const filtered = rules.filter((r) => {
     if (statusFilter !== 'all' && r.status !== statusFilter) return false;
@@ -2154,10 +2077,6 @@ function RecurringRulesSection({
     return s + r.amount * factor;
   }, 0);
 
-  const openNew = () => {
-    setEditing(null);
-    setIsModalOpen(true);
-  };
   const openEdit = (rule: RecurringRule) => {
     setEditing(rule);
     setIsModalOpen(true);
@@ -2225,9 +2144,7 @@ function RecurringRulesSection({
               onChange={(v: any) => setFreqFilter(typeof v === 'string' ? v : v?.target?.value ?? 'all')}
               className="text-xs w-40"
             />
-            <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white" onClick={openNew}>
-              <Plus className="w-4 h-4 mr-1" /> New Recurring Rule
-            </Button>
+
           </div>
         </div>
 
@@ -2301,20 +2218,20 @@ function RecurringRulesSection({
                       <Button
                         size="sm"
                         variant="ghost"
+                        onClick={() => setViewing(rule)}
+                        className="h-7 px-2 text-xs text-indigo-600 hover:bg-indigo-50"
+                        title="View rule"
+                      >
+                        <Eye className="w-3.5 h-3.5" /> View
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
                         onClick={() => onRunNow(rule)}
                         className="h-7 px-2 text-xs text-blue-600 hover:bg-blue-50"
                         title="Run now — create voucher/reminder"
                       >
                         <Zap className="w-3.5 h-3.5" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => onGenerateRequest(rule)}
-                        className="h-7 px-2 text-xs text-indigo-600 hover:bg-indigo-50"
-                        title="Create an expense request from this rule"
-                      >
-                        <FileText className="w-3.5 h-3.5" />
                       </Button>
                       <Button
                         size="sm"
@@ -2363,6 +2280,26 @@ function RecurringRulesSection({
         </div>
       </Card>
 
+      {viewing && (
+        <Modal isOpen onClose={() => setViewing(null)} title={`Recurring Rule — ${viewing.ruleNo}`} size="md">
+          <div className="space-y-3 text-xs">
+            <div className="grid grid-cols-2 gap-3">
+              <div><span className="block text-[10px] text-gray-400">Title</span><span className="font-semibold text-gray-800">{viewing.title}</span></div>
+              <div><span className="block text-[10px] text-gray-400">Vendor</span><span className="font-semibold text-gray-800">{viewing.vendor}</span></div>
+              <div><span className="block text-[10px] text-gray-400">Expense Head</span><span className="font-semibold text-gray-800">{viewing.expenseHead}</span></div>
+              <div><span className="block text-[10px] text-gray-400">Amount</span><span className="font-semibold text-gray-800">₹{viewing.amount.toLocaleString('en-IN')}</span></div>
+              <div><span className="block text-[10px] text-gray-400">Frequency</span><span className="font-semibold text-gray-800">{viewing.frequency}</span></div>
+              <div><span className="block text-[10px] text-gray-400">Next Due</span><span className="font-semibold text-gray-800">{viewing.nextDueDate}</span></div>
+              <div><span className="block text-[10px] text-gray-400">Department</span><span className="font-semibold text-gray-800">{viewing.department}</span></div>
+              <div><span className="block text-[10px] text-gray-400">Cost Center</span><span className="font-semibold text-gray-800">{viewing.costCenter}</span></div>
+              <div><span className="block text-[10px] text-gray-400">Action</span><span className="font-semibold text-gray-800">{viewing.actionType}</span></div>
+              <div><span className="block text-[10px] text-gray-400">Status</span><span className="font-semibold text-gray-800">{viewing.status}</span></div>
+            </div>
+            <p className="text-gray-600">{viewing.description}</p>
+            <div className="flex justify-end"><Button variant="ghost" size="sm" onClick={() => setViewing(null)}>Close</Button></div>
+          </div>
+        </Modal>
+      )}
       {isModalOpen && (
         <RecurringRuleModal
           initial={editing}
@@ -2402,7 +2339,7 @@ function RecurringRuleModal({
   const [reminderDays, setReminderDays] = useState(String(initial?.reminderDays ?? 3));
   const [notifyVia, setNotifyVia] = useState<string[]>(initial?.notifyVia || ['email']);
   const [department, setDepartment] = useState(initial?.department || 'Admin');
-  const [costCenter, setCostCenter] = useState(initial?.costCenter || 'CC-ADM-01');
+  const [costCenter, setCostCenter] = useState(initial?.costCenter || 'Main Campus');
   const [notes, setNotes] = useState(initial?.notes || '');
   const [error, setError] = useState('');
 
@@ -2545,7 +2482,7 @@ function RecurringRuleModal({
           <div>
             <label className="block text-[11px] font-semibold text-gray-600 mb-1">Cost Center</label>
             <Select
-              options={RECURRING_COST_CENTERS.map((c) => ({ value: c, label: c }))}
+              options={BRANCH_COST_CENTERS.map((c) => ({ value: c, label: c }))}
               value={costCenter}
               onChange={(v: any) => setCostCenter(typeof v === 'string' ? v : v?.target?.value ?? costCenter)}
             />

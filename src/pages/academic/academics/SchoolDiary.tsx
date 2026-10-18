@@ -1,1061 +1,357 @@
-import React, { useState } from 'react';
-import { Card } from '../../../components/ui/Card';
-import { Button } from '../../../components/ui/Button';
-import { Input } from '../../../components/ui/Input';
-import { Select } from '../../../components/ui/Select';
+import React, { useMemo, useState } from 'react';
+import {
+  CalendarDays,
+  CheckCircle2,
+  Eye,
+  Filter,
+  LayoutGrid,
+  Paperclip,
+  Plus,
+  Search,
+  Table2,
+  X
+} from 'lucide-react';
 import { Badge } from '../../../components/ui/Badge';
-import { Table } from '../../../components/ui/Table';
-import {
-  Tabs,
-  TabsList,
-  TabsTrigger,
-  TabsContent } from
-'../../../components/ui/Tabs';
-import {
-  SendIcon,
-  BookIcon,
-  UserIcon,
-  UsersIcon,
-  LayoutGridIcon,
-  PaperclipIcon,
-  BellIcon,
-  CheckCircleIcon,
-  ClockIcon,
-  AlertTriangleIcon,
-  MessageSquareIcon,
-  DownloadIcon,
-  SearchIcon,
-  FilterIcon,
-  RefreshCwIcon,
-  EyeIcon,
-  MailIcon,
-  SmartphoneIcon,
-  ChevronDownIcon,
-  ChevronRightIcon,
-  StarIcon,
-  AlertCircleIcon,
-  FileTextIcon,
-  ImageIcon,
-  XCircleIcon } from
-'lucide-react';
-const today = new Date().toISOString().split('T')[0];
-type RecipientMode = 'single' | 'multiple' | 'class';
-type MessageCategory =
-'Academic Update' |
-'Behaviour Update' |
-'Homework Reminder' |
-'Appreciation' |
-'General Note' |
-'Urgent Notice';
-const categoryConfig: Record<
-  MessageCategory,
-  {
-    color: string;
-    bg: string;
-    icon: React.ReactNode;
-  }> =
-{
-  'Academic Update': {
-    color: 'text-blue-700',
-    bg: 'bg-blue-50 border-blue-300',
-    icon: <BookIcon className="w-4 h-4" />
-  },
-  'Behaviour Update': {
-    color: 'text-orange-700',
-    bg: 'bg-orange-50 border-orange-300',
-    icon: <AlertTriangleIcon className="w-4 h-4" />
-  },
-  'Homework Reminder': {
-    color: 'text-purple-700',
-    bg: 'bg-purple-50 border-purple-300',
-    icon: <ClockIcon className="w-4 h-4" />
-  },
-  Appreciation: {
-    color: 'text-green-700',
-    bg: 'bg-green-50 border-green-300',
-    icon: <StarIcon className="w-4 h-4" />
-  },
-  'General Note': {
-    color: 'text-gray-700',
-    bg: 'bg-gray-50 border-gray-300',
-    icon: <MessageSquareIcon className="w-4 h-4" />
-  },
-  'Urgent Notice': {
-    color: 'text-red-700',
-    bg: 'bg-red-50 border-red-300',
-    icon: <AlertCircleIcon className="w-4 h-4" />
+import { Button } from '../../../components/ui/Button';
+import { Card } from '../../../components/ui/Card';
+import { Modal } from '../../../components/ui/Modal';
+
+type DiaryEntry = {
+  id: string;
+  date: string;
+  className: string;
+  section: string;
+  subject: string;
+  period: string;
+  topicCovered: string;
+  homeworkAssigned: string;
+  classRemarks: string;
+  studentRemarks: string;
+  attachmentName: string;
+  teacher: string;
+  followUpPending: boolean;
+  sendTo: 'class' | 'students';
+  studentIds: string[];
+};
+
+type Student = { id: string; name: string; className: string; section: string };
+
+const STORAGE_KEY = 'k12-school-diary-v2';
+const CLASSES = ['Nursery', 'LKG', 'UKG', ...Array.from({ length: 12 }, (_, i) => `Class ${i + 1}`)];
+const SECTIONS = ['A', 'B', 'C', 'D'];
+const SUBJECTS = ['Mathematics', 'Science', 'English', 'Social Science', 'Hindi', 'Computer Science', 'Physical Education'];
+const TEACHERS = ['Mr. R. Kumar', 'Mrs. S. Joshi', 'Mrs. Singh', 'Ms. Roy', 'Mr. V. Patel'];
+const PERIODS = ['1', '2', '3', '4', '5', '6', '7', '8'];
+const STUDENTS: Student[] = [
+  { id: 'STU-1001', name: 'Aarav Sharma', className: 'Class 10', section: 'A' },
+  { id: 'STU-1002', name: 'Priya Singh', className: 'Class 10', section: 'A' },
+  { id: 'STU-1003', name: 'Rohan Mehta', className: 'Class 10', section: 'A' },
+  { id: 'STU-1004', name: 'Ananya Iyer', className: 'Class 10', section: 'A' },
+  { id: 'STU-1005', name: 'Vikram Reddy', className: 'Class 10', section: 'A' },
+  { id: 'STU-1101', name: 'Sneha Patel', className: 'Class 10', section: 'B' },
+  { id: 'STU-1102', name: 'Amit Kumar', className: 'Class 10', section: 'B' },
+  { id: 'STU-1103', name: 'Diya Shah', className: 'Class 10', section: 'B' },
+  { id: 'STU-0901', name: 'Kabir Joshi', className: 'Class 9', section: 'A' },
+  { id: 'STU-0902', name: 'Meera Nair', className: 'Class 9', section: 'A' }
+];
+
+const todayIso = () => new Date().toISOString().slice(0, 10);
+const formatDisplay = (iso: string) => {
+  if (!iso) return '—';
+  return new Date(`${iso}T00:00:00`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+};
+const studentName = (id: string) => STUDENTS.find((student) => student.id === id)?.name || id;
+
+const blankEntry = (): DiaryEntry => ({
+  id: `SD-${Date.now()}`,
+  date: todayIso(),
+  className: 'Class 10',
+  section: 'A',
+  subject: 'Science',
+  period: '3',
+  topicCovered: '',
+  homeworkAssigned: '',
+  classRemarks: '',
+  studentRemarks: '',
+  attachmentName: '',
+  teacher: 'Mr. R. Kumar',
+  followUpPending: false,
+  sendTo: 'class',
+  studentIds: []
+});
+
+const SEED: DiaryEntry[] = [
+  { id: 'SD-001', date: '2026-10-17', className: 'Class 10', section: 'A', subject: 'Science', period: '3', topicCovered: 'Refraction through a glass slab', homeworkAssigned: 'NCERT Ex. 10.3 Q1–Q4', classRemarks: 'Most students completed the ray diagram. Need more practice on numericals.', studentRemarks: 'Aarav Sharma — follow up on sign convention.', attachmentName: 'glass-slab-worksheet.pdf', teacher: 'Mr. R. Kumar', followUpPending: true, sendTo: 'students', studentIds: ['STU-1001', 'STU-1002'] },
+  { id: 'SD-002', date: '2026-10-17', className: 'Class 10', section: 'A', subject: 'Mathematics', period: '1', topicCovered: 'Zeros of polynomials', homeworkAssigned: 'Practice worksheet 4', classRemarks: 'Graph work completed in pairs.', studentRemarks: '', attachmentName: '', teacher: 'Mrs. Singh', followUpPending: false, sendTo: 'class', studentIds: [] },
+  { id: 'SD-003', date: '2026-10-16', className: 'Class 10', section: 'B', subject: 'English', period: '2', topicCovered: 'Formal letter writing', homeworkAssigned: 'Write a letter to the editor on road safety', classRemarks: 'Sentence structure improved after the model letter.', studentRemarks: 'Priya Singh — extra support on formal tone.', attachmentName: 'letter-model.docx', teacher: 'Ms. Roy', followUpPending: true, sendTo: 'students', studentIds: ['STU-1101', 'STU-1102'] },
+  { id: 'SD-004', date: '2026-10-16', className: 'Class 9', section: 'A', subject: 'Science', period: '4', topicCovered: 'Atoms and molecules recap', homeworkAssigned: '', classRemarks: 'Oral recap only. Lab postponed.', studentRemarks: '', attachmentName: '', teacher: 'Mrs. S. Joshi', followUpPending: false, sendTo: 'class', studentIds: [] },
+  { id: 'SD-005', date: '2026-10-15', className: 'Class 10', section: 'A', subject: 'Science', period: '3', topicCovered: 'Laws of reflection', homeworkAssigned: 'Draw 3 ray diagrams', classRemarks: 'Demonstration with plane mirror worked well.', studentRemarks: '', attachmentName: '', teacher: 'Mr. R. Kumar', followUpPending: false, sendTo: 'class', studentIds: [] }
+];
+
+const loadEntries = (): DiaryEntry[] => {
+  try {
+    const saved = window.localStorage.getItem(STORAGE_KEY);
+    if (!saved) return SEED;
+    const parsed = JSON.parse(saved);
+    return Array.isArray(parsed) ? parsed : SEED;
+  } catch {
+    return SEED;
   }
 };
-const diaryHistory = [
-{
-  id: 1,
-  date: '28 Feb 2026',
-  student: 'Aarav Sharma',
-  class: '9-A',
-  category: 'Academic Update',
-  subject: 'Mathematics Test Performance',
-  message:
-  "Aarav scored 18/20 in today's unit test. Excellent performance. Please encourage him to maintain this.",
-  sentBy: 'Mr. Rajesh Patel',
-  sentStatus: 'Delivered',
-  viewedStatus: 'Viewed',
-  acknowledged: 'Yes',
-  parentReply: 'Thank you for the update!',
-  notificationSent: true
-},
-{
-  id: 2,
-  date: '27 Feb 2026',
-  student: 'Priya Singh',
-  class: '9-A',
-  category: 'Homework Reminder',
-  subject: 'Pending Algebra Homework',
-  message:
-  'Priya has not submitted the algebra homework assigned on 25 Feb. Please ensure it is submitted tomorrow.',
-  sentBy: 'Mr. Rajesh Patel',
-  sentStatus: 'Delivered',
-  viewedStatus: 'Viewed',
-  acknowledged: 'No',
-  parentReply: '',
-  notificationSent: true
-},
-{
-  id: 3,
-  date: '26 Feb 2026',
-  student: 'Amit Kumar',
-  class: '9-B',
-  category: 'Behaviour Update',
-  subject: 'Classroom Behaviour Concern',
-  message:
-  'Amit was disruptive during the science period today. Please discuss the importance of classroom discipline at home.',
-  sentBy: 'Ms. Anita Verma',
-  sentStatus: 'Delivered',
-  viewedStatus: 'Not Viewed',
-  acknowledged: 'No',
-  parentReply: '',
-  notificationSent: true
-},
-{
-  id: 4,
-  date: '25 Feb 2026',
-  student: 'Sneha Patel',
-  class: '9-B',
-  category: 'Appreciation',
-  subject: 'Outstanding Science Project',
-  message:
-  'Sneha presented an outstanding science project on renewable energy. She demonstrated excellent research skills.',
-  sentBy: 'Ms. Anita Verma',
-  sentStatus: 'Delivered',
-  viewedStatus: 'Viewed',
-  acknowledged: 'Yes',
-  parentReply: 'We are very proud of her!',
-  notificationSent: true
-},
-{
-  id: 5,
-  date: '24 Feb 2026',
-  student: 'Vikram Reddy',
-  class: '9-A',
-  category: 'Urgent Notice',
-  subject: 'Medical Certificate Required',
-  message:
-  'Vikram was absent for 3 consecutive days. Please submit a medical certificate to the school office.',
-  sentBy: 'Mr. Rajesh Patel',
-  sentStatus: 'Delivered',
-  viewedStatus: 'Viewed',
-  acknowledged: 'Yes',
-  parentReply: 'Certificate submitted.',
-  notificationSent: true
-}];
-
-const students = [
-{
-  value: 'aarav',
-  label: 'Aarav Sharma (Roll: 01)'
-},
-{
-  value: 'priya',
-  label: 'Priya Singh (Roll: 02)'
-},
-{
-  value: 'amit',
-  label: 'Amit Kumar (Roll: 03)'
-},
-{
-  value: 'sneha',
-  label: 'Sneha Patel (Roll: 04)'
-},
-{
-  value: 'vikram',
-  label: 'Vikram Reddy (Roll: 05)'
-},
-{
-  value: 'ananya',
-  label: 'Ananya Singh (Roll: 06)'
-},
-{
-  value: 'rohan',
-  label: 'Rohan Mehta (Roll: 07)'
-}];
 
 export function SchoolDiary() {
-  const [activeTab, setActiveTab] = useState('compose');
-  const [recipientMode, setRecipientMode] = useState<RecipientMode>('single');
-  const [selectedCategory, setSelectedCategory] =
-  useState<MessageCategory>('Academic Update');
-  const [actionRequired, setActionRequired] = useState(false);
-  const [notifyPush, setNotifyPush] = useState(true);
-  const [notifySms, setNotifySms] = useState(false);
-  const [notifyEmail, setNotifyEmail] = useState(true);
-  const [messageTitle, setMessageTitle] = useState('');
-  const [messageContent, setMessageContent] = useState('');
-  const [searchHistory, setSearchHistory] = useState('');
-  const [filterCategory, setFilterCategory] = useState('');
-  const [expandedEntry, setExpandedEntry] = useState<number | null>(null);
-  const todayEntries = diaryHistory.filter(
-    (e) => e.date === '28 Feb 2026'
-  ).length;
-  const pendingAck = diaryHistory.filter((e) => e.acknowledged === 'No').length;
-  const urgentCount = diaryHistory.filter(
-    (e) => e.category === 'Urgent Notice'
-  ).length;
-  const viewedCount = diaryHistory.filter(
-    (e) => e.viewedStatus === 'Viewed'
-  ).length;
-  const filteredHistory = diaryHistory.filter((entry) => {
-    const matchSearch =
-    !searchHistory ||
-    entry.student.toLowerCase().includes(searchHistory.toLowerCase()) ||
-    entry.subject.toLowerCase().includes(searchHistory.toLowerCase());
-    const matchCategory = !filterCategory || entry.category === filterCategory;
-    return matchSearch && matchCategory;
-  });
-  const recipientModes: {
-    id: RecipientMode;
-    label: string;
-    icon: React.ReactNode;
-  }[] = [
-  {
-    id: 'single',
-    label: 'Single Student',
-    icon: <UserIcon className="w-3.5 h-3.5" />
-  },
-  {
-    id: 'multiple',
-    label: 'Multiple Students',
-    icon: <UsersIcon className="w-3.5 h-3.5" />
-  },
-  {
-    id: 'class',
-    label: 'Entire Class',
-    icon: <LayoutGridIcon className="w-3.5 h-3.5" />
-  }];
+  const [entries, setEntries] = useState<DiaryEntry[]>(() => loadEntries());
+  const [headerDate, setHeaderDate] = useState(todayIso());
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState<DiaryEntry>(blankEntry());
+  const [viewMode, setViewMode] = useState<'table' | 'card'>('table');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
+  const [classFilter, setClassFilter] = useState('All Classes');
+  const [subjectFilter, setSubjectFilter] = useState('All Subjects');
+  const [teacherFilter, setTeacherFilter] = useState('All Teachers');
+  const [search, setSearch] = useState('');
+  const [viewing, setViewing] = useState<DiaryEntry | null>(null);
+  const [notice, setNotice] = useState('');
+  const [studentQuery, setStudentQuery] = useState('');
+
+  const persist = (next: DiaryEntry[]) => {
+    setEntries(next);
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  };
+
+  const classStudents = useMemo(() => STUDENTS.filter((student) =>
+    student.className === form.className && student.section === form.section &&
+    (!studentQuery || `${student.name} ${student.id}`.toLowerCase().includes(studentQuery.toLowerCase()))
+  ), [form.className, form.section, studentQuery]);
+
+  const filtered = useMemo(() => entries.filter((entry) => {
+    if (fromDate && entry.date < fromDate) return false;
+    if (toDate && entry.date > toDate) return false;
+    if (classFilter !== 'All Classes' && entry.className !== classFilter) return false;
+    if (subjectFilter !== 'All Subjects' && entry.subject !== subjectFilter) return false;
+    if (teacherFilter !== 'All Teachers' && entry.teacher !== teacherFilter) return false;
+    if (search && !`${entry.topicCovered} ${entry.homeworkAssigned} ${entry.classRemarks} ${entry.studentRemarks} ${entry.teacher} ${entry.studentIds.map(studentName).join(' ')}`.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  }).sort((a, b) => b.date.localeCompare(a.date) || Number(a.period) - Number(b.period)), [entries, fromDate, toDate, classFilter, subjectFilter, teacherFilter, search]);
+
+  const openNew = () => {
+    setForm({ ...blankEntry(), date: headerDate });
+    setStudentQuery('');
+    setShowForm(true);
+  };
+
+  const toggleStudent = (id: string) => {
+    setForm((current) => ({
+      ...current,
+      studentIds: current.studentIds.includes(id) ? current.studentIds.filter((item) => item !== id) : [...current.studentIds, id]
+    }));
+  };
+
+  const saveEntry = () => {
+    if (!form.date || !form.className || !form.subject || !form.topicCovered.trim()) {
+      setNotice('Date, class, subject and topic covered are required.');
+      return;
+    }
+    if (form.sendTo === 'students' && form.studentIds.length === 0) {
+      setNotice('Select at least one student, or send to the whole class.');
+      return;
+    }
+    const exists = entries.some((entry) => entry.id === form.id);
+    persist(exists ? entries.map((entry) => entry.id === form.id ? form : entry) : [form, ...entries]);
+    setShowForm(false);
+    setNotice(form.sendTo === 'students' ? `Diary entry saved and sent to ${form.studentIds.length} student(s).` : 'Diary entry saved for the class.');
+    window.setTimeout(() => setNotice(''), 3000);
+  };
+
+  const toggleFollowUp = (id: string) => {
+    persist(entries.map((entry) => entry.id === id ? { ...entry, followUpPending: !entry.followUpPending } : entry));
+  };
+
+  const recipientLabel = (entry: DiaryEntry) => {
+    if (entry.sendTo === 'students' && entry.studentIds.length) return entry.studentIds.map(studentName).join(', ');
+    return `Whole class · ${entry.className} ${entry.section}`;
+  };
 
   return (
-    <div className="space-y-6 p-6 bg-gray-50 min-h-screen">
-      {/* Header */}
-      <div className="flex flex-wrap justify-between items-start gap-4">
+    <div className="space-y-5 p-4 md:p-6 bg-slate-50 min-h-full">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">School Diary</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Send structured messages to parents and track acknowledgements
-          </p>
+          <h1 className="text-2xl font-bold text-slate-900">School Diary</h1>
+          <p className="text-sm text-slate-500">Record daily classroom activities, homework, remarks, and observations</p>
         </div>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            leftIcon={<DownloadIcon className="w-4 h-4" />}>
-
-            Export Log
-          </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            leftIcon={<SendIcon className="w-4 h-4" />}
-            onClick={() => setActiveTab('compose')}>
-
-            New Entry
-          </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm">
+            <CalendarDays className="h-4 w-4 text-gray-500" />
+            <input type="date" value={headerDate} onChange={(event) => setHeaderDate(event.target.value)} className="bg-transparent focus:outline-none" />
+          </label>
+          <Button onClick={openNew}><Plus className="h-4 w-4" />Add New Entry</Button>
         </div>
       </div>
 
-      {/* Stats Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <BookIcon className="w-4 h-4 text-blue-600" />
-            <span className="text-xs font-medium text-blue-600 uppercase tracking-wide">
-              Today's Entries
-            </span>
-          </div>
-          <p className="text-2xl font-bold text-blue-700">{todayEntries}</p>
-          <p className="text-xs text-blue-500 mt-1">Sent today</p>
+      {notice && <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm text-indigo-800">{notice}</div>}
+
+      <Card>
+        <div className="mb-3 flex items-center gap-2 text-sm font-medium text-gray-700"><Filter className="h-4 w-4" /> Filters</div>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+          <label className="block text-sm"><span className="mb-1 block text-xs text-gray-500">From</span><input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" /></label>
+          <label className="block text-sm"><span className="mb-1 block text-xs text-gray-500">To</span><input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" /></label>
+          <label className="block text-sm"><span className="mb-1 block text-xs text-gray-500">Class</span><select value={classFilter} onChange={(e) => setClassFilter(e.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"><option>All Classes</option>{CLASSES.map((c) => <option key={c}>{c}</option>)}</select></label>
+          <label className="block text-sm"><span className="mb-1 block text-xs text-gray-500">Subject</span><select value={subjectFilter} onChange={(e) => setSubjectFilter(e.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"><option>All Subjects</option>{SUBJECTS.map((s) => <option key={s}>{s}</option>)}</select></label>
+          <label className="block text-sm"><span className="mb-1 block text-xs text-gray-500">Teacher</span><select value={teacherFilter} onChange={(e) => setTeacherFilter(e.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"><option>All Teachers</option>{TEACHERS.map((s) => <option key={s}>{s}</option>)}</select></label>
+          <label className="block text-sm"><span className="mb-1 block text-xs text-gray-500">Search</span><div className="relative"><Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Topic, homework, student" className="w-full rounded-lg border border-gray-300 py-2 pl-9 pr-3 text-sm" /></div></label>
         </div>
-        <div className="bg-amber-50 border border-amber-100 rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <ClockIcon className="w-4 h-4 text-amber-600" />
-            <span className="text-xs font-medium text-amber-600 uppercase tracking-wide">
-              Pending Ack.
-            </span>
-          </div>
-          <p className="text-2xl font-bold text-amber-700">{pendingAck}</p>
-          <p className="text-xs text-amber-500 mt-1">Awaiting response</p>
-        </div>
-        <div className="bg-red-50 border border-red-100 rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <AlertCircleIcon className="w-4 h-4 text-red-600" />
-            <span className="text-xs font-medium text-red-600 uppercase tracking-wide">
-              Urgent
-            </span>
-          </div>
-          <p className="text-2xl font-bold text-red-700">{urgentCount}</p>
-          <p className="text-xs text-red-500 mt-1">Urgent messages</p>
-        </div>
-        <div className="bg-green-50 border border-green-100 rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <EyeIcon className="w-4 h-4 text-green-600" />
-            <span className="text-xs font-medium text-green-600 uppercase tracking-wide">
-              Viewed
-            </span>
-          </div>
-          <p className="text-2xl font-bold text-green-700">{viewedCount}</p>
-          <p className="text-xs text-green-500 mt-1">Parent viewed</p>
-        </div>
-      </div>
-
-      {/* Main Tabs */}
-      <Card noPadding>
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <div className="px-5 pt-4">
-            <TabsList>
-              <TabsTrigger value="compose">
-                <SendIcon className="w-3.5 h-3.5" /> Compose Entry
-              </TabsTrigger>
-              <TabsTrigger value="history">
-                <ClockIcon className="w-3.5 h-3.5" /> Communication History
-              </TabsTrigger>
-              <TabsTrigger value="acknowledgements">
-                <CheckCircleIcon className="w-3.5 h-3.5" /> Acknowledgements
-              </TabsTrigger>
-            </TabsList>
-          </div>
-
-          {/* Compose Tab */}
-          <TabsContent value="compose" className="p-5">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Left: Form */}
-              <div className="lg:col-span-2 space-y-5">
-                {/* Context Panel */}
-                <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-4">
-                  <h3 className="font-semibold text-gray-800 text-sm">
-                    Session Context
-                  </h3>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    <Select
-                      label="Academic Year"
-                      options={[
-                      {
-                        value: '2024-25',
-                        label: '2024-2025'
-                      }]
-                      }
-                      value="2024-25"
-                      onChange={() => {}} />
-
-                    <Input label="Date" type="date" defaultValue={today} />
-                    <Select
-                      label="Standard"
-                      options={[
-                      {
-                        value: '',
-                        label: 'Select Class'
-                      },
-                      ...Array.from(
-                        {
-                          length: 12
-                        },
-                        (_, i) => ({
-                          value: `class-${i + 1}`,
-                          label: `Class ${i + 1}`
-                        })
-                      )]
-                      }
-                      value="class-9"
-                      onChange={() => {}} />
-
-                    <Select
-                      label="Section"
-                      options={[
-                      {
-                        value: 'A',
-                        label: 'Section A'
-                      },
-                      {
-                        value: 'B',
-                        label: 'Section B'
-                      },
-                      {
-                        value: 'C',
-                        label: 'Section C'
-                      }]
-                      }
-                      value="A"
-                      onChange={() => {}} />
-
-                  </div>
-                </div>
-
-                {/* Recipient Mode */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Send To
-                  </label>
-                  <div className="flex gap-2">
-                    {recipientModes.map(({ id, label, icon }) =>
-                    <button
-                      key={id}
-                      onClick={() => setRecipientMode(id)}
-                      className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-all ${recipientMode === id ? 'bg-blue-50 border-blue-400 text-blue-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-
-                        {icon} {label}
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Student Selection */}
-                {recipientMode === 'single' &&
-                <Select
-                  label="Student Name *"
-                  options={[
-                  {
-                    value: '',
-                    label: 'Search & select student...'
-                  },
-                  ...students]
-                  }
-                  value=""
-                  onChange={() => {}} />
-
-                }
-                {recipientMode === 'multiple' &&
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Select Students *
-                    </label>
-                    <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-2 space-y-1">
-                      {students.map((s) =>
-                    <label
-                      key={s.value}
-                      className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer">
-
-                          <input
-                        type="checkbox"
-                        className="rounded text-blue-600" />
-
-                          <span className="text-sm text-gray-700">
-                            {s.label}
-                          </span>
-                        </label>
-                    )}
-                    </div>
-                  </div>
-                }
-                {recipientMode === 'class' &&
-                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2">
-                    <LayoutGridIcon className="w-4 h-4 text-blue-600" />
-                    <span className="text-sm text-blue-700">
-                      Message will be sent to all students in{' '}
-                      <strong>Class 9-A</strong> (32 students)
-                    </span>
-                  </div>
-                }
-
-                {/* Category */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Category of Message *
-                  </label>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                    {(Object.keys(categoryConfig) as MessageCategory[]).map(
-                      (cat) => {
-                        const cfg = categoryConfig[cat];
-                        return (
-                          <button
-                            key={cat}
-                            onClick={() => setSelectedCategory(cat)}
-                            className={`flex items-center gap-2 p-2.5 rounded-lg border text-xs font-medium transition-all ${selectedCategory === cat ? `${cfg.bg} ${cfg.color}` : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-
-                            {cfg.icon} {cat}
-                          </button>);
-
-                      }
-                    )}
-                  </div>
-                </div>
-
-                {/* Message */}
-                <div>
-                  <Input
-                    label="Subject / Title *"
-                    placeholder="e.g. Mathematics Test Performance – Feb 28"
-                    value={messageTitle}
-                    onChange={(e) => setMessageTitle(e.target.value)} />
-
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Message Content <span className="text-red-500">*</span>
-                  </label>
-                  <textarea
-                    value={messageContent}
-                    onChange={(e) => setMessageContent(e.target.value)}
-                    placeholder="Write your message to the parent here..."
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                    rows={5} />
-
-                  <p className="text-xs text-gray-400 mt-1">
-                    {messageContent.length} characters
-                  </p>
-                </div>
-
-                {/* Action Required */}
-                <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-800">
-                        Action Required from Parent?
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        Enable if parent needs to take specific action
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => setActionRequired(!actionRequired)}
-                      className={`relative w-12 h-6 rounded-full transition-colors ${actionRequired ? 'bg-blue-500' : 'bg-gray-300'}`}>
-
-                      <span
-                        className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all ${actionRequired ? 'left-7' : 'left-1'}`} />
-
-                    </button>
-                  </div>
-                  {actionRequired &&
-                  <div className="grid grid-cols-2 gap-3 pt-2 border-t border-gray-200">
-                      <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">
-                          Action Description
-                        </label>
-                        <input
-                        type="text"
-                        placeholder="e.g. Submit medical certificate"
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-
-                      </div>
-                      <Input label="Response Required By" type="date" />
-                    </div>
-                  }
-                </div>
-
-                {/* Attachment */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Attachment (optional)
-                  </label>
-                  <div className="border-2 border-dashed border-gray-300 rounded-xl p-5 text-center hover:border-blue-400 transition-colors cursor-pointer">
-                    <PaperclipIcon className="w-6 h-6 text-gray-400 mx-auto mb-2" />
-                    <p className="text-sm text-gray-600">
-                      Click to upload or drag and drop
-                    </p>
-                    <div className="flex justify-center gap-3 mt-2">
-                      {[
-                      {
-                        icon: <FileTextIcon className="w-3.5 h-3.5" />,
-                        label: 'PDF'
-                      },
-                      {
-                        icon: <ImageIcon className="w-3.5 h-3.5" />,
-                        label: 'Image'
-                      },
-                      {
-                        icon: <FileTextIcon className="w-3.5 h-3.5" />,
-                        label: 'Homework Sheet'
-                      }].
-                      map(({ icon, label }) =>
-                      <span
-                        key={label}
-                        className="flex items-center gap-1 text-xs text-gray-400">
-
-                          {icon} {label}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-gray-400 mt-1">
-                      Max file size: 5MB
-                    </p>
-                  </div>
-                </div>
-
-                {/* Send Button */}
-                <div className="flex gap-3 pt-2">
-                  <Button
-                    variant="primary"
-                    leftIcon={<SendIcon className="w-4 h-4" />}
-                    disabled={!messageTitle || !messageContent}>
-
-                    Send Diary Entry
-                  </Button>
-                  <Button variant="outline">Save as Draft</Button>
-                </div>
-              </div>
-
-              {/* Right: Notification & Preview */}
-              <div className="space-y-4">
-                {/* Notification Settings */}
-                <Card>
-                  <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                    <BellIcon className="w-4 h-4 text-gray-600" /> Notification
-                    Channels
-                  </h3>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-lg">
-                      <div className="flex items-center gap-2">
-                        <SmartphoneIcon className="w-4 h-4 text-blue-500" />
-                        <span className="text-sm text-gray-700">
-                          Push Notification
-                        </span>
-                      </div>
-                      <button
-                        onClick={() => setNotifyPush(!notifyPush)}
-                        className={`relative w-10 h-5 rounded-full transition-colors ${notifyPush ? 'bg-green-500' : 'bg-gray-300'}`}>
-
-                        <span
-                          className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${notifyPush ? 'left-5' : 'left-0.5'}`} />
-
-                      </button>
-                    </div>
-                    <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-lg">
-                      <div className="flex items-center gap-2">
-                        <MessageSquareIcon className="w-4 h-4 text-green-500" />
-                        <span className="text-sm text-gray-700">SMS</span>
-                      </div>
-                      <button
-                        onClick={() => setNotifySms(!notifySms)}
-                        className={`relative w-10 h-5 rounded-full transition-colors ${notifySms ? 'bg-green-500' : 'bg-gray-300'}`}>
-
-                        <span
-                          className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${notifySms ? 'left-5' : 'left-0.5'}`} />
-
-                      </button>
-                    </div>
-                    <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-lg">
-                      <div className="flex items-center gap-2">
-                        <MailIcon className="w-4 h-4 text-purple-500" />
-                        <span className="text-sm text-gray-700">Email</span>
-                      </div>
-                      <button
-                        onClick={() => setNotifyEmail(!notifyEmail)}
-                        className={`relative w-10 h-5 rounded-full transition-colors ${notifyEmail ? 'bg-green-500' : 'bg-gray-300'}`}>
-
-                        <span
-                          className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${notifyEmail ? 'left-5' : 'left-0.5'}`} />
-
-                      </button>
-                    </div>
-                  </div>
-                </Card>
-
-                {/* Message Preview */}
-                <Card>
-                  <h3 className="font-semibold text-gray-900 mb-3">Preview</h3>
-                  <div className="p-3 bg-white border border-gray-200 rounded-xl shadow-sm">
-                    <div
-                      className={`flex items-center gap-2 mb-2 px-2 py-1 rounded-md w-fit text-xs font-medium ${categoryConfig[selectedCategory].bg} ${categoryConfig[selectedCategory].color}`}>
-
-                      {categoryConfig[selectedCategory].icon}
-                      {selectedCategory}
-                    </div>
-                    <p className="font-semibold text-gray-900 text-sm">
-                      {messageTitle || 'Message Title'}
-                    </p>
-                    <p className="text-xs text-gray-600 mt-1 line-clamp-3">
-                      {messageContent ||
-                      'Your message content will appear here...'}
-                    </p>
-                    <div className="flex items-center gap-2 mt-3 pt-2 border-t border-gray-100">
-                      <span className="text-xs text-gray-400">
-                        From: Mr. Rajesh Patel
-                      </span>
-                      <span className="text-xs text-gray-400">•</span>
-                      <span className="text-xs text-gray-400">
-                        {new Date().toLocaleDateString('en-IN')}
-                      </span>
-                    </div>
-                  </div>
-                </Card>
-
-                {/* Validation Checklist */}
-                <Card>
-                  <h3 className="font-semibold text-gray-900 mb-3">
-                    Checklist
-                  </h3>
-                  <div className="space-y-2">
-                    {[
-                    {
-                      label: 'Student selected',
-                      valid: true
-                    },
-                    {
-                      label: 'Category chosen',
-                      valid: !!selectedCategory
-                    },
-                    {
-                      label: 'Subject / Title filled',
-                      valid: !!messageTitle
-                    },
-                    {
-                      label: 'Message content written',
-                      valid: !!messageContent
-                    },
-                    {
-                      label: 'Notification channel set',
-                      valid: notifyPush || notifySms || notifyEmail
-                    }].
-                    map(({ label, valid }) =>
-                    <div key={label} className="flex items-center gap-2">
-                        {valid ?
-                      <CheckCircleIcon className="w-4 h-4 text-green-500 flex-shrink-0" /> :
-
-                      <XCircleIcon className="w-4 h-4 text-gray-300 flex-shrink-0" />
-                      }
-                        <span
-                        className={`text-xs ${valid ? 'text-gray-700' : 'text-gray-400'}`}>
-
-                          {label}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </Card>
-              </div>
-            </div>
-          </TabsContent>
-
-          {/* History Tab */}
-          <TabsContent value="history" className="p-5">
-            <div className="flex flex-wrap gap-3 items-end mb-5">
-              <div className="flex-1 min-w-[200px]">
-                <div className="relative">
-                  <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search by student or subject..."
-                    value={searchHistory}
-                    onChange={(e) => setSearchHistory(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-
-                </div>
-              </div>
-              <Select
-                label=""
-                options={[
-                {
-                  value: '',
-                  label: 'All Categories'
-                },
-                ...Object.keys(categoryConfig).map((k) => ({
-                  value: k,
-                  label: k
-                }))]
-                }
-                value={filterCategory}
-                onChange={setFilterCategory} />
-
-              <Button
-                variant="outline"
-                size="sm"
-                leftIcon={<RefreshCwIcon className="w-4 h-4" />}>
-
-                Refresh
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                leftIcon={<DownloadIcon className="w-4 h-4" />}>
-
-                Export
-              </Button>
-            </div>
-
-            <div className="space-y-3">
-              {filteredHistory.map((entry) => {
-                const cfg = categoryConfig[entry.category as MessageCategory];
-                const isExpanded = expandedEntry === entry.id;
-                return (
-                  <div
-                    key={entry.id}
-                    className="border border-gray-200 rounded-xl overflow-hidden bg-white">
-
-                    <button
-                      className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
-                      onClick={() =>
-                      setExpandedEntry(isExpanded ? null : entry.id)
-                      }>
-
-                      <div className="flex items-center gap-3 text-left">
-                        <div className={`p-2 rounded-lg ${cfg.bg}`}>
-                          <span className={cfg.color}>{cfg.icon}</span>
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="font-semibold text-gray-900 text-sm">
-                              {entry.subject}
-                            </p>
-                            {entry.category === 'Urgent Notice' &&
-                            <Badge variant="danger">Urgent</Badge>
-                            }
-                          </div>
-                          <p className="text-xs text-gray-500 mt-0.5">
-                            {entry.student} · {entry.class} · {entry.date} ·{' '}
-                            {entry.sentBy}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3 flex-shrink-0">
-                        <Badge
-                          variant={
-                          entry.acknowledged === 'Yes' ? 'success' : 'warning'
-                          }>
-
-                          {entry.acknowledged === 'Yes' ?
-                          'Acknowledged' :
-                          'Pending'}
-                        </Badge>
-                        <Badge
-                          variant={
-                          entry.viewedStatus === 'Viewed' ? 'info' : 'default'
-                          }>
-
-                          {entry.viewedStatus}
-                        </Badge>
-                        {isExpanded ?
-                        <ChevronDownIcon className="w-4 h-4 text-gray-400" /> :
-
-                        <ChevronRightIcon className="w-4 h-4 text-gray-400" />
-                        }
-                      </div>
-                    </button>
-
-                    {isExpanded &&
-                    <div className="px-4 pb-4 pt-0 border-t border-gray-100">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
-                          <div>
-                            <p className="text-xs font-medium text-gray-500 mb-1">
-                              Message
-                            </p>
-                            <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg">
-                              {entry.message}
-                            </p>
-                          </div>
-                          <div className="space-y-3">
-                            <div className="grid grid-cols-2 gap-2">
-                              <div className="p-2 bg-gray-50 rounded-lg">
-                                <p className="text-xs text-gray-500">
-                                  Sent Status
-                                </p>
-                                <p className="text-sm font-medium text-gray-800">
-                                  {entry.sentStatus}
-                                </p>
-                              </div>
-                              <div className="p-2 bg-gray-50 rounded-lg">
-                                <p className="text-xs text-gray-500">Viewed</p>
-                                <p className="text-sm font-medium text-gray-800">
-                                  {entry.viewedStatus}
-                                </p>
-                              </div>
-                              <div className="p-2 bg-gray-50 rounded-lg">
-                                <p className="text-xs text-gray-500">
-                                  Acknowledged
-                                </p>
-                                <p
-                                className={`text-sm font-medium ${entry.acknowledged === 'Yes' ? 'text-green-600' : 'text-amber-600'}`}>
-
-                                  {entry.acknowledged}
-                                </p>
-                              </div>
-                              <div className="p-2 bg-gray-50 rounded-lg">
-                                <p className="text-xs text-gray-500">
-                                  Notification
-                                </p>
-                                <p className="text-sm font-medium text-gray-800">
-                                  {entry.notificationSent ?
-                                'Sent ✓' :
-                                'Not Sent'}
-                                </p>
-                              </div>
-                            </div>
-                            {entry.parentReply &&
-                          <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                                <p className="text-xs font-medium text-green-700 mb-1">
-                                  Parent Reply
-                                </p>
-                                <p className="text-sm text-green-800">
-                                  "{entry.parentReply}"
-                                </p>
-                              </div>
-                          }
-                            {entry.acknowledged === 'No' &&
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            leftIcon={<BellIcon className="w-3.5 h-3.5" />}
-                            className="w-full">
-
-                                Send Follow-up Reminder
-                              </Button>
-                          }
-                          </div>
-                        </div>
-                      </div>
-                    }
-                  </div>);
-
-              })}
-            </div>
-          </TabsContent>
-
-          {/* Acknowledgements Tab */}
-          <TabsContent value="acknowledgements" className="p-5">
-            <div className="grid grid-cols-3 gap-4 mb-6">
-              <div className="p-4 bg-green-50 border border-green-200 rounded-xl text-center">
-                <p className="text-2xl font-bold text-green-700">
-                  {diaryHistory.filter((e) => e.acknowledged === 'Yes').length}
-                </p>
-                <p className="text-xs text-green-600 mt-1">Acknowledged</p>
-              </div>
-              <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-center">
-                <p className="text-2xl font-bold text-amber-700">
-                  {pendingAck}
-                </p>
-                <p className="text-xs text-amber-600 mt-1">Pending</p>
-              </div>
-              <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl text-center">
-                <p className="text-2xl font-bold text-blue-700">
-                  {Math.round(
-                    diaryHistory.filter((e) => e.acknowledged === 'Yes').
-                    length /
-                    diaryHistory.length *
-                    100
-                  )}
-                  %
-                </p>
-                <p className="text-xs text-blue-600 mt-1">Response Rate</p>
-              </div>
-            </div>
-
-            <Table
-              columns={[
-              {
-                key: 'date',
-                header: 'Date',
-                render: (row) =>
-                <span className="text-sm text-gray-600">{row.date}</span>
-
-              },
-              {
-                key: 'student',
-                header: 'Student',
-                render: (row) =>
-                <span className="font-medium text-gray-900 text-sm">
-                      {row.student}
-                    </span>
-
-              },
-              {
-                key: 'class',
-                header: 'Class',
-                render: (row) =>
-                <span className="text-sm text-gray-600">{row.class}</span>
-
-              },
-              {
-                key: 'category',
-                header: 'Category',
-                render: (row) => {
-                  const cfg = categoryConfig[row.category as MessageCategory];
-                  return (
-                    <span
-                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${cfg.bg} ${cfg.color}`}>
-
-                        {cfg.icon} {row.category}
-                      </span>);
-
-                }
-              },
-              {
-                key: 'subject',
-                header: 'Subject',
-                render: (row) =>
-                <span className="text-sm text-gray-700">{row.subject}</span>
-
-              },
-              {
-                key: 'viewedStatus',
-                header: 'Viewed',
-                render: (row) =>
-                <Badge
-                  variant={
-                  row.viewedStatus === 'Viewed' ? 'info' : 'default'
-                  }>
-
-                      {row.viewedStatus}
-                    </Badge>
-
-              },
-              {
-                key: 'acknowledged',
-                header: 'Acknowledged',
-                render: (row) =>
-                <Badge
-                  variant={
-                  row.acknowledged === 'Yes' ? 'success' : 'warning'
-                  }>
-
-                      {row.acknowledged === 'Yes' ? 'Yes ✓' : 'Pending'}
-                    </Badge>
-
-              },
-              {
-                key: 'actions',
-                header: 'Actions',
-                render: (row) =>
-                <div className="flex gap-1">
-                      {row.acknowledged === 'No' &&
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    leftIcon={<BellIcon className="w-3 h-3" />}>
-
-                          Remind
-                        </Button>
-                  }
-                      <Button
-                    variant="ghost"
-                    size="xs"
-                    leftIcon={<EyeIcon className="w-3 h-3" />}>
-
-                        View
-                      </Button>
-                    </div>
-
-              }]
-              }
-              data={diaryHistory} />
-
-          </TabsContent>
-        </Tabs>
       </Card>
-    </div>);
 
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-gray-500">{filtered.length} entr{filtered.length === 1 ? 'y' : 'ies'}</p>
+        <div className="flex gap-1 rounded-lg border border-gray-200 bg-white p-1">
+          <button type="button" onClick={() => setViewMode('table')} className={`rounded-md px-3 py-1.5 text-sm ${viewMode === 'table' ? 'bg-indigo-600 text-white' : 'text-gray-600'}`}><Table2 className="mr-1 inline h-4 w-4" />Table</button>
+          <button type="button" onClick={() => setViewMode('card')} className={`rounded-md px-3 py-1.5 text-sm ${viewMode === 'card' ? 'bg-indigo-600 text-white' : 'text-gray-600'}`}><LayoutGrid className="mr-1 inline h-4 w-4" />Cards</button>
+        </div>
+      </div>
+
+      {viewMode === 'table' ? (
+        <Card noPadding>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1080px] text-left text-sm">
+              <thead className="bg-slate-50 text-[10px] uppercase text-slate-500">
+                <tr>
+                  <th className="px-3 py-3">Date</th>
+                  <th className="px-3 py-3">Class</th>
+                  <th className="px-3 py-3">Subject / Period</th>
+                  <th className="px-3 py-3">Topic Covered</th>
+                  <th className="px-3 py-3">Sent to</th>
+                  <th className="px-3 py-3">Teacher</th>
+                  <th className="px-3 py-3">Follow-up</th>
+                  <th className="px-3 py-3"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filtered.map((entry) => (
+                  <tr key={entry.id} className="bg-white">
+                    <td className="px-3 py-3 whitespace-nowrap">{formatDisplay(entry.date)}</td>
+                    <td className="px-3 py-3">{entry.className} {entry.section}</td>
+                    <td className="px-3 py-3">{entry.subject}<p className="text-[10px] text-slate-400">Period {entry.period}</p></td>
+                    <td className="px-3 py-3">{entry.topicCovered}</td>
+                    <td className="px-3 py-3 text-xs">{recipientLabel(entry)}</td>
+                    <td className="px-3 py-3">{entry.teacher}</td>
+                    <td className="px-3 py-3">{entry.followUpPending ? <Badge variant="warning">Pending</Badge> : <Badge variant="success">Done</Badge>}</td>
+                    <td className="px-3 py-3"><Button size="xs" variant="outline" onClick={() => setViewing(entry)}><Eye className="h-3.5 w-3.5" />View</Button></td>
+                  </tr>
+                ))}
+                {filtered.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-sm text-slate-500">No diary entries match the selected filters.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      ) : (
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {filtered.map((entry) => (
+            <button key={entry.id} type="button" onClick={() => setViewing(entry)} className="rounded-xl border border-gray-200 bg-white p-4 text-left hover:border-indigo-300">
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-sm font-semibold text-slate-900">{entry.topicCovered}</p>
+                {entry.followUpPending ? <Badge variant="warning">Follow-up</Badge> : null}
+              </div>
+              <p className="mt-1 text-xs text-slate-500">{formatDisplay(entry.date)} · {entry.className} {entry.section} · P{entry.period} · {entry.subject}</p>
+              <p className="mt-2 text-xs text-slate-600 line-clamp-2">{recipientLabel(entry)}</p>
+              <p className="mt-2 text-[11px] text-slate-400">{entry.teacher}</p>
+            </button>
+          ))}
+          {filtered.length === 0 && <p className="col-span-full rounded-xl border border-dashed border-gray-300 bg-white p-8 text-center text-sm text-gray-500">No diary entries match the selected filters.</p>}
+        </div>
+      )}
+
+      <Modal
+        isOpen={showForm}
+        onClose={() => setShowForm(false)}
+        title={form.id.startsWith('SD-') && entries.some((entry) => entry.id === form.id) ? 'Edit diary entry' : 'Add new diary entry'}
+        size="xl"
+        footer={(
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
+            <Button onClick={saveEntry}>Save Entry</Button>
+          </div>
+        )}
+      >
+        <div className="max-h-[70vh] space-y-4 overflow-y-auto pr-1">
+          <div className="grid gap-3 md:grid-cols-3">
+            <label className="block text-sm"><span className="mb-1 block text-xs font-medium text-gray-600">Date</span><input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" /></label>
+            <label className="block text-sm"><span className="mb-1 block text-xs font-medium text-gray-600">Class</span><select value={form.className} onChange={(e) => setForm({ ...form, className: e.target.value, studentIds: [] })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">{CLASSES.map((c) => <option key={c}>{c}</option>)}</select></label>
+            <label className="block text-sm"><span className="mb-1 block text-xs font-medium text-gray-600">Section</span><select value={form.section} onChange={(e) => setForm({ ...form, section: e.target.value, studentIds: [] })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">{SECTIONS.map((s) => <option key={s}>{s}</option>)}</select></label>
+            <label className="block text-sm"><span className="mb-1 block text-xs font-medium text-gray-600">Subject</span><select value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">{SUBJECTS.map((s) => <option key={s}>{s}</option>)}</select></label>
+            <label className="block text-sm"><span className="mb-1 block text-xs font-medium text-gray-600">Period</span><select value={form.period} onChange={(e) => setForm({ ...form, period: e.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">{PERIODS.map((s) => <option key={s}>{s}</option>)}</select></label>
+            <label className="block text-sm"><span className="mb-1 block text-xs font-medium text-gray-600">Teacher</span><select value={form.teacher} onChange={(e) => setForm({ ...form, teacher: e.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">{TEACHERS.map((s) => <option key={s}>{s}</option>)}</select></label>
+            <label className="block text-sm md:col-span-3"><span className="mb-1 block text-xs font-medium text-gray-600">Topic Covered</span><input value={form.topicCovered} onChange={(e) => setForm({ ...form, topicCovered: e.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="What was taught this period?" /></label>
+            <label className="block text-sm md:col-span-3"><span className="mb-1 block text-xs font-medium text-gray-600">Homework Assigned</span><textarea value={form.homeworkAssigned} onChange={(e) => setForm({ ...form, homeworkAssigned: e.target.value })} rows={2} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="Leave blank if no homework" /></label>
+            <label className="block text-sm md:col-span-3"><span className="mb-1 block text-xs font-medium text-gray-600">Class Remarks</span><textarea value={form.classRemarks} onChange={(e) => setForm({ ...form, classRemarks: e.target.value })} rows={2} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" /></label>
+            <label className="block text-sm md:col-span-3"><span className="mb-1 block text-xs font-medium text-gray-600">Student-specific Remarks (optional)</span><textarea value={form.studentRemarks} onChange={(e) => setForm({ ...form, studentRemarks: e.target.value })} rows={2} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="Name the student and the observation" /></label>
+            <label className="block text-sm md:col-span-2"><span className="mb-1 block text-xs font-medium text-gray-600">Attachments</span><input type="file" onChange={(e) => setForm({ ...form, attachmentName: e.target.files?.[0]?.name || '' })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" /></label>
+            <label className="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" checked={form.followUpPending} onChange={(e) => setForm({ ...form, followUpPending: e.target.checked })} />Needs follow-up</label>
+          </div>
+
+          <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-4">
+            <p className="text-sm font-semibold text-slate-900">Send diary entry to</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button type="button" onClick={() => setForm({ ...form, sendTo: 'class', studentIds: [] })} className={`rounded-lg px-3 py-1.5 text-sm ${form.sendTo === 'class' ? 'bg-indigo-600 text-white' : 'bg-white border border-gray-300 text-gray-700'}`}>Whole class</button>
+              <button type="button" onClick={() => setForm({ ...form, sendTo: 'students' })} className={`rounded-lg px-3 py-1.5 text-sm ${form.sendTo === 'students' ? 'bg-indigo-600 text-white' : 'bg-white border border-gray-300 text-gray-700'}`}>Selected students</button>
+            </div>
+            {form.sendTo === 'students' && (
+              <div className="mt-3 space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <input value={studentQuery} onChange={(e) => setStudentQuery(e.target.value)} placeholder="Search students in this class" className="min-w-[220px] flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+                  <Button size="xs" variant="outline" onClick={() => setForm({ ...form, studentIds: classStudents.map((student) => student.id) })}>Select all shown</Button>
+                  <Button size="xs" variant="ghost" onClick={() => setForm({ ...form, studentIds: [] })}>Clear</Button>
+                </div>
+                <p className="text-xs text-slate-500">{form.studentIds.length} student(s) selected from {form.className} {form.section}.</p>
+                <div className="max-h-44 space-y-1 overflow-y-auto rounded-lg border border-gray-200 bg-white p-2">
+                  {classStudents.map((student) => (
+                    <label key={student.id} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-slate-50">
+                      <input type="checkbox" checked={form.studentIds.includes(student.id)} onChange={() => toggleStudent(student.id)} />
+                      <span className="font-medium text-slate-800">{student.name}</span>
+                      <span className="text-xs text-slate-400">{student.id}</span>
+                    </label>
+                  ))}
+                  {classStudents.length === 0 && <p className="px-2 py-3 text-xs text-slate-500">No students match this class / search.</p>}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={Boolean(viewing)}
+        onClose={() => setViewing(null)}
+        title={viewing?.topicCovered || 'Diary entry'}
+        size="lg"
+        footer={(
+          <div className="flex justify-end gap-2">
+            {viewing && <Button variant="outline" onClick={() => { setForm(viewing); setShowForm(true); setViewing(null); }}>Edit</Button>}
+            {viewing && (
+              <Button variant={viewing.followUpPending ? 'outline' : 'primary'} onClick={() => { toggleFollowUp(viewing.id); setViewing({ ...viewing, followUpPending: !viewing.followUpPending }); }}>
+                <CheckCircle2 className="h-4 w-4" />{viewing.followUpPending ? 'Mark follow-up done' : 'Needs follow-up'}
+              </Button>
+            )}
+            <Button onClick={() => setViewing(null)}>Close</Button>
+          </div>
+        )}
+      >
+        {viewing && (
+          <dl className="grid gap-3 text-sm sm:grid-cols-2">
+            <div><dt className="text-xs text-slate-500">Date</dt><dd>{formatDisplay(viewing.date)}</dd></div>
+            <div><dt className="text-xs text-slate-500">Class / Period</dt><dd>{viewing.className} {viewing.section} · Period {viewing.period} · {viewing.subject}</dd></div>
+            <div><dt className="text-xs text-slate-500">Teacher</dt><dd>{viewing.teacher}</dd></div>
+            <div><dt className="text-xs text-slate-500">Sent to</dt><dd>{recipientLabel(viewing)}</dd></div>
+            <div className="sm:col-span-2"><dt className="text-xs text-slate-500">Homework assigned</dt><dd>{viewing.homeworkAssigned || 'None'}</dd></div>
+            <div className="sm:col-span-2"><dt className="text-xs text-slate-500">Class remarks</dt><dd>{viewing.classRemarks || '—'}</dd></div>
+            <div className="sm:col-span-2"><dt className="text-xs text-slate-500">Student-specific remarks</dt><dd>{viewing.studentRemarks || '—'}</dd></div>
+            <div className="sm:col-span-2"><dt className="text-xs text-slate-500">Attachment</dt><dd className="flex items-center gap-1">{viewing.attachmentName ? <><Paperclip className="h-3.5 w-3.5" />{viewing.attachmentName}</> : 'None'}</dd></div>
+          </dl>
+        )}
+      </Modal>
+    </div>
+  );
 }
+
+export default SchoolDiary;

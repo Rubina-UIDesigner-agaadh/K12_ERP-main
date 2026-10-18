@@ -1,5 +1,5 @@
 export const EVENT_TYPES_STORAGE_KEY = 'k12-school-event-types-v1';
-export const SCHOOL_EVENTS_STORAGE_KEY = 'k12-school-events-v1';
+export const SCHOOL_EVENTS_STORAGE_KEY = 'k12-school-events-v2';
 export const EVENT_EXECUTIONS_STORAGE_KEY = 'k12-school-event-execution-v1';
 export const EVENT_REVIEWS_STORAGE_KEY = 'k12-school-event-reviews-v1';
 export const ACTIVE_SCHOOL_EVENT_STORAGE_KEY = 'k12-active-school-event-v1';
@@ -80,6 +80,11 @@ export interface EventBudgetItem {
   vendor: string;
 }
 
+export interface EventGalleryItem {
+  id: string;
+  name: string;
+}
+
 export interface SchoolEventRecord {
   id: string;
   name: string;
@@ -122,6 +127,19 @@ export interface SchoolEventRecord {
   policePermission: boolean;
   fireNoc: boolean;
   notes: string;
+  audienceBranches: string[];
+  audienceClasses: string[];
+  audienceDivisions: string[];
+  audienceStudents: string[];
+  audienceStaff: string[];
+  audienceParents: string[];
+  notifyParents: boolean;
+  parentPortal: boolean;
+  instituteCalendar: boolean;
+  participationCertificates: boolean;
+  achievementCertificates: boolean;
+  mementos: boolean;
+  galleryItems: EventGalleryItem[];
 }
 
 export interface EventIncident {
@@ -249,7 +267,10 @@ const eventDefaults: SchoolEventRecord = {
   parentsInvited: true, passesRequired: false, passesPerFamily: 2, publicInvited: false, circularFile: '',
   notifyVia: ['SMS', 'Email', 'Parent Portal'], notifyDate: '', postOn: ['School Website', 'Parent Portal'],
   requiresPrincipalApproval: true, principalApprovalStatus: 'Pending', requiresManagementApproval: false,
-  managementApprovalStatus: 'Not Required', policePermission: false, fireNoc: false, notes: ''
+  managementApprovalStatus: 'Not Required', policePermission: false, fireNoc: false, notes: '',
+  audienceBranches: [], audienceClasses: [], audienceDivisions: [], audienceStudents: [], audienceStaff: [], audienceParents: [],
+  notifyParents: true, parentPortal: true, instituteCalendar: true,
+  participationCertificates: true, achievementCertificates: true, mementos: false, galleryItems: []
 };
 
 const makeEvent = (overrides: Partial<SchoolEventRecord>): SchoolEventRecord => ({
@@ -262,7 +283,14 @@ const makeEvent = (overrides: Partial<SchoolEventRecord>): SchoolEventRecord => 
   resources: [...(overrides.resources || eventDefaults.resources)],
   budgetItems: (overrides.budgetItems || eventDefaults.budgetItems).map((item) => ({ ...item })),
   notifyVia: [...(overrides.notifyVia || eventDefaults.notifyVia)],
-  postOn: [...(overrides.postOn || eventDefaults.postOn)]
+  postOn: [...(overrides.postOn || eventDefaults.postOn)],
+  audienceBranches: [...(overrides.audienceBranches || eventDefaults.audienceBranches)],
+  audienceClasses: [...(overrides.audienceClasses || eventDefaults.audienceClasses)],
+  audienceDivisions: [...(overrides.audienceDivisions || eventDefaults.audienceDivisions)],
+  audienceStudents: [...(overrides.audienceStudents || eventDefaults.audienceStudents)],
+  audienceStaff: [...(overrides.audienceStaff || eventDefaults.audienceStaff)],
+  audienceParents: [...(overrides.audienceParents || eventDefaults.audienceParents)],
+  galleryItems: (overrides.galleryItems || eventDefaults.galleryItems).map((item) => ({ ...item }))
 });
 
 export const DEFAULT_SCHOOL_EVENTS: SchoolEventRecord[] = [
@@ -381,7 +409,39 @@ export function createSchoolEvent(type: EventTypeRecord, academicYear = '2026-27
     principalApprovalStatus: type.principalApproval ? 'Pending Approval' : 'Not Required',
     parentsInvited: type.audience.includes('Parents'),
     notifyVia: type.notifyParents ? ['SMS', 'Email', 'Parent Portal'] : [],
-    postOn: [...(type.parentPortal ? ['Parent Portal'] : []), ...(type.instituteCalendar ? ['Institute Calendar'] : [])]
+    postOn: [...(type.parentPortal ? ['Parent Portal'] : []), ...(type.instituteCalendar ? ['Institute Calendar'] : [])],
+    audienceBranches: [], audienceClasses: [], audienceDivisions: [], audienceStudents: [], audienceStaff: [], audienceParents: [],
+    notifyParents: type.notifyParents, parentPortal: type.parentPortal, instituteCalendar: type.instituteCalendar,
+    participationCertificates: type.participationCertificates, achievementCertificates: type.achievementCertificates, mementos: type.mementos,
+    galleryItems: []
+  };
+}
+
+export function createBlankSchoolEvent(academicYear = '2026-27'): SchoolEventRecord {
+  return {
+    ...eventDefaults,
+    id: createEventId('evt'),
+    name: '',
+    typeId: '',
+    typeName: '',
+    code: `EVT-${academicYear}-${Date.now().toString().slice(-3)}`,
+    academicYear,
+    status: 'Planning',
+    schoolHoliday: false,
+    requiresPrincipalApproval: false,
+    principalApprovalStatus: 'Not Required',
+    parentsInvited: false,
+    notifyVia: [],
+    postOn: [],
+    notifyParents: false,
+    parentPortal: false,
+    instituteCalendar: false,
+    participationCertificates: false,
+    achievementCertificates: false,
+    mementos: false,
+    audienceBranches: [], audienceClasses: [], audienceDivisions: [], audienceStudents: [], audienceStaff: [], audienceParents: [],
+    galleryItems: [],
+    preparationDays: [], programItems: [], guests: [], responsibilities: [], resources: [], budgetItems: []
   };
 }
 

@@ -5,6 +5,7 @@ import { Input } from '../../../components/ui/Input';
 import { Select } from '../../../components/ui/Select';
 import { Badge } from '../../../components/ui/Badge';
 import { Table } from '../../../components/ui/Table';
+import { Modal } from '../../../components/ui/Modal';
 import {
   SaveIcon,
   AlertTriangleIcon,
@@ -12,6 +13,7 @@ import {
   CheckCircleIcon,
   ClipboardListIcon,
   PaperclipIcon,
+  EyeIcon,
   TrendingUpIcon,
   AlertCircleIcon,
   ChevronDownIcon,
@@ -90,39 +92,73 @@ const TOPICS_BY_CHAPTER: Record<string, string[]> = {
 const recentEntries = [
 {
   id: 1,
-  date: '28 Feb 2026',
-  standard: 'Class 9-A',
-  subject: 'Mathematics',
-  period: 'Period 2',
-  chapter: 'Chapter 2 – Polynomials',
-  topic: 'Zeroes of Polynomial',
+  date: '17 Oct 2026',
+  standard: 'Class 10-A',
+  subject: 'Science',
+  period: 'Period 3',
+  chapter: 'Chapter 9 – Light',
+  topic: 'Refraction through a glass slab',
   coverage: 'Full Completion',
   mode: 'Offline',
-  homework: 'Yes'
+  homework: 'Yes',
+  teacher: 'Mr. R. Kumar',
+  notes: 'Ray diagrams completed. Numericals to continue next period.'
 },
 {
   id: 2,
-  date: '27 Feb 2026',
-  standard: 'Class 9-A',
+  date: '17 Oct 2026',
+  standard: 'Class 10-A',
   subject: 'Mathematics',
-  period: 'Period 2',
+  period: 'Period 1',
   chapter: 'Chapter 2 – Polynomials',
-  topic: 'Polynomials in One Variable',
+  topic: 'Zeros of Polynomial',
   coverage: 'Full Completion',
   mode: 'Offline',
-  homework: 'No'
+  homework: 'Yes',
+  teacher: 'Mrs. Singh',
+  notes: 'Pair graph work completed.'
 },
 {
   id: 3,
-  date: '26 Feb 2026',
-  standard: 'Class 9-B',
-  subject: 'Mathematics',
-  period: 'Period 3',
-  chapter: 'Chapter 1 – Number Systems',
-  topic: 'Decimal Expansions',
+  date: '16 Oct 2026',
+  standard: 'Class 10-B',
+  subject: 'English',
+  period: 'Period 2',
+  chapter: 'Writing Skills',
+  topic: 'Formal letter writing',
+  coverage: 'Full Completion',
+  mode: 'Offline',
+  homework: 'Yes',
+  teacher: 'Ms. Roy',
+  notes: 'Model letter discussed. Students drafted opening paragraphs.'
+},
+{
+  id: 4,
+  date: '16 Oct 2026',
+  standard: 'Class 9-A',
+  subject: 'Science',
+  period: 'Period 4',
+  chapter: 'Chapter 3 – Atoms and Molecules',
+  topic: 'Atoms and molecules recap',
   coverage: 'Partial Coverage',
   mode: 'Hybrid',
-  homework: 'Yes'
+  homework: 'No',
+  teacher: 'Mrs. S. Joshi',
+  notes: 'Oral recap only. Lab postponed.'
+},
+{
+  id: 5,
+  date: '15 Oct 2026',
+  standard: 'Class 8-C',
+  subject: 'Social Science',
+  period: 'Period 5',
+  chapter: 'Chapter 4 – Agriculture',
+  topic: 'Types of farming',
+  coverage: 'Full Completion',
+  mode: 'Offline',
+  homework: 'Yes',
+  teacher: 'Mr. V. Patel',
+  notes: 'Map activity completed.'
 }];
 
 type TeachingMode = 'Offline' | 'Online' | 'Hybrid';
@@ -146,6 +182,7 @@ export function Classwork() {
   'activity',
   'homework']
   );
+  const [viewingEntry, setViewingEntry] = useState<(typeof recentEntries)[number] | null>(null);
   const toggleSection = (s: string) =>
   setExpandedSections((prev) =>
   prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]
@@ -833,7 +870,7 @@ export function Classwork() {
             <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center">
               <ClipboardListIcon className="w-4 h-4 text-slate-600" />
             </div>
-            <h3 className="font-semibold text-gray-900">Recent Entries</h3>
+            <h3 className="font-semibold text-gray-900">Submitted classwork</h3>
           </div>
           <Button
             variant="outline"
@@ -843,6 +880,7 @@ export function Classwork() {
             Refresh
           </Button>
         </div>
+        <p className="mb-3 text-sm text-gray-500">Other classwork already submitted by teachers. Open any row to view the full entry.</p>
         <Table
           columns={[
           {
@@ -860,6 +898,12 @@ export function Classwork() {
                   {row.standard}
                 </span>
 
+          },
+          {
+            key: 'teacher',
+            header: 'Teacher',
+            render: (row) =>
+            <span className="text-sm text-gray-700">{row.teacher}</span>
           },
           {
             key: 'subject',
@@ -906,11 +950,35 @@ export function Classwork() {
                   {row.homework}
                 </Badge>
 
+          },
+          {
+            key: 'actions',
+            header: 'Action',
+            render: (row) =>
+            <Button size="xs" variant="outline" onClick={() => setViewingEntry(row)}>
+                <EyeIcon className="w-3.5 h-3.5" /> View
+              </Button>
           }]
           }
           data={recentEntries} />
 
       </Card>
+      <Modal isOpen={Boolean(viewingEntry)} onClose={() => setViewingEntry(null)} title={viewingEntry ? `${viewingEntry.subject} · ${viewingEntry.topic}` : 'Classwork'} size="lg" footer={<Button onClick={() => setViewingEntry(null)}>Close</Button>}>
+        {viewingEntry && (
+          <dl className="grid gap-3 text-sm sm:grid-cols-2">
+            <div><dt className="text-xs text-gray-500">Date</dt><dd>{viewingEntry.date}</dd></div>
+            <div><dt className="text-xs text-gray-500">Class</dt><dd>{viewingEntry.standard}</dd></div>
+            <div><dt className="text-xs text-gray-500">Teacher</dt><dd>{viewingEntry.teacher}</dd></div>
+            <div><dt className="text-xs text-gray-500">Period</dt><dd>{viewingEntry.period}</dd></div>
+            <div><dt className="text-xs text-gray-500">Chapter</dt><dd>{viewingEntry.chapter}</dd></div>
+            <div><dt className="text-xs text-gray-500">Coverage</dt><dd>{viewingEntry.coverage}</dd></div>
+            <div><dt className="text-xs text-gray-500">Mode</dt><dd>{viewingEntry.mode}</dd></div>
+            <div><dt className="text-xs text-gray-500">Homework</dt><dd>{viewingEntry.homework}</dd></div>
+            <div className="sm:col-span-2"><dt className="text-xs text-gray-500">Topic covered</dt><dd>{viewingEntry.topic}</dd></div>
+            <div className="sm:col-span-2"><dt className="text-xs text-gray-500">Notes</dt><dd>{viewingEntry.notes}</dd></div>
+          </dl>
+        )}
+      </Modal>
     </div>);
 
 }

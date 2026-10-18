@@ -87,7 +87,7 @@ export function LessonPlanReview() {
   const [toast, setToast] = useState('');
 
   const today = todayIso();
-  const persistLessons = (next: LessonPlanRecord[]) => { setLessons(next); savePlanningCollection('k12-lesson-plans-v1', next); };
+  const persistLessons = (next: LessonPlanRecord[]) => { setLessons(next); savePlanningCollection(ACADEMIC_PLANNING_KEYS.lessons, next); };
   const persistReviews = (next: LessonReviewRecord[]) => { setReviews(next); savePlanningCollection(REVIEW_KEYS.reviews, next); };
   const flash = (message: string) => { setToast(message); window.setTimeout(() => setToast(''), 3500); };
 
@@ -155,7 +155,8 @@ export function LessonPlanReview() {
     };
     persistReviews([record, ...reviews.filter((item) => item.lessonId !== lesson.id)]);
     const hodFeedback = decision === 'Approved' ? 'Approved by HOD' : `${decision}${feedback.overall ? `: ${feedback.overall}` : ''}`;
-    persistLessons(lessons.map((item) => item.id === lesson.id ? { ...item, status: lessonStatusForDecision(decision), hodFeedback, hodName: 'HOD', submitToHod: true } : item));
+    const hodSuggestions = [feedback.positives && `Positives: ${feedback.positives}`, feedback.improvements && `Improvements: ${feedback.improvements}`].filter(Boolean).join('\n');
+    persistLessons(lessons.map((item) => item.id === lesson.id ? { ...item, status: lessonStatusForDecision(decision), hodDecision: decision, hodFeedback, hodSuggestions, hodName: 'HOD', submitToHod: true } : item));
   };
 
   const submitDecision = (decision: ReviewDecision) => {
@@ -374,7 +375,8 @@ export function LessonPlanReview() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {queue.map(({ lesson, daysPending, urgent }) => (
-                <tr key={lesson.id} className={activeId === lesson.id ? 'bg-indigo-50' : ''}>
+                <React.Fragment key={lesson.id}>
+                <tr className={activeId === lesson.id ? 'bg-indigo-50' : ''}>
                   <td className="px-3 py-3"><input type="checkbox" aria-label={`Select ${lesson.title}`} checked={selectedIds.includes(lesson.id)} onChange={() => toggleSelected(lesson.id)} /></td>
                   <td className="px-3 py-3 whitespace-nowrap">{urgent ? '🔴 Urgent' : '🟡 Normal'}</td>
                   <td className="px-3 py-3">{lesson.teacher}</td>
@@ -390,17 +392,15 @@ export function LessonPlanReview() {
                     </div>
                   </td>
                 </tr>
-              ))}
-              {queue.length === 0 && <tr><td colSpan={9} className="px-4 py-10 text-center text-sm text-gray-500">No lesson plans are waiting for review.</td></tr>}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-
-      {/* Review panel */}
-      {activeLesson && (
-        <Card title={`Review: ${activeLesson.title || activeLesson.topic}`} headerAction={<Button size="xs" variant="ghost" onClick={closeReview}><X className="h-4 w-4" />Close</Button>}>
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+                {activeId === lesson.id && activeLesson && (
+                  <tr>
+                    <td colSpan={9} className="bg-slate-50 p-4">
+                      <div className="rounded-xl border border-indigo-200 bg-white p-4">
+                        <div className="mb-3 flex items-center justify-between gap-2">
+                          <p className="text-sm font-semibold text-gray-900">Review: {activeLesson.title || activeLesson.topic}</p>
+                          <Button size="xs" variant="ghost" onClick={closeReview}><X className="h-4 w-4" />Close</Button>
+                        </div>
+                        <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
             {/* Left: read-only plan */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
@@ -469,8 +469,17 @@ export function LessonPlanReview() {
               </div>
             </div>
           </div>
-        </Card>
-      )}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                </React.Fragment>
+              ))}
+              {queue.length === 0 && <tr><td colSpan={9} className="px-4 py-10 text-center text-sm text-gray-500">No lesson plans are waiting for review.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </Card>
 
       {/* Analytics */}
       <Card title="HOD Analytics">

@@ -359,7 +359,6 @@ const ToastContainer: React.FC<{toasts: Toast[];onDismiss: (id: string) => void;
 
 };
 
-// ==================== TEACHER DROPDOWN COMPONENT ====================
 // ==================== ASSIGNMENT HELPERS ====================
 
 interface SubjectAssignment {
@@ -609,7 +608,7 @@ export function TeacherClassSubjectAllocation() {
   const [auditFilters, setAuditFilters] = useState({ from: '', to: '', teacherId: '', classId: '', role: '' });
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  // Summary stats (live, from the draft)
+  // Counts used in tab badges (not shown as KPI cards)
   const totalClasses = CLASS_LIST.length;
   const classTeachersAssigned = CLASS_LIST.filter((cls) => draft.classTeachers[cls.id]).length;
   const totalSlots = CLASS_LIST.reduce((sum, cls) => sum + cls.subjects.length, 0);
@@ -617,7 +616,6 @@ export function TeacherClassSubjectAllocation() {
     (sum, cls) => sum + cls.subjects.filter((subject) => subjectOf(draft, cls.id, subject.id).primary).length,
     0
   );
-  const pendingCount = (totalClasses - classTeachersAssigned) + (totalSlots - filledSlots);
 
   // Unsaved-changes guard: browser close / reload, and in-app navigation (BrowserRouter has no data-router blocker)
   useEffect(() => {
@@ -918,26 +916,6 @@ export function TeacherClassSubjectAllocation() {
                 <CheckCircle className="w-3.5 h-3.5" /> All changes saved
               </span>}
           </div>
-        </div>
-      </div>
-
-      {/* Summary stats bar */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-          <p className="text-xs font-medium text-gray-500 uppercase">Total Classes</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1">{totalClasses}</p>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-          <p className="text-xs font-medium text-gray-500 uppercase">Class Teachers Assigned</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1">{classTeachersAssigned} <span className="text-base font-normal text-gray-500">/ {totalClasses}</span></p>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-          <p className="text-xs font-medium text-gray-500 uppercase">Subject Slots Filled</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1">{filledSlots} <span className="text-base font-normal text-gray-500">/ {totalSlots}</span></p>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-          <p className="text-xs font-medium text-gray-500 uppercase">Pending</p>
-          <p className={`text-2xl font-bold mt-1 ${pendingCount > 0 ? 'text-red-600' : 'text-green-600'}`}>{pendingCount}</p>
         </div>
       </div>
 

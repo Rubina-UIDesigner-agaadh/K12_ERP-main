@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Award, Download, Pencil, Plus, Search, Trophy, X } from 'lucide-react';
+import { Award, Download, Pencil, Plus, Search, X } from 'lucide-react';
 import { Badge } from '../../../../components/ui/Badge';
 import { Button } from '../../../../components/ui/Button';
 import { Card } from '../../../../components/ui/Card';
@@ -130,13 +130,10 @@ export function CompetitionMaster() {
   return (
     <div className="space-y-5 p-4 md:p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex items-start gap-3">
-          <div className="rounded-xl bg-amber-100 p-3 text-amber-700"><Trophy className="h-6 w-6" /></div>
-          <div>
+        <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Competition Management</p>
             <h1 className="text-2xl font-bold text-slate-900">Competition Master</h1>
             <p className="mt-1 max-w-3xl text-sm text-slate-500">Define the competition types used as the master reference when scheduling events.</p>
-          </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={exportTypes}><Download className="h-4 w-4" />Export</Button>

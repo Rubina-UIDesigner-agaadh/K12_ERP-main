@@ -1,4 +1,4 @@
-import { MONTHS, createBlankLesson, DEFAULT_CURRICULUM_CHAPTERS, DEFAULT_ATPS, newPlanningId, loadPlanningCollection, savePlanningCollection, type CurriculumChapter, type LessonPlanRecord, type LessonProcedurePhase, type AnnualTeachingPlanRecord, type BloomLevel, type PeriodStatus } from './academicPlanningData';
+import { MONTHS, ACADEMIC_PLANNING_KEYS, createBlankLesson, DEFAULT_CURRICULUM_CHAPTERS, DEFAULT_ATPS, DEFAULT_LESSON_PLANS, newPlanningId, loadPlanningCollection, savePlanningCollection, type CurriculumChapter, type LessonPlanRecord, type LessonProcedurePhase, type AnnualTeachingPlanRecord, type BloomLevel, type PeriodStatus } from './academicPlanningData';
 
 // Shared data layer for the HOD review, syllabus tracking, progress, assessment, question bank and report pages.
 // Seed data is deterministic and anchored to today's date so the demo always has pending items, due dates and history.
@@ -184,8 +184,11 @@ export interface LessonReviewRecord {
 }
 
 // Maps an HOD decision to the lesson plan status that teachers see.
-export const lessonStatusForDecision = (decision: ReviewDecision): LessonPlanRecord['status'] =>
-  decision === 'Approved' || decision === 'Approved with Suggestions' ? 'Approved' : 'Returned';
+export const lessonStatusForDecision = (decision: ReviewDecision): LessonPlanRecord['status'] => {
+  if (decision === 'Approved' || decision === 'Approved with Suggestions') return 'Approved';
+  if (decision === 'Rejected') return 'Rejected';
+  return 'Returned';
+};
 
 const SAMPLE_PROCEDURE = (minutes: number): LessonProcedurePhase[] => [
   { id: newPlanningId('phase'), phase: 'Introduction and recap', minutes: Math.round(minutes * 0.15), teacherActivity: 'Recap previous lesson with two quick questions.', studentActivity: 'Answer on mini-whiteboards.', questions: 'What did we learn last time?', resources: 'Whiteboard', checkUnderstanding: 'Thumbs up / down' },
@@ -300,10 +303,13 @@ const HISTORY = buildHistory();
 export const REVIEW_SEED_HISTORY_LESSONS: LessonPlanRecord[] = HISTORY.lessons;
 export const REVIEW_SEED_REVIEWS: LessonReviewRecord[] = HISTORY.reviews;
 
-export const loadLessonsForReview = (): LessonPlanRecord[] => loadPlanningCollection<LessonPlanRecord>(
-  'k12-lesson-plans-v1',
-  [...REVIEW_SEED_QUEUE, ...REVIEW_SEED_HISTORY_LESSONS]
-);
+export const loadLessonsForReview = (): LessonPlanRecord[] => {
+  const seeded = [...DEFAULT_LESSON_PLANS];
+  [...REVIEW_SEED_QUEUE, ...REVIEW_SEED_HISTORY_LESSONS].forEach((item) => {
+    if (!seeded.some((existing) => existing.id === item.id)) seeded.push(item);
+  });
+  return loadPlanningCollection<LessonPlanRecord>(ACADEMIC_PLANNING_KEYS.lessons, seeded);
+};
 
 // ---------- Syllabus progress logs ----------
 export interface ProgressLog {
