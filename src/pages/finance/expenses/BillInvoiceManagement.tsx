@@ -5,7 +5,7 @@ import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
 import { Modal } from '../../../components/ui/Modal';
 import { Select } from '../../../components/ui/Select';
-import { printHtml, tableHtml, inr } from '../charge/ChargeReceipt';
+import { printHtml, tableHtml, inr, downloadText } from '../charge/ChargeReceipt';
 import {
   Receipt,
   CheckCircle2,
@@ -16,7 +16,6 @@ import {
   FileCheck,
   Building2,
   Calendar,
-  Layers,
   ArrowRight,
   ShieldCheck,
   Check,
@@ -32,7 +31,8 @@ import {
   ExternalLink,
   ChevronRight,
   Sparkles,
-  AlertTriangle
+  AlertTriangle,
+  Printer
 } from 'lucide-react';
 
 export interface BillItem {
@@ -43,6 +43,7 @@ export interface BillItem {
   amount: number;
   gstRate: number;
   gstAmount: number;
+  sgstAmount: number;
   rejectedNote?: string;
 }
 
@@ -112,7 +113,8 @@ const INITIAL_BILLS: VendorBillRecord[] = [
         rate: 7500,
         amount: 67500,
         gstRate: 18,
-        gstAmount: 12150
+        gstAmount: 6075,
+        sgstAmount: 6075
       },
       {
         id: '2',
@@ -121,7 +123,8 @@ const INITIAL_BILLS: VendorBillRecord[] = [
         rate: 500,
         amount: 10000,
         gstRate: 12,
-        gstAmount: 1200
+        gstAmount: 600,
+        sgstAmount: 600
       }
     ],
     subTotal: 77500,
@@ -165,7 +168,8 @@ const INITIAL_BILLS: VendorBillRecord[] = [
         rate: 250,
         amount: 12500,
         gstRate: 12,
-        gstAmount: 1500
+        gstAmount: 750,
+        sgstAmount: 750
       },
       {
         id: '2',
@@ -174,7 +178,8 @@ const INITIAL_BILLS: VendorBillRecord[] = [
         rate: 30,
         amount: 3000,
         gstRate: 18,
-        gstAmount: 540
+        gstAmount: 270,
+        sgstAmount: 270
       }
     ],
     subTotal: 15500,
@@ -216,7 +221,8 @@ const INITIAL_BILLS: VendorBillRecord[] = [
         rate: 12500,
         amount: 12500,
         gstRate: 0,
-        gstAmount: 0
+        gstAmount: 0,
+        sgstAmount: 0
       }
     ],
     subTotal: 12500,
@@ -258,7 +264,8 @@ const INITIAL_BILLS: VendorBillRecord[] = [
         rate: 1100, // Discrepancy: PO was 1000
         amount: 16500,
         gstRate: 12,
-        gstAmount: 1980
+        gstAmount: 990,
+        sgstAmount: 990
       },
       {
         id: '2',
@@ -267,7 +274,8 @@ const INITIAL_BILLS: VendorBillRecord[] = [
         rate: 1000,
         amount: 10000,
         gstRate: 12,
-        gstAmount: 1200
+        gstAmount: 600,
+        sgstAmount: 600
       }
     ],
     subTotal: 26500,
@@ -309,7 +317,8 @@ const INITIAL_BILLS: VendorBillRecord[] = [
         rate: 25000,
         amount: 25000,
         gstRate: 0,
-        gstAmount: 0
+        gstAmount: 0,
+        sgstAmount: 0
       }
     ],
     subTotal: 25000,
@@ -351,7 +360,8 @@ const INITIAL_BILLS: VendorBillRecord[] = [
         rate: 60000,
         amount: 60000,
         gstRate: 5,
-        gstAmount: 3000
+        gstAmount: 1500,
+        sgstAmount: 1500
       },
       {
         id: '2',
@@ -360,7 +370,8 @@ const INITIAL_BILLS: VendorBillRecord[] = [
         rate: 890,
         amount: 5340,
         gstRate: 5,
-        gstAmount: 267
+        gstAmount: 133,
+        sgstAmount: 134
       }
     ],
     subTotal: 65340,
@@ -405,7 +416,8 @@ const INITIAL_BILLS: VendorBillRecord[] = [
         rate: 45000,
         amount: 45000,
         gstRate: 18,
-        gstAmount: 8100
+        gstAmount: 4050,
+        sgstAmount: 4050
       }
     ],
     subTotal: 45000,
@@ -448,7 +460,8 @@ const INITIAL_BILLS: VendorBillRecord[] = [
         rate: 22000,
         amount: 22000,
         gstRate: 0,
-        gstAmount: 0
+        gstAmount: 0,
+        sgstAmount: 0
       }
     ],
     subTotal: 22000,
@@ -478,6 +491,7 @@ export function BillInvoiceManagement() {
 
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingBill, setEditingBill] = useState<VendorBillRecord | null>(null);
   const [approvalModalBill, setApprovalModalBill] = useState<VendorBillRecord | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   // ---- vendor payments (merged Expense / Vendor Payment) ----
@@ -521,14 +535,8 @@ export function BillInvoiceManagement() {
   }, [bills, statusFilter, threeWayFilter, billTypeFilter, searchQuery]);
 
   // Actions
-  /** “Update” — re-check the bill & push it forward for approval. */
   const handleUpdateBill = (b: VendorBillRecord) => {
-    setBills((prev) =>
-      prev.map((item) =>
-        item.id === b.id ? { ...item, status: 'Under Approval' as BillStatus } : item
-      )
-    );
-    showToast(`Bill ${b.billNo} updated — 3-Way match checked & moved for approval.`);
+    setEditingBill(b);
   };
 
   const handlePayNow = (b: VendorBillRecord) => {
@@ -537,7 +545,7 @@ export function BillInvoiceManagement() {
 
   const paymentsForBill = (billId: string) =>
     payments.filter((p) => p.billId === billId && p.status !== 'Bounced');
-  /** Gross value of the bill already covered by payments (TDS does not delay bill settlement). */
+  /** Gross value of the bill already covered by payments. */
   const paidAmountOf = (bill: VendorBillRecord) =>
     paymentsForBill(bill.id).reduce((s, p) => s + p.grossAmount, 0);
 
@@ -568,12 +576,6 @@ export function BillInvoiceManagement() {
 
   const payableBills = bills.filter((b) => b.status === 'Approved');
   const selectedPayable = bills.filter((b) => selectedBillIds.includes(b.id) && b.status === 'Approved');
-  const paidToDate = payments.filter((p) => p.status === 'Paid').reduce((s, p) => s + p.netPaid, 0);
-  const tdsToDate = payments.reduce((s, p) => s + p.tdsAmount, 0);
-  const pendingPaymentValue = bills
-    .filter((b) => b.status === 'Approved' || b.status === 'Under Approval')
-    .reduce((s, b) => s + b.grandTotal, 0);
-  const bouncedCount = payments.filter((p) => p.status === 'Bounced').length;
 
 
   return (
@@ -688,30 +690,6 @@ export function BillInvoiceManagement() {
             🔴 Action!
           </div>
         </Card>
-      </div>
-
-      {/* 💳 VENDOR PAYMENT SNAPSHOT (merged payment module) */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        {[
-          { label: 'Payments Recorded', value: String(payments.length), tone: 'text-indigo-700', icon: DollarSign },
-          { label: 'Paid to Vendors (FY)', value: `₹${paidToDate.toLocaleString('en-IN')}`, tone: 'text-emerald-700', icon: CheckCircle2 },
-          { label: 'TDS Deducted', value: `₹${tdsToDate.toLocaleString('en-IN')}`, tone: 'text-rose-700', icon: Layers },
-          { label: 'Pending Payment Value', value: `₹${pendingPaymentValue.toLocaleString('en-IN')}`, tone: 'text-amber-700', icon: Clock },
-          { label: 'Bounced / Initiated', value: String(bouncedCount), tone: 'text-gray-900', icon: AlertCircle }
-        ].map((kpi) => {
-          const Icon = kpi.icon;
-          return (
-            <Card key={kpi.label} className="p-4 rounded-xl border border-gray-200 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">{kpi.label}</p>
-                  <p className={`text-lg font-bold ${kpi.tone}`}>{kpi.value}</p>
-                </div>
-                <Icon className="w-5 h-5 text-gray-300" />
-              </div>
-            </Card>
-          );
-        })}
       </div>
 
       {/* 🔍 FILTERS BAR */}
@@ -961,37 +939,51 @@ export function BillInvoiceManagement() {
                     <td className="p-3">{renderStatus(b.status)}</td>
                     <td className="p-3 text-right">
                       <div className="flex items-center justify-end gap-1.5">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setApprovalModalBill(b)}
-                          className="h-7 px-2 text-xs text-emerald-700 hover:bg-emerald-50"
-                          title="Check Bill Details"
-                        >
-                          <Eye className="w-3.5 h-3.5 mr-1" /> Check Bill Details
-                        </Button>
-
-                        {(b.status === 'Pending Verification' || b.status === 'Hold') && (
+                        {b.status === 'Paid' ? (
                           <Button
                             size="sm"
-                            variant="outline"
-                            onClick={() => handleUpdateBill(b)}
-                            className="h-7 px-2 text-[11px] text-indigo-700 border-indigo-200 hover:bg-indigo-50"
-                            title="Update this bill after re-checking"
+                            variant="ghost"
+                            onClick={() => setApprovalModalBill(b)}
+                            className="h-7 px-2 text-xs text-emerald-700 hover:bg-emerald-50"
+                            title="View Bill"
                           >
-                            <RotateCcw className="w-3 h-3 mr-1" /> Update
+                            <Eye className="w-3.5 h-3.5 mr-1" /> View Bill
                           </Button>
-                        )}
+                        ) : (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setApprovalModalBill(b)}
+                              className="h-7 px-2 text-xs text-emerald-700 hover:bg-emerald-50"
+                              title="Check Bill Details"
+                            >
+                              <Eye className="w-3.5 h-3.5 mr-1" /> Check Bill Details
+                            </Button>
 
-                        {b.status === 'Approved' && (
-                          <Button
-                            size="sm"
-                            onClick={() => handlePayNow(b)}
-                            className="h-7 px-2 text-xs bg-purple-600 hover:bg-purple-700 text-white"
-                            title="Approve Payment for this bill"
-                          >
-                            <DollarSign className="w-3 h-3 mr-1" /> Approve Payment
-                          </Button>
+                            {(b.status === 'Pending Verification' || b.status === 'Hold' || b.status === 'Under Approval') && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleUpdateBill(b)}
+                                className="h-7 px-2 text-[11px] text-indigo-700 border-indigo-200 hover:bg-indigo-50"
+                                title="Update bill details"
+                              >
+                                <RotateCcw className="w-3 h-3 mr-1" /> Update
+                              </Button>
+                            )}
+
+                            {b.status === 'Approved' && (
+                              <Button
+                                size="sm"
+                                onClick={() => handlePayNow(b)}
+                                className="h-7 px-2 text-xs bg-purple-600 hover:bg-purple-700 text-white"
+                                title="Approve Payment for this bill"
+                              >
+                                <DollarSign className="w-3 h-3 mr-1" /> Approve Payment
+                              </Button>
+                            )}
+                          </>
                         )}
                       </div>
                     </td>
@@ -1011,6 +1003,18 @@ export function BillInvoiceManagement() {
             setBills((prev) => [newBill, ...prev]);
             showToast(`Vendor bill ${newBill.billNo} logged with 3-Way validation.`);
             setShowAddModal(false);
+          }}
+        />
+      )}
+
+      {editingBill && (
+        <UpdateBillModal
+          bill={editingBill}
+          onClose={() => setEditingBill(null)}
+          onSave={(updated) => {
+            setBills((prev) => prev.map((it) => (it.id === updated.id ? updated : it)));
+            showToast(`Bill ${updated.billNo} details updated.`);
+            setEditingBill(null);
           }}
         />
       )}
@@ -1061,16 +1065,10 @@ export function BillInvoiceManagement() {
             // Approve Payment = sanction the bill and open the payment form straight away
             setPayModalBill(approved);
           }}
-          onUpdate={(remarks, authorizer) => {
-            setBills((prev) =>
-              prev.map((it) =>
-                it.id === approvalModalBill.id
-                  ? { ...it, approverRemarks: remarks, approvedBy: authorizer }
-                  : it
-              )
-            );
-            showToast(`Bill ${approvalModalBill.billNo} updated successfully.`);
+          onEditDetails={() => {
+            const current = approvalModalBill;
             setApprovalModalBill(null);
+            setEditingBill(current);
           }}
           onReject={(remarks) => {
             setBills((prev) =>
@@ -1119,7 +1117,8 @@ function AddVendorBillModal({
       rate: 7500,
       amount: 67500,
       gstRate: 18,
-      gstAmount: 12150
+      gstAmount: 6075,
+        sgstAmount: 6075
     },
     {
       id: '2',
@@ -1128,14 +1127,15 @@ function AddVendorBillModal({
       rate: 500,
       amount: 10000,
       gstRate: 12,
-      gstAmount: 1200
+      gstAmount: 600,
+        sgstAmount: 600
     }
   ]);
 
   const subTotal = items.reduce((acc, it) => acc + it.amount, 0);
-  const totalGst = items.reduce((acc, it) => acc + it.gstAmount, 0);
-  const cgst = totalGst / 2;
-  const sgst = totalGst / 2;
+  const cgst = items.reduce((acc, it) => acc + (it.gstAmount || 0), 0);
+  const sgst = items.reduce((acc, it) => acc + (it.sgstAmount || 0), 0);
+  const totalGst = cgst + sgst;
   const grandTotal = subTotal + totalGst;
 
   const handleSubmit = () => {
@@ -1283,8 +1283,8 @@ function AddVendorBillModal({
                 <th className="p-2">Qty</th>
                 <th className="p-2">Rate</th>
                 <th className="p-2">Amount</th>
-                <th className="p-2">GST %</th>
-                <th className="p-2 text-right">GST Amt</th>
+                <th className="p-2 text-right">GST Amount</th>
+                <th className="p-2 text-right">SGST Amount</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -1295,8 +1295,8 @@ function AddVendorBillModal({
                   <td className="p-2">{it.qty}</td>
                   <td className="p-2">₹{it.rate.toLocaleString('en-IN')}</td>
                   <td className="p-2">₹{it.amount.toLocaleString('en-IN')}</td>
-                  <td className="p-2">{it.gstRate}%</td>
-                  <td className="p-2 text-right">₹{it.gstAmount.toLocaleString('en-IN')}</td>
+                  <td className="p-2 text-right">₹{(it.gstAmount || 0).toLocaleString('en-IN')}</td>
+                  <td className="p-2 text-right">₹{(it.sgstAmount || 0).toLocaleString('en-IN')}</td>
                 </tr>
               ))}
             </tbody>
@@ -1304,8 +1304,8 @@ function AddVendorBillModal({
           <div className="p-3 bg-gray-50 border-t border-gray-200 grid grid-cols-2 text-xs">
             <div className="space-y-1">
               <div>Sub Total: <b>₹{subTotal.toLocaleString('en-IN')}</b></div>
-              <div>CGST (9% / 6%): <b>₹{cgst.toLocaleString('en-IN')}</b></div>
-              <div>SGST (9% / 6%): <b>₹{sgst.toLocaleString('en-IN')}</b></div>
+              <div>GST Amount: <b>₹{cgst.toLocaleString('en-IN')}</b></div>
+              <div>SGST Amount: <b>₹{sgst.toLocaleString('en-IN')}</b></div>
             </div>
             <div className="text-right space-y-1">
               <div>Total GST: <b>₹{totalGst.toLocaleString('en-IN')}</b></div>
@@ -1407,33 +1407,236 @@ function AddVendorBillModal({
   );
 }
 
+function UpdateBillModal({
+  bill,
+  onClose,
+  onSave
+}: {
+  bill: VendorBillRecord;
+  onClose: () => void;
+  onSave: (bill: VendorBillRecord) => void;
+}) {
+  const [vendorInvoiceNo, setVendorInvoiceNo] = useState(bill.vendorInvoiceNo);
+  const [invoiceDate, setInvoiceDate] = useState(bill.invoiceDate);
+  const [dueDate, setDueDate] = useState(bill.dueDate);
+  const [paymentTerms, setPaymentTerms] = useState(bill.paymentTerms);
+  const [items, setItems] = useState<BillItem[]>(bill.items.map((it) => ({ ...it })));
+
+  const subTotal = items.reduce((acc, it) => acc + (it.amount || 0), 0);
+  const gstTotal = items.reduce((acc, it) => acc + (it.gstAmount || 0), 0);
+  const sgstTotal = items.reduce((acc, it) => acc + (it.sgstAmount || 0), 0);
+  const grandTotal = subTotal + gstTotal + sgstTotal;
+
+  const changeItem = (index: number, field: keyof BillItem, value: string | number) => {
+    setItems((prev) =>
+      prev.map((it, i) => {
+        if (i !== index) return it;
+        const next = { ...it, [field]: value };
+        if (field === 'qty' || field === 'rate') {
+          const qty = field === 'qty' ? Number(value) : next.qty;
+          const rate = field === 'rate' ? Number(value) : next.rate;
+          next.qty = qty;
+          next.rate = rate;
+          next.amount = (qty || 0) * (rate || 0);
+        }
+        if (field === 'gstAmount' || field === 'sgstAmount') {
+          next[field] = Number(value) || 0;
+        }
+        return next;
+      })
+    );
+  };
+
+  const handleSave = () => {
+    onSave({
+      ...bill,
+      vendorInvoiceNo,
+      invoiceDate,
+      dueDate,
+      paymentTerms,
+      items,
+      subTotal,
+      cgst: gstTotal,
+      sgst: sgstTotal,
+      totalGst: gstTotal + sgstTotal,
+      grandTotal
+    });
+  };
+
+  return (
+    <Modal isOpen onClose={onClose} title={`Update Bill Details — ${bill.billNo}`} size="lg">
+      <div className="space-y-4 text-xs">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+          <div>
+            <label className="block text-gray-600 mb-0.5 font-medium">Vendor Invoice No.</label>
+            <input
+              type="text"
+              value={vendorInvoiceNo}
+              onChange={(e) => setVendorInvoiceNo(e.target.value)}
+              className="w-full p-1.5 border border-gray-300 rounded text-xs"
+            />
+          </div>
+          <div>
+            <label className="block text-gray-600 mb-0.5 font-medium">Invoice Date</label>
+            <input
+              type="text"
+              value={invoiceDate}
+              onChange={(e) => setInvoiceDate(e.target.value)}
+              className="w-full p-1.5 border border-gray-300 rounded text-xs"
+            />
+          </div>
+          <div>
+            <label className="block text-gray-600 mb-0.5 font-medium">Due Date</label>
+            <input
+              type="text"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+              className="w-full p-1.5 border border-gray-300 rounded text-xs"
+            />
+          </div>
+          <div>
+            <label className="block text-gray-600 mb-0.5 font-medium">Payment Terms</label>
+            <input
+              type="text"
+              value={paymentTerms}
+              onChange={(e) => setPaymentTerms(e.target.value)}
+              className="w-full p-1.5 border border-gray-300 rounded text-xs"
+            />
+          </div>
+        </div>
+
+        <div className="border border-gray-200 rounded-lg overflow-hidden">
+          <div className="bg-gray-100 p-2 font-bold text-gray-700">ITEM DETAILS</div>
+          <table className="w-full text-left text-xs">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="p-2">Description</th>
+                <th className="p-2 w-16">Qty</th>
+                <th className="p-2 w-24">Rate</th>
+                <th className="p-2 w-24 text-right">GST Amount</th>
+                <th className="p-2 w-24 text-right">SGST Amount</th>
+                <th className="p-2 w-24 text-right">Amount</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {items.map((it, idx) => (
+                <tr key={it.id}>
+                  <td className="p-2">
+                    <input
+                      type="text"
+                      value={it.description}
+                      onChange={(e) => changeItem(idx, 'description', e.target.value)}
+                      className="w-full p-1 border border-gray-300 rounded text-xs"
+                    />
+                  </td>
+                  <td className="p-2">
+                    <input
+                      type="number"
+                      value={it.qty}
+                      onChange={(e) => changeItem(idx, 'qty', Number(e.target.value))}
+                      className="w-full p-1 border border-gray-300 rounded text-xs"
+                    />
+                  </td>
+                  <td className="p-2">
+                    <input
+                      type="number"
+                      value={it.rate}
+                      onChange={(e) => changeItem(idx, 'rate', Number(e.target.value))}
+                      className="w-full p-1 border border-gray-300 rounded text-xs"
+                    />
+                  </td>
+                  <td className="p-2">
+                    <input
+                      type="number"
+                      value={it.gstAmount || 0}
+                      onChange={(e) => changeItem(idx, 'gstAmount', Number(e.target.value))}
+                      className="w-full p-1 border border-gray-300 rounded text-xs text-right"
+                    />
+                  </td>
+                  <td className="p-2">
+                    <input
+                      type="number"
+                      value={it.sgstAmount || 0}
+                      onChange={(e) => changeItem(idx, 'sgstAmount', Number(e.target.value))}
+                      className="w-full p-1 border border-gray-300 rounded text-xs text-right"
+                    />
+                  </td>
+                  <td className="p-2 text-right font-semibold">₹{it.amount.toLocaleString('en-IN')}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="p-3 bg-gray-50 border-t border-gray-200 text-right space-y-1">
+            <div>Sub Total: <b>₹{subTotal.toLocaleString('en-IN')}</b></div>
+            <div>GST Amount: <b>₹{gstTotal.toLocaleString('en-IN')}</b></div>
+            <div>SGST Amount: <b>₹{sgstTotal.toLocaleString('en-IN')}</b></div>
+            <div className="text-sm font-bold text-emerald-800">Grand Total: ₹{grandTotal.toLocaleString('en-IN')}</div>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 pt-2 border-t border-gray-200">
+          <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
+          <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white" onClick={handleSave}>
+            Save Bill Details
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 // ----------------------------------------------------------------------------
 // BILL APPROVAL VIEW MODAL (PAGE 5 INCLUDED)
 // ----------------------------------------------------------------------------
+
+function billGstTotals(bill: VendorBillRecord) {
+  const gstAmount = bill.items.reduce((s, it) => s + (it.gstAmount || 0), 0) || bill.cgst;
+  const sgstAmount = bill.items.reduce((s, it) => s + (it.sgstAmount || 0), 0) || bill.sgst;
+  return { gstAmount, sgstAmount };
+}
+
+function billDocumentHtml(bill: VendorBillRecord) {
+  const { gstAmount, sgstAmount } = billGstTotals(bill);
+  return tableHtml(
+    `Vendor Bill — ${bill.billNo}`,
+    ['#', 'Description', 'Qty', 'Rate', 'Amount', 'GST Amount', 'SGST Amount'],
+    bill.items.map((it, idx) => [
+      idx + 1,
+      it.description,
+      it.qty,
+      inr(it.rate),
+      inr(it.amount),
+      inr(it.gstAmount || 0),
+      inr(it.sgstAmount || 0)
+    ]).concat([['', 'Totals', '', '', inr(bill.subTotal), inr(gstAmount), inr(sgstAmount)]])
+  );
+}
 
 function BillApprovalDetailModal({
   bill,
   onClose,
   onApprove,
   onReject,
-  onUpdate
+  onEditDetails
 }: {
   bill: VendorBillRecord;
   onClose: () => void;
   onApprove: (remarks: string, approver: string) => void;
   onReject: (remarks: string) => void;
-  onUpdate: (remarks: string, approver: string) => void;
+  onEditDetails: () => void;
 }) {
   const [remarks, setRemarks] = useState('');
   const [approver, setApprover] = useState('Principal — Mr. A. Sharma');
   /** “Check Bill Details” reveals the document trail / 3-way match / budget panels */
-  const [showDetails, setShowDetails] = useState(false);
+  const [showDetails, setShowDetails] = useState(bill.status === 'Paid');
+  const paymentDone = bill.status === 'Paid';
 
   const safeAlreadySpent = bill.alreadySpent || 0;
   const safeAnnualBudget = bill.annualBudget || 0;
   const safeGrandTotal = bill.grandTotal || 0;
   const totalAfterApproval = safeAlreadySpent + safeGrandTotal;
   const remainingBudget = safeAnnualBudget - totalAfterApproval;
+  const { gstAmount, sgstAmount } = billGstTotals(bill);
 
   return (
     <Modal
@@ -1485,6 +1688,14 @@ function BillApprovalDetailModal({
               <span className="font-bold text-emerald-700">
                 ₹{bill.grandTotal.toLocaleString('en-IN')} (Incl. GST)
               </span>
+            </div>
+            <div>
+              <span className="text-gray-400 block text-[10px]">GST Amount:</span>
+              <span className="font-semibold">₹{gstAmount.toLocaleString('en-IN')}</span>
+            </div>
+            <div>
+              <span className="text-gray-400 block text-[10px]">SGST Amount:</span>
+              <span className="font-semibold">₹{sgstAmount.toLocaleString('en-IN')}</span>
             </div>
           </div>
         </div>
@@ -1560,7 +1771,8 @@ function BillApprovalDetailModal({
                 <th className="p-1.5">Item Description</th>
                 <th className="p-1.5 text-right">Qty</th>
                 <th className="p-1.5 text-right">Rate</th>
-                <th className="p-1.5 text-right">GST</th>
+                <th className="p-1.5 text-right">GST Amount</th>
+                <th className="p-1.5 text-right">SGST Amount</th>
                 <th className="p-1.5 text-right">Total</th>
                 <th className="p-1.5 text-center">3-Way Match</th>
               </tr>
@@ -1574,7 +1786,8 @@ function BillApprovalDetailModal({
                   <td className="p-1.5 text-right font-mono">{item.qty}</td>
                   <td className="p-1.5 text-right font-mono">₹{(item.rate || 0).toLocaleString('en-IN')}</td>
                   <td className="p-1.5 text-right font-mono text-gray-600">₹{(item.gstAmount || 0).toLocaleString('en-IN')}</td>
-                  <td className="p-1.5 text-right font-mono font-bold text-gray-900">₹{((item.amount || 0) + (item.gstAmount || 0)).toLocaleString('en-IN')}</td>
+                  <td className="p-1.5 text-right font-mono text-gray-600">₹{(item.sgstAmount || 0).toLocaleString('en-IN')}</td>
+                  <td className="p-1.5 text-right font-mono font-bold text-gray-900">₹{((item.amount || 0) + (item.gstAmount || 0) + (item.sgstAmount || 0)).toLocaleString('en-IN')}</td>
                   <td className="p-1.5 text-center font-bold">
                     {bill.threeWayStatus === 'Matched' ? (
                       <span className="text-emerald-700">✅ Matched</span>
@@ -1621,7 +1834,7 @@ function BillApprovalDetailModal({
           </div>
         )}
 
-        {/* PANEL 6: APPROVER REMARKS */}
+        {!paymentDone && (
         <div className="border border-indigo-200 rounded-lg p-3 bg-indigo-50/40 space-y-2">
           <div className="font-bold text-indigo-900 text-[11px]">
             PANEL 6: APPROVER REMARKS (Mandatory)
@@ -1658,24 +1871,45 @@ function BillApprovalDetailModal({
             </div>
           </div>
         </div>
+        )}
 
-        {/* Bottom Actions — Check Bill Details · Update · Reject · Approve Payment */}
         <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-gray-200">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowDetails((v) => !v)}
-            className="text-xs flex items-center gap-1 text-gray-700"
-          >
-            <Eye className="w-3.5 h-3.5" />
-            {showDetails ? 'Hide Bill Details' : '🔍 Check Bill Details'}
-          </Button>
+          <div className="flex items-center gap-2">
+            {!paymentDone && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowDetails((v) => !v)}
+                className="text-xs flex items-center gap-1 text-gray-700"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                {showDetails ? 'Hide Bill Details' : '🔍 Check Bill Details'}
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => printHtml(billDocumentHtml(bill))}
+              className="text-xs flex items-center gap-1 text-gray-700"
+            >
+              <Printer className="w-3.5 h-3.5" /> Print
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => downloadText(`${bill.billNo}.html`, billDocumentHtml(bill))}
+              className="text-xs flex items-center gap-1 text-gray-700"
+            >
+              <Download className="w-3.5 h-3.5" /> Download
+            </Button>
+          </div>
 
+          {!paymentDone && (
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
-              onClick={() => onUpdate(remarks || 'Bill details re-checked and updated by reviewer', approver)}
+              onClick={onEditDetails}
               className="text-indigo-700 border-indigo-200 hover:bg-indigo-50 text-xs"
             >
               <RotateCcw className="w-3 h-3 mr-1" /> Update
@@ -1696,6 +1930,7 @@ function BillApprovalDetailModal({
               <Check className="w-3.5 h-3.5 mr-1" /> ✅ Approve Payment
             </Button>
           </div>
+          )}
         </div>
       </div>
     </Modal>
@@ -1736,13 +1971,6 @@ const BANK_ACCOUNTS = [
   'SBI — Current A/c XXXX4521',
   'HDFC — Operational A/c XXXX9912',
   'ICICI — Fee Collection A/c XXXX8841'
-];
-const TDS_SECTIONS: { section: string; label: string; rate: number }[] = [
-  { section: '194C', label: '194C — Contractors (2%)', rate: 2 },
-  { section: '194J', label: '194J — Professional / Technical (10%)', rate: 10 },
-  { section: '194H', label: '194H — Commission (5%)', rate: 5 },
-  { section: '194Q', label: '194Q — Purchase of goods (0.1%)', rate: 0.1 },
-  { section: 'None', label: 'No TDS applicable', rate: 0 }
 ];
 
 const INITIAL_PAYMENTS: VendorPaymentRecord[] = [
@@ -1850,20 +2078,11 @@ function PaymentModal({
   const [bankAccount, setBankAccount] = useState(BANK_ACCOUNTS[0]);
   const [txnRef, setTxnRef] = useState('');
   const [chequeNo, setChequeNo] = useState('');
-  const [tdsSection, setTdsSection] = useState('194C');
-  const [tdsAmount, setTdsAmount] = useState(String(Math.round((outstanding * 2) / 100)));
   const [grossAmount, setGrossAmount] = useState(String(outstanding));
   const [remarks, setRemarks] = useState('');
   const [error, setError] = useState('');
 
-  const section = TDS_SECTIONS.find((s) => s.section === tdsSection) || TDS_SECTIONS[0];
-  const netPaid = Math.max(0, Number(grossAmount || 0) - Number(tdsAmount || 0));
-
-  const applySection = (value: string) => {
-    setTdsSection(value);
-    const rate = (TDS_SECTIONS.find((s) => s.section === value) || TDS_SECTIONS[0]).rate;
-    setTdsAmount(String(Math.round((Number(grossAmount || 0) * rate) / 100)));
-  };
+  const netPaid = Math.max(0, Number(grossAmount || 0));
 
   const submit = () => {
     if (!Number(grossAmount) || Number(grossAmount) <= 0) return setError('Enter the amount being paid.');
@@ -1886,8 +2105,8 @@ function PaymentModal({
       chequeNo: mode === 'Cheque' ? chequeNo : undefined,
       txnRef: mode === 'Cheque' ? chequeNo : txnRef || 'CASH-COUNTER',
       grossAmount: Number(grossAmount),
-      tdsSection,
-      tdsAmount: Number(tdsAmount || 0),
+      tdsSection: 'None',
+      tdsAmount: 0,
       netPaid,
       status: 'Paid',
       remarks: remarks || `Payment against ${bill.billNo}`,
@@ -1978,35 +2197,14 @@ function PaymentModal({
             </div>
           )}
           <div>
-            <label className="block text-[11px] font-semibold text-gray-600 mb-1">TDS Section</label>
-            <Select
-              options={TDS_SECTIONS.map((s) => ({ value: s.section, label: s.label }))}
-              value={tdsSection}
-              onChange={(v: any) => applySection(typeof v === 'string' ? v : v?.target?.value ?? tdsSection)}
-            />
-          </div>
-          <div>
             <label className="block text-[11px] font-semibold text-gray-600 mb-1">
-              Amount Being Paid (₹) · TDS @ {section.rate}%
+              Amount Being Paid (₹)
             </label>
             <input
               type="number"
               aria-label="Amount being paid"
               value={grossAmount}
-              onChange={(e) => {
-                setGrossAmount(e.target.value);
-                setTdsAmount(String(Math.round((Number(e.target.value || 0) * section.rate) / 100)));
-              }}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-          <div>
-            <label className="block text-[11px] font-semibold text-gray-600 mb-1">TDS Amount (₹)</label>
-            <input
-              type="number"
-              aria-label="TDS amount"
-              value={tdsAmount}
-              onChange={(e) => setTdsAmount(e.target.value)}
+              onChange={(e) => setGrossAmount(e.target.value)}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
@@ -2022,14 +2220,10 @@ function PaymentModal({
           </div>
         </div>
 
-        <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-3 grid grid-cols-3 gap-3">
+        <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-3 grid grid-cols-2 gap-3">
           <div>
             <span className="block text-[10px] text-indigo-500">Gross Payable</span>
             <span className="font-bold text-indigo-900">₹{Number(grossAmount || 0).toLocaleString('en-IN')}</span>
-          </div>
-          <div>
-            <span className="block text-[10px] text-indigo-500">Less: TDS ({tdsSection})</span>
-            <span className="font-bold text-rose-700">- ₹{Number(tdsAmount || 0).toLocaleString('en-IN')}</span>
           </div>
           <div>
             <span className="block text-[10px] text-indigo-500">Net Payable to Vendor</span>
@@ -2066,15 +2260,12 @@ function BulkPaymentModal({
   const [paymentDate, setPaymentDate] = useState(paymentToday());
   const [mode, setMode] = useState<VendorPaymentRecord['mode']>('NEFT');
   const [bankAccount, setBankAccount] = useState(BANK_ACCOUNTS[0]);
-  const [applyTds, setApplyTds] = useState(true);
   const [txnRef, setTxnRef] = useState('');
 
   const rows = bills.map((b) => {
-    const tds = applyTds ? Math.round((b.grandTotal * 2) / 100) : 0;
-    return { bill: b, tds, net: b.grandTotal - tds };
+    return { bill: b, net: b.grandTotal };
   });
   const totalGross = rows.reduce((s, r) => s + r.bill.grandTotal, 0);
-  const totalTds = rows.reduce((s, r) => s + r.tds, 0);
   const totalNet = rows.reduce((s, r) => s + r.net, 0);
 
   const submit = () => {
@@ -2093,8 +2284,8 @@ function BulkPaymentModal({
         chequeNo: undefined,
         txnRef: txnRef || `BULK-${mode}-${paymentDate}`,
         grossAmount: r.bill.grandTotal,
-        tdsSection: applyTds ? '194C' : 'None',
-        tdsAmount: r.tds,
+        tdsSection: 'None',
+        tdsAmount: 0,
         netPaid: r.net,
         status: 'Paid' as PaymentStatus,
         remarks: `Bulk payment run (${bills.length} bills)`,
@@ -2143,15 +2334,6 @@ function BulkPaymentModal({
           </div>
         </div>
 
-        <label className="flex items-center gap-2 text-xs text-gray-700">
-          <input
-            type="checkbox"
-            aria-label="Apply TDS"
-            checked={applyTds}
-            onChange={(e) => setApplyTds(e.target.checked)} />
-          Apply section 194C TDS @ 2% on all selected bills
-        </label>
-
         <div className="overflow-hidden rounded-lg border border-gray-200">
           <table className="w-full text-left text-xs">
             <thead className="bg-gray-50 border-b border-gray-200 text-gray-600 font-semibold uppercase tracking-wider">
@@ -2159,7 +2341,6 @@ function BulkPaymentModal({
                 <th className="p-3">Bill No.</th>
                 <th className="p-3">Vendor</th>
                 <th className="p-3">Bill Amount</th>
-                <th className="p-3">TDS</th>
                 <th className="p-3">Net Payable</th>
               </tr>
             </thead>
@@ -2169,7 +2350,6 @@ function BulkPaymentModal({
                   <td className="p-3 font-mono text-indigo-700">{r.bill.billNo}</td>
                   <td className="p-3 text-gray-800">{r.bill.vendorName}</td>
                   <td className="p-3">₹{r.bill.grandTotal.toLocaleString('en-IN')}</td>
-                  <td className="p-3 text-rose-700">₹{r.tds.toLocaleString('en-IN')}</td>
                   <td className="p-3 font-semibold text-emerald-700">₹{r.net.toLocaleString('en-IN')}</td>
                 </tr>
               ))}
@@ -2180,7 +2360,6 @@ function BulkPaymentModal({
                   Total ({bills.length} bills)
                 </td>
                 <td className="p-3">₹{totalGross.toLocaleString('en-IN')}</td>
-                <td className="p-3 text-rose-700">₹{totalTds.toLocaleString('en-IN')}</td>
                 <td className="p-3 text-emerald-700" data-testid="bulk-payment-total">
               ₹{totalNet.toLocaleString('en-IN')}
             </td>
@@ -2229,7 +2408,6 @@ function PaymentRegisterSection({
   });
 
   const totalGross = filtered.reduce((s, p) => s + p.grossAmount, 0);
-  const totalTds = filtered.reduce((s, p) => s + p.tdsAmount, 0);
   const totalNet = filtered.reduce((s, p) => s + p.netPaid, 0);
 
   const exportCsv = () => {
@@ -2242,8 +2420,6 @@ function PaymentRegisterSection({
       'Bank Account',
       'Cheque / UTR',
       'Gross Amount',
-      'TDS Section',
-      'TDS Amount',
       'Net Paid',
       'Status'
     ];
@@ -2256,8 +2432,6 @@ function PaymentRegisterSection({
       p.bankAccount,
       p.txnRef,
       p.grossAmount,
-      p.tdsSection,
-      p.tdsAmount,
       p.netPaid,
       p.status
     ]);
@@ -2276,14 +2450,13 @@ function PaymentRegisterSection({
     printHtml(
       tableHtml(
         'Vendor Payment Register',
-        ['Payment No', 'Date', 'Bill No', 'Vendor', 'Mode', 'TDS', 'Net Paid', 'Status'],
+        ['Payment No', 'Date', 'Bill No', 'Vendor', 'Mode', 'Net Paid', 'Status'],
         filtered.map((p) => [
           p.paymentNo,
           p.paymentDate,
           p.billNo,
           p.vendorName,
           p.mode,
-          inr(p.tdsAmount),
           inr(p.netPaid),
           p.status
         ])
@@ -2301,8 +2474,7 @@ function PaymentRegisterSection({
           <div>
             <h2 className="text-sm font-bold text-gray-900">Vendor Payment Register</h2>
             <p className="text-xs text-gray-500">
-              {filtered.length} payment(s) · Paid ₹{totalNet.toLocaleString('en-IN')} · TDS ₹
-              {totalTds.toLocaleString('en-IN')} on ₹{totalGross.toLocaleString('en-IN')} gross
+              {filtered.length} payment(s) · Paid ₹{totalNet.toLocaleString('en-IN')} on ₹{totalGross.toLocaleString('en-IN')} gross
             </p>
           </div>
         </div>
@@ -2352,7 +2524,6 @@ function PaymentRegisterSection({
               <th className="p-3">Mode</th>
               <th className="p-3">Bank / Cheque / UTR</th>
               <th className="p-3">Gross</th>
-              <th className="p-3">TDS</th>
               <th className="p-3">Net Paid</th>
               <th className="p-3">Status</th>
               <th className="p-3 text-right">Actions</th>
@@ -2377,10 +2548,6 @@ function PaymentRegisterSection({
                   <div className="text-[11px] text-gray-500 font-mono">{p.txnRef}</div>
                 </td>
                 <td className="p-3 text-gray-800">₹{p.grossAmount.toLocaleString('en-IN')}</td>
-                <td className="p-3 text-rose-700">
-                  ₹{p.tdsAmount.toLocaleString('en-IN')}
-                  <div className="text-[10px] text-gray-500">{p.tdsSection}</div>
-                </td>
                 <td className="p-3 font-semibold text-gray-900">₹{p.netPaid.toLocaleString('en-IN')}</td>
                 <td className="p-3">
                   <span
@@ -2410,7 +2577,7 @@ function PaymentRegisterSection({
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={10} className="p-8 text-center text-gray-500">
+                <td colSpan={9} className="p-8 text-center text-gray-500">
                   No payments recorded for the selected filters.
                 </td>
               </tr>
@@ -2423,7 +2590,6 @@ function PaymentRegisterSection({
                   Total ({filtered.length} payments)
                 </td>
                 <td className="p-3">₹{totalGross.toLocaleString('en-IN')}</td>
-                <td className="p-3 text-rose-700">₹{totalTds.toLocaleString('en-IN')}</td>
                 <td className="p-3 text-emerald-700">₹{totalNet.toLocaleString('en-IN')}</td>
                 <td className="p-3" colSpan={2} />
               </tr>
@@ -2450,7 +2616,6 @@ function PaymentDetailModal({ payment, onClose }: { payment: VendorPaymentRecord
             ['Cheque No.', payment.chequeNo || '—'],
             ['UTR / Reference', payment.txnRef],
             ['Gross Amount', `₹${payment.grossAmount.toLocaleString('en-IN')}`],
-            ['TDS', `${payment.tdsSection} — ₹${payment.tdsAmount.toLocaleString('en-IN')}`],
             ['Net Paid', `₹${payment.netPaid.toLocaleString('en-IN')}`],
             ['Status', payment.status],
             ['Created By', payment.createdBy],
