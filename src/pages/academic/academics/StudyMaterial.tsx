@@ -5,6 +5,7 @@ import { Input } from '../../../components/ui/Input';
 import { Select } from '../../../components/ui/Select';
 import { Table } from '../../../components/ui/Table';
 import { Badge } from '../../../components/ui/Badge';
+import { Modal } from '../../../components/ui/Modal';
 import {
   Tabs,
   TabsList,
@@ -203,6 +204,8 @@ export function StudyMaterial() {
   const [filterClass, setFilterClass] = useState('');
   const [filterStatus, setFilterStatus] = useState('Active');
   const [searchTitle, setSearchTitle] = useState('');
+  const [showUpload, setShowUpload] = useState(false);
+  const [tab, setTab] = useState('materials');
   const filteredMaterials = materialsData.filter((m) => {
     if (filterSubject && m.subject !== filterSubject) return false;
     if (filterClass && !m.class.toLowerCase().includes(filterClass))
@@ -230,8 +233,8 @@ export function StudyMaterial() {
           <Button
             variant="primary"
             size="sm"
-            leftIcon={<UploadIcon className="w-4 h-4" />}>
-
+            leftIcon={<UploadIcon className="w-4 h-4" />}
+            onClick={() => setShowUpload(true)}>
             Upload Material
           </Button>
         </div>
@@ -239,14 +242,11 @@ export function StudyMaterial() {
 
       {/* Main Content */}
       <Card noPadding>
-        <Tabs defaultValue="materials">
+        <Tabs value={tab} onValueChange={setTab}>
           <div className="px-5 pt-4">
             <TabsList>
               <TabsTrigger value="materials">
                 <BookOpenIcon className="w-3.5 h-3.5" /> Materials Library
-              </TabsTrigger>
-              <TabsTrigger value="upload">
-                <UploadIcon className="w-3.5 h-3.5" /> Upload New
               </TabsTrigger>
               <TabsTrigger value="audit">
                 <ClockIcon className="w-3.5 h-3.5" /> Audit Log
@@ -504,8 +504,8 @@ export function StudyMaterial() {
             </div>
           </TabsContent>
 
-          <TabsContent value="upload" className="p-5">
-            <div className="max-w-2xl space-y-5">
+      <Modal isOpen={showUpload} onClose={() => setShowUpload(false)} title="Upload New Study Material" size="lg">
+        <div className="max-w-2xl space-y-5">
               <h3 className="text-base font-semibold text-gray-900">
                 Upload New Study Material
               </h3>
@@ -648,10 +648,10 @@ export function StudyMaterial() {
 
                   Upload Material
                 </Button>
-                <Button variant="outline">Cancel</Button>
+                <Button variant="outline" onClick={() => setShowUpload(false)}>Cancel</Button>
               </div>
             </div>
-          </TabsContent>
+      </Modal>
 
           <TabsContent value="audit" className="p-5">
             <Table

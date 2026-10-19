@@ -507,3 +507,5 @@ export function SyllabusPlanner() {
     </div>);
 
 }
+
+export default SyllabusPlanner;

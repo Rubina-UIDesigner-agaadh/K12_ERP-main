@@ -303,6 +303,9 @@ export function EmployeeTransfer() {
   const [rejectTarget, setRejectTarget] = useState<TransferRequest | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [expandedIn, setExpandedIn] = useState(true);
+  const [incomingFormTarget, setIncomingFormTarget] = useState<TransferRequest | null>(null);
+  const [mailPreview, setMailPreview] = useState<{ transfer: TransferRequest; to: string[]; subject: string; body: string } | null>(null);
+  const [submitWarning, setSubmitWarning] = useState<string | null>(null);
 
   const filteredEmployees = mockEmployees.filter((emp) => {
     const q = searchQuery.toLowerCase();
@@ -374,31 +377,65 @@ export function EmployeeTransfer() {
   const handleInitiateTransfer = async () => {
     setIsProcessing(true);
     setActionError(null);
+    const missing: string[] = [];
+    if (!empFullName.trim()) missing.push('full name');
+    if (!empId.trim()) missing.push('employee ID');
+    if (!newBranch) missing.push('destination branch');
+    if (!effectiveDate) missing.push('effective date');
+    if (!transferNature) missing.push('transfer nature');
+    if (!transferDuration) missing.push('duration');
+    if (transferReasons.length === 0) missing.push('justification');
+    if (!(consentInformed && consentManager && consentAccurate)) missing.push('authorisation consents');
+    if (!initiatedBy.trim()) missing.push('initiated by');
+    setSubmitWarning(missing.length
+      ? `Some information is missing (${missing.join(', ')}). The transfer is still confirmed — complete the gaps when you can.`
+      : null);
     try {
       await fakeRequest();
-      setShowSuccess(true);
       setOutgoingTransfers((prev) => [{
         id: `TRF-OUT-${String(prev.length + 1).padStart(3, '0')}`,
-        employeeId: empId,
-        employeeName: empFullName,
-        employeeAvatar: selectedEmployee?.avatar || initialsFrom(empFullName),
-        employeeDesignation: empJobTitle,
-        fromBranch: selectedEmployee?.branch || labelOf(branches, currentBranch),
-        toBranch: labelOf(branches, newBranch),
-        fromDepartment: selectedEmployee?.department || empDepartment,
-        toDepartment: labelOf(departments, newDepartment) || empDepartment,
-        newDesignation: labelOf(designations, newDesignation) || empJobTitle,
-        newManager: labelOf(managers, newManager),
+        employeeId: empId || selectedEmployee?.id || 'EMP000',
+        employeeName: empFullName || selectedEmployee?.name || 'Employee',
+        employeeAvatar: selectedEmployee?.avatar || initialsFrom(empFullName || 'NA'),
+        employeeDesignation: empJobTitle || selectedEmployee?.designation || 'Staff',
+        fromBranch: selectedEmployee?.branch || labelOf(branches, currentBranch) || 'Main Campus',
+        toBranch: labelOf(branches, newBranch) || 'Destination branch',
+        fromDepartment: selectedEmployee?.department || empDepartment || '—',
+        toDepartment: labelOf(departments, newDepartment) || empDepartment || '—',
+        newDesignation: labelOf(designations, newDesignation) || empJobTitle || '—',
+        newManager: labelOf(managers, newManager) || 'HR Manager',
         requestDate: dateNowIso(),
-        effectiveDate,
+        effectiveDate: effectiveDate || tomorrowIso,
         status: 'Pending',
         currentStep: 1,
         initiatedBy: initiatedBy || 'HR Manager',
         remarks,
         type: 'Outgoing',
-        nature: transferNature,
-        duration: transferDuration
+        nature: transferNature || 'Lateral',
+        duration: transferDuration || 'Permanent'
       }, ...prev]);
+      generateOutgoingDocuments({
+        id: `TRF-OUT-${String(outgoingTransfers.length + 1).padStart(3, '0')}`,
+        employeeId: empId || selectedEmployee?.id || 'EMP000',
+        employeeName: empFullName || selectedEmployee?.name || 'Employee',
+        employeeAvatar: selectedEmployee?.avatar || initialsFrom(empFullName || 'NA'),
+        employeeDesignation: empJobTitle || selectedEmployee?.designation || 'Staff',
+        fromBranch: selectedEmployee?.branch || labelOf(branches, currentBranch) || 'Main Campus',
+        toBranch: labelOf(branches, newBranch) || 'Destination branch',
+        fromDepartment: selectedEmployee?.department || empDepartment || '—',
+        toDepartment: labelOf(departments, newDepartment) || empDepartment || '—',
+        newDesignation: labelOf(designations, newDesignation) || empJobTitle || '—',
+        newManager: labelOf(managers, newManager) || 'HR Manager',
+        requestDate: dateNowIso(),
+        effectiveDate: effectiveDate || tomorrowIso,
+        status: 'Pending',
+        currentStep: 1,
+        initiatedBy: initiatedBy || 'HR Manager',
+        remarks,
+        type: 'Outgoing',
+        nature: transferNature || 'Lateral',
+        duration: transferDuration || 'Permanent'
+      });
       handleClearSelection();
       setShowSuccess(true);
     } catch {
@@ -406,6 +443,30 @@ export function EmployeeTransfer() {
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const openOutgoingMail = (transfer: TransferRequest) => {
+    const employee = mockEmployees.find((e) => e.id === transfer.employeeId);
+    const empEmail = employee?.email || `${transfer.employeeId.toLowerCase()}@school.edu`;
+    const branchEmail = `${transfer.toBranch.toLowerCase().replace(/\s+/g, '.')}@school.edu`;
+    setMailPreview({
+      transfer,
+      to: [empEmail, branchEmail],
+      subject: `Transfer Order ${transfer.id} — ${transfer.employeeName}`,
+      body: `Dear ${transfer.employeeName},\n\nThis is to confirm your transfer from ${transfer.fromBranch} to ${transfer.toBranch} as ${transfer.newDesignation}, effective ${transfer.effectiveDate}. Please report to ${transfer.newManager}.\n\nA copy of this order is being emailed to ${transfer.toBranch} for onboarding.\n\nRegards,\nHR Department`
+    });
+  };
+
+  const generateOutgoingDocuments = (transfer: TransferRequest) => {
+    const letter = `TRANSFER ORDER\n${transfer.id}\nEmployee: ${transfer.employeeName} (${transfer.employeeId})\nFrom: ${transfer.fromBranch}\nTo: ${transfer.toBranch}\nDesignation: ${transfer.newDesignation}\nEffective: ${transfer.effectiveDate}\nReporting to: ${transfer.newManager}\n`;
+    const blob = new Blob([letter], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Transfer_${transfer.id}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    openOutgoingMail(transfer);
   };
 
   const handleProcessIncoming = async (transfer: TransferRequest, action: 'accept' | 'reject', reason?: string) => {
@@ -426,15 +487,35 @@ export function EmployeeTransfer() {
   const handleAdvance = async (transfer: TransferRequest) => {
     const max = maxStepForType(transfer.type);
     if (transfer.currentStep >= max) return;
+    if (transfer.type === 'Incoming') {
+      setIncomingFormTarget(transfer);
+      return;
+    }
     setIsProcessing(true);
     try {
       await fakeRequest();
       const newStep = Math.min(transfer.currentStep + 1, max);
-      const updater = (list: TransferRequest[]) => list.map((t) => t.id === transfer.id ? { ...t, currentStep: newStep, status: newStep >= max ? 'Completed' : 'In Progress' } : t);
-      if (transfer.type === 'Incoming') setIncomingTransfers(updater);
-      else setOutgoingTransfers(updater);
+      setOutgoingTransfers((list) => list.map((t) => t.id === transfer.id ? { ...t, currentStep: newStep, status: newStep >= max ? 'Completed' : 'In Progress' } : t));
+      if (newStep >= 6) generateOutgoingDocuments({ ...transfer, currentStep: newStep });
     } catch {
       setActionError('Failed to advance step.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const confirmIncomingAdvance = async () => {
+    if (!incomingFormTarget) return;
+    const transfer = incomingFormTarget;
+    const max = maxStepForType(transfer.type);
+    setIsProcessing(true);
+    try {
+      await fakeRequest();
+      const newStep = Math.min(transfer.currentStep + 1, max);
+      setIncomingTransfers((list) => list.map((t) => t.id === transfer.id ? { ...t, currentStep: newStep, status: newStep >= max ? 'Completed' : 'In Progress' } : t));
+      setIncomingFormTarget(null);
+    } catch {
+      setActionError('Failed to advance incoming transfer.');
     } finally {
       setIsProcessing(false);
     }
@@ -546,7 +627,8 @@ export function EmployeeTransfer() {
         <div className="relative flex items-start gap-3 p-4 bg-green-50 border border-green-200 rounded-lg">
           <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
           <div className="flex-1">
-            <p className="text-sm font-medium text-green-800">Transfer request initiated</p>
+            <p className="text-sm font-medium text-green-800">Transfer confirmed</p>
+            {submitWarning && <p className="mt-1 text-xs text-amber-800">{submitWarning}</p>}
             <button type="button" className="text-sm font-medium text-green-800 underline" onClick={() => setActiveTab('outgoing')}>View request</button>
           </div>
           <button type="button" onClick={() => setShowSuccess(false)}><X className="w-4 h-4 text-green-700" /></button>
@@ -817,30 +899,14 @@ export function EmployeeTransfer() {
                       <button type="button" className="w-full mt-2 px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm" onClick={() => setFormStep(5)}>Review & Submit</button>
                     </aside>
                   </div>
-                  <div className="px-6 pb-4">
-                    <div className="bg-gray-50 rounded-lg p-4 border">
-                      <h4 className="font-semibold text-gray-700 mb-3 flex items-center gap-2"><ClipboardList className="w-4 h-4" /> Process after submit</h4>
-                      <div className="flex items-center overflow-x-auto">
-                        {outgoingTransferSteps.map((step, i) => (
-                          <div key={step.id} className="flex items-center">
-                            <div className="flex flex-col items-center">
-                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${getStepStatus(step.id, 1) === 'current' ? 'bg-indigo-500 text-white' : 'bg-gray-200 text-gray-500'}`}>{step.id}</div>
-                              <p className="text-[10px] text-gray-600 mt-1 text-center max-w-[72px]">{step.title}</p>
-                            </div>
-                            {i < outgoingTransferSteps.length - 1 && <div className="w-6 h-0.5 mx-1 bg-gray-200" />}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
                   <div className="px-6 pb-6 flex flex-wrap justify-between gap-3">
                     <button type="button" onClick={handleClearSelection} className="px-4 py-2 border rounded-lg">Cancel</button>
                     <div className="flex gap-3">
                       {formStep > 1 && <button type="button" onClick={() => setFormStep((s) => s - 1)} className="inline-flex items-center gap-1 px-4 py-2 border rounded-lg"><ChevronLeft className="w-4 h-4" /> Back</button>}
-                      {formStep < 5 && <button type="button" disabled={!stepValid[formStep]} onClick={() => setFormStep((s) => s + 1)} className="inline-flex items-center gap-1 px-4 py-2 bg-indigo-600 text-white rounded-lg disabled:opacity-50">Next <ChevronRight className="w-4 h-4" /></button>}
+                      {formStep < 5 && <button type="button" onClick={() => setFormStep((s) => s + 1)} className="inline-flex items-center gap-1 px-4 py-2 bg-indigo-600 text-white rounded-lg">Next <ChevronRight className="w-4 h-4" /></button>}
                       {formStep === 5 && (
-                        <button type="button" onClick={handleInitiateTransfer} disabled={!isFormValid || isProcessing} className="inline-flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-lg disabled:opacity-50">
-                          {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Initiate Transfer
+                        <button type="button" onClick={handleInitiateTransfer} disabled={isProcessing} className="inline-flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-lg disabled:opacity-50">
+                          {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Confirm Transfer
                         </button>
                       )}
                     </div>
@@ -861,7 +927,8 @@ export function EmployeeTransfer() {
                         <div className="flex items-center gap-3 text-sm">
                           <span>{t.fromBranch}</span><ArrowRight className="w-4 h-4 text-gray-400" /><span className="font-medium">{t.toBranch}</span>
                           <span className={`px-2.5 py-0.5 rounded-full text-xs border ${getStatusColor(t.status)}`}>{t.status}</span>
-                          {['Approved', 'In Progress'].includes(t.status) && t.currentStep < maxStepForType(t.type) && <button type="button" onClick={() => handleAdvance(t)} className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-sm">Advance</button>}
+                          {t.currentStep < maxStepForType(t.type) && !['Rejected', 'Cancelled', 'Completed'].includes(t.status) && <button type="button" onClick={() => handleAdvance(t)} className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-sm">Advance</button>}
+                          <button type="button" onClick={() => generateOutgoingDocuments(t)} className="px-3 py-1.5 border rounded-lg text-sm inline-flex items-center gap-1"><Mail className="w-3.5 h-3.5" /> Docs &amp; Email</button>
                           <button type="button" onClick={() => setLetterPreview(t)} className="p-2 text-gray-400" aria-label="View letter"><Eye className="w-4 h-4" /></button>
                         </div>
                       </div>
@@ -1026,6 +1093,55 @@ export function EmployeeTransfer() {
             <div className="flex justify-end gap-2">
               <button type="button" className="px-4 py-2 border rounded-lg" onClick={() => setRejectTarget(null)}>Cancel</button>
               <button type="button" disabled={rejectReason.trim().length < 3} className="px-4 py-2 bg-red-600 text-white rounded-lg disabled:opacity-50" onClick={() => { void handleProcessIncoming(rejectTarget, 'reject', rejectReason); setRejectTarget(null); }}>Reject</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {incomingFormTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="max-w-3xl w-full bg-white rounded-xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-start">
+              <div>
+                <h3 className="font-semibold text-lg">Incoming employee form — {incomingFormTarget.employeeName}</h3>
+                <p className="text-sm text-gray-500">{incomingFormTarget.id} · Step {incomingFormTarget.currentStep} of {incomingTransferSteps.length}</p>
+              </div>
+              <button type="button" onClick={() => setIncomingFormTarget(null)}><X className="w-4 h-4" /></button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div><label className={labelClass}>Full name</label><input readOnly className={`${fieldClass} bg-gray-50`} value={incomingFormTarget.employeeName} /></div>
+              <div><label className={labelClass}>Employee ID</label><input readOnly className={`${fieldClass} bg-gray-50`} value={incomingFormTarget.employeeId} /></div>
+              <div><label className={labelClass}>Designation</label><input readOnly className={`${fieldClass} bg-gray-50`} value={incomingFormTarget.employeeDesignation} /></div>
+              <div><label className={labelClass}>From branch</label><input readOnly className={`${fieldClass} bg-gray-50`} value={incomingFormTarget.fromBranch} /></div>
+              <div><label className={labelClass}>To branch</label><input readOnly className={`${fieldClass} bg-gray-50`} value={incomingFormTarget.toBranch} /></div>
+              <div><label className={labelClass}>From department</label><input readOnly className={`${fieldClass} bg-gray-50`} value={incomingFormTarget.fromDepartment} /></div>
+              <div><label className={labelClass}>To department</label><input readOnly className={`${fieldClass} bg-gray-50`} value={incomingFormTarget.toDepartment} /></div>
+              <div><label className={labelClass}>New designation</label><input readOnly className={`${fieldClass} bg-gray-50`} value={incomingFormTarget.newDesignation} /></div>
+              <div><label className={labelClass}>Reporting manager</label><input readOnly className={`${fieldClass} bg-gray-50`} value={incomingFormTarget.newManager} /></div>
+              <div><label className={labelClass}>Effective date</label><input readOnly className={`${fieldClass} bg-gray-50`} value={incomingFormTarget.effectiveDate} /></div>
+              <div><label className={labelClass}>Nature</label><input readOnly className={`${fieldClass} bg-gray-50`} value={incomingFormTarget.nature || '—'} /></div>
+              <div><label className={labelClass}>Duration</label><input readOnly className={`${fieldClass} bg-gray-50`} value={incomingFormTarget.duration || '—'} /></div>
+              <div className="md:col-span-2"><label className={labelClass}>Remarks</label><textarea readOnly rows={2} className={`${fieldClass} bg-gray-50`} value={incomingFormTarget.remarks} /></div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button type="button" className="px-4 py-2 border rounded-lg" onClick={() => setIncomingFormTarget(null)}>Cancel</button>
+              <button type="button" className="px-4 py-2 bg-indigo-600 text-white rounded-lg" onClick={() => void confirmIncomingAdvance()}>Confirm &amp; Advance</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {mailPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="max-w-lg w-full bg-white rounded-xl p-6 space-y-3">
+            <div className="flex justify-between"><h3 className="font-semibold">Transfer documents &amp; email</h3><button type="button" onClick={() => setMailPreview(null)}><X className="w-4 h-4" /></button></div>
+            <p className="text-xs text-gray-500">Letter downloaded. Email draft for the employee and destination branch:</p>
+            <p className="text-sm"><span className="text-gray-500">To:</span> {mailPreview.to.join(', ')}</p>
+            <p className="text-sm"><span className="text-gray-500">Subject:</span> {mailPreview.subject}</p>
+            <pre className="text-xs whitespace-pre-wrap bg-gray-50 border rounded-lg p-3">{mailPreview.body}</pre>
+            <div className="flex justify-end gap-2">
+              <button type="button" className="px-4 py-2 border rounded-lg" onClick={() => setMailPreview(null)}>Close</button>
+              <button type="button" className="px-4 py-2 bg-indigo-600 text-white rounded-lg" onClick={() => { setShowSuccess(true); setSubmitWarning(`Email sent to ${mailPreview.to.join(' and ')}.`); setMailPreview(null); }}>Send email</button>
             </div>
           </div>
         </div>

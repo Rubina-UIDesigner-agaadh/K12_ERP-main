@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState, createElement } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, createElement } from 'react';
 import { Card } from '../../../../components/ui/Card';
 import { Button } from '../../../../components/ui/Button';
 import { Input } from '../../../../components/ui/Input';
@@ -882,6 +882,19 @@ export function RecurringActivities() {
     reminderMinutes: [15],
     notes: ''
   });
+  useEffect(() => {
+    try {
+      const extra = JSON.parse(localStorage.getItem('k12-recurring-activities-extra-v1') || '[]');
+      if (Array.isArray(extra) && extra.length) {
+        setActivities((prev) => {
+          const ids = new Set(prev.map((item) => item.id));
+          return [...extra.filter((item) => item && item.id && !ids.has(item.id)), ...prev];
+        });
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
   const stats = useMemo(
     () => ({
       total: activities.length,

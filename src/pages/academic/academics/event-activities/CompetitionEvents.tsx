@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Download, Eye, MapPin, Pencil, Plus, Search, Users, X } from 'lucide-react';
+import { ResultsAchievements } from './ResultsAchievements';
 import { Badge } from '../../../../components/ui/Badge';
 import { Button } from '../../../../components/ui/Button';
 import { Card } from '../../../../components/ui/Card';
@@ -55,6 +56,9 @@ const createEventDraft = (types: CompetitionTypeRecord[]): CompetitionEventRecor
     endDate: '',
     registrationDeadline: '',
     resultExpectedBy: '',
+    winnerHouse: '',
+    winnerClass: '',
+    winnerSchool: '',
     venueName: '',
     venueAddress: '',
     coordinator: '',
@@ -79,15 +83,27 @@ const statusVariant = (status: string): 'info' | 'warning' | 'success' | 'danger
 function CompetitionFollowUpPage({ event, mode, onBack }: { event: CompetitionEventRecord; mode: 'students' | 'results'; onBack: () => void }) {
   const [participants, setParticipants] = useState<CompetitionParticipantRecord[]>(() => loadCompetitionCollection(COMPETITION_PARTICIPANTS_STORAGE_KEY, DEFAULT_COMPETITION_PARTICIPANTS));
   const [results, setResults] = useState<CompetitionStudentResult[]>(() => loadCompetitionCollection(COMPETITION_RESULTS_STORAGE_KEY, DEFAULT_COMPETITION_RESULTS));
-  const [draft, setDraft] = useState({ studentName: '', className: '10-A', rollNumber: '' });
+  const [draft, setDraft] = useState({ studentName: '', className: '10-A', rollNumber: '', attendance: 85, parentConsent: 'Awaiting' as 'Yes' | 'Awaiting' });
   const eventParticipants = participants.filter((item) => item.eventId === event.id);
   const eventResults = results.filter((item) => item.eventId === event.id);
   const persistParticipants = (next: CompetitionParticipantRecord[]) => { setParticipants(next); saveCompetitionCollection(COMPETITION_PARTICIPANTS_STORAGE_KEY, next); };
   const persistResults = (next: CompetitionStudentResult[]) => { setResults(next); saveCompetitionCollection(COMPETITION_RESULTS_STORAGE_KEY, next); };
+  const classGroup = (() => {
+    const grade = Number(draft.className.match(/\d+/)?.[0] || 0);
+    if (grade >= 1 && grade <= 5) return ELIGIBLE_CLASS_GROUPS[0];
+    if (grade >= 6 && grade <= 8) return ELIGIBLE_CLASS_GROUPS[1];
+    if (grade >= 9 && grade <= 10) return ELIGIBLE_CLASS_GROUPS[2];
+    if (grade >= 11 && grade <= 12) return ELIGIBLE_CLASS_GROUPS[3];
+    return '';
+  })();
+  const classEligible = event.eligibleClasses.includes(classGroup);
+  const attendanceEligible = draft.attendance >= event.minimumAttendance;
+  const capacityAvailable = eventParticipants.length < event.maxParticipants;
+  const isEligible = classEligible && attendanceEligible && capacityAvailable;
   const addStudent = () => {
-    if (!draft.studentName.trim()) return;
-    persistParticipants([{ id: `part-${Date.now()}`, eventId: event.id, studentName: draft.studentName.trim(), className: draft.className, rollNumber: draft.rollNumber.trim() || '—', registrationStatus: 'Pending', parentConsent: 'Awaiting', attendance: 0, disciplineClear: true }, ...participants]);
-    setDraft({ studentName: '', className: '10-A', rollNumber: '' });
+    if (!draft.studentName.trim() || !isEligible) return;
+    persistParticipants([{ id: `part-${Date.now()}`, eventId: event.id, studentName: draft.studentName.trim(), className: draft.className, rollNumber: draft.rollNumber.trim() || '—', registrationStatus: draft.parentConsent === 'Yes' ? 'Confirmed' : 'Pending', parentConsent: draft.parentConsent, attendance: draft.attendance, disciplineClear: true }, ...participants]);
+    setDraft({ studentName: '', className: '10-A', rollNumber: '', attendance: 85, parentConsent: 'Awaiting' });
   };
   const updateResult = (id: string, patch: Partial<CompetitionStudentResult>) => {
     persistResults(results.map((item) => item.id === id ? { ...item, ...patch } : item));
@@ -108,18 +124,30 @@ function CompetitionFollowUpPage({ event, mode, onBack }: { event: CompetitionEv
       </div>
       {mode === 'students' ? (
         <div className="space-y-4">
-          <div className="grid gap-3 md:grid-cols-4">
-            <input className={inputClass} placeholder="Student name" value={draft.studentName} onChange={(change) => setDraft((current) => ({ ...current, studentName: change.target.value }))} />
-            <input className={inputClass} placeholder="Class" value={draft.className} onChange={(change) => setDraft((current) => ({ ...current, className: change.target.value }))} />
-            <input className={inputClass} placeholder="Roll no." value={draft.rollNumber} onChange={(change) => setDraft((current) => ({ ...current, rollNumber: change.target.value }))} />
-            <Button onClick={addStudent}><Plus className="h-4 w-4" />Add student</Button>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <h3 className="text-sm font-bold text-slate-900">Register a student</h3>
+            <p className="mt-1 text-xs text-slate-500">Add a student to this competition. Eligibility is checked against class, attendance and remaining slots.</p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              <input className={inputClass} placeholder="Student name" value={draft.studentName} onChange={(change) => setDraft((current) => ({ ...current, studentName: change.target.value }))} />
+              <select className={inputClass} value={draft.className} onChange={(change) => setDraft((current) => ({ ...current, className: change.target.value }))}>{['6-A', '7-A', '8-A', '9-A', '10-A', '10-B', '11-A', '12-B'].map((className) => <option key={className}>{className}</option>)}</select>
+              <input className={inputClass} placeholder="Roll no." value={draft.rollNumber} onChange={(change) => setDraft((current) => ({ ...current, rollNumber: change.target.value }))} />
+              <input type="number" min={0} max={100} className={inputClass} value={draft.attendance} onChange={(change) => setDraft((current) => ({ ...current, attendance: Number(change.target.value) }))} />
+              <select className={inputClass} value={draft.parentConsent} onChange={(change) => setDraft((current) => ({ ...current, parentConsent: change.target.value as 'Yes' | 'Awaiting' }))}><option>Awaiting</option><option>Yes</option></select>
+            </div>
+            <ul className="mt-3 grid gap-1 text-xs sm:grid-cols-2">
+              <li className={classEligible ? 'text-emerald-700' : 'text-rose-700'}>{classEligible ? '✓' : '✕'} Class {draft.className} {classEligible ? 'is eligible' : 'is not included in this event'}</li>
+              <li className={attendanceEligible ? 'text-emerald-700' : 'text-rose-700'}>{attendanceEligible ? '✓' : '✕'} Attendance {draft.attendance}% · minimum {event.minimumAttendance}%</li>
+              <li className={capacityAvailable ? 'text-emerald-700' : 'text-rose-700'}>{capacityAvailable ? '✓' : '✕'} {capacityAvailable ? `${Math.max(0, event.maxParticipants - eventParticipants.length)} slot(s) remain` : 'Maximum participants reached'}</li>
+            </ul>
+            <div className="mt-3"><Button onClick={addStudent} disabled={!draft.studentName.trim() || !isEligible}><Plus className="h-4 w-4" />Register student</Button></div>
           </div>
+          <p className="text-sm font-semibold text-slate-800">{eventParticipants.length} student(s) registered</p>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[720px] text-left text-sm">
-              <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500"><tr><th className="px-3 py-2">Student</th><th className="px-3 py-2">Class</th><th className="px-3 py-2">Roll</th><th className="px-3 py-2">Status</th><th className="px-3 py-2">Consent</th></tr></thead>
+              <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500"><tr><th className="px-3 py-2">Student</th><th className="px-3 py-2">Class</th><th className="px-3 py-2">Roll</th><th className="px-3 py-2">Status</th><th className="px-3 py-2">Consent</th><th className="px-3 py-2">Attendance</th></tr></thead>
               <tbody className="divide-y divide-slate-100">{eventParticipants.map((participant) => (
-                <tr key={participant.id}><td className="px-3 py-2 font-medium">{participant.studentName}</td><td className="px-3 py-2">{participant.className}</td><td className="px-3 py-2">{participant.rollNumber}</td><td className="px-3 py-2"><Badge variant={participant.registrationStatus === 'Confirmed' ? 'success' : participant.registrationStatus === 'Rejected' ? 'danger' : 'warning'}>{participant.registrationStatus}</Badge></td><td className="px-3 py-2">{participant.parentConsent}</td></tr>
-              ))}{eventParticipants.length === 0 && <tr><td colSpan={5} className="px-3 py-8 text-center text-sm text-slate-400">No students registered yet.</td></tr>}</tbody>
+                <tr key={participant.id}><td className="px-3 py-2 font-medium">{participant.studentName}</td><td className="px-3 py-2">{participant.className}</td><td className="px-3 py-2">{participant.rollNumber}</td><td className="px-3 py-2"><Badge variant={participant.registrationStatus === 'Confirmed' ? 'success' : participant.registrationStatus === 'Rejected' ? 'danger' : 'warning'}>{participant.registrationStatus}</Badge></td><td className="px-3 py-2">{participant.parentConsent}</td><td className="px-3 py-2">{participant.attendance}%</td></tr>
+              ))}{eventParticipants.length === 0 && <tr><td colSpan={6} className="px-3 py-8 text-center text-sm text-slate-400">No students registered yet.</td></tr>}</tbody>
             </table>
           </div>
         </div>
@@ -267,8 +295,11 @@ export function CompetitionEvents() {
         <div className="border-t border-slate-100 px-4 py-3 text-xs text-slate-500">Status: Planning · Registration Open · Registration Closed · Ongoing · Completed · Cancelled</div>
       </Card></>}
 
-      {workspace && workspaceEvent && (
-        <CompetitionFollowUpPage event={workspaceEvent} mode={workspace.mode} onBack={() => setWorkspace(null)} />
+      {workspace && workspaceEvent && workspace.mode === 'students' && (
+        <CompetitionFollowUpPage event={workspaceEvent} mode="students" onBack={() => setWorkspace(null)} />
+      )}
+      {workspace && workspaceEvent && workspace.mode === 'results' && (
+        <ResultsAchievements embeddedEventId={workspaceEvent.id} onBack={() => setWorkspace(null)} />
       )}
 
       <Modal isOpen={Boolean(form)} onClose={() => setForm(null)} title={form?.id && events.some((event) => event.id === form.id) ? 'Edit Competition Event' : 'Create Competition Event'} size="xl" footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="outline" onClick={() => setForm(null)}><X className="h-4 w-4" />Cancel</Button><Button onClick={saveEvent}>Save Competition Event</Button></div>}>
@@ -310,6 +341,15 @@ export function CompetitionEvents() {
           <section className={panelClass}><h3 className="mb-3 text-sm font-bold text-slate-900">Panel 6 · Registration & Fee</h3><div className="grid gap-3 md:grid-cols-2"><Field label="External Registration Required"><select className={inputClass} value={String(form.externalRegistrationRequired)} onChange={(event) => updateForm('externalRegistrationRequired', event.target.value === 'true')}><option value="true">Yes — submit to organizer</option><option value="false">No</option></select></Field><Field label="Registration Portal"><input className={inputClass} value={form.registrationPortal} onChange={(event) => updateForm('registrationPortal', event.target.value)} placeholder="https://…" /></Field><Field label="Registration Fee"><select className={inputClass} value={String(form.feeRequired)} onChange={(event) => updateForm('feeRequired', event.target.value === 'true')}><option value="false">No — free</option><option value="true">Yes</option></select></Field>{form.feeRequired && <Field label="Fee per Student (₹)"><input type="number" min={0} className={inputClass} value={form.registrationFee} onChange={(event) => updateForm('registrationFee', Number(event.target.value))} /></Field>}<Field label="Who Pays"><select className={inputClass} value={form.feePayer} onChange={(event) => updateForm('feePayer', event.target.value as CompetitionEventRecord['feePayer'])}><option>Student</option><option>School</option><option>Shared</option></select></Field></div></section>
 
           <section className={panelClass}><div className="mb-3 flex items-center justify-between"><h3 className="text-sm font-bold text-slate-900">Panel 7 · Prizes & Awards</h3><Button size="xs" variant="outline" onClick={addPrize}><Plus className="h-3.5 w-3.5" />Add Prize Level</Button></div><div className="space-y-2">{form.prizes.map((prize, index) => <div key={`${prize.rank}-${index}`} className="grid gap-2 rounded-lg bg-slate-50 p-3 sm:grid-cols-[0.7fr_1.5fr_0.8fr_0.8fr_0.8fr]"><Field label="Rank"><input className={inputClass} value={prize.rank} onChange={(event) => updatePrize(index, 'rank', event.target.value)} /></Field><Field label="Prize / Award"><input className={inputClass} value={prize.award} onChange={(event) => updatePrize(index, 'award', event.target.value)} /></Field><Field label="Cash Prize (₹)"><input type="number" min={0} className={inputClass} value={prize.cashPrize} onChange={(event) => updatePrize(index, 'cashPrize', Number(event.target.value))} /></Field><label className="flex items-center gap-2 self-end rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs"><input type="checkbox" checked={prize.certificate} onChange={(event) => updatePrize(index, 'certificate', event.target.checked)} />Certificate</label><label className="flex items-center gap-2 self-end rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs"><input type="checkbox" checked={prize.trophy} onChange={(event) => updatePrize(index, 'trophy', event.target.checked)} />Trophy</label></div>)}</div><div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4"><Field label="1st Place Points"><input type="number" className={inputClass} value={form.housePointsFirst} onChange={(event) => updateForm('housePointsFirst', Number(event.target.value))} /></Field><Field label="2nd Place Points"><input type="number" className={inputClass} value={form.housePointsSecond} onChange={(event) => updateForm('housePointsSecond', Number(event.target.value))} /></Field><Field label="3rd Place Points"><input type="number" className={inputClass} value={form.housePointsThird} onChange={(event) => updateForm('housePointsThird', Number(event.target.value))} /></Field><Field label="Participation Points"><input type="number" className={inputClass} value={form.housePointsParticipation} onChange={(event) => updateForm('housePointsParticipation', Number(event.target.value))} /></Field></div><label className="mt-3 flex items-center gap-2 text-xs"><input type="checkbox" checked={form.housePointsEnabled} onChange={(event) => updateForm('housePointsEnabled', event.target.checked)} />Award house points based on results</label></section>
+
+          <section className={panelClass}><h3 className="mb-3 text-sm font-bold text-slate-900">Winners</h3>
+            <p className="mb-3 text-xs text-slate-500">Select who won this competition house-wise, class-wise and school-wise.</p>
+            <div className="grid gap-3 md:grid-cols-3">
+              <Field label="House-wise winner"><select className={inputClass} value={form.winnerHouse || ''} onChange={(event) => updateForm('winnerHouse', event.target.value)}><option value="">Select house</option>{['Fire House', 'Earth House', 'Water House', 'Air House', 'Red House', 'Blue House', 'Green House', 'Yellow House'].map((house) => <option key={house}>{house}</option>)}</select></Field>
+              <Field label="Class-wise winner"><select className={inputClass} value={form.winnerClass || ''} onChange={(event) => updateForm('winnerClass', event.target.value)}><option value="">Select class</option>{['Class 1', 'Class 2', 'Class 3', 'Class 4', 'Class 5', 'Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10', 'Class 11', 'Class 12', '6-A', '7-A', '8-A', '9-A', '10-A', '10-B', '11-A', '12-B'].map((className) => <option key={className}>{className}</option>)}</select></Field>
+              <Field label="School-wise winner"><input className={inputClass} value={form.winnerSchool || ''} onChange={(event) => updateForm('winnerSchool', event.target.value)} placeholder="School name" /></Field>
+            </div>
+          </section>
 
           <section className={panelClass}><h3 className="mb-3 text-sm font-bold text-slate-900">Panel 8 · Notifications</h3><div className="grid gap-3 md:grid-cols-2"><label className="flex items-center gap-2 rounded-lg border border-slate-200 p-3 text-sm"><input type="checkbox" checked={form.notifyParents} onChange={(event) => updateForm('notifyParents', event.target.checked)} />Notify parents of selected students</label><div><span className={labelClass}>Notify via</span><div className="flex flex-wrap gap-2">{['SMS', 'Email', 'Parent Portal', 'App Notification'].map((channel) => <label key={channel} className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs"><input type="checkbox" checked={form.notifyChannels.includes(channel)} onChange={() => toggleFormArray('notifyChannels', channel)} />{channel}</label>)}</div></div><label className="flex items-center gap-2 rounded-lg border border-slate-200 p-3 text-sm"><input type="checkbox" checked={form.attachCircular} onChange={(event) => updateForm('attachCircular', event.target.checked)} />Attach circular to notification</label><label className="flex items-center gap-2 rounded-lg border border-slate-200 p-3 text-sm"><input type="checkbox" checked={form.postNoticeBoard} onChange={(event) => updateForm('postNoticeBoard', event.target.checked)} />Post on school notice board</label><label className="flex items-center gap-2 rounded-lg border border-slate-200 p-3 text-sm"><input type="checkbox" checked={form.postParentPortal} onChange={(event) => updateForm('postParentPortal', event.target.checked)} />Post on parent portal</label></div></section>
         </div>}

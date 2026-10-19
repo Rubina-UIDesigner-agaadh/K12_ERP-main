@@ -115,6 +115,9 @@ export interface CompetitionEventRecord {
   housePointsSecond: number;
   housePointsThird: number;
   housePointsParticipation: number;
+  winnerHouse: string;
+  winnerClass: string;
+  winnerSchool: string;
   notifyParents: boolean;
   notifyChannels: string[];
   attachCircular: boolean;
@@ -186,6 +189,7 @@ const eventDefaults: CompetitionEventRecord = {
   coordinator: '', coCoordinator: '', coordinatorResponsibilities: '', accompanyingTeachers: [], subjects: [], topics: '', syllabusDocument: '', referenceMaterials: [],
   externalRegistrationRequired: false, registrationPortal: '', feeRequired: false, registrationFee: 0, feePayer: 'School', prizes: defaultPrizes.map((p) => ({ ...p })),
   housePointsEnabled: true, housePointsFirst: 20, housePointsSecond: 15, housePointsThird: 10, housePointsParticipation: 5,
+  winnerHouse: '', winnerClass: '', winnerSchool: '',
   notifyParents: true, notifyChannels: ['SMS', 'Email', 'Parent Portal'], attachCircular: true, postNoticeBoard: true, postParentPortal: true
 };
 
