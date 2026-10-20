@@ -33,11 +33,10 @@ import {
   type MonthlyTeachingPlanRecord,
   type WeeklyTeachingItem,
 } from './academicPlanningData';
-import { SyllabusCompletionTracker } from './SyllabusCompletionTracker';
 import { TeacherProgressDashboard } from './TeacherProgressDashboard';
 
 type ClassProgress = { className: string; percent: number };
-type ManagementTab = 'planning' | 'syllabus' | 'teacher';
+type ManagementTab = 'planning' | 'teacher';
 
 const INITIAL_CLASS_PROGRESS: ClassProgress[] = [
   { className: 'Class 6', percent: 78 },
@@ -103,7 +102,6 @@ const MANAGEMENT_KPIS = [
 
 const TABS: { id: ManagementTab; label: string }[] = [
   { id: 'planning', label: 'Planning' },
-  { id: 'syllabus', label: 'Syllabus' },
   { id: 'teacher', label: 'Teacher' },
 ];
 
@@ -312,7 +310,6 @@ export function AcademicPlanningDashboard() {
             </select>
             <Button size="sm" variant="outline" leftIcon={<CalendarDays className="h-4 w-4" />} onClick={() => navigateTo('teaching-plan')}>Teaching Plan</Button>
             <Button size="sm" variant="outline" leftIcon={<ClipboardCheck className="h-4 w-4" />} onClick={() => navigateTo('teacher-plan-progress')}>Teacher Plan Progress</Button>
-            <Button size="sm" variant="outline" leftIcon={<BookOpen className="h-4 w-4" />} onClick={() => navigateTo('syllabus-planner')}>Syllabus Planner</Button>
             <Button size="sm" variant="primary" leftIcon={<Download className="h-4 w-4" />} onClick={exportSyllabus}>Export</Button>
           </div>
 
@@ -328,7 +325,7 @@ export function AcademicPlanningDashboard() {
               </div>
             </Card>
 
-            <Card title="Syllabus Completion by Class" headerAction={<button type="button" onClick={() => navigateTo('syllabus-planner')} className="text-sm font-medium text-indigo-700 hover:text-indigo-900">Syllabus Planner →</button>}>
+            <Card title="Syllabus Completion by Class">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-gray-50 px-3 py-2 text-xs">
                 <span className="text-gray-600">Target by end of {applied.term}</span><span className="font-semibold text-gray-900">75%</span>
                 <span className="text-gray-500">Current class average</span><span className="font-semibold text-indigo-700">{averageClassProgress}%</span>
@@ -410,20 +407,11 @@ export function AcademicPlanningDashboard() {
           </section>
 
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 text-xs text-gray-500 shadow-sm">
-            <span className="flex items-center gap-2"><Users className="h-4 w-4 text-indigo-600" />Dashboard follows Teaching Plan, Teacher Plan Progress and Syllabus Planner.</span>
+            <span className="flex items-center gap-2"><Users className="h-4 w-4 text-indigo-600" />Dashboard follows Teaching Plan and Teacher Plan Progress.</span>
             <Button size="xs" variant="ghost" leftIcon={<RefreshCw className="h-3.5 w-3.5" />} onClick={() => setRefreshKey((value) => value + 1)}>Refresh summary</Button>
           </div>
           <div className="sr-only" aria-live="polite">{liveData.chapters.length} curriculum chapters and {liveData.weekly.length} weekly plan records loaded.</div>
         </div>
-      )}
-
-      {activeTab === 'syllabus' && (
-        <SyllabusCompletionTracker
-          embedded
-          classFilter={applied.className}
-          teacherFilter={applied.teacher}
-          termFilter={applied.term}
-        />
       )}
 
       {activeTab === 'teacher' && (

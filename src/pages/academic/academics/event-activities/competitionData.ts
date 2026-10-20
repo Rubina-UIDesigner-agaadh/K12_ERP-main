@@ -118,6 +118,10 @@ export interface CompetitionEventRecord {
   winnerHouse: string;
   winnerClass: string;
   winnerSchool: string;
+  winnerClassStudent: string;
+  winnerBranchStudent: string;
+  groupingTypes: Array<'class' | 'house' | 'branch'>;
+  groupWinners: Array<{ key: string; label: string; studentName: string }>;
   notifyParents: boolean;
   notifyChannels: string[];
   attachCircular: boolean;
@@ -147,6 +151,7 @@ export interface CompetitionStudentResult {
   award: string;
   house: string;
   housePoints: number;
+  branch: string;
 }
 
 const allLevels = [...COMPETITION_LEVELS];
@@ -189,7 +194,8 @@ const eventDefaults: CompetitionEventRecord = {
   coordinator: '', coCoordinator: '', coordinatorResponsibilities: '', accompanyingTeachers: [], subjects: [], topics: '', syllabusDocument: '', referenceMaterials: [],
   externalRegistrationRequired: false, registrationPortal: '', feeRequired: false, registrationFee: 0, feePayer: 'School', prizes: defaultPrizes.map((p) => ({ ...p })),
   housePointsEnabled: true, housePointsFirst: 20, housePointsSecond: 15, housePointsThird: 10, housePointsParticipation: 5,
-  winnerHouse: '', winnerClass: '', winnerSchool: '',
+  winnerHouse: '', winnerClass: '', winnerSchool: '', winnerClassStudent: '', winnerBranchStudent: '',
+  groupingTypes: ['class'], groupWinners: [],
   notifyParents: true, notifyChannels: ['SMS', 'Email', 'Parent Portal'], attachCircular: true, postNoticeBoard: true, postParentPortal: true
 };
 
@@ -201,7 +207,9 @@ const makeEvent = (overrides: Partial<CompetitionEventRecord>): CompetitionEvent
   subjects: [...(overrides.subjects || eventDefaults.subjects)],
   accompanyingTeachers: [...(overrides.accompanyingTeachers || eventDefaults.accompanyingTeachers)],
   referenceMaterials: [...(overrides.referenceMaterials || eventDefaults.referenceMaterials)],
-  notifyChannels: [...(overrides.notifyChannels || eventDefaults.notifyChannels)]
+  notifyChannels: [...(overrides.notifyChannels || eventDefaults.notifyChannels)],
+  groupingTypes: [...(overrides.groupingTypes || eventDefaults.groupingTypes)],
+  groupWinners: [...(overrides.groupWinners || eventDefaults.groupWinners)]
 });
 
 export const DEFAULT_COMPETITION_EVENTS: CompetitionEventRecord[] = [
@@ -223,10 +231,10 @@ export const DEFAULT_COMPETITION_PARTICIPANTS: CompetitionParticipantRecord[] = 
 ];
 
 export const DEFAULT_COMPETITION_RESULTS: CompetitionStudentResult[] = [
-  { id: 'res-001', eventId: 'evt-001', studentName: 'Rahul Kumar', className: '10-A', score: '88/100', position: '3rd', award: 'Bronze + Certificate', house: 'Fire House', housePoints: 10 },
-  { id: 'res-002', eventId: 'evt-001', studentName: 'Priya Sharma', className: '10-B', score: '76/100', position: '12th', award: 'Participation', house: 'Blue House', housePoints: 5 },
-  { id: 'res-003', eventId: 'evt-001', studentName: 'Amit Verma', className: '9-A', score: '91/100', position: '2nd', award: 'Silver + Certificate', house: 'Earth House', housePoints: 15 },
-  { id: 'res-004', eventId: 'evt-001', studentName: 'Sita Patel', className: '11-A', score: '95/100', position: '1st', award: 'Gold + Certificate', house: 'Fire House', housePoints: 20 }
+  { id: 'res-001', eventId: 'evt-001', studentName: 'Rahul Kumar', className: '10-A', score: '88/100', position: '3rd', award: 'Bronze + Certificate', house: 'Fire House', housePoints: 10, branch: 'Main Campus' },
+  { id: 'res-002', eventId: 'evt-001', studentName: 'Priya Sharma', className: '10-B', score: '76/100', position: '12th', award: 'Participation', house: 'Blue House', housePoints: 5, branch: 'North Branch' },
+  { id: 'res-003', eventId: 'evt-001', studentName: 'Amit Verma', className: '9-A', score: '91/100', position: '2nd', award: 'Silver + Certificate', house: 'Earth House', housePoints: 15, branch: 'Main Campus' },
+  { id: 'res-004', eventId: 'evt-001', studentName: 'Sita Patel', className: '11-A', score: '95/100', position: '1st', award: 'Gold + Certificate', house: 'Fire House', housePoints: 20, branch: 'South Branch' }
 ];
 
 export function loadCompetitionCollection<T>(storageKey: string, fallback: T): T {

@@ -426,7 +426,8 @@ const eventActivitiesSidebar: SidebarSection[] = [
   ] },
   { title: 'Teacher Duties', items: [
     { label: 'Duty Roster', id: 'duty-roster' },
-    { label: 'Duty Attendance', id: 'duty-attendance' }
+    { label: 'Duty Attendance', id: 'duty-attendance' },
+    { label: 'Recurring Activities', id: 'recurring-activities' }
   ] },
   { title: 'Competition Management', items: [
     { label: 'Competition Events', id: 'competition-events' },
@@ -458,8 +459,7 @@ const curriculumAcademicPlanningSidebar: SidebarSection[] = [
   { title: 'Planning', items: [
     { label: 'Academic Management Dashboard', id: 'academic-planning-dashboard' },
     { label: 'Teaching Plan', id: 'teaching-plan' },
-    { label: 'Teacher Plan Progress', id: 'teacher-plan-progress' },
-    { label: 'Syllabus Planner', id: 'syllabus-planner' }
+    { label: 'Teacher Plan Progress', id: 'teacher-plan-progress' }
   ] },
   ...academicsSidebar,
   ...curriculumSidebar

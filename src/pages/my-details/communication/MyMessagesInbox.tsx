@@ -897,31 +897,16 @@ export function MyMessagesInbox() {
   return (
     <>
       <ConfirmDialog show={confirmDialog.show} title={confirmDialog.title} message={confirmDialog.message} confirmLabel={confirmDialog.confirmLabel} confirmClass="bg-red-600 hover:bg-red-700 text-white" onConfirm={confirmDialog.onConfirm} onCancel={closeConfirm} />
-      <div className="space-y-6 p-6">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div className="flex h-[calc(100vh-6.5rem)] flex-col overflow-hidden p-4 gap-3">
+        <div className="flex-shrink-0 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">My Inbox</h1>
             <p className="text-sm text-gray-500 mt-1">Messages from school communications and event invitations • <span className="font-medium text-gray-700">{stats.unread} unread</span></p>
           </div>
           <Button variant="outline" onClick={handleRefresh}><RefreshCw className="w-4 h-4 mr-2" /> Refresh</Button>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[
-            { label: 'Total Messages', value: stats.inbox, color: 'text-blue-600', bg: 'bg-blue-50' },
-            { label: 'Unread', value: stats.unread, color: 'text-red-600', bg: 'bg-red-50' },
-            { label: 'Push Notifications', value: stats.pushCount, color: 'text-orange-600', bg: 'bg-orange-50' },
-            { label: 'Event Invitations', value: stats.eventCount, color: 'text-purple-600', bg: 'bg-purple-50' },
-          ].map((s, i) => (
-            <div key={i} className="bg-white rounded-lg shadow p-4">
-              <div className={`text-center p-2 rounded-lg ${s.bg}`}>
-                <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
-                <p className="text-xs text-gray-500 mt-1">{s.label}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-          <div className="lg:col-span-1">
+        <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-5 gap-4 overflow-hidden">
+          <div className="lg:col-span-1 min-h-0 overflow-y-auto">
             <Card>
               <div className="space-y-1">
                 <button type="button" onClick={handleOpenCompose} className={`w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg font-semibold text-sm transition-all ${mainView === 'compose' ? 'bg-blue-600 text-white shadow-sm' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'}`}>
@@ -946,9 +931,9 @@ export function MyMessagesInbox() {
               </div>
             </Card>
           </div>
-          <div className="lg:col-span-4">
+          <div className="lg:col-span-4 min-h-0 flex flex-col overflow-hidden">
             {isComposeOrDrafts ? (
-              <div style={{ height: '820px' }}>
+              <div className="min-h-0 flex-1 overflow-hidden">
                 {mainView === 'compose' ? (
                   <ComposeForm initial={editingDraft} onSaveDraft={handleSaveDraft} onSend={handleSend} onDiscard={handleDiscard} userSavedTemplates={userTemplates} onSaveTemplate={handleSaveUserTemplate} />
                 ) : (
@@ -956,8 +941,8 @@ export function MyMessagesInbox() {
                 )}
               </div>
             ) : (
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                <div className="bg-white rounded-xl shadow border border-gray-200 flex flex-col" style={{ height: '820px' }}>
+              <div className="flex min-h-0 flex-1 gap-4 overflow-hidden">
+                <div className={`bg-white rounded-xl shadow border border-gray-200 flex flex-col min-h-0 overflow-hidden ${selectedMessage ? 'w-full xl:w-1/2' : 'w-full'}`}>
                   <div className="flex-shrink-0 p-3 border-b space-y-3 bg-gray-50 rounded-t-xl">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
@@ -1087,7 +1072,8 @@ export function MyMessagesInbox() {
                     </div>
                   )}
                 </div>
-                <div className="bg-white rounded-xl shadow border border-gray-200 flex flex-col" style={{ height: '820px' }}>
+                {selectedMessage && (
+                <div className="bg-white rounded-xl shadow border border-gray-200 flex w-full min-h-0 flex-col overflow-hidden xl:w-1/2">
                   {selectedMessage ? (
                     <>
                       <div className="flex-shrink-0 p-3 border-b flex justify-between items-center bg-gray-50 rounded-t-xl">
@@ -1147,14 +1133,9 @@ export function MyMessagesInbox() {
                         {selectedMessage.source === 'push_notification' ? <PushNotificationDetail message={selectedMessage} /> : <EventInvitationDetail message={selectedMessage} />}
                       </div>
                     </>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center h-full text-gray-400 px-6">
-                      <MessageSquare className="w-20 h-20 mb-4 opacity-20" />
-                      <p className="font-medium text-lg text-center">Select a message to read</p>
-                      <p className="text-sm text-center mt-1 text-gray-400">Push notifications and event invitations from the school will appear here</p>
-                    </div>
-                  )}
+                  ) : null}
                 </div>
+                )}
               </div>
             )}
           </div>

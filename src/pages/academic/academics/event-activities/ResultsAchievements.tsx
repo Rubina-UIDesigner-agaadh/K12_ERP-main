@@ -141,10 +141,18 @@ export function ResultsAchievements({ embeddedEventId, onBack }: { embeddedEvent
             <p className="mt-1 text-xs text-amber-800">{event.typeName} · {event.level} · {formatDate(event.startDate)}</p>
           </Card>
           <Card title="Winners">
-            <div className="grid gap-3 md:grid-cols-3 text-sm">
-              <p>House-wise: <b>{event.winnerHouse || '—'}</b></p>
-              <p>Class-wise: <b>{event.winnerClass || '—'}</b></p>
-              <p>School-wise: <b>{event.winnerSchool || '—'}</b></p>
+            <div className="grid gap-3 md:grid-cols-2 text-sm">
+              {(event.groupWinners || []).length > 0 ? (
+                event.groupWinners.map((winner) => (
+                  <p key={winner.key}>{winner.label} winner: <b>{winner.studentName || '—'}</b></p>
+                ))
+              ) : (
+                <>
+                  <p>House-wise winner: <b>{event.winnerHouse || '—'}</b></p>
+                  <p>Student who won class-wise: <b>{event.winnerClassStudent || event.winnerClass || '—'}</b></p>
+                  <p>Student who won branch-wise: <b>{event.winnerBranchStudent || '—'}</b></p>
+                </>
+              )}
             </div>
           </Card>
           <Card title="Overall school result">

@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Download, Eye, MapPin, Pencil, Plus, Search, Users, X } from 'lucide-react';
-import { ResultsAchievements } from './ResultsAchievements';
+import { useNavigate } from 'react-router-dom';
+import { Award, Download, Eye, MapPin, Pencil, Plus, Search, Users, X } from 'lucide-react';
 import { Badge } from '../../../../components/ui/Badge';
 import { Button } from '../../../../components/ui/Button';
 import { Card } from '../../../../components/ui/Card';
@@ -59,6 +59,10 @@ const createEventDraft = (types: CompetitionTypeRecord[]): CompetitionEventRecor
     winnerHouse: '',
     winnerClass: '',
     winnerSchool: '',
+    winnerClassStudent: '',
+    winnerBranchStudent: '',
+    groupingTypes: ['class'],
+    groupWinners: [],
     venueName: '',
     venueAddress: '',
     coordinator: '',
@@ -80,10 +84,124 @@ const statusVariant = (status: string): 'info' | 'warning' | 'success' | 'danger
 };
 
 
-function CompetitionFollowUpPage({ event, mode, onBack }: { event: CompetitionEventRecord; mode: 'students' | 'results'; onBack: () => void }) {
+const HOUSES = ['Fire House', 'Earth House', 'Water House', 'Air House', 'Red House', 'Blue House', 'Green House', 'Yellow House'];
+const BRANCHES = ['Main Campus', 'North Branch', 'South Branch', 'East Branch'];
+const RESULT_CLASSES = ['6-A', '7-A', '8-A', '9-A', '10-A', '10-B', '11-A', '12-B'];
+const GROUPING_OPTIONS: Array<{ id: 'class' | 'house' | 'branch'; label: string }> = [
+  { id: 'class', label: 'Class-wise' },
+  { id: 'house', label: 'House-wise' },
+  { id: 'branch', label: 'Branch-wise' },
+];
+
+function groupingOf(event: CompetitionEventRecord): Array<'class' | 'house' | 'branch'> {
+  return event.groupingTypes?.length ? event.groupingTypes : ['class', 'house', 'branch'];
+}
+
+function winnerSlots(event: CompetitionEventRecord, eventResults: CompetitionStudentResult[]) {
+  const grouping = groupingOf(event);
+  const hasClass = grouping.includes('class');
+  const hasHouse = grouping.includes('house');
+  const hasBranch = grouping.includes('branch');
+  const slots: Array<{ key: string; label: string; students: CompetitionStudentResult[] }> = [];
+  if (hasClass && hasHouse) {
+    const seen = new Set<string>();
+    eventResults.forEach((row) => {
+      const key = `class-house:${row.className}|${row.house}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      slots.push({
+        key,
+        label: `Class ${row.className} · ${row.house}`,
+        students: eventResults.filter((item) => item.className === row.className && item.house === row.house),
+      });
+    });
+  } else if (hasClass) {
+    const seen = new Set<string>();
+    eventResults.forEach((row) => {
+      const key = `class:${row.className}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      slots.push({
+        key,
+        label: `Class ${row.className}`,
+        students: eventResults.filter((item) => item.className === row.className),
+      });
+    });
+  }
+  if (hasHouse && !hasClass) {
+    const seen = new Set<string>();
+    eventResults.forEach((row) => {
+      const key = `house:${row.house}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      slots.push({
+        key,
+        label: row.house,
+        students: eventResults.filter((item) => item.house === row.house),
+      });
+    });
+  }
+  if (hasBranch) {
+    const seen = new Set<string>();
+    eventResults.forEach((row) => {
+      const key = `branch:${row.branch || 'No branch'}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      slots.push({
+        key,
+        label: `Branch · ${row.branch || 'No branch'}`,
+        students: eventResults.filter((item) => (item.branch || 'No branch') === (row.branch || 'No branch')),
+      });
+    });
+  }
+  return slots;
+}
+
+function WinnerPicker({ event, eventResults, onEventPatch }: { event: CompetitionEventRecord; eventResults: CompetitionStudentResult[]; onEventPatch?: (patch: Partial<CompetitionEventRecord>) => void }) {
+  const slots = winnerSlots(event, eventResults);
+  const winners = event.groupWinners || [];
+  const grouping = groupingOf(event);
+  const setWinner = (key: string, label: string, studentName: string) => {
+    const next = [...winners.filter((item) => item.key !== key), { key, label, studentName }];
+    onEventPatch?.({ groupWinners: next });
+  };
+  return (
+    <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-4">
+      <h3 className="text-sm font-bold text-slate-900">Who won</h3>
+      <p className="mt-1 text-xs text-slate-500">
+        Winners follow this event’s grouping: {grouping.map((item) => GROUPING_OPTIONS.find((option) => option.id === item)?.label).join(' + ') || 'not set'}.
+      </p>
+      {slots.length === 0 ? (
+        <p className="mt-3 text-sm text-slate-400">Add students first, then pick a winner for each group.</p>
+      ) : (
+        <div className="mt-3 grid gap-3 md:grid-cols-2">
+          {slots.map((slot) => (
+            <label key={slot.key}>
+              <span className={labelClass}>{slot.label} winner</span>
+              <select
+                className={inputClass}
+                value={winners.find((item) => item.key === slot.key)?.studentName || ''}
+                onChange={(change) => setWinner(slot.key, slot.label, change.target.value)}
+              >
+                <option value="">Select student</option>
+                {slot.students.map((row) => (
+                  <option key={row.id} value={row.studentName}>{row.studentName}</option>
+                ))}
+              </select>
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CompetitionFollowUpPage({ event, mode, onBack, onEventPatch }: { event: CompetitionEventRecord; mode: 'students' | 'results'; onBack: () => void; onEventPatch?: (patch: Partial<CompetitionEventRecord>) => void }) {
+  const navigate = useNavigate();
   const [participants, setParticipants] = useState<CompetitionParticipantRecord[]>(() => loadCompetitionCollection(COMPETITION_PARTICIPANTS_STORAGE_KEY, DEFAULT_COMPETITION_PARTICIPANTS));
   const [results, setResults] = useState<CompetitionStudentResult[]>(() => loadCompetitionCollection(COMPETITION_RESULTS_STORAGE_KEY, DEFAULT_COMPETITION_RESULTS));
   const [draft, setDraft] = useState({ studentName: '', className: '10-A', rollNumber: '', attendance: 85, parentConsent: 'Awaiting' as 'Yes' | 'Awaiting' });
+  const [resultDraft, setResultDraft] = useState({ studentName: '', className: '10-A', house: 'Fire House', branch: 'Main Campus' });
   const eventParticipants = participants.filter((item) => item.eventId === event.id);
   const eventResults = results.filter((item) => item.eventId === event.id);
   const persistParticipants = (next: CompetitionParticipantRecord[]) => { setParticipants(next); saveCompetitionCollection(COMPETITION_PARTICIPANTS_STORAGE_KEY, next); };
@@ -110,7 +228,12 @@ function CompetitionFollowUpPage({ event, mode, onBack }: { event: CompetitionEv
   };
   const seedResults = () => {
     if (eventResults.length) return;
-    persistResults([...eventParticipants.map((participant) => ({ id: `res-${participant.id}`, eventId: event.id, studentName: participant.studentName, className: participant.className, score: '', position: 'Participation', award: 'Participation', house: 'Fire House', housePoints: 0 })), ...results]);
+    persistResults([...eventParticipants.map((participant) => ({ id: `res-${participant.id}`, eventId: event.id, studentName: participant.studentName, className: participant.className, score: '', position: 'Participation', award: 'Participation', house: 'Fire House', housePoints: 0, branch: 'Main Campus' })), ...results]);
+  };
+  const addResultStudent = () => {
+    if (!resultDraft.studentName.trim()) return;
+    persistResults([{ id: `res-${Date.now()}`, eventId: event.id, studentName: resultDraft.studentName.trim(), className: resultDraft.className, score: '', position: 'Participation', award: 'Participation', house: resultDraft.house, housePoints: 0, branch: resultDraft.branch }, ...results]);
+    setResultDraft({ studentName: '', className: '10-A', house: 'Fire House', branch: 'Main Campus' });
   };
   return (
     <Card>
@@ -120,7 +243,14 @@ function CompetitionFollowUpPage({ event, mode, onBack }: { event: CompetitionEv
           <h2 className="mt-1 text-lg font-bold text-slate-900">{event.name}</h2>
           <p className="text-sm text-slate-500">{mode === 'students' ? 'Register and track students for this competition.' : 'Enter scores, positions and awards for this competition.'}</p>
         </div>
-        <Button variant="outline" size="sm" onClick={onBack}><X className="h-4 w-4" />Back to events</Button>
+        <div className="flex flex-wrap gap-2">
+          {mode === 'results' && (
+            <Button variant="outline" size="sm" onClick={() => navigate('/student/certificates/other-certificate')}>
+              <Award className="h-4 w-4" />Generate Certificate
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={onBack}><X className="h-4 w-4" />Back to events</Button>
+        </div>
       </div>
       {mode === 'students' ? (
         <div className="space-y-4">
@@ -153,21 +283,34 @@ function CompetitionFollowUpPage({ event, mode, onBack }: { event: CompetitionEv
         </div>
       ) : (
         <div className="space-y-4">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <h3 className="text-sm font-bold text-slate-900">Add student</h3>
+            <p className="mt-1 text-xs text-slate-500">Add students class-wise, house-wise and branch-wise for this competition result.</p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              <input className={inputClass} placeholder="Student name" value={resultDraft.studentName} onChange={(change) => setResultDraft((current) => ({ ...current, studentName: change.target.value }))} />
+              <select className={inputClass} value={resultDraft.className} onChange={(change) => setResultDraft((current) => ({ ...current, className: change.target.value }))}>{RESULT_CLASSES.map((className) => <option key={className}>{className}</option>)}</select>
+              <select className={inputClass} value={resultDraft.house} onChange={(change) => setResultDraft((current) => ({ ...current, house: change.target.value }))}>{HOUSES.map((house) => <option key={house}>{house}</option>)}</select>
+              <select className={inputClass} value={resultDraft.branch} onChange={(change) => setResultDraft((current) => ({ ...current, branch: change.target.value }))}>{BRANCHES.map((branch) => <option key={branch}>{branch}</option>)}</select>
+              <Button onClick={addResultStudent}><Plus className="h-4 w-4" />Add student</Button>
+            </div>
+          </div>
           {!eventResults.length && <Button variant="outline" onClick={seedResults}>Load registered students</Button>}
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[800px] text-left text-sm">
-              <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500"><tr><th className="px-3 py-2">Student</th><th className="px-3 py-2">Class</th><th className="px-3 py-2">Score</th><th className="px-3 py-2">Position</th><th className="px-3 py-2">Award</th></tr></thead>
+            <table className="w-full min-w-[900px] text-left text-sm">
+              <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500"><tr><th className="px-3 py-2">Student</th><th className="px-3 py-2">Class</th><th className="px-3 py-2">House</th><th className="px-3 py-2">Branch</th><th className="px-3 py-2">Score</th><th className="px-3 py-2">Position</th></tr></thead>
               <tbody className="divide-y divide-slate-100">{eventResults.map((row) => (
                 <tr key={row.id}>
                   <td className="px-3 py-2 font-medium">{row.studentName}</td>
-                  <td className="px-3 py-2">{row.className}</td>
+                  <td className="px-3 py-2"><select className={inputClass} value={row.className} onChange={(change) => updateResult(row.id, { className: change.target.value })}>{RESULT_CLASSES.map((className) => <option key={className}>{className}</option>)}</select></td>
+                  <td className="px-3 py-2"><select className={inputClass} value={row.house} onChange={(change) => updateResult(row.id, { house: change.target.value })}>{HOUSES.map((house) => <option key={house}>{house}</option>)}</select></td>
+                  <td className="px-3 py-2"><select className={inputClass} value={row.branch || ''} onChange={(change) => updateResult(row.id, { branch: change.target.value })}>{BRANCHES.map((branch) => <option key={branch}>{branch}</option>)}</select></td>
                   <td className="px-3 py-2"><input className={inputClass} value={row.score} onChange={(change) => updateResult(row.id, { score: change.target.value })} /></td>
                   <td className="px-3 py-2"><select className={inputClass} value={row.position} onChange={(change) => updateResult(row.id, { position: change.target.value })}>{['1st', '2nd', '3rd', 'Participation'].map((position) => <option key={position}>{position}</option>)}</select></td>
-                  <td className="px-3 py-2"><input className={inputClass} value={row.award} onChange={(change) => updateResult(row.id, { award: change.target.value })} /></td>
                 </tr>
-              ))}{eventResults.length === 0 && <tr><td colSpan={5} className="px-3 py-8 text-center text-sm text-slate-400">No results yet. Load registered students or open this page after adding participants.</td></tr>}</tbody>
+              ))}{eventResults.length === 0 && <tr><td colSpan={6} className="px-3 py-8 text-center text-sm text-slate-400">No students added yet.</td></tr>}</tbody>
             </table>
           </div>
+          <WinnerPicker event={event} eventResults={eventResults} onEventPatch={onEventPatch} />
         </div>
       )}
     </Card>
@@ -175,6 +318,7 @@ function CompetitionFollowUpPage({ event, mode, onBack }: { event: CompetitionEv
 }
 
 export function CompetitionEvents() {
+  const navigate = useNavigate();
   const [events, setEvents] = useState<CompetitionEventRecord[]>(() => loadCompetitionCollection(COMPETITION_EVENTS_STORAGE_KEY, DEFAULT_COMPETITION_EVENTS));
   const [types] = useState<CompetitionTypeRecord[]>(() => loadCompetitionCollection(COMPETITION_TYPES_STORAGE_KEY, DEFAULT_COMPETITION_TYPES));
   const [search, setSearch] = useState('');
@@ -288,18 +432,20 @@ export function CompetitionEvents() {
             <td className="px-4 py-3 text-slate-600">{event.level}</td><td className="px-4 py-3 whitespace-nowrap">{formatDate(event.startDate, event.isMultiDay ? event.endDate : '')}</td>
             <td className="px-4 py-3"><span className="inline-flex items-center gap-1 text-slate-600"><MapPin className="h-3.5 w-3.5" />{event.venueName || event.venueMode}</span></td>
             <td className="px-4 py-3"><Badge variant={statusVariant(event.status)}>{event.status}</Badge></td>
-            <td className="px-4 py-3"><div className="flex items-center gap-1"><Button size="xs" variant="ghost" title="View event" onClick={() => setViewRecord(event)}><Eye className="h-4 w-4" /></Button><Button size="xs" variant="ghost" title="Edit event" onClick={() => { setForm({ ...event, eligibleClasses: [...event.eligibleClasses], subjects: [...event.subjects], notifyChannels: [...event.notifyChannels], prizes: event.prizes.map((prize) => ({ ...prize })) }); setMessage(''); }}><Pencil className="h-4 w-4" /></Button><Button size="xs" variant="outline" onClick={() => selectForFollowUp(event, 'students')}><Users className="h-3.5 w-3.5" />Students</Button><Button size="xs" variant="outline" onClick={() => selectForFollowUp(event, 'results')}>Results</Button></div></td>
+            <td className="px-4 py-3"><div className="flex items-center gap-1"><Button size="xs" variant="ghost" title="View event" onClick={() => setViewRecord(event)}><Eye className="h-4 w-4" /></Button><Button size="xs" variant="ghost" title="Edit event" onClick={() => { setForm({ ...event, eligibleClasses: [...event.eligibleClasses], subjects: [...event.subjects], notifyChannels: [...event.notifyChannels], prizes: event.prizes.map((prize) => ({ ...prize })) }); setMessage(''); }}><Pencil className="h-4 w-4" /></Button><Button size="xs" variant="outline" onClick={() => selectForFollowUp(event, 'students')}><Users className="h-3.5 w-3.5" />Students</Button><Button size="xs" variant="outline" onClick={() => selectForFollowUp(event, 'results')}>Results</Button><Button size="xs" variant="outline" onClick={() => navigate('/student/certificates/other-certificate')}><Award className="h-3.5 w-3.5" />Certificate</Button></div></td>
           </tr>)}
           {!filteredEvents.length && <tr><td colSpan={7} className="px-4 py-12 text-center text-sm text-slate-500">No events match the selected filters.</td></tr>}</tbody>
         </table></div>
         <div className="border-t border-slate-100 px-4 py-3 text-xs text-slate-500">Status: Planning · Registration Open · Registration Closed · Ongoing · Completed · Cancelled</div>
       </Card></>}
 
-      {workspace && workspaceEvent && workspace.mode === 'students' && (
-        <CompetitionFollowUpPage event={workspaceEvent} mode="students" onBack={() => setWorkspace(null)} />
-      )}
-      {workspace && workspaceEvent && workspace.mode === 'results' && (
-        <ResultsAchievements embeddedEventId={workspaceEvent.id} onBack={() => setWorkspace(null)} />
+      {workspace && workspaceEvent && (
+        <CompetitionFollowUpPage
+          event={workspaceEvent}
+          mode={workspace.mode}
+          onBack={() => setWorkspace(null)}
+          onEventPatch={(patch) => persist(events.map((item) => item.id === workspaceEvent.id ? { ...item, ...patch } : item))}
+        />
       )}
 
       <Modal isOpen={Boolean(form)} onClose={() => setForm(null)} title={form?.id && events.some((event) => event.id === form.id) ? 'Edit Competition Event' : 'Create Competition Event'} size="xl" footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="outline" onClick={() => setForm(null)}><X className="h-4 w-4" />Cancel</Button><Button onClick={saveEvent}>Save Competition Event</Button></div>}>
@@ -342,12 +488,25 @@ export function CompetitionEvents() {
 
           <section className={panelClass}><div className="mb-3 flex items-center justify-between"><h3 className="text-sm font-bold text-slate-900">Panel 7 · Prizes & Awards</h3><Button size="xs" variant="outline" onClick={addPrize}><Plus className="h-3.5 w-3.5" />Add Prize Level</Button></div><div className="space-y-2">{form.prizes.map((prize, index) => <div key={`${prize.rank}-${index}`} className="grid gap-2 rounded-lg bg-slate-50 p-3 sm:grid-cols-[0.7fr_1.5fr_0.8fr_0.8fr_0.8fr]"><Field label="Rank"><input className={inputClass} value={prize.rank} onChange={(event) => updatePrize(index, 'rank', event.target.value)} /></Field><Field label="Prize / Award"><input className={inputClass} value={prize.award} onChange={(event) => updatePrize(index, 'award', event.target.value)} /></Field><Field label="Cash Prize (₹)"><input type="number" min={0} className={inputClass} value={prize.cashPrize} onChange={(event) => updatePrize(index, 'cashPrize', Number(event.target.value))} /></Field><label className="flex items-center gap-2 self-end rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs"><input type="checkbox" checked={prize.certificate} onChange={(event) => updatePrize(index, 'certificate', event.target.checked)} />Certificate</label><label className="flex items-center gap-2 self-end rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs"><input type="checkbox" checked={prize.trophy} onChange={(event) => updatePrize(index, 'trophy', event.target.checked)} />Trophy</label></div>)}</div><div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4"><Field label="1st Place Points"><input type="number" className={inputClass} value={form.housePointsFirst} onChange={(event) => updateForm('housePointsFirst', Number(event.target.value))} /></Field><Field label="2nd Place Points"><input type="number" className={inputClass} value={form.housePointsSecond} onChange={(event) => updateForm('housePointsSecond', Number(event.target.value))} /></Field><Field label="3rd Place Points"><input type="number" className={inputClass} value={form.housePointsThird} onChange={(event) => updateForm('housePointsThird', Number(event.target.value))} /></Field><Field label="Participation Points"><input type="number" className={inputClass} value={form.housePointsParticipation} onChange={(event) => updateForm('housePointsParticipation', Number(event.target.value))} /></Field></div><label className="mt-3 flex items-center gap-2 text-xs"><input type="checkbox" checked={form.housePointsEnabled} onChange={(event) => updateForm('housePointsEnabled', event.target.checked)} />Award house points based on results</label></section>
 
-          <section className={panelClass}><h3 className="mb-3 text-sm font-bold text-slate-900">Winners</h3>
-            <p className="mb-3 text-xs text-slate-500">Select who won this competition house-wise, class-wise and school-wise.</p>
-            <div className="grid gap-3 md:grid-cols-3">
-              <Field label="House-wise winner"><select className={inputClass} value={form.winnerHouse || ''} onChange={(event) => updateForm('winnerHouse', event.target.value)}><option value="">Select house</option>{['Fire House', 'Earth House', 'Water House', 'Air House', 'Red House', 'Blue House', 'Green House', 'Yellow House'].map((house) => <option key={house}>{house}</option>)}</select></Field>
-              <Field label="Class-wise winner"><select className={inputClass} value={form.winnerClass || ''} onChange={(event) => updateForm('winnerClass', event.target.value)}><option value="">Select class</option>{['Class 1', 'Class 2', 'Class 3', 'Class 4', 'Class 5', 'Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10', 'Class 11', 'Class 12', '6-A', '7-A', '8-A', '9-A', '10-A', '10-B', '11-A', '12-B'].map((className) => <option key={className}>{className}</option>)}</select></Field>
-              <Field label="School-wise winner"><input className={inputClass} value={form.winnerSchool || ''} onChange={(event) => updateForm('winnerSchool', event.target.value)} placeholder="School name" /></Field>
+          <section className={panelClass}><h3 className="mb-3 text-sm font-bold text-slate-900">Competition grouping</h3>
+            <p className="mb-3 text-xs text-slate-500">Choose whether this competition is class-wise, house-wise, branch-wise, or a mix. Results winners follow this grouping.</p>
+            <div className="flex flex-wrap gap-2">
+              {GROUPING_OPTIONS.map((option) => {
+                const checked = (form.groupingTypes || []).includes(option.id);
+                return (
+                  <label key={option.id} className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${checked ? 'border-indigo-300 bg-indigo-50 text-indigo-800' : 'border-slate-200 bg-white'}`}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => {
+                        const current = form.groupingTypes || [];
+                        updateForm('groupingTypes', checked ? current.filter((item) => item !== option.id) : [...current, option.id]);
+                      }}
+                    />
+                    {option.label}
+                  </label>
+                );
+              })}
             </div>
           </section>
 
