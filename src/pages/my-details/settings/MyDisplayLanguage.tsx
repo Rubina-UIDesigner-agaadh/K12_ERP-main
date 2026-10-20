@@ -5,7 +5,7 @@ import React, {
   useState,
   Fragment,
 } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import {
   Globe,
   Clock,
@@ -33,6 +33,9 @@ import {
   ChevronDown,
   ChevronUp,
   Search,
+  Pencil,
+  ExternalLink,
+  Maximize2,
 } from 'lucide-react'
 import { Card } from '../../../components/ui/Card'
 import { Button } from '../../../components/ui/Button'
@@ -63,6 +66,7 @@ interface LandingPageOption {
 }
 
 interface NavShortcut {
+  id: string
   keys: string[]
   action: string
   group: string
@@ -124,6 +128,12 @@ const FONT_SIZES = [
 ]
 
 const SHORTCUTS_STORAGE_KEY = 'k12-keyboard-shortcuts-v1'
+const BINDINGS_STORAGE_KEY = 'k12-shortcut-bindings-v1'
+
+let shortcutCaptureActive = false
+export function isShortcutCaptureActive() {
+  return shortcutCaptureActive
+}
 
 const MODULE_LETTER: Record<string, string> = {
   dashboard: 'D',
@@ -155,6 +165,59 @@ export function setKeyboardShortcutsEnabled(on: boolean) {
   } catch {
     /* ignore */
   }
+}
+
+function loadBindings(): Record<string, string[]> {
+  try {
+    const raw = localStorage.getItem(BINDINGS_STORAGE_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+function saveBindings(bindings: Record<string, string[]>) {
+  try {
+    localStorage.setItem(BINDINGS_STORAGE_KEY, JSON.stringify(bindings))
+    window.dispatchEvent(new Event('k12-shortcut-bindings-changed'))
+  } catch {
+    /* ignore */
+  }
+}
+
+function keysEqual(a: string[], b: string[]) {
+  return a.length === b.length && a.every((k, i) => k.toLowerCase() === b[i].toLowerCase())
+}
+
+function eventToKeys(e: KeyboardEvent): string[] | null {
+  if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) return null
+  const parts: string[] = []
+  if (e.ctrlKey || e.metaKey) parts.push('Ctrl')
+  if (e.altKey) parts.push('Alt')
+  if (e.shiftKey && (e.key.length > 1 || e.ctrlKey || e.altKey || e.metaKey)) parts.push('Shift')
+  let display = e.key
+  if (e.key === 'Escape') display = 'Esc'
+  else if (e.key === 'Enter') display = 'Enter'
+  else if (e.key === ' ') display = 'Space'
+  else if (e.key.length === 1) display = e.key.toUpperCase()
+  parts.push(display)
+  return parts
+}
+
+function openAppPath(path: string, target: 'self' | 'tab' | 'window', navigate?: (path: string) => void) {
+  if (target === 'self') {
+    navigate?.(path)
+    return
+  }
+  if (target === 'tab') {
+    window.open(path, '_blank', 'noopener,noreferrer')
+    return
+  }
+  const width = Math.min(1280, window.screen.availWidth - 48)
+  const height = Math.min(800, window.screen.availHeight - 80)
+  window.open(path, '_blank', `noopener,noreferrer,width=${width},height=${height},left=48,top=48`)
 }
 
 function firstItemId(sm: SubModule): string {
@@ -201,16 +264,23 @@ function buildLandingPages(): LandingPageOption[] {
 
 function buildNavShortcuts(): NavShortcut[] {
   const list: NavShortcut[] = [
-    { keys: ['Ctrl', 'K'], action: 'Jump to any page (search)', group: 'General', kind: 'general' },
-    { keys: ['G'], action: 'Start Go — then a module letter', group: 'General', kind: 'general' },
-    { keys: ['Esc'], action: 'Cancel Go or close jump', group: 'General', kind: 'general' },
-    { keys: ['Ctrl', 'S'], action: 'Save preferences', group: 'This page', kind: 'general' },
-    { keys: ['Ctrl', 'P'], action: 'Preview settings', group: 'This page', kind: 'general' },
+    { id: 'jump', keys: ['Ctrl', 'K'], action: 'Jump to any page (search)', group: 'General', kind: 'general' },
+    { id: 'go', keys: ['G'], action: 'Start Go — then a module letter', group: 'General', kind: 'general' },
+    { id: 'cancel', keys: ['Esc'], action: 'Cancel Go or close jump', group: 'General', kind: 'general' },
+    { id: 'save', keys: ['Ctrl', 'S'], action: 'Save preferences', group: 'This page', kind: 'general' },
+    { id: 'preview', keys: ['Ctrl', 'P'], action: 'Preview settings', group: 'This page', kind: 'general' },
+    { id: 'open-page-tab', keys: ['Alt', 'T'], action: 'Open current page in a new tab', group: 'Open in tab / window', kind: 'page' },
+    { id: 'open-page-window', keys: ['Alt', 'W'], action: 'Open current page in a new window', group: 'Open in tab / window', kind: 'page' },
+    { id: 'go-tab', keys: ['T'], action: 'After Go: open that page in a new tab', group: 'Open in tab / window', kind: 'page', sequence: true },
+    { id: 'go-window', keys: ['W'], action: 'After Go: open that page in a new window', group: 'Open in tab / window', kind: 'page', sequence: true },
+    { id: 'jump-tab', keys: ['Ctrl', 'Enter'], action: 'Jump list: open in a new tab', group: 'Open in tab / window', kind: 'page' },
+    { id: 'jump-window', keys: ['Ctrl', 'Shift', 'Enter'], action: 'Jump list: open in a new window', group: 'Open in tab / window', kind: 'page' },
   ]
   modules.forEach((mod) => {
     const letter = MODULE_LETTER[mod.id]
     if (!letter) return
     list.push({
+      id: `mod-${mod.id}`,
       keys: ['G', letter],
       action: `Open ${mod.label}`,
       group: 'Modules',
@@ -219,6 +289,7 @@ function buildNavShortcuts(): NavShortcut[] {
     })
     mod.subModules.slice(0, 9).forEach((sm, si) => {
       list.push({
+        id: `sub-${mod.id}-${sm.id}`,
         keys: ['G', letter, String(si + 1)],
         action: sm.label,
         group: mod.label,
@@ -328,29 +399,108 @@ function ShortcutsPanel({
   query,
   onQuery,
   shortcuts,
+  bindings,
+  onChangeBindings,
 }: {
   enabled: boolean
   query: string
   onQuery: (q: string) => void
   shortcuts: NavShortcut[]
+  bindings: Record<string, string[]>
+  onChangeBindings: (next: Record<string, string[]>) => void
 }) {
+  const [recordingId, setRecordingId] = useState<string | null>(null)
+  const [draftKeys, setDraftKeys] = useState<string[]>([])
+  const [conflict, setConflict] = useState('')
+
+  const resolved = useMemo(
+    () => shortcuts.map((s) => {
+      const keys = bindings[s.id] || s.keys
+      const sequence = keys.length > 1 && !keys.some((k) => k === 'Ctrl' || k === 'Alt' || k === 'Meta')
+      return { ...s, keys, sequence, customized: Boolean(bindings[s.id]) }
+    }),
+    [shortcuts, bindings],
+  )
+
   const grouped = useMemo(() => {
     const q = query.trim().toLowerCase()
     const filtered = q
-      ? shortcuts.filter((s) =>
+      ? resolved.filter((s) =>
         s.action.toLowerCase().includes(q)
         || s.group.toLowerCase().includes(q)
         || s.keys.join(' ').toLowerCase().includes(q)
         || s.kind.includes(q))
-      : shortcuts
-    const map = new Map<string, NavShortcut[]>()
+      : resolved
+    const map = new Map<string, typeof resolved>()
     filtered.forEach((s) => {
       const arr = map.get(s.group) || []
       arr.push(s)
       map.set(s.group, arr)
     })
     return Array.from(map.entries())
-  }, [shortcuts, query])
+  }, [resolved, query])
+
+  const stopRecording = () => {
+    shortcutCaptureActive = false
+    setRecordingId(null)
+    setDraftKeys([])
+    setConflict('')
+  }
+
+  const startRecording = (id: string) => {
+    shortcutCaptureActive = true
+    setRecordingId(id)
+    setDraftKeys([])
+    setConflict('')
+  }
+
+  const commitKeys = (id: string, keys: string[]) => {
+    if (!keys.length) return
+    const clash = resolved.find((s) => s.id !== id && keysEqual(s.keys, keys))
+    if (clash) {
+      setConflict(`Already used by “${clash.action}”`)
+      return
+    }
+    const def = shortcuts.find((s) => s.id === id)
+    const next = { ...bindings }
+    if (def && keysEqual(def.keys, keys)) delete next[id]
+    else next[id] = keys
+    onChangeBindings(next)
+    stopRecording()
+  }
+
+  useEffect(() => {
+    if (!recordingId) return
+    const onKey = (e: KeyboardEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      if (e.key === 'Escape' && draftKeys.length === 0) {
+        stopRecording()
+        return
+      }
+      if (e.key === 'Enter' && !(e.ctrlKey || e.altKey || e.metaKey) && draftKeys.length > 0) {
+        commitKeys(recordingId, draftKeys)
+        return
+      }
+      if (e.key === 'Backspace') {
+        setDraftKeys((prev) => prev.slice(0, -1))
+        setConflict('')
+        return
+      }
+      const chord = eventToKeys(e)
+      if (!chord) return
+      if (chord.length > 1) {
+        commitKeys(recordingId, chord)
+        return
+      }
+      setDraftKeys((prev) => [...prev, chord[0]])
+      setConflict('')
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [recordingId, draftKeys, bindings, resolved])
+
+  const customizedCount = Object.keys(bindings).length
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
@@ -362,11 +512,22 @@ function ShortcutsPanel({
           <div>
             <h3 className="text-base font-semibold text-gray-900">Keyboard Shortcuts</h3>
             <p className="text-[13px] text-gray-500">
-              {enabled ? 'Live — these keys work anywhere in the app' : 'Turn on the toggle to use these'}
+              {enabled ? 'Click Edit to change a shortcut' : 'Turn on the toggle to use these'}
             </p>
           </div>
         </div>
-        <Badge variant={enabled ? 'success' : 'default'}>{enabled ? 'On' : 'Off'}</Badge>
+        <div className="flex items-center gap-1.5">
+          {customizedCount > 0 && (
+            <button
+              type="button"
+              className="rounded-md px-2 py-1 text-[12px] text-gray-600 hover:bg-gray-200"
+              onClick={() => { onChangeBindings({}); stopRecording() }}
+            >
+              Reset all
+            </button>
+          )}
+          <Badge variant={enabled ? 'success' : 'default'}>{enabled ? 'On' : 'Off'}</Badge>
+        </div>
       </div>
       <div className="shrink-0 border-b border-gray-100 px-3 py-2">
         <div className="relative">
@@ -380,9 +541,7 @@ function ShortcutsPanel({
           />
         </div>
         <p className="mt-1.5 text-[13px] text-gray-500">
-          Any page: <kbd className="rounded border bg-white px-1 font-mono text-[12px]">Ctrl</kbd>+<kbd className="rounded border bg-white px-1 font-mono text-[12px]">K</kbd>
-          {' '}· Modules: <kbd className="rounded border bg-white px-1 font-mono text-[12px]">G</kbd> then letter
-          {' '}· Submodules: then 1–9
+          Jump: Ctrl+K · Go: G then letter then 1–9 · New tab: T · New window: W
         </p>
       </div>
       <div className="min-h-0 flex-1 overflow-y-scroll overscroll-contain">
@@ -396,20 +555,49 @@ function ShortcutsPanel({
               <span className="ml-1 font-normal text-gray-400">({items.length})</span>
             </div>
             <div>
-              {items.map((s, i) => (
-                <div
-                  key={`${group}-${s.action}-${s.keys.join('-')}-${i}`}
-                  className="flex items-center justify-between gap-2 px-3 py-1.5 hover:bg-gray-50"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm text-gray-800">{s.action}</p>
-                    {s.kind !== 'general' && (
-                      <p className="text-[12px] capitalize text-gray-400">{s.kind}</p>
-                    )}
+              {items.map((s) => {
+                const recording = recordingId === s.id
+                return (
+                  <div
+                    key={s.id}
+                    className={`flex items-center justify-between gap-2 px-3 py-1.5 ${recording ? 'bg-indigo-50' : 'hover:bg-gray-50'}`}
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm text-gray-800">{s.action}</p>
+                      <p className="text-[12px] text-gray-400">
+                        {recording
+                          ? (conflict || (draftKeys.length ? 'Enter to save · Esc to cancel' : 'Press the new shortcut…'))
+                          : s.customized ? 'Custom' : s.kind}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <KeyCaps keys={recording && draftKeys.length ? draftKeys : s.keys} sequence={s.sequence} />
+                      {s.customized && !recording && (
+                        <button
+                          type="button"
+                          title="Reset to default"
+                          className="rounded p-1 text-gray-400 hover:bg-gray-200 hover:text-gray-700"
+                          onClick={() => {
+                            const next = { ...bindings }
+                            delete next[s.id]
+                            onChangeBindings(next)
+                          }}
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        title={recording ? 'Cancel' : 'Edit shortcut'}
+                        className="rounded p-1 text-gray-400 hover:bg-gray-200 hover:text-indigo-700"
+                        onClick={() => (recording ? stopRecording() : startRecording(s.id))}
+                      >
+                        {recording ? <X className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
+                      </button>
+                    </div>
                   </div>
-                  <KeyCaps keys={s.keys} sequence={s.sequence} />
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         ))}
@@ -454,7 +642,9 @@ function isTypingTarget(el: EventTarget | null) {
 
 export function KeyboardShortcutsRuntime() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [enabled, setEnabled] = useState(isKeyboardShortcutsEnabled)
+  const [bindings, setBindings] = useState<Record<string, string[]>>(loadBindings)
   const [jumpOpen, setJumpOpen] = useState(false)
   const [jumpQuery, setJumpQuery] = useState('')
   const [jumpIndex, setJumpIndex] = useState(0)
@@ -462,14 +652,27 @@ export function KeyboardShortcutsRuntime() {
   const goRef = useRef<string[]>([])
   const goTimer = useRef<number | null>(null)
   const jumpInput = useRef<HTMLInputElement>(null)
+  const locationRef = useRef(location.pathname)
+  locationRef.current = location.pathname
+
+  const resolved = useMemo(
+    () => ALL_SHORTCUTS.map((s) => ({ ...s, keys: bindings[s.id] || s.keys })),
+    [bindings],
+  )
+  const keysOf = (id: string) => resolved.find((s) => s.id === id)?.keys || []
 
   useEffect(() => {
-    const sync = () => setEnabled(isKeyboardShortcutsEnabled())
-    window.addEventListener('k12-shortcuts-changed', sync)
-    window.addEventListener('storage', sync)
+    const syncEnabled = () => setEnabled(isKeyboardShortcutsEnabled())
+    const syncBindings = () => setBindings(loadBindings())
+    window.addEventListener('k12-shortcuts-changed', syncEnabled)
+    window.addEventListener('k12-shortcut-bindings-changed', syncBindings)
+    window.addEventListener('storage', syncEnabled)
+    window.addEventListener('storage', syncBindings)
     return () => {
-      window.removeEventListener('k12-shortcuts-changed', sync)
-      window.removeEventListener('storage', sync)
+      window.removeEventListener('k12-shortcuts-changed', syncEnabled)
+      window.removeEventListener('k12-shortcut-bindings-changed', syncBindings)
+      window.removeEventListener('storage', syncEnabled)
+      window.removeEventListener('storage', syncBindings)
     }
   }, [])
 
@@ -502,31 +705,52 @@ export function KeyboardShortcutsRuntime() {
       return
     }
 
-    const runGo = (keys: string[]) => {
+    const moduleByLetter = (letter: string) =>
+      modules.find((m) => {
+        const keys = keysOf(`mod-${m.id}`)
+        const last = (keys[keys.length - 1] || MODULE_LETTER[m.id] || '').toUpperCase()
+        return last === letter
+      })
+
+    const runGo = (keys: string[], target: 'self' | 'tab' | 'window' = 'self') => {
       const letter = keys[1]?.toUpperCase()
       const digit = keys[2]
-      const mod = modules.find((m) => MODULE_LETTER[m.id] === letter)
+      const mod = moduleByLetter(letter || '')
       if (!mod) return
-      if (digit) {
-        const n = Number(digit)
-        const sm = mod.subModules[n - 1]
-        if (sm) navigate(subPath(mod, sm))
-        return
-      }
-      navigate(modulePath(mod))
+      const path = digit
+        ? (() => {
+          const sm = mod.subModules[Number(digit) - 1]
+          return sm ? subPath(mod, sm) : ''
+        })()
+        : modulePath(mod)
+      if (path) openAppPath(path, target, navigate)
+    }
+
+    const matchChord = (id: string, e: KeyboardEvent) => {
+      const keys = keysOf(id)
+      const chord = eventToKeys(e)
+      return Boolean(keys.length && chord && keysEqual(keys, chord))
+    }
+
+    const lastGoKey = (id: string) => {
+      const keys = keysOf(id)
+      return (keys[keys.length - 1] || '').toUpperCase()
     }
 
     const onKey = (e: KeyboardEvent) => {
+      if (shortcutCaptureActive) return
       if (e.repeat) return
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'k') {
+
+      if (matchChord('jump', e)) {
         e.preventDefault()
         setJumpOpen((v) => !v)
         setJumpQuery('')
         clearGo()
         return
       }
+
       if (jumpOpen) {
-        if (e.key === 'Escape') {
+        if (matchChord('cancel', e) || e.key === 'Escape') {
           e.preventDefault()
           setJumpOpen(false)
           return
@@ -544,38 +768,109 @@ export function KeyboardShortcutsRuntime() {
         if (e.key === 'Enter') {
           e.preventDefault()
           const item = results[jumpIndex]
-          if (item) {
-            navigate(item.path)
-            setJumpOpen(false)
-            setJumpQuery('')
-          }
+          if (!item) return
+          const target = (e.ctrlKey || e.metaKey) && e.shiftKey
+            ? 'window'
+            : (e.ctrlKey || e.metaKey)
+              ? 'tab'
+              : matchChord('jump-window', e)
+                ? 'window'
+                : matchChord('jump-tab', e)
+                  ? 'tab'
+                  : 'self'
+          const forced = matchChord('jump-window', e) ? 'window' : matchChord('jump-tab', e) ? 'tab' : target
+          openAppPath(item.path, forced, navigate)
+          setJumpOpen(false)
+          setJumpQuery('')
         }
         return
       }
+
+      const chordNow = eventToKeys(e)
+      if (chordNow && (e.ctrlKey || e.metaKey || e.altKey) && goRef.current.length === 0) {
+        for (const s of resolved) {
+          if (!keysEqual(s.keys, chordNow)) continue
+          if (s.id.startsWith('mod-')) {
+            e.preventDefault()
+            const mod = modules.find((m) => m.id === s.id.slice(4))
+            if (mod) openAppPath(modulePath(mod), 'self', navigate)
+            return
+          }
+          if (s.id.startsWith('sub-')) {
+            e.preventDefault()
+            for (const mod of modules) {
+              const prefix = `sub-${mod.id}-`
+              if (!s.id.startsWith(prefix)) continue
+              const sm = mod.subModules.find((x) => x.id === s.id.slice(prefix.length))
+              if (sm) openAppPath(subPath(mod, sm), 'self', navigate)
+              break
+            }
+            return
+          }
+        }
+      }
+
+      if (matchChord('open-page-tab', e)) {
+        e.preventDefault()
+        openAppPath(locationRef.current, 'tab')
+        return
+      }
+      if (matchChord('open-page-window', e)) {
+        e.preventDefault()
+        openAppPath(locationRef.current, 'window')
+        return
+      }
+
       if (isTypingTarget(e.target)) return
-      if (e.key === 'Escape') {
+
+      if (matchChord('cancel', e) || e.key === 'Escape') {
         clearGo()
         return
       }
-      if (e.ctrlKey || e.metaKey || e.altKey) return
 
-      if (e.key === 'g' || e.key === 'G') {
-        if (goRef.current.length === 0) {
-          e.preventDefault()
-          goRef.current = ['G']
-          setGoHint('Go — D Dashboard · S Student · A Academic · F Finance · H HR · E Assessment · T Admin · M More · Y My Details · P Plugins')
-          if (goTimer.current) window.clearTimeout(goTimer.current)
-          goTimer.current = window.setTimeout(() => clearGo(), 1600)
-        }
+      const goStart = keysOf('go')
+      const goStartKey = (goStart[goStart.length - 1] || 'G').toLowerCase()
+      const goIsChord = goStart.some((k) => k === 'Ctrl' || k === 'Alt')
+
+      if (goIsChord && matchChord('go', e)) {
+        e.preventDefault()
+        goRef.current = ['G']
+        setGoHint('Go — D Dashboard · S Student · A Academic · F Finance · H HR · E Assessment · T Admin · M More · Y My Details · P Plugins · T new tab · W new window')
+        if (goTimer.current) window.clearTimeout(goTimer.current)
+        goTimer.current = window.setTimeout(() => clearGo(), 1600)
         return
       }
+
+      if (e.ctrlKey || e.metaKey || e.altKey) return
+
+      if (!goIsChord && (e.key.toLowerCase() === goStartKey) && goRef.current.length === 0) {
+        e.preventDefault()
+        goRef.current = ['G']
+        setGoHint('Go — D Dashboard · S Student · A Academic · F Finance · H HR · E Assessment · T Admin · M More · Y My Details · P Plugins · T new tab · W new window')
+        if (goTimer.current) window.clearTimeout(goTimer.current)
+        goTimer.current = window.setTimeout(() => clearGo(), 1600)
+        return
+      }
+
       if (goRef.current[0] !== 'G') return
       e.preventDefault()
+      const tabKey = lastGoKey('go-tab') || 'T'
+      const winKey = lastGoKey('go-window') || 'W'
+      const pressed = e.key.toUpperCase()
+
+      if ((pressed === tabKey || pressed === winKey) && goRef.current.length >= 2) {
+        runGo(goRef.current, pressed === winKey ? 'window' : 'tab')
+        clearGo()
+        return
+      }
+
       if (/^[a-zA-Z]$/.test(e.key) && goRef.current.length === 1) {
         const letter = e.key.toUpperCase()
         goRef.current = ['G', letter]
-        const mod = modules.find((m) => MODULE_LETTER[m.id] === letter)
-        setGoHint(mod ? `Go ${mod.label} — press 1–9 for a submodule, or wait to open` : 'Unknown module letter — try D S A F H E T M Y P')
+        const mod = moduleByLetter(letter)
+        setGoHint(mod
+          ? `Go ${mod.label} — 1–9 submodule · ${tabKey} new tab · ${winKey} new window`
+          : 'Unknown module letter — try D S A F H E T M Y P')
         if (goTimer.current) window.clearTimeout(goTimer.current)
         goTimer.current = window.setTimeout(() => {
           if (goRef.current.length === 2) runGo(goRef.current)
@@ -585,14 +880,18 @@ export function KeyboardShortcutsRuntime() {
       }
       if (/^[1-9]$/.test(e.key) && goRef.current.length === 2) {
         goRef.current = [...goRef.current, e.key]
-        runGo(goRef.current)
-        clearGo()
+        setGoHint(`Submodule ${e.key} — ${tabKey} new tab · ${winKey} new window · or wait to open here`)
+        if (goTimer.current) window.clearTimeout(goTimer.current)
+        goTimer.current = window.setTimeout(() => {
+          if (goRef.current.length === 3) runGo(goRef.current)
+          clearGo()
+        }, 750)
       }
     }
 
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [enabled, jumpOpen, jumpIndex, results, navigate])
+  }, [enabled, jumpOpen, jumpIndex, results, navigate, resolved])
 
   if (!enabled) return null
 
@@ -620,23 +919,45 @@ export function KeyboardShortcutsRuntime() {
                 placeholder="Jump to a page…"
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
               />
-              <p className="mt-1 text-[13px] text-gray-500">Type a page name · Enter to open · Esc to close</p>
+              <p className="mt-1 text-[13px] text-gray-500">
+                Enter opens here · Ctrl+Enter new tab · Ctrl+Shift+Enter new window
+              </p>
             </div>
             <div className="min-h-0 flex-1 overflow-y-scroll">
               {results.length === 0 && (
                 <p className="px-3 py-8 text-center text-sm text-gray-500">No matching pages</p>
               )}
               {results.map((p, i) => (
-                <button
+                <div
                   key={`${p.path}-${p.label}`}
-                  type="button"
-                  className={`flex w-full flex-col px-3 py-2 text-left ${i === jumpIndex ? 'bg-indigo-50' : 'hover:bg-gray-50'}`}
+                  className={`flex items-center gap-2 px-3 py-2 ${i === jumpIndex ? 'bg-indigo-50' : 'hover:bg-gray-50'}`}
                   onMouseEnter={() => setJumpIndex(i)}
-                  onClick={() => { navigate(p.path); setJumpOpen(false) }}
                 >
-                  <span className="text-sm font-medium text-gray-900">{p.label}</span>
-                  <span className="text-[13px] text-gray-500">{p.group}</span>
-                </button>
+                  <button
+                    type="button"
+                    className="min-w-0 flex-1 text-left"
+                    onClick={() => { openAppPath(p.path, 'self', navigate); setJumpOpen(false) }}
+                  >
+                    <span className="block text-sm font-medium text-gray-900">{p.label}</span>
+                    <span className="block text-[13px] text-gray-500">{p.group}</span>
+                  </button>
+                  <button
+                    type="button"
+                    title="Open in new tab"
+                    className="rounded p-1 text-gray-400 hover:bg-white hover:text-indigo-600"
+                    onClick={() => { openAppPath(p.path, 'tab'); setJumpOpen(false) }}
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    title="Open in new window"
+                    className="rounded p-1 text-gray-400 hover:bg-white hover:text-indigo-600"
+                    onClick={() => { openAppPath(p.path, 'window'); setJumpOpen(false) }}
+                  >
+                    <Maximize2 className="h-4 w-4" />
+                  </button>
+                </div>
               ))}
             </div>
           </div>
@@ -664,6 +985,12 @@ export function MyDisplayLanguage() {
   const [showHistoryModal, setShowHistoryModal] = useState(false)
   const [showShortcutsModal, setShowShortcutsModal] = useState(false)
   const [shortcutQuery, setShortcutQuery] = useState('')
+  const [shortcutBindings, setShortcutBindings] = useState<Record<string, string[]>>(loadBindings)
+
+  const persistBindings = (next: Record<string, string[]>) => {
+    setShortcutBindings(next)
+    saveBindings(next)
+  }
 
   const [expandedSections, setExpandedSections] = useState<string[]>([
     'language', 'landing', 'regional', 'display', 'accessibility', 'behavior',
@@ -697,20 +1024,23 @@ export function MyDisplayLanguage() {
   useEffect(() => {
     if (!preferences.keyboardShortcuts) return
     const onKey = (e: KeyboardEvent) => {
-      if (!(e.ctrlKey || e.metaKey) || e.altKey) return
-      const k = e.key.toLowerCase()
-      if (k === 's') {
+      if (shortcutCaptureActive) return
+      const chord = eventToKeys(e)
+      if (!chord) return
+      const saveKeys = shortcutBindings.save || ['Ctrl', 'S']
+      const previewKeys = shortcutBindings.preview || ['Ctrl', 'P']
+      if (keysEqual(chord, saveKeys)) {
         e.preventDefault()
         void handleSave()
       }
-      if (k === 'p') {
+      if (keysEqual(chord, previewKeys)) {
         e.preventDefault()
         setShowPreviewModal(true)
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [preferences.keyboardShortcuts])
+  }, [preferences.keyboardShortcuts, shortcutBindings])
 
   const updatePreference = <K extends keyof DisplayPreferences>(
     key: K,
@@ -1222,6 +1552,8 @@ export function MyDisplayLanguage() {
                 query={shortcutQuery}
                 onQuery={setShortcutQuery}
                 shortcuts={ALL_SHORTCUTS}
+                bindings={shortcutBindings}
+                onChangeBindings={persistBindings}
               />
             </div>
           </div>
@@ -1348,6 +1680,8 @@ export function MyDisplayLanguage() {
                   query={shortcutQuery}
                   onQuery={setShortcutQuery}
                   shortcuts={ALL_SHORTCUTS}
+                  bindings={shortcutBindings}
+                  onChangeBindings={persistBindings}
                 />
               </div>
             </div>
