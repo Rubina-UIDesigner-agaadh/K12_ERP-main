@@ -25,7 +25,8 @@ import {
   Palette,
   Settings,
   LockKeyhole,
-  ArrowUpRight
+  ArrowUpRight,
+  Keyboard
 } from
   'lucide-react';
 import { modules } from './data/navigationData';
@@ -42,7 +43,7 @@ import { NotificationPanel } from './components/header/NotificationPanel';
 import { HelpSupportPanel } from './components/header/HelpSupportPanel';
 import { ThemePanel } from './components/header/ThemePanel';
 import { LogoutModal } from './components/header/LogoutModal';
-import { KeyboardShortcutsRuntime } from './pages/my-details/settings/MyDisplayLanguage';
+import { KeyboardShortcutsRuntime, openShortcutList } from './pages/my-details/settings/MyDisplayLanguage';
 // Helper: find first page ID for a submodule
 function getFirstPageId(subModule: SubModule): string {
   if (subModule.sidebarConfig && subModule.sidebarConfig.length > 0) {
@@ -79,6 +80,25 @@ function HeaderSettingsMenu({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+  useEffect(() => {
+    const openMenu = () => setIsOpen(true);
+    const openTheme = () => {
+      setIsOpen(false);
+      onOpenTheme();
+    };
+    const openHelp = () => {
+      setIsOpen(false);
+      onOpenHelp();
+    };
+    window.addEventListener('k12-open-settings-menu', openMenu);
+    window.addEventListener('k12-open-theme', openTheme);
+    window.addEventListener('k12-open-help', openHelp);
+    return () => {
+      window.removeEventListener('k12-open-settings-menu', openMenu);
+      window.removeEventListener('k12-open-theme', openTheme);
+      window.removeEventListener('k12-open-help', openHelp);
+    };
+  }, [onOpenTheme, onOpenHelp]);
   const go = (path: string) => {
     setIsOpen(false);
     navigate(path);
@@ -106,9 +126,18 @@ function HeaderSettingsMenu({
     onClick: () => go('/my-details/manage-settings/my-display-language')
   },
   {
+    icon: Keyboard,
+    label: 'View shortcut list',
+    hint: 'Alt keys for every module and page',
+    onClick: () => {
+      setIsOpen(false);
+      openShortcutList();
+    }
+  },
+  {
     icon: LifeBuoy,
     label: 'Help & Support',
-    hint: 'Raise a ticket, FAQs & user guides',
+    hint: 'Alt+Shift+H · tickets, FAQs & guides',
     onClick: () => {
       setIsOpen(false);
       onOpenHelp();
@@ -271,7 +300,6 @@ function MainLayout() {
   };
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-gray-50 text-gray-900 font-sans">
-      <KeyboardShortcutsRuntime />
       {/* Primary Header */}
       <header className="relative z-40 flex h-16 shrink-0 items-center justify-between px-6 shadow-sm bg-gradient-to-br from-[#0F4C5C] via-[#1E6091] to-[#168AAD]">
         <div className="flex min-w-[250px] items-center gap-5">
@@ -363,7 +391,7 @@ function MainLayout() {
 
             <div className="hidden md:flex gap-2">
               <button
-                title="Calendar"
+                title="Calendar (Alt+C)"
                 onClick={() => navigate('/my-details/my-calendar/my-school-calendar')}
                 className="flex h-10 w-10 items-center justify-center rounded-full text-white/90 transition-all hover:bg-white/10 hover:text-white">
 
@@ -518,7 +546,7 @@ function SettingsLayout() {
             </button>
             <div className="hidden md:flex gap-2">
               <button
-                title="Calendar"
+                title="Calendar (Alt+C)"
                 onClick={() => navigate('/my-details/my-calendar/my-school-calendar')}
                 className="flex h-10 w-10 items-center justify-center rounded-full text-white/90 transition-all hover:bg-white/10 hover:text-white">
 
@@ -644,7 +672,7 @@ function ProfileLayout() {
             </button>
             <div className="hidden md:flex gap-2">
               <button
-                title="Calendar"
+                title="Calendar (Alt+C)"
                 onClick={() => navigate('/my-details/my-calendar/my-school-calendar')}
                 className="flex h-10 w-10 items-center justify-center rounded-full text-white/90 transition-all hover:bg-white/10 hover:text-white">
 
@@ -707,7 +735,9 @@ function LoginWrapper() {
 // ============================================
 export function App() {
   return (
-    <Routes>
+    <>
+      <KeyboardShortcutsRuntime />
+      <Routes>
       <Route path="/login" element={<LoginWrapper />} />
       <Route path="/settings" element={<SettingsLayout />} />
       <Route path="/profile" element={<ProfileLayout />} />
@@ -730,6 +760,8 @@ export function App() {
           <Navigate to="/student/student-management/student-list" replace />
         } />
 
-    </Routes>);
+    </Routes>
+    </>
+  );
 
 }

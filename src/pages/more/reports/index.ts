@@ -1,4 +1,9 @@
 // Government Reports
+export { BoardCompliance } from './BoardCompliance';
+export { EventCompetitionReports } from './EventCompetitionReports';
+export { TeachersDutiesReports } from './TeachersDutiesReports';
+export { AcademicReportsPage } from './AcademicReportsPage';
+export { UserLoginReports } from './UserLoginReports';
 export { CbseComplianceDashboard } from './CbseComplianceDashboard';
 export { IcseComplianceReports } from './IcseComplianceReports';
 export { GsebComplianceReports } from './GsebComplianceReports';

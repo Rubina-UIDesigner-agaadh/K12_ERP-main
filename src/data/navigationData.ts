@@ -414,7 +414,39 @@ const instituteSetupSidebar: SidebarSection[] = [{ title: 'Institute Setup', ite
 const marketplaceSidebar: SidebarSection[] = [{ title: 'Marketplace', items: [{ label: 'Marketplace', id: 'marketplace' }] }];
 const billingSidebar: SidebarSection[] = [{ title: 'Billing', items: [{ label: 'Subscription Overview', id: 'subscription-overview' }, { label: 'Usage Insights', id: 'usage-insights' }, { label: 'Invoice Archive', id: 'invoice-archive' }, { label: 'Account Details', id: 'account-details' }] }];
 const newsfeedSidebar: SidebarSection[] = [{ title: 'Content Management', items: [{ label: 'Internal School Updates', id: 'internal-school-updates' }, { label: 'Government & Policy Updates', id: 'government-policy-updates' }, { label: 'Board & Examination Updates', id: 'board-examination-updates' }, { label: 'Scholarships & Grants', id: 'scholarships-grants' }, { label: 'Health & Safety Advisories', id: 'health-safety-advisories' }, { label: 'Education Industry & Global News', id: 'education-industry-global-news' }] }, { title: 'Media & Engagement', items: [{ label: 'Media & Attachments', id: 'media-attachments' }, { label: 'Engagement & Interaction', id: 'engagement-interaction' }] }, { title: 'Management', items: [{ label: 'Smart Targeting & Filtering', id: 'smart-targeting-filtering' }, { label: 'Moderation & Workflow', id: 'moderation-workflow' }, { label: 'Alerts & Action Center', id: 'alerts-action-center' }, { label: 'Analytics & Insights', id: 'analytics-insights' }] }];
-const reportsSidebar: SidebarSection[] = [{ title: 'Government Reports', items: [{ label: 'CBSE Compliance Dashboard', id: 'cbse-compliance-dashboard' }, { label: 'ICSE Compliance Reports', id: 'icse-compliance-reports' }, { label: 'GSEB Compliance Reports', id: 'gseb-compliance-reports' }] }, { title: 'Student Reports', items: [{ label: 'Admission Reports', id: 'admission-reports' }, { label: 'Academic Performance Reports', id: 'academic-performance-reports' }, { label: 'Transfer & Leaving Certificate Report', id: 'transfer-leaving-certificate-report' }] }, { title: 'Employee Reports', items: [{ label: 'Employee Master Report', id: 'employee-master-report' }, { label: 'Employee Attendance Report', id: 'employee-attendance-report' }, { label: 'Appraisal Reports', id: 'appraisal-reports' }, { label: 'Recruitment Reports', id: 'recruitment-reports' }, { label: 'Income Tax Reports', id: 'income-tax-reports' }] }, { title: 'Finance Reports', items: [{ label: 'Charges & Miscellaneous Income', id: 'charges-miscellaneous-income' }, { label: 'Scholarship Reports — All Reports (Unified)', id: 'scholarship-report' }, { label: 'Online Payment Report', id: 'online-payment-report' }] }, { title: 'Examination Reports', items: [{ label: 'Internal Exam Reports', id: 'internal-exam-reports' }, { label: 'Board Exam Reports', id: 'board-exam-reports' }] }, { title: 'Compliance & Audit', items: [{ label: 'Compliance & Audit Reports', id: 'compliance-audit-reports' }] }, { title: 'Advanced Builder', items: [{ label: 'Advanced Report Builder', id: 'advanced-report-builder' }] }];
+const reportsSidebar: SidebarSection[] = [
+  { title: 'Government Reports', items: [{ label: 'Board Compliance', id: 'board-compliance' }] },
+  { title: 'Student Reports', items: [
+    { label: 'Student Reports & Search', id: 'student-reports' },
+    { label: 'Admission Report', id: 'admission-report' },
+    { label: 'Attendance Reports', id: 'attendance-reports' }
+  ] },
+  { title: 'Academic Reports', items: [
+    { label: 'Event and Competition Reports', id: 'event-competition-reports' },
+    { label: "Teacher's Duties Reports", id: 'teachers-duties-reports' },
+    { label: 'Academic Reports', id: 'academic-reports' }
+  ] },
+  { title: 'Employee Reports', items: [
+    { label: 'Employee Reports', id: 'employee-reports' },
+    { label: 'Attendance Report', id: 'hr-attendance-report' },
+    { label: 'Payroll Report', id: 'payroll-report' },
+    { label: 'Appraisal Result Report', id: 'appraisal-result-report' },
+    { label: 'Recruitment Reports', id: 'recruitment-pipeline-report' },
+    { label: 'Employee Tax Projection Report', id: 'employee-tax-projection-report' }
+  ] },
+  { title: 'Finance Reports', items: [
+    { label: 'Fee Reports', id: 'fee-collection-reports' },
+    { label: 'Charge Receipt Report', id: 'charge-receipt-report' },
+    { label: 'Scholarship Reports — All Reports (Unified)', id: 'scholarship-report' },
+    { label: 'Expense Reports — All Reports (Unified)', id: 'expense-report' }
+  ] },
+  { title: 'Examination Reports', items: [{ label: 'Internal Exam Reports', id: 'internal-exam-reports' }, { label: 'Board Exam Reports', id: 'board-exam-reports' }] },
+  { title: 'System Reports', items: [
+    { label: 'User Login Reports', id: 'user-login-reports' },
+    { label: 'Administrative Control Reports', id: 'administrative-control-reports' }
+  ] },
+  { title: 'Advanced Builder', items: [{ label: 'Advanced Report Builder', id: 'advanced-report-builder' }] }
+];
 const frontOfficeSidebar: SidebarSection[] = [{ title: 'Front Office', items: [{ label: 'Admission Management', id: 'admission-management' }, { label: 'Visitor Management', id: 'visitor-management' }, { label: 'Reception & Helpdesk', id: 'reception-helpdesk' }, { label: 'Student Movement', id: 'student-movement' }, { label: 'Lost & Found Management', id: 'lost-found-management' }] }];
 const communicationsSidebar: SidebarSection[] = [{ title: 'Communications', items: [{ label: 'Messaging', id: 'messaging' }, { label: 'Circulars & Notices', id: 'circulars-notices' }, { label: 'Announcements', id: 'announcements' }, { label: 'Parent Interaction', id: 'parent-interaction' }, { label: 'Communication Logs', id: 'communication-logs' }, { label: 'Private Chats', id: 'private-chats' }] }];
 const eventActivitiesSidebar: SidebarSection[] = [
@@ -442,7 +474,6 @@ const administrationSidebar: SidebarSection[] = [
     { label: 'Workflow Setup Desk', id: 'workflow-setup-desk' }
   ] },
   { title: 'Governance & Audit', items: [
-    { label: 'Administrative Control Reports', id: 'administrative-control-reports' },
     { label: 'Consent Log', id: 'consent-log' },
     { label: 'Data Governance & Lock Manager', id: 'data-governance-lock-manager' }
   ] }

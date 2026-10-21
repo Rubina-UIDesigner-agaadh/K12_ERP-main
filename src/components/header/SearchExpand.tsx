@@ -11,6 +11,11 @@ export function SearchExpand() {
     }
   }, [isExpanded]);
   useEffect(() => {
+    const open = () => setIsExpanded(true);
+    window.addEventListener('k12-open-search', open);
+    return () => window.removeEventListener('k12-open-search', open);
+  }, []);
+  useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (
       containerRef.current &&

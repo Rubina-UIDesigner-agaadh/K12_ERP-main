@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   X,
   Bell,
@@ -63,7 +63,18 @@ const MOCK_NOTIFICATIONS: Notification[] = [
 }];
 
 export function NotificationPanel({ isOpen, onClose }: NotificationPanelProps) {
+  const [forceOpen, setForceOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'unread' | 'read'>('unread');
+  useEffect(() => {
+    const open = () => setForceOpen(true);
+    window.addEventListener('k12-open-notifications', open);
+    return () => window.removeEventListener('k12-open-notifications', open);
+  }, []);
+  const shown = isOpen || forceOpen;
+  const close = () => {
+    setForceOpen(false);
+    onClose();
+  };
   const unreadNotifications = MOCK_NOTIFICATIONS.filter((n) => !n.read);
   const readNotifications = MOCK_NOTIFICATIONS.filter((n) => n.read);
   const displayNotifications =
@@ -81,16 +92,16 @@ export function NotificationPanel({ isOpen, onClose }: NotificationPanelProps) {
   return (
     <>
       {/* Backdrop */}
-      {isOpen &&
+      {shown &&
       <div
         className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 transition-opacity"
-        onClick={onClose} />
+        onClick={close} />
 
       }
 
       {/* Panel */}
       <div
-        className={`fixed top-0 right-0 h-full w-96 bg-white shadow-2xl z-50 transform transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+        className={`fixed top-0 right-0 h-full w-96 bg-white shadow-2xl z-50 transform transition-transform duration-300 ease-in-out ${shown ? 'translate-x-0' : 'translate-x-full'}`}>
 
         <div className="flex flex-col h-full">
           {/* Header */}
@@ -102,7 +113,7 @@ export function NotificationPanel({ isOpen, onClose }: NotificationPanelProps) {
               </h2>
             </div>
             <button
-              onClick={onClose}
+              onClick={close}
               className="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-500">
 
               <X className="h-5 w-5" />
