@@ -9,7 +9,6 @@ import {
   Clock3,
   Download,
   FileBarChart2,
-  FilePlus2,
   FileText,
   RefreshCw,
   TrendingUp,
@@ -24,19 +23,20 @@ import {
   DEFAULT_ATPS,
   DEFAULT_CURRICULUM_CHAPTERS,
   DEFAULT_LESSON_PLANS,
+  DEFAULT_MONTHLY_PLANS,
   DEFAULT_WEEKLY_PLANS,
   downloadPlanningCsv,
   loadPlanningCollection,
   type AnnualTeachingPlanRecord,
   type CurriculumChapter,
   type LessonPlanRecord,
+  type MonthlyTeachingPlanRecord,
   type WeeklyTeachingItem,
 } from './academicPlanningData';
-import { SyllabusCompletionTracker } from './SyllabusCompletionTracker';
 import { TeacherProgressDashboard } from './TeacherProgressDashboard';
 
 type ClassProgress = { className: string; percent: number };
-type ManagementTab = 'planning' | 'syllabus' | 'teacher';
+type ManagementTab = 'planning' | 'teacher';
 
 const INITIAL_CLASS_PROGRESS: ClassProgress[] = [
   { className: 'Class 6', percent: 78 },
@@ -102,7 +102,6 @@ const MANAGEMENT_KPIS = [
 
 const TABS: { id: ManagementTab; label: string }[] = [
   { id: 'planning', label: 'Planning' },
-  { id: 'syllabus', label: 'Syllabus' },
   { id: 'teacher', label: 'Teacher' },
 ];
 
@@ -135,8 +134,11 @@ export function AcademicPlanningDashboard() {
     atps: loadPlanningCollection<AnnualTeachingPlanRecord>(ACADEMIC_PLANNING_KEYS.atps, DEFAULT_ATPS),
     chapters: loadPlanningCollection<CurriculumChapter>(ACADEMIC_PLANNING_KEYS.chapters, DEFAULT_CURRICULUM_CHAPTERS),
     lessons: loadPlanningCollection<LessonPlanRecord>(ACADEMIC_PLANNING_KEYS.lessons, DEFAULT_LESSON_PLANS),
+    monthly: loadPlanningCollection<MonthlyTeachingPlanRecord>(ACADEMIC_PLANNING_KEYS.monthlyPlans, DEFAULT_MONTHLY_PLANS),
     weekly: loadPlanningCollection<WeeklyTeachingItem>(ACADEMIC_PLANNING_KEYS.weeklyPlans, DEFAULT_WEEKLY_PLANS),
   }), [refreshKey]);
+  const annualCompletion = liveData.atps.length ? Math.round(liveData.atps.reduce((sum, item) => sum + (item.completeness || 0), 0) / liveData.atps.length) : 0;
+  const monthlyCompletion = liveData.monthly.length ? Math.round(liveData.monthly.reduce((sum, item) => sum + (item.completionPercent || 0), 0) / liveData.monthly.length) : 0;
 
   const pendingLessons = liveData.lessons.filter((lesson) => lesson.status === 'Submitted').length;
   const seededPendingLessons = DEFAULT_LESSON_PLANS.filter((lesson) => lesson.status === 'Submitted').length;
@@ -187,21 +189,7 @@ export function AcademicPlanningDashboard() {
       description: 'Oldest pending: 5 days ago.',
       action: 'Review Now',
       tone: 'border-l-amber-500',
-      onClick: () => navigateTo('lesson-plan-creation'),
-    },
-    {
-      title: 'Class 9 Maths — No ATP created yet',
-      description: 'Annual Teaching Plan missing for Mr. V. Patel — Class 9 Maths.',
-      action: 'Create Now',
-      tone: 'border-l-amber-500',
       onClick: () => navigateTo('teaching-plan'),
-    },
-    {
-      title: '12 teachers have not submitted weekly lesson plans',
-      description: 'Weekly lesson plans are still missing for the current week.',
-      action: 'Send Reminder',
-      tone: 'border-l-blue-500',
-      onClick: () => showMessage('Weekly plan reminder queued for the 12 teachers.'),
     },
   ];
 
@@ -320,13 +308,24 @@ export function AcademicPlanningDashboard() {
               <option value="Pending">Pending</option>
               <option value="Draft">Draft</option>
             </select>
-            <Button size="sm" variant="outline" leftIcon={<CalendarDays className="h-4 w-4" />} onClick={() => navigateTo('teaching-plan')}>Create Annual Plan</Button>
-            <Button size="sm" variant="outline" leftIcon={<FilePlus2 className="h-4 w-4" />} onClick={() => navigateTo('lesson-plan-creation')}>New Lesson</Button>
+            <Button size="sm" variant="outline" leftIcon={<CalendarDays className="h-4 w-4" />} onClick={() => navigateTo('teaching-plan')}>Teaching Plan</Button>
+            <Button size="sm" variant="outline" leftIcon={<ClipboardCheck className="h-4 w-4" />} onClick={() => navigateTo('teacher-plan-progress')}>Teacher Plan Progress</Button>
             <Button size="sm" variant="primary" leftIcon={<Download className="h-4 w-4" />} onClick={exportSyllabus}>Export</Button>
           </div>
 
           <section aria-label="Academic planning details" className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-            <Card title="Syllabus Completion by Class" headerAction={<button type="button" onClick={() => navigateTo('curriculum-master')} className="text-sm font-medium text-indigo-700 hover:text-indigo-900">View curriculum →</button>}>
+            <Card title="Annual & Monthly plan completion">
+              <div className="space-y-4">
+                {[{ label: 'Annual plan completion', value: annualCompletion }, { label: 'Monthly plan completion', value: monthlyCompletion }].map((row) => (
+                  <div key={row.label}>
+                    <div className="mb-1 flex items-center justify-between text-sm"><span className="font-medium text-gray-700">{row.label}</span><b className="text-indigo-700">{row.value}%</b></div>
+                    <div className="h-2 overflow-hidden rounded-full bg-gray-100"><div className="h-full rounded-full bg-indigo-500" style={{ width: `${row.value}%` }} /></div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+
+            <Card title="Syllabus Completion by Class">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-gray-50 px-3 py-2 text-xs">
                 <span className="text-gray-600">Target by end of {applied.term}</span><span className="font-semibold text-gray-900">75%</span>
                 <span className="text-gray-500">Current class average</span><span className="font-semibold text-indigo-700">{averageClassProgress}%</span>
@@ -390,10 +389,10 @@ export function AcademicPlanningDashboard() {
               <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-3"><span className="text-xs text-gray-500">Selected week · Class and subject progress</span><Button size="xs" variant="outline" leftIcon={<CalendarDays className="h-3.5 w-3.5" />} onClick={() => navigateTo('teaching-plan')}>Full Weekly Plan</Button></div>
             </Card>
 
-            <Card title="Recent Lesson Plans Submitted" headerAction={<Button size="xs" variant="ghost" onClick={() => navigateTo('lesson-plan-creation')}>View All Lesson Plans →</Button>}>
+            <Card title="Recent Lesson Plans Submitted" headerAction={<Button size="xs" variant="ghost" onClick={() => navigateTo('teacher-plan-progress')}>Teacher Plan Progress →</Button>}>
               <div className="divide-y divide-gray-100">
                 {recentPlans.map((plan) => (
-                  <button key={`${plan.teacher}-${plan.topic}`} type="button" onClick={() => navigateTo('lesson-plan-creation')} className="flex w-full flex-col gap-2 py-3 text-left transition hover:bg-gray-50 sm:flex-row sm:items-center sm:justify-between sm:px-2">
+                  <button key={`${plan.teacher}-${plan.topic}`} type="button" onClick={() => navigateTo('teaching-plan')} className="flex w-full flex-col gap-2 py-3 text-left transition hover:bg-gray-50 sm:flex-row sm:items-center sm:justify-between sm:px-2">
                     <div className="flex min-w-0 gap-3">
                       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-700"><FileText className="h-4 w-4" /></span>
                       <span className="min-w-0"><span className="block truncate text-sm font-semibold text-gray-900">{plan.teacher} — {plan.subject} — {plan.className}</span><span className="mt-1 block text-xs text-gray-500">Period {plan.period} · {plan.date} · {plan.topic}</span></span>
@@ -408,20 +407,11 @@ export function AcademicPlanningDashboard() {
           </section>
 
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 text-xs text-gray-500 shadow-sm">
-            <span className="flex items-center gap-2"><Users className="h-4 w-4 text-indigo-600" />Academic planning data is shared with the curriculum, ATP, monthly, weekly, and lesson-plan workspaces.</span>
+            <span className="flex items-center gap-2"><Users className="h-4 w-4 text-indigo-600" />Dashboard follows Teaching Plan and Teacher Plan Progress.</span>
             <Button size="xs" variant="ghost" leftIcon={<RefreshCw className="h-3.5 w-3.5" />} onClick={() => setRefreshKey((value) => value + 1)}>Refresh summary</Button>
           </div>
           <div className="sr-only" aria-live="polite">{liveData.chapters.length} curriculum chapters and {liveData.weekly.length} weekly plan records loaded.</div>
         </div>
-      )}
-
-      {activeTab === 'syllabus' && (
-        <SyllabusCompletionTracker
-          embedded
-          classFilter={applied.className}
-          teacherFilter={applied.teacher}
-          termFilter={applied.term}
-        />
       )}
 
       {activeTab === 'teacher' && (

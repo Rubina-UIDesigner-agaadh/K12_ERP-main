@@ -1,125 +1,79 @@
 import React, { useMemo, useState } from 'react';
-import { CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Download, Eye } from 'lucide-react';
-import { Badge } from '../../../components/ui/Badge';
+import { CalendarDays, CheckCircle, ChevronLeft, ChevronRight, Eye, Printer } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
 import { Modal } from '../../../components/ui/Modal';
 import {
   ACADEMIC_PLANNING_KEYS,
-  DEFAULT_ATPS,
-  DEFAULT_LESSON_PLANS,
-  DEFAULT_MONTHLY_PLANS,
   DEFAULT_WEEKLY_PLANS,
-  MONTHS,
-  createBlankLesson,
-  downloadPlanningCsv,
   loadPlanningCollection,
   mondayOfDate,
   savePlanningCollection,
-  type AnnualTeachingPlanRecord,
-  type MonthlyTeachingPlanRecord,
-  type PeriodStatus,
   type WeeklyTeachingItem,
 } from './academicPlanningData';
-import { EmptyState, StatusPill, TextAreaField, TextField } from './academicPlanningData';
+import { EmptyState, SelectField, StatusPill, TextAreaField, TextField } from './academicPlanningData';
 
+const SAMPLE_WEEK = '2025-11-24';
 const isoDate = (value: Date) => `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
 const addDays = (value: string, days: number) => { const date = new Date(`${value}T00:00:00`); date.setDate(date.getDate() + days); return isoDate(date); };
 const formatShort = (value: string) => new Date(`${value}T00:00:00`).toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short' });
 const initials = (name: string) => name.split(' ').filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
+const progressOf = (item: WeeklyTeachingItem) => item.progressPercent ?? (item.status === 'Completed' ? 100 : 0);
+
+type TaskDraft = { notes: string; percent: string };
 
 export function TeacherPlanProgressPage({ currentTeacher = 'Mr. R. Kumar' }: { currentTeacher?: string }) {
   const [allWeekly, setAllWeekly] = useState(() => loadPlanningCollection(ACADEMIC_PLANNING_KEYS.weeklyPlans, DEFAULT_WEEKLY_PLANS));
-  const [allMonthly, setAllMonthly] = useState(() => loadPlanningCollection(ACADEMIC_PLANNING_KEYS.monthlyPlans, DEFAULT_MONTHLY_PLANS));
-  const [allLessons, setAllLessons] = useState(() => loadPlanningCollection(ACADEMIC_PLANNING_KEYS.lessons, DEFAULT_LESSON_PLANS));
-  const [allAtps] = useState(() => loadPlanningCollection(ACADEMIC_PLANNING_KEYS.atps, DEFAULT_ATPS));
-  const [teacher, setTeacher] = useState(currentTeacher);
-  const [view, setView] = useState<'annual' | 'monthly' | 'weekly'>('weekly');
+  const teacher = currentTeacher;
   const [weekStart, setWeekStart] = useState(mondayOfDate());
-  const [calendarMonth, setCalendarMonth] = useState(() => {
-    const now = new Date();
-    return { month: now.toLocaleString('en-IN', { month: 'long' }), year: String(now.getFullYear()) };
-  });
-  const [skipTarget, setSkipTarget] = useState<WeeklyTeachingItem | null>(null);
-  const [skipReason, setSkipReason] = useState('');
-  const [postponeTarget, setPostponeTarget] = useState<WeeklyTeachingItem | null>(null);
-  const [postponeDate, setPostponeDate] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All Statuses');
   const [toast, setToast] = useState('');
-  const [viewingAtp, setViewingAtp] = useState<AnnualTeachingPlanRecord | null>(null);
-  const [viewingMonthly, setViewingMonthly] = useState<MonthlyTeachingPlanRecord | null>(null);
+  const [viewItem, setViewItem] = useState<WeeklyTeachingItem | null>(null);
+  const [drafts, setDrafts] = useState<Record<string, TaskDraft>>({});
 
   const flash = (msg: string) => { setToast(msg); window.setTimeout(() => setToast(''), 3500); };
-  const teachers = [...new Set([...allAtps, ...allMonthly].map((row) => row.teacher).concat(allWeekly.map((row) => row.teacher)))].filter(Boolean);
 
   const persistWeekly = (updated: WeeklyTeachingItem) => {
     const next = allWeekly.some((row) => row.id === updated.id) ? allWeekly.map((row) => row.id === updated.id ? updated : row) : [updated, ...allWeekly];
     savePlanningCollection(ACADEMIC_PLANNING_KEYS.weeklyPlans, next);
     setAllWeekly(next);
-    const monthlyNext = allMonthly.map((plan) => {
-      if (plan.teacher !== teacher) return plan;
-      const periods = plan.periods.map((period) => {
-        const sameDay = period.date === updated.date && period.periodNumber === updated.periodNumber;
-        const sameChapter = period.chapter && updated.chapter && period.chapter === updated.chapter;
-        if (!sameDay && !sameChapter) return period;
-        return { ...period, status: updated.status };
-      });
-      const done = periods.filter((row) => row.status === 'Completed').length;
-      return { ...plan, periods, completionPercent: periods.length ? Math.round(done / periods.length * 100) : plan.completionPercent };
-    });
-    savePlanningCollection(ACADEMIC_PLANNING_KEYS.monthlyPlans, monthlyNext);
-    setAllMonthly(monthlyNext);
   };
 
   const myWeekly = allWeekly.filter((row) => row.teacher === teacher && row.date >= weekStart && row.date <= addDays(weekStart, 5));
-  const completed = myWeekly.filter((row) => row.status === 'Completed').length;
-  const percent = myWeekly.length ? Math.round(completed / myWeekly.length * 100) : 0;
-  const myAtps = allAtps.filter((row) => row.teacher === teacher);
-  const myMonthly = allMonthly.filter((row) => row.teacher === teacher);
-  const monthPlans = myMonthly.filter((plan) => plan.month === calendarMonth.month && plan.year === calendarMonth.year);
-
+  const visible = myWeekly.filter((item) => statusFilter === 'All Statuses' || item.status === statusFilter);
+  const percent = myWeekly.length ? Math.round(myWeekly.reduce((sum, item) => sum + progressOf(item), 0) / myWeekly.length) : 0;
   const days = useMemo(() => {
     const map = new Map<string, WeeklyTeachingItem[]>();
-    myWeekly.forEach((item) => {
+    visible.forEach((item) => {
       const list = map.get(item.date) || [];
       list.push(item);
       map.set(item.date, list);
     });
     return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
-  }, [myWeekly]);
+  }, [visible]);
 
-  const mark = (item: WeeklyTeachingItem, status: PeriodStatus) => {
-    persistWeekly({ ...item, status });
-    flash(status === 'Completed' ? `${item.subject} period marked complete. Weekly progress updated.` : `Period marked ${status}.`);
-  };
+  const draftOf = (item: WeeklyTeachingItem): TaskDraft => drafts[item.id] || { notes: item.progressNotes || '', percent: String(progressOf(item)) };
+  const setDraft = (id: string, patch: Partial<TaskDraft>) => setDrafts((current) => {
+    const item = allWeekly.find((row) => row.id === id);
+    const base = current[id] || { notes: item?.progressNotes || '', percent: String(item ? progressOf(item) : 0) };
+    return { ...current, [id]: { ...base, ...patch } };
+  });
 
-  const submitLesson = (item: WeeklyTeachingItem) => {
-    persistWeekly({ ...item, planSubmitted: true });
-    const matching = allLessons.find((lesson) => lesson.teacher === item.teacher && lesson.className === item.className && lesson.subject === item.subject && lesson.date === item.date);
-    if (matching) {
-      const next = allLessons.map((lesson) => lesson.id === matching.id ? { ...lesson, status: 'Submitted' as const } : lesson);
-      savePlanningCollection(ACADEMIC_PLANNING_KEYS.lessons, next);
-      setAllLessons(next);
-    }
-    flash('Lesson plan submitted for this period.');
-  };
-
-  const createDraft = (item: WeeklyTeachingItem) => {
-    const existing = allLessons.find((lesson) => lesson.teacher === item.teacher && lesson.className === item.className && lesson.date === item.date && lesson.periodNumber === item.periodNumber);
-    if (existing) { flash(`Lesson already exists: ${existing.title || existing.id}`); return; }
-    const blank = createBlankLesson();
-    blank.teacher = item.teacher; blank.className = item.className; blank.section = item.section; blank.subject = item.subject; blank.date = item.date; blank.periodNumber = item.periodNumber; blank.periodTime = item.time; blank.room = item.room; blank.chapter = item.chapter; blank.topic = item.topic; blank.title = item.topic || `${item.subject} lesson`;
-    const next = [{ ...blank, status: 'Draft' as const }, ...allLessons];
-    savePlanningCollection(ACADEMIC_PLANNING_KEYS.lessons, next);
-    setAllLessons(next);
-    flash('Draft lesson created for this period.');
-  };
-
-  const shiftMonth = (delta: number) => {
-    const index = MONTHS.indexOf(calendarMonth.month);
-    const jsMonth = index <= 8 ? index + 3 : index - 9;
-    const date = new Date(Number(calendarMonth.year), jsMonth, 1);
-    date.setMonth(date.getMonth() + delta);
-    setCalendarMonth({ month: MONTHS[(date.getMonth() + 9) % 12], year: String(date.getFullYear()) });
+  const saveProgress = (item: WeeklyTeachingItem, complete = false) => {
+    const draft = draftOf(item);
+    const notes = draft.notes.trim();
+    if (!complete && !notes) { flash('Write a description of what you completed before saving progress.'); return; }
+    const progressPercent = complete ? 100 : Math.max(0, Math.min(100, Math.round(Number(draft.percent) || 0)));
+    const updated: WeeklyTeachingItem = {
+      ...item,
+      progressNotes: notes || item.progressNotes || (complete ? 'Task marked complete.' : ''),
+      progressPercent,
+      status: progressPercent >= 100 ? 'Completed' : item.status === 'Completed' ? 'Planned' : item.status
+    };
+    persistWeekly(updated);
+    setDrafts((current) => ({ ...current, [item.id]: { notes: updated.progressNotes || '', percent: String(progressPercent) } }));
+    if (viewItem?.id === item.id) setViewItem(updated);
+    flash(complete ? `${item.subject} marked complete.` : `${item.subject} progress saved at ${progressPercent}%.`);
   };
 
   return (
@@ -131,163 +85,115 @@ export function TeacherPlanProgressPage({ currentTeacher = 'Mr. R. Kumar' }: { c
           <div className="flex h-14 w-14 items-center justify-center rounded-full bg-indigo-600 text-lg font-bold text-white">{initials(teacher)}</div>
           <div>
             <h1 className="text-xl font-bold text-slate-900">Teacher Plan Progress</h1>
-            <p className="text-sm text-slate-500">Annual and monthly plans are view-only. Teachers may update weekly tasks only.</p>
+            <p className="text-sm text-slate-500">Update each teaching task with what you completed and how much of it is done.</p>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <select value={teacher} onChange={(event) => setTeacher(event.target.value)} className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm">
-            {(teachers.includes(currentTeacher) ? teachers : [currentTeacher, ...teachers]).map((name) => <option key={name} value={name}>{name}</option>)}
-          </select>
-          <Button variant="outline" onClick={() => downloadPlanningCsv(`weekly-progress-${teacher.replace(/\s+/g, '-')}.csv`, myWeekly.map((item) => ({ Date: item.date, Period: item.periodNumber, Class: item.className, Subject: item.subject, Status: item.status, Lesson: item.planSubmitted ? 'Submitted' : 'Pending' })))}><Download className="h-4 w-4" />Export This Week</Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => window.print()}><Printer className="h-4 w-4" />Print</Button>
         </div>
       </header>
 
-      <div className="flex flex-wrap gap-2">
-        {([
-          ['annual', 'Annual plan (view)'],
-          ['monthly', 'Monthly plan (view)'],
-          ['weekly', 'Weekly tasks']
-        ] as const).map(([id, label]) => (
-          <button key={id} type="button" onClick={() => setView(id)} className={`rounded-lg px-4 py-2 text-sm font-medium ${view === id ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700 border border-gray-200'}`}>{label}</button>
-        ))}
-      </div>
-
-      {view === 'annual' && (
-        <Card title={`Annual teaching plans — ${teacher}`} noPadding>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-left text-sm">
-              <thead className="bg-slate-50 text-[10px] uppercase text-slate-500">
-                <tr><th className="px-3 py-3">Title</th><th className="px-3 py-3">Class / Subject</th><th className="px-3 py-3">Year</th><th className="px-3 py-3">Status</th><th className="px-3 py-3">Completeness</th><th className="px-3 py-3"></th></tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {myAtps.map((plan) => (
-                  <tr key={plan.id}>
-                    <td className="px-3 py-3 font-medium">{plan.planTitle}</td>
-                    <td className="px-3 py-3">{plan.className} · {plan.subject}</td>
-                    <td className="px-3 py-3">{plan.academicYear}</td>
-                    <td className="px-3 py-3"><StatusPill status={plan.status} /></td>
-                    <td className="px-3 py-3">{plan.completeness}%</td>
-                    <td className="px-3 py-3"><Button size="xs" variant="outline" onClick={() => setViewingAtp(plan)}><Eye className="h-3.5 w-3.5" />View</Button></td>
-                  </tr>
-                ))}
-                {myAtps.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-slate-500">No annual teaching plan is assigned to this teacher.</td></tr>}
-              </tbody>
-            </table>
+      <Card>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => setWeekStart(addDays(weekStart, -7))}><ChevronLeft className="h-4 w-4" />Previous</Button>
+            <div className="min-w-44 text-center">
+              <p className="text-[10px] font-bold uppercase text-slate-400">Plan dates</p>
+              <p className="text-sm font-bold text-slate-800">{formatShort(weekStart)} – {formatShort(addDays(weekStart, 5))}</p>
+            </div>
+            <Button size="sm" variant="outline" onClick={() => setWeekStart(addDays(weekStart, 7))}>Next<ChevronRight className="h-4 w-4" /></Button>
+            <Button size="sm" variant="ghost" onClick={() => setWeekStart(mondayOfDate())}><CalendarDays className="h-4 w-4" />Current</Button>
+            <Button size="sm" variant="outline" onClick={() => setWeekStart(SAMPLE_WEEK)}>Sample dates (demo)</Button>
           </div>
+          <div className="flex flex-wrap items-end gap-4">
+            <SelectField label="Period status" value={statusFilter} onChange={setStatusFilter} options={['All Statuses', 'Planned', 'Completed', 'Skipped', 'Postponed', 'Missed', 'Substituted']} />
+            <div className="min-w-[220px] pb-1">
+              <div className="mb-1 flex justify-between text-sm"><span>Completion</span><b>{percent}%</b></div>
+              <div className="h-3 rounded-full bg-slate-100"><div className="h-3 rounded-full bg-emerald-500" style={{ width: `${percent}%` }} /></div>
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {days.length === 0 && (
+        <Card>
+          <EmptyState>No teaching periods are assigned for these dates. When a teaching plan is created, it will appear here to update progress.</EmptyState>
         </Card>
       )}
 
-      {view === 'monthly' && (
-        <>
-          <Card>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button size="sm" variant="outline" onClick={() => shiftMonth(-1)}><ChevronLeft className="h-4 w-4" />Previous</Button>
-              <p className="min-w-40 text-center text-sm font-semibold">{calendarMonth.month} {calendarMonth.year}</p>
-              <Button size="sm" variant="outline" onClick={() => shiftMonth(1)}>Next<ChevronRight className="h-4 w-4" /></Button>
-            </div>
-          </Card>
-          <Card title={`Monthly plans — ${teacher}`} noPadding>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px] text-left text-sm">
-                <thead className="bg-slate-50 text-[10px] uppercase text-slate-500">
-                  <tr><th className="px-3 py-3">Class / Subject</th><th className="px-3 py-3">Month</th><th className="px-3 py-3">Chapters</th><th className="px-3 py-3">Status</th><th className="px-3 py-3">Completion</th><th className="px-3 py-3"></th></tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {monthPlans.map((plan) => (
-                    <tr key={plan.id}>
-                      <td className="px-3 py-3">{plan.className} {plan.section} · {plan.subject}</td>
-                      <td className="px-3 py-3">{plan.month} {plan.year}</td>
-                      <td className="px-3 py-3 text-xs">{plan.chaptersToCover || '—'}</td>
-                      <td className="px-3 py-3"><StatusPill status={plan.status} /></td>
-                      <td className="px-3 py-3">{plan.completionPercent}%</td>
-                      <td className="px-3 py-3"><Button size="xs" variant="outline" onClick={() => setViewingMonthly(plan)}><Eye className="h-3.5 w-3.5" />View</Button></td>
-                    </tr>
-                  ))}
-                  {monthPlans.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-slate-500">No monthly plan for {calendarMonth.month} {calendarMonth.year}.</td></tr>}
-                </tbody>
-              </table>
-            </div>
-          </Card>
-        </>
-      )}
-
-      {view === 'weekly' && (
-        <>
-          <Card>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <Button size="sm" variant="outline" onClick={() => setWeekStart(addDays(weekStart, -7))}><ChevronLeft className="h-4 w-4" />Previous Week</Button>
-                <div className="min-w-44 text-center">
-                  <p className="text-[10px] font-bold uppercase text-slate-400">Teaching week</p>
-                  <p className="text-sm font-bold text-slate-800">{formatShort(weekStart)} – {formatShort(addDays(weekStart, 5))}</p>
-                </div>
-                <Button size="sm" variant="outline" onClick={() => setWeekStart(addDays(weekStart, 7))}>Next Week<ChevronRight className="h-4 w-4" /></Button>
-                <Button size="sm" variant="ghost" onClick={() => setWeekStart(mondayOfDate())}><CalendarDays className="h-4 w-4" />This Week</Button>
-              </div>
-              <div className="min-w-[220px]">
-                <div className="mb-1 flex justify-between text-sm"><span>Weekly completion</span><b>{completed}/{myWeekly.length} · {percent}%</b></div>
-                <div className="h-3 rounded-full bg-slate-100"><div className="h-3 rounded-full bg-emerald-500" style={{ width: `${percent}%` }} /></div>
-              </div>
-            </div>
-          </Card>
-
-          {days.length === 0 && (
-            <Card>
-              <EmptyState>No teaching periods are assigned to you for this week. When a weekly plan is created for you, it will appear here to mark complete.</EmptyState>
-            </Card>
-          )}
-
-          {days.map(([date, rows]) => (
-            <Card key={date} title={formatShort(date)}>
-              <div className="space-y-3">
-                {rows.sort((a, b) => a.periodNumber - b.periodNumber).map((item) => (
-                  <div key={item.id} className={`rounded-xl border p-4 ${item.status === 'Completed' ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-white'}`}>
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <p className="font-semibold text-slate-900">Period {item.periodNumber} · {item.time} · {item.className}-{item.section} · {item.subject}</p>
-                        <p className="text-sm text-slate-500">{item.chapter || 'Chapter'}{item.topic ? `: ${item.topic}` : ''}</p>
-                      </div>
-                      <StatusPill status={item.status} />
+      {days.map(([date, rows]) => (
+        <Card key={date} title={formatShort(date)}>
+          <div className="space-y-3">
+            {rows.sort((a, b) => a.periodNumber - b.periodNumber).map((item) => {
+              const draft = draftOf(item);
+              const progress = Number(draft.percent) || 0;
+              return (
+                <div key={item.id} className={`rounded-xl border p-4 ${progress >= 100 ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-white'}`}>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-slate-900">Period {item.periodNumber} · {item.time} · {item.className}-{item.section} · {item.subject}</p>
+                      <p className="text-sm text-slate-500">{item.chapter || 'Chapter'}{item.topic ? `: ${item.topic}` : ''}{item.room ? ` · ${item.room}` : ''}</p>
                     </div>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {item.status !== 'Completed' && <Button size="sm" onClick={() => mark(item, 'Completed')}><CheckCircle2 className="h-4 w-4" />Mark Complete</Button>}
-                      {item.status !== 'Skipped' && <Button size="sm" variant="outline" onClick={() => { setSkipTarget(item); setSkipReason(''); }}>Skip</Button>}
-                      {item.status !== 'Postponed' && <Button size="sm" variant="outline" onClick={() => { setPostponeTarget(item); setPostponeDate(''); }}>Postpone</Button>}
-                      <Badge variant={item.planSubmitted ? 'success' : 'warning'}>{item.planSubmitted ? 'Lesson submitted' : 'Lesson pending'}</Badge>
-                      {!item.planSubmitted && <Button size="sm" variant="outline" onClick={() => submitLesson(item)}>Submit Lesson</Button>}
-                      <Button size="sm" variant="ghost" onClick={() => createDraft(item)}>Create Draft Lesson</Button>
-                    </div>
+                    <StatusPill status={item.status} />
                   </div>
-                ))}
-              </div>
-            </Card>
-          ))}
-        </>
-      )}
-
-      <Modal isOpen={Boolean(skipTarget)} onClose={() => setSkipTarget(null)} title="Skip this period" size="sm" footer={<div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setSkipTarget(null)}>Cancel</Button><Button onClick={() => { if (skipTarget) mark(skipTarget, 'Skipped'); setSkipTarget(null); }}>Save</Button></div>}>
-        <TextAreaField label="Reason" value={skipReason} onChange={setSkipReason} />
-      </Modal>
-      <Modal isOpen={Boolean(postponeTarget)} onClose={() => setPostponeTarget(null)} title="Postpone this period" size="sm" footer={<div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setPostponeTarget(null)}>Cancel</Button><Button onClick={() => { if (postponeTarget) mark(postponeTarget, 'Postponed'); setPostponeTarget(null); }}>Save</Button></div>}>
-        <TextField label="Moved-to date" type="date" value={postponeDate} onChange={setPostponeDate} />
-      </Modal>
-      <Modal isOpen={Boolean(viewingAtp)} onClose={() => setViewingAtp(null)} title={viewingAtp?.planTitle || 'Annual plan'} size="lg" footer={<Button onClick={() => setViewingAtp(null)}>Close</Button>}>
-        {viewingAtp && (
-          <div className="space-y-2 text-sm text-slate-700">
-            <p><b>Teacher:</b> {viewingAtp.teacher} · {viewingAtp.className} · {viewingAtp.subject}</p>
-            <p><b>Academic year:</b> {viewingAtp.academicYear} · <b>Status:</b> {viewingAtp.status}</p>
-            <p><b>Net teaching periods:</b> {viewingAtp.netTeachingPeriods} · <b>Difficult chapters:</b> {viewingAtp.difficultChapters || '—'}</p>
-            <p className="text-xs text-slate-500">This annual plan is view-only. Changes are made from Teaching Plan.</p>
+                  <div className="mt-4 grid gap-3 md:grid-cols-[1fr_160px]">
+                    <TextAreaField
+                      label="What did you complete?"
+                      value={draft.notes}
+                      onChange={(value) => setDraft(item.id, { notes: value })}
+                      placeholder="Describe the portion of this task you completed..."
+                      rows={3}
+                    />
+                    <TextField
+                      label="% of task completed"
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={draft.percent}
+                      onChange={(value) => setDraft(item.id, { percent: value })}
+                    />
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button size="sm" variant="outline" onClick={() => setViewItem(item)}><Eye className="h-4 w-4" />View</Button>
+                    <Button size="sm" onClick={() => saveProgress(item)}>Save Progress</Button>
+                    <Button size="sm" variant="outline" onClick={() => saveProgress(item, true)}><CheckCircle className="h-4 w-4" />Mark Complete</Button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        )}
-      </Modal>
-      <Modal isOpen={Boolean(viewingMonthly)} onClose={() => setViewingMonthly(null)} title={viewingMonthly ? `${viewingMonthly.month} ${viewingMonthly.year} · ${viewingMonthly.subject}` : 'Monthly plan'} size="lg" footer={<Button onClick={() => setViewingMonthly(null)}>Close</Button>}>
-        {viewingMonthly && (
-          <div className="space-y-2 text-sm text-slate-700">
-            <p><b>Teacher:</b> {viewingMonthly.teacher} · {viewingMonthly.className} {viewingMonthly.section}</p>
-            <p><b>Chapters:</b> {viewingMonthly.chaptersToCover || '—'}</p>
-            <p><b>Periods planned:</b> {viewingMonthly.totalPeriodsPlanned} / {viewingMonthly.totalPeriodsAvailable} · <b>Status:</b> {viewingMonthly.status}</p>
-            <p className="text-xs text-slate-500">Monthly plans are view-only here. Update weekly tasks on the Weekly tab.</p>
+        </Card>
+      ))}
+
+      <Modal
+        isOpen={Boolean(viewItem)}
+        onClose={() => setViewItem(null)}
+        title={viewItem ? `${viewItem.className} ${viewItem.section} · ${viewItem.subject}` : 'Task'}
+        size="lg"
+        footer={<div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setViewItem(null)}>Close</Button>{viewItem ? <Button onClick={() => saveProgress(viewItem)}>Save Progress</Button> : null}</div>}
+      >
+        {viewItem && (
+          <div className="space-y-4">
+            <div className="rounded-lg bg-slate-50 p-3 text-sm text-slate-700">
+              <p className="font-semibold">{viewItem.day} {formatShort(viewItem.date)} · Period {viewItem.periodNumber} · {viewItem.time}</p>
+              <p>{viewItem.chapter || 'Chapter'}{viewItem.topic ? ` · ${viewItem.topic}` : ''}</p>
+              <p className="text-xs text-slate-500">{viewItem.room} · {viewItem.type}</p>
+            </div>
+            <TextAreaField
+              label="What did you complete?"
+              value={draftOf(viewItem).notes}
+              onChange={(value) => setDraft(viewItem.id, { notes: value })}
+              placeholder="Describe the portion of this task you completed..."
+              rows={4}
+            />
+            <TextField
+              label="% of task completed"
+              type="number"
+              min="0"
+              max="100"
+              value={draftOf(viewItem).percent}
+              onChange={(value) => setDraft(viewItem.id, { percent: value })}
+            />
           </div>
         )}
       </Modal>

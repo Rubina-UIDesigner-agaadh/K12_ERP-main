@@ -83,6 +83,9 @@ export interface EventBudgetItem {
 export interface EventGalleryItem {
   id: string;
   name: string;
+  kind?: 'image' | 'video';
+  url?: string;
+  group?: string;
 }
 
 export interface SchoolEventRecord {

@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDown, ArrowUp, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Download, Eye, ImageIcon, MapPin, Pencil, Plus, Search, Star, Trash2, Users, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Download, Eye, Film, ImageIcon, MapPin, Pencil, Plus, Search, Star, Trash2, Users, X } from 'lucide-react';
 import { Badge } from '../../../../components/ui/Badge';
 import { Button } from '../../../../components/ui/Button';
 import { Card } from '../../../../components/ui/Card';
 import { Modal } from '../../../../components/ui/Modal';
+import { EventExecution } from './EventExecution';
+import { EventFeedbackReview } from './EventFeedbackReview';
 import {
   DEFAULT_EVENT_TYPES,
   DEFAULT_SCHOOL_EVENTS,
@@ -129,6 +131,8 @@ export function EventPlanningSchedule() {
   const [types] = useState<EventTypeRecord[]>(() => loadEventCollection(TYPES_KEY, DEFAULT_EVENT_TYPES));
   const [search, setSearch] = useState('');
   const [workspace, setWorkspace] = useState<{ eventId: string; mode: 'duties' | 'gallery' | 'feedback' } | null>(null);
+  const [galleryGroup, setGalleryGroup] = useState('Uncategorized');
+  const [newGalleryGroup, setNewGalleryGroup] = useState('');
   const [reviews, setReviews] = useState<EventReviewRecord[]>(() => loadEventCollection(EVENT_REVIEWS_STORAGE_KEY, DEFAULT_EVENT_REVIEWS));
   const [monthFilter, setMonthFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
@@ -227,15 +231,34 @@ export function EventPlanningSchedule() {
     if (!workspaceEvent) return;
     persistEvents(events.map((event) => event.id === workspaceEvent.id ? { ...event, ...patch } : event));
   };
+  const addGalleryFiles = (fileList: FileList | null, kind: 'image' | 'video') => {
+    const files = Array.from(fileList || []);
+    if (!workspaceEvent || !files.length) return;
+    const group = galleryGroup || 'Uncategorized';
+    files.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const item = { id: createEventId(kind === 'video' ? 'vid' : 'img'), name: file.name, kind, url: String(reader.result || ''), group };
+        setEvents((current) => {
+          const next = current.map((event) => event.id !== workspaceEvent.id ? event : { ...event, galleryItems: [...(event.galleryItems || []), item] });
+          persistEvents(next);
+          return next;
+        });
+      };
+      reader.readAsDataURL(file);
+    });
+  };
   const monthName = calendarMonth.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
   const calendarDays = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0).getDate();
   const calendarOffset = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1).getDay();
   const totalEstimatedBudget = form?.budgetItems.reduce((sum, item) => sum + Number(item.estimatedCost || 0), 0) || 0;
 
   return (
-    <div className="space-y-6 p-4 md:p-6">
+    <div className={workspace && (workspace.mode === 'duties' || workspace.mode === 'feedback') ? '' : 'space-y-6 p-4 md:p-6'}>
+      {(!workspace || workspace.mode === 'gallery') && (
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div><p className="text-xs font-semibold uppercase tracking-widest text-indigo-600">Event Section · Planning</p><h1 className="mt-1 text-2xl font-bold text-slate-900">Event Planning &amp; Schedule</h1><p className="mt-1 max-w-3xl text-sm text-slate-500">Schedule school events, coordinate the program and manage approvals, resources, communication and budgets.</p></div><div className="flex flex-wrap gap-2"><Button variant="outline" leftIcon={<Download className="h-4 w-4" />} onClick={exportEvents}>Export</Button><Button variant={calendarView ? 'secondary' : 'outline'} leftIcon={<CalendarDays className="h-4 w-4" />} onClick={() => setCalendarView((value) => !value)}>{calendarView ? 'List View' : 'Calendar View'}</Button><Button leftIcon={<Plus className="h-4 w-4" />} onClick={createNew}>Create Event</Button></div></div>
-      {message && <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm text-indigo-800">{message}</div>}
+      )}
+      {message && (!workspace || workspace.mode === 'gallery') && <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm text-indigo-800">{message}</div>}
 
       {!workspace && <Card noPadding className="overflow-hidden">
         <div className="grid gap-3 border-b border-slate-100 bg-slate-50 p-4 md:grid-cols-2 xl:grid-cols-5"><div className="relative xl:col-span-2"><Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" /><input className={`${inputClass} pl-9`} placeholder="Search event, code or venue..." value={search} onChange={(event) => setSearch(event.target.value)} /></div><select className={inputClass} value={monthFilter} onChange={(event) => setMonthFilter(event.target.value)}><option value="All">Month: All</option>{Array.from({ length: 12 }, (_, index) => <option key={index} value={String(index + 1).padStart(2, '0')}>{new Date(2026, index, 1).toLocaleDateString('en-IN', { month: 'long' })}</option>)}</select><select className={inputClass} value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="All">Status: All</option>{EVENT_STATUSES.map((status) => <option key={status}>{status}</option>)}</select><select className={inputClass} value={classFilter} onChange={(event) => setClassFilter(event.target.value)}><option value="All">Class: All</option>{['Class 1','Class 2','Class 3','Class 4','Class 5','Class 6','Class 7','Class 8','Class 9','Class 10','Class 11','Class 12'].map((className) => <option key={className}>{className}</option>)}</select></div>
@@ -243,58 +266,77 @@ export function EventPlanningSchedule() {
         <div className="border-t border-slate-100 px-4 py-3 text-xs text-slate-500">{filteredEvents.length} event(s) · Academic Year 2025-26 / 2026-27 · List and calendar views share the same filters.</div>
       </Card>}
 
-      {workspace && workspaceEvent && (
+      {workspace && workspaceEvent && workspace.mode === 'duties' && (
+        <EventExecution embeddedEventId={workspaceEvent.id} onBack={() => setWorkspace(null)} editable />
+      )}
+      {workspace && workspaceEvent && workspace.mode === 'feedback' && (
+        <EventFeedbackReview embeddedEventId={workspaceEvent.id} onBack={() => setWorkspace(null)} editable />
+      )}
+      {workspace && workspaceEvent && workspace.mode === 'gallery' && (
         <Card>
           <div className="mb-4 flex items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-widest text-indigo-600">{workspace.mode === 'duties' ? 'Duties' : workspace.mode === 'gallery' ? 'Gallery' : 'Feedback'}</p>
+              <p className="text-xs font-semibold uppercase tracking-widest text-indigo-600">Gallery</p>
               <h2 className="mt-1 text-lg font-bold text-slate-900">{workspaceEvent.name}</h2>
-              <p className="text-sm text-slate-500">{workspace.mode === 'duties' ? 'Assign and track event duties on this page.' : workspace.mode === 'gallery' ? 'Upload and review event media on this page.' : 'Capture outcomes, ratings and notes for this event.'}</p>
+              <p className="text-sm text-slate-500">Upload and review event media on this page.</p>
             </div>
             <Button variant="outline" size="sm" onClick={() => setWorkspace(null)}><X className="h-4 w-4" />Back to schedule</Button>
           </div>
-          {workspace.mode === 'duties' && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-bold text-slate-700">Assigned duties</p>
-                <Button size="sm" variant="outline" onClick={() => patchWorkspaceEvent({ responsibilities: [...workspaceEvent.responsibilities, { id: createEventId('role'), role: '', assignedTo: '' }] })}><Plus className="h-3.5 w-3.5" />Add Duty</Button>
-              </div>
-              {workspaceEvent.responsibilities.map((item) => (
-                <div key={item.id} className="grid gap-2 md:grid-cols-[1fr_2fr_auto]">
-                  <input className={inputClass} value={item.role} placeholder="Duty / role" onChange={(event) => patchWorkspaceEvent({ responsibilities: workspaceEvent.responsibilities.map((row) => row.id === item.id ? { ...row, role: event.target.value } : row) })} />
-                  <input className={inputClass} value={item.assignedTo} placeholder="Assigned staff / team" onChange={(event) => patchWorkspaceEvent({ responsibilities: workspaceEvent.responsibilities.map((row) => row.id === item.id ? { ...row, assignedTo: event.target.value } : row) })} />
-                  <Button size="sm" variant="ghost" onClick={() => patchWorkspaceEvent({ responsibilities: workspaceEvent.responsibilities.filter((row) => row.id !== item.id) })}><Trash2 className="h-4 w-4 text-rose-600" />Remove</Button>
-                </div>
-              ))}
-              {workspaceEvent.responsibilities.length === 0 && <p className="text-sm text-slate-400">No duties assigned yet. Add a duty above.</p>}
-            </div>
-          )}
-          {workspace.mode === 'gallery' && (
-            <div className="space-y-4">
-              <label className="flex cursor-pointer items-center justify-center rounded-xl border-2 border-dashed border-slate-200 p-6 text-sm text-slate-600 hover:border-indigo-300 hover:bg-indigo-50/40">
-                <input type="file" multiple accept="image/*" className="hidden" onChange={(event) => {
-                  const files = Array.from(event.target.files || []);
-                  if (!files.length) return;
-                  patchWorkspaceEvent({ galleryItems: [...(workspaceEvent.galleryItems || []), ...files.map((file) => ({ id: createEventId('img'), name: file.name }))] });
-                  event.target.value = '';
-                }} />
-                <ImageIcon className="mr-2 h-5 w-5 text-slate-400" />Add photos for this event
-              </label>
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                {(workspaceEvent.galleryItems || []).map((item) => (
-                  <div key={item.id} className="rounded-xl border border-slate-200 p-3">
-                    <div className="mb-2 flex aspect-square items-center justify-center rounded-lg bg-slate-100"><ImageIcon className="h-8 w-8 text-slate-400" /></div>
-                    <p className="truncate text-xs font-medium text-slate-700">{item.name}</p>
-                    <Button size="xs" variant="ghost" className="mt-1 text-rose-600" onClick={() => patchWorkspaceEvent({ galleryItems: (workspaceEvent.galleryItems || []).filter((row) => row.id !== item.id) })}>Remove</Button>
+          {(() => {
+            const items = workspaceEvent.galleryItems || [];
+            const groups = Array.from(new Set(['Uncategorized', ...items.map((item) => item.group || 'Uncategorized')]));
+            return (
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-end gap-3">
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-semibold text-slate-600">Upload into group</span>
+                    <select className={inputClass} value={galleryGroup} onChange={(event) => setGalleryGroup(event.target.value)}>
+                      {groups.map((group) => <option key={group}>{group}</option>)}
+                    </select>
+                  </label>
+                  <div className="flex gap-2">
+                    <input className={`${inputClass} w-40`} placeholder="New group name" value={newGalleryGroup} onChange={(event) => setNewGalleryGroup(event.target.value)} />
+                    <Button size="sm" variant="outline" onClick={() => { const name = newGalleryGroup.trim(); if (!name) return; setGalleryGroup(name); setNewGalleryGroup(''); }}>Add group</Button>
                   </div>
-                ))}
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="flex cursor-pointer items-center justify-center rounded-xl border-2 border-dashed border-slate-200 p-6 text-sm text-slate-600 hover:border-indigo-300 hover:bg-indigo-50/40">
+                    <input type="file" multiple accept="image/*" className="hidden" onChange={(event) => { addGalleryFiles(event.target.files, 'image'); event.target.value = ''; }} />
+                    <ImageIcon className="mr-2 h-5 w-5 text-slate-400" />Add photos
+                  </label>
+                  <label className="flex cursor-pointer items-center justify-center rounded-xl border-2 border-dashed border-slate-200 p-6 text-sm text-slate-600 hover:border-indigo-300 hover:bg-indigo-50/40">
+                    <input type="file" multiple accept="video/*" className="hidden" onChange={(event) => { addGalleryFiles(event.target.files, 'video'); event.target.value = ''; }} />
+                    <Film className="mr-2 h-5 w-5 text-slate-400" />Add videos
+                  </label>
+                </div>
+                {groups.filter((group) => items.some((item) => (item.group || 'Uncategorized') === group) || group === 'Uncategorized').map((group) => {
+                  const grouped = items.filter((item) => (item.group || 'Uncategorized') === group);
+                  if (!grouped.length && group !== 'Uncategorized') return null;
+                  return (
+                    <div key={group}>
+                      <h3 className="mb-2 text-sm font-semibold text-slate-800">{group} <span className="text-xs font-normal text-slate-400">({grouped.length})</span></h3>
+                      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                        {grouped.map((item) => (
+                          <div key={item.id} className="rounded-xl border border-slate-200 p-3">
+                            <div className="mb-2 overflow-hidden rounded-lg bg-slate-100">
+                              {item.kind === 'video' && item.url ? <video src={item.url} controls className="aspect-square w-full object-cover" /> : item.url ? <img src={item.url} alt={item.name} className="aspect-square w-full object-cover" /> : <div className="flex aspect-square items-center justify-center">{item.kind === 'video' ? <Film className="h-8 w-8 text-slate-400" /> : <ImageIcon className="h-8 w-8 text-slate-400" />}</div>}
+                            </div>
+                            <p className="truncate text-xs font-medium text-slate-700">{item.name}</p>
+                            <select className={`${inputClass} mt-1 text-xs`} value={item.group || 'Uncategorized'} onChange={(event) => patchWorkspaceEvent({ galleryItems: items.map((row) => row.id === item.id ? { ...row, group: event.target.value } : row) })}>
+                              {groups.map((option) => <option key={option}>{option}</option>)}
+                            </select>
+                            <Button size="xs" variant="ghost" className="mt-1 text-rose-600" onClick={() => patchWorkspaceEvent({ galleryItems: items.filter((row) => row.id !== item.id) })}>Remove</Button>
+                          </div>
+                        ))}
+                      </div>
+                      {!grouped.length && <p className="text-sm text-slate-400">No media in this group yet.</p>}
+                    </div>
+                  );
+                })}
+                {items.length === 0 && <p className="text-sm text-slate-400">No photos or videos added yet.</p>}
               </div>
-              {(workspaceEvent.galleryItems || []).length === 0 && <p className="text-sm text-slate-400">No photos added yet.</p>}
-            </div>
-          )}
-          {workspace.mode === 'feedback' && (
-            <EventFeedbackPanel event={workspaceEvent} reviews={reviews} setReviews={setReviews} />
-          )}
+            );
+          })()}
         </Card>
       )}
 
@@ -381,3 +423,4 @@ export function EventPlanningSchedule() {
     </div>
   );
 }
+ 

@@ -424,19 +424,10 @@ const eventActivitiesSidebar: SidebarSection[] = [
     { label: 'Event Execution', id: 'event-execution' },
     { label: 'Event Feedback & Review', id: 'event-feedback-review' }
   ] },
-  { title: 'Teacher Activities', items: [
-    { label: 'Professional Development', id: 'professional-development' }
-  ] },
   { title: 'Teacher Duties', items: [
     { label: 'Duty Roster', id: 'duty-roster' },
-    { label: 'Duty Attendance', id: 'duty-attendance' }
-  ] },
-  { title: 'Activity Planning', items: [
+    { label: 'Duty Attendance', id: 'duty-attendance' },
     { label: 'Recurring Activities', id: 'recurring-activities' }
-  ] },
-  { title: 'Teacher & Department Coordination', items: [
-    { label: 'Teacher Schedule View', id: 'teacher-schedule-view' },
-    { label: 'Teacher Duty Report', id: 'teacher-duty-report' }
   ] },
   { title: 'Competition Management', items: [
     { label: 'Competition Events', id: 'competition-events' },
@@ -468,12 +459,7 @@ const curriculumAcademicPlanningSidebar: SidebarSection[] = [
   { title: 'Planning', items: [
     { label: 'Academic Management Dashboard', id: 'academic-planning-dashboard' },
     { label: 'Teaching Plan', id: 'teaching-plan' },
-    { label: 'Teacher Plan Progress', id: 'teacher-plan-progress' },
-    { label: 'Lesson Plan Creation', id: 'lesson-plan-creation' },
-    { label: 'Lesson Plan Review', id: 'lesson-plan-review' }
-  ] },
-  { title: 'Progress & Reports', items: [
-    { label: 'Curriculum & Academic Planning Reports', id: 'curriculum-academic-reports' }
+    { label: 'Teacher Plan Progress', id: 'teacher-plan-progress' }
   ] },
   ...academicsSidebar,
   ...curriculumSidebar

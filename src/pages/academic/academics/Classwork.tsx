@@ -183,6 +183,9 @@ export function Classwork() {
   'homework']
   );
   const [viewingEntry, setViewingEntry] = useState<(typeof recentEntries)[number] | null>(null);
+  const [showShare, setShowShare] = useState(false);
+  const [classworkSearch, setClassworkSearch] = useState('');
+  const [sharedEntries, setSharedEntries] = useState(recentEntries);
   const toggleSection = (s: string) =>
   setExpandedSections((prev) =>
   prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]
@@ -216,24 +219,49 @@ export function Classwork() {
             assignments
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            leftIcon={<DownloadIcon className="w-4 h-4" />}>
-
-            Export Log
-          </Button>
-          <Button
+        <Button
             variant="primary"
             size="sm"
-            leftIcon={<SaveIcon className="w-4 h-4" />}>
-
-            Save Entry
+            leftIcon={<PlusIcon className="w-4 h-4" />}
+            onClick={() => setShowShare(true)}>
+            Share Classwork
           </Button>
+      </div>
+
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="flex-1 min-w-[240px]">
+          <Input
+            label="Search classwork sent"
+            placeholder="Search by class, subject, teacher or topic..."
+            value={classworkSearch}
+            onChange={(e) => setClassworkSearch(e.target.value)}
+          />
         </div>
       </div>
 
+      <Modal isOpen={showShare} onClose={() => setShowShare(false)} title="Share Classwork" size="xl" footer={
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => setShowShare(false)}>Cancel</Button>
+          <Button onClick={() => {
+            setSharedEntries((prev) => [{
+              id: Date.now(),
+              date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, ' '),
+              standard: 'Class 10-A',
+              subject: 'Mathematics',
+              period: 'Period 1',
+              chapter: CHAPTERS.find((c) => c.value === selectedChapter)?.label || 'Chapter',
+              topic: selectedTopics[0] || 'Topic',
+              coverage: coverageType,
+              mode: teachingMode,
+              homework: homeworkAssigned ? 'Yes' : 'No',
+              teacher: 'You',
+              notes: classNotes || lessonObjective || 'Shared from classwork panel.'
+            }, ...prev]);
+            setShowShare(false);
+          }}>Share</Button>
+        </div>
+      }>
+        <div className="max-h-[70vh] space-y-6 overflow-y-auto pr-1">
       {/* Duplicate Warning */}
       {showDuplicateWarning &&
       <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
@@ -863,6 +891,10 @@ export function Classwork() {
         </div>
       </div>
 
+
+        </div>
+      </Modal>
+
       {/* Recent Entries */}
       <Card>
         <div className="flex items-center justify-between mb-4">
@@ -870,7 +902,7 @@ export function Classwork() {
             <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center">
               <ClipboardListIcon className="w-4 h-4 text-slate-600" />
             </div>
-            <h3 className="font-semibold text-gray-900">Submitted classwork</h3>
+            <h3 className="font-semibold text-gray-900">Classwork shared</h3>
           </div>
           <Button
             variant="outline"
@@ -880,7 +912,7 @@ export function Classwork() {
             Refresh
           </Button>
         </div>
-        <p className="mb-3 text-sm text-gray-500">Other classwork already submitted by teachers. Open any row to view the full entry.</p>
+        <p className="mb-3 text-sm text-gray-500">All classwork shared by teachers. Use the search above to find a sent entry.</p>
         <Table
           columns={[
           {
@@ -960,7 +992,11 @@ export function Classwork() {
               </Button>
           }]
           }
-          data={recentEntries} />
+          data={sharedEntries.filter((row) => {
+            const q = classworkSearch.toLowerCase();
+            if (!q) return true;
+            return [row.standard, row.subject, row.teacher, row.topic, row.chapter, row.date].join(' ').toLowerCase().includes(q);
+          })} />
 
       </Card>
       <Modal isOpen={Boolean(viewingEntry)} onClose={() => setViewingEntry(null)} title={viewingEntry ? `${viewingEntry.subject} · ${viewingEntry.topic}` : 'Classwork'} size="lg" footer={<Button onClick={() => setViewingEntry(null)}>Close</Button>}>

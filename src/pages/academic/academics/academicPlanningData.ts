@@ -291,6 +291,9 @@ export interface WeeklyTeachingItem {
   substitutionReason?: string;
   type: 'Lesson' | 'Test' | 'Lab' | 'Special Activity';
   planSubmitted: boolean;
+  progressPercent?: number;
+  reviewDecision?: '' | 'Approved' | 'Rejected' | 'Returned for Revision';
+  reviewFeedback?: string;
 }
 
 export interface LessonProcedurePhase {

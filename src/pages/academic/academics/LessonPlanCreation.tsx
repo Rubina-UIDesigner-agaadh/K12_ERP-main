@@ -1,98 +1,208 @@
 import React, { useMemo, useState } from 'react';
-import { BookOpenCheck, Download, FilePlus2, Plus, Printer, Send, Trash2 } from 'lucide-react';
+import { CheckCircle, Download, Eye, Printer, RotateCcw, Search, X } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
 import { Modal } from '../../../components/ui/Modal';
-import { ACADEMIC_PLANNING_KEYS, BLOOM_LEVELS, CLASSES, DEFAULT_CURRICULUM_CHAPTERS, DEFAULT_LEARNING_OBJECTIVES, DEFAULT_LESSON_PLANS, DEFAULT_MONTHLY_PLANS, DEFAULT_RESOURCES, SUBJECTS, createBlankLesson, downloadPlanningCsv, loadPlanningCollection, newPlanningId, savePlanningCollection, type LessonPlanRecord, type LessonProcedurePhase, type LessonStatus, type LearningObjectiveRecord, type MonthlyTeachingPlanRecord, type ResourceRecord, type TopicLearningObjective } from './academicPlanningData';
-import { EmptyState, PageHeader, PlanningPanel, SelectField, StatusPill, TextAreaField, TextField } from './academicPlanningData';
+import { Badge } from '../../../components/ui/Badge';
+import {
+  ACADEMIC_PLANNING_KEYS,
+  DEFAULT_WEEKLY_PLANS,
+  EmptyState,
+  PageHeader,
+  SelectField,
+  TextAreaField,
+  downloadPlanningCsv,
+  loadPlanningCollection,
+  savePlanningCollection,
+  type WeeklyTeachingItem
+} from './academicPlanningData';
 
-const defaultDate = new Date().toISOString().slice(0, 10);
-const verbsForBloom: Record<string, string[]> = { Remember: ['Define', 'List', 'Identify'], Understand: ['Explain', 'Describe', 'Summarize'], Apply: ['Apply', 'Demonstrate', 'Solve'], Analyse: ['Compare', 'Differentiate', 'Analyse'], Evaluate: ['Evaluate', 'Justify', 'Critique'], Create: ['Design', 'Construct', 'Develop'] };
-const emptyObjective = (): TopicLearningObjective => ({ id: newPlanningId('lesson-objective'), statement: '', bloomLevel: 'Understand', actionVerb: 'Explain', expectedOutcome: '', assessmentMethod: 'Questioning' });
-const emptyPhase = (index: number): LessonProcedurePhase => ({ id: newPlanningId('phase'), phase: `Teaching phase ${index + 1}`, minutes: 5, teacherActivity: '', studentActivity: '', questions: '', resources: '', checkUnderstanding: '' });
+type PrincipalDecision = 'Approved' | 'Rejected' | 'Returned for Revision';
 
-export function LessonPlanCreation() {
-  const [lessons, setLessons] = useState<LessonPlanRecord[]>(() => loadPlanningCollection(ACADEMIC_PLANNING_KEYS.lessons, DEFAULT_LESSON_PLANS));
-  const [chapters] = useState(() => loadPlanningCollection(ACADEMIC_PLANNING_KEYS.chapters, DEFAULT_CURRICULUM_CHAPTERS));
-  const [objectiveLibrary] = useState<LearningObjectiveRecord[]>(() => loadPlanningCollection(ACADEMIC_PLANNING_KEYS.objectives, DEFAULT_LEARNING_OBJECTIVES));
-  const [monthlyPlans] = useState<MonthlyTeachingPlanRecord[]>(() => loadPlanningCollection(ACADEMIC_PLANNING_KEYS.monthlyPlans, DEFAULT_MONTHLY_PLANS));
-  const [resources] = useState<ResourceRecord[]>(() => loadPlanningCollection(ACADEMIC_PLANNING_KEYS.resources, DEFAULT_RESOURCES));
+const decisionTone = (decision?: string) => {
+  if (decision === 'Approved') return 'success';
+  if (decision === 'Rejected') return 'danger';
+  if (decision === 'Returned for Revision') return 'warning';
+  return 'info';
+};
+
+export function LessonPlanReview() {
+  const [plans, setPlans] = useState<WeeklyTeachingItem[]>(() => loadPlanningCollection(ACADEMIC_PLANNING_KEYS.weeklyPlans, DEFAULT_WEEKLY_PLANS));
   const [search, setSearch] = useState('');
   const [teacherFilter, setTeacherFilter] = useState('All Teachers');
-  const [classFilter, setClassFilter] = useState('All Classes');
-  const [subjectFilter, setSubjectFilter] = useState('All Subjects');
-  const [statusFilter, setStatusFilter] = useState('All Statuses');
-  const [dateFilter, setDateFilter] = useState('');
-  const [form, setForm] = useState<LessonPlanRecord | null>(null);
-  const [message, setMessage] = useState('');
-  const persist = (next: LessonPlanRecord[]) => { setLessons(next); savePlanningCollection(ACADEMIC_PLANNING_KEYS.lessons, next); };
-  const update = <K extends keyof LessonPlanRecord,>(key: K, value: LessonPlanRecord[K]) => setForm((current) => current ? { ...current, [key]: value } : current);
-  const filtered = useMemo(() => lessons.filter((item) => (teacherFilter === 'All Teachers' || item.teacher === teacherFilter) && (classFilter === 'All Classes' || item.className === classFilter) && (subjectFilter === 'All Subjects' || item.subject === subjectFilter) && (statusFilter === 'All Statuses' || item.status === statusFilter) && (!dateFilter || item.date === dateFilter) && (!search || `${item.teacher} ${item.subject} ${item.className} ${item.title} ${item.chapter} ${item.topic}`.toLowerCase().includes(search.toLowerCase()))), [lessons, teacherFilter, classFilter, subjectFilter, statusFilter, dateFilter, search]);
-  const teachers = [...new Set(lessons.map((item) => item.teacher))];
-  const classChapters = chapters.filter((chapter) => form && chapter.className === form.className && chapter.subject === form.subject);
-  const selectedChapter = classChapters.find((chapter) => chapter.name === form?.chapter);
-  const selectedTopics = selectedChapter?.topics || [];
-  const linkedObjectives = objectiveLibrary.filter((item) => item.className === form?.className && item.subject === form?.subject && item.chapterName === form?.chapter && (!form?.topic || item.topicName === form.topic));
-  const activeMonthlyPlans = monthlyPlans.filter((item) => item.teacher === form?.teacher && item.className === form?.className && item.subject === form?.subject);
-  const linkedResources = resources.filter((item) => item.status === 'Active' && item.classes.includes(form?.className || '') && item.subjects.toLowerCase().includes((form?.subject || '').toLowerCase()));
-  const totalProcedureMinutes = form?.procedure.reduce((sum, phase) => sum + Number(phase.minutes || 0), 0) || 0;
-  const persistMessage = (text: string) => { setMessage(text); window.setTimeout(() => setMessage(''), 4000); };
-  const newPlan = () => { const blank = createBlankLesson(); blank.date = defaultDate; setForm(blank); };
-  const editPlan = (record: LessonPlanRecord) => setForm({ ...record, objectives: record.objectives.map((item) => ({ ...item })), procedure: record.procedure.map((item) => ({ ...item })), differentiation: { ...record.differentiation } });
-  const selectChapter = (name: string) => { const chapter = classChapters.find((item) => item.name === name); const topic = chapter?.topics[0]; setForm((current) => current ? { ...current, chapter: name, topic: topic?.name || '', subTopic: topic?.subtopics[0]?.name || '', objectives: topic?.learningObjectives.map((objective) => ({ ...objective, actionVerb: objective.actionVerb || 'Explain', expectedOutcome: objective.expectedOutcome || '', assessmentMethod: objective.assessmentMethod || 'Questioning' })) || [] } : current); };
-  const selectTopic = (name: string) => { const topic = selectedTopics.find((item) => item.name === name); setForm((current) => current ? { ...current, topic: name, subTopic: topic?.subtopics[0]?.name || '', objectives: topic?.learningObjectives.map((objective) => ({ ...objective, actionVerb: objective.actionVerb || 'Explain', expectedOutcome: objective.expectedOutcome || '', assessmentMethod: objective.assessmentMethod || 'Questioning' })) || [] } : current); };
-  const updateObjective = (id: string, patch: Partial<TopicLearningObjective>) => setForm((current) => current ? { ...current, objectives: current.objectives.map((item) => item.id === id ? { ...item, ...patch } : item) } : current);
-  const updatePhase = (id: string, patch: Partial<LessonProcedurePhase>) => setForm((current) => current ? { ...current, procedure: current.procedure.map((phase) => phase.id === id ? { ...phase, ...patch } : phase) } : current);
-  const save = (action: LessonStatus) => {
-    if (!form) return;
-    if (!form.teacher.trim() || !form.subject.trim() || !form.title.trim() || !form.date) { persistMessage('Teacher, subject, lesson title and date are required.'); return; }
-    if (action === 'Approved' || action === 'Returned' || action === 'Rejected') { persistMessage('HOD review decisions are recorded on Lesson Plan Review, not here.'); return; }
-    const saved: LessonPlanRecord = { ...form, status: action, submitToHod: action === 'Submitted' ? true : form.submitToHod, createdAt: form.createdAt || defaultDate };
-    persist(lessons.some((item) => item.id === saved.id) ? lessons.map((item) => item.id === saved.id ? saved : item) : [saved, ...lessons]); setForm(null); persistMessage(action === 'Submitted' ? 'Lesson plan submitted to the HOD.' : `Lesson plan ${action.toLowerCase()} and saved.`);
-  };
-  const addObjective = () => { if (form) setForm({ ...form, objectives: [...form.objectives, emptyObjective()] }); };
-  const addPhase = () => { if (form) setForm({ ...form, procedure: [...form.procedure, emptyPhase(form.procedure.length)] }); };
-  const copyPrevious = () => {
-    if (!form) return;
-    const previous = lessons.filter((item) => item.teacher === form.teacher && item.className === form.className && item.subject === form.subject && item.date < form.date).sort((a, b) => b.date.localeCompare(a.date))[0];
-    if (!previous) { persistMessage('No previous lesson was found for this teacher, class and subject.'); return; }
-    setForm({ ...previous, id: form.id, date: form.date, periodNumber: form.periodNumber, periodTime: form.periodTime, status: 'Draft', submitToHod: false, isContinuation: true, previousLessonId: previous.id, objectives: previous.objectives.map((item) => ({ ...item })), procedure: previous.procedure.map((item) => ({ ...item })), differentiation: { ...previous.differentiation } }); persistMessage(`Copied the previous lesson from ${previous.date} as a continuation draft.`);
-  };
-  const exportLesson = (item: LessonPlanRecord) => downloadPlanningCsv(`${item.id}-lesson-plan.csv`, [{ Teacher: item.teacher, EmployeeId: item.employeeId, Class: item.className, Section: item.section, Subject: item.subject, Date: item.date, Period: item.periodNumber, DurationMinutes: item.durationMinutes, Room: item.room, Chapter: item.chapter, Topic: item.topic, Title: item.title, Objectives: item.objectives.map((objective) => `${objective.actionVerb || ''} ${objective.statement} (${objective.bloomLevel})`).join(' | '), PriorKnowledge: item.priorKnowledge, Procedure: item.procedure.map((phase) => `${phase.phase} (${phase.minutes}m): ${phase.teacherActivity} / ${phase.studentActivity}`).join(' | '), Resources: [item.boardWork, item.projectorPpt, item.videoLink, item.physicalDemo, item.labExperiment, item.modelChart, item.worksheet, item.textbookPages, item.digitalToolUrl].filter(Boolean).join(' | '), Homework: item.homeworkAssigned ? `${item.homeworkType}: ${item.homeworkDescription} · Due ${item.dueDate}` : 'No homework', Assessment: `${item.assessmentMethod}: ${item.assessmentQuestions}`, Reflection: item.whatWorkedWell, Status: item.status, HOD: item.hodName, HODFeedback: item.hodFeedback }]);
-  const exportList = () => downloadPlanningCsv('lesson-plan-tracker.csv', filtered.map((item) => ({ ID: item.id, Teacher: item.teacher, Class: item.className, Section: item.section, Subject: item.subject, Date: item.date, Period: item.periodNumber, Chapter: item.chapter, Topic: item.topic, Title: item.title, Status: item.status, SubmittedToHOD: item.submitToHod, HODFeedback: item.hodFeedback })));
-  const deletePlan = (item: LessonPlanRecord) => { if (window.confirm(`Delete lesson plan “${item.title}”?`)) persist(lessons.filter((lesson) => lesson.id !== item.id)); };
+  const [statusFilter, setStatusFilter] = useState('Pending');
+  const [active, setActive] = useState<WeeklyTeachingItem | null>(null);
+  const [feedback, setFeedback] = useState('');
+  const [toast, setToast] = useState('');
 
-  return <div className="space-y-5 p-4 md:p-6">
-    <PageHeader title="📝 Lesson Plan Creation" description="Build a complete, teachable lesson plan, track completion and submit it for HOD review." actions={<><Button onClick={newPlan}><FilePlus2 className="h-4 w-4" />Create Lesson Plan</Button><Button variant="outline" onClick={exportList}><Download className="h-4 w-4" />Export Tracker</Button><Button variant="outline" onClick={() => window.print()}><Printer className="h-4 w-4" />Print / PDF</Button></>} />
-    <Card><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5"><TextField label="Search" value={search} onChange={setSearch} placeholder="Teacher, topic, title..." /><SelectField label="Teacher" value={teacherFilter} onChange={setTeacherFilter} options={['All Teachers', ...teachers]} /><SelectField label="Class" value={classFilter} onChange={setClassFilter} options={['All Classes', ...CLASSES]} /><SelectField label="Subject" value={subjectFilter} onChange={setSubjectFilter} options={['All Subjects', ...SUBJECTS]} /><SelectField label="Status" value={statusFilter} onChange={setStatusFilter} options={['All Statuses','Draft','Submitted','Approved','Returned','Rejected']} /><TextField label="Lesson Date" type="date" value={dateFilter} onChange={setDateFilter} /></div></Card>
-    {message && <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm text-indigo-800">{message}</div>}
-    {lessons.some((item) => item.status === 'Returned' || item.status === 'Rejected' || item.hodDecision) && (
-      <Card title="HOD review updates">
-        <div className="space-y-2 text-sm">
-          {lessons.filter((item) => item.status === 'Returned' || item.status === 'Rejected' || item.hodDecision).slice(0, 8).map((item) => (
-            <div key={item.id} className={`rounded-lg border px-3 py-2 ${item.status === 'Rejected' ? 'border-red-200 bg-red-50' : item.status === 'Returned' ? 'border-amber-200 bg-amber-50' : 'border-indigo-100 bg-indigo-50'}`}>
-              <p className="font-medium text-slate-800">{item.title} · {item.status}{item.hodDecision ? ` · ${item.hodDecision}` : ''}</p>
-              <p className="text-xs text-slate-600">{item.hodFeedback || 'No overall feedback yet.'}</p>
-              {item.hodSuggestions ? <p className="mt-1 text-xs text-slate-700">Suggestions: {item.hodSuggestions}</p> : null}
-              {(item.status === 'Returned' || item.status === 'Rejected') && <Button size="xs" variant="outline" className="mt-2" onClick={() => editPlan(item)}>{item.status === 'Returned' ? 'Revise and resubmit' : 'Open rejected plan'}</Button>}
+  const persist = (next: WeeklyTeachingItem[]) => {
+    setPlans(next);
+    savePlanningCollection(ACADEMIC_PLANNING_KEYS.weeklyPlans, next);
+  };
+  const flash = (message: string) => { setToast(message); window.setTimeout(() => setToast(''), 3500); };
+
+  const teachers = ['All Teachers', ...new Set(plans.map((plan) => plan.teacher))];
+
+  const reviewStatus = (plan: WeeklyTeachingItem) => {
+    if (!plan.planSubmitted) return 'Draft';
+    if (plan.reviewDecision === 'Approved') return 'Approved';
+    if (plan.reviewDecision === 'Rejected') return 'Rejected';
+    if (plan.reviewDecision === 'Returned for Revision') return 'Sent for Review';
+    return 'Pending';
+  };
+
+  const filtered = useMemo(() => plans.filter((plan) => {
+    const status = reviewStatus(plan);
+    const matchesTeacher = teacherFilter === 'All Teachers' || plan.teacher === teacherFilter;
+    const matchesSearch = !search || `${plan.teacher} ${plan.className} ${plan.subject} ${plan.chapter} ${plan.topic}`.toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = statusFilter === 'All' || status === statusFilter;
+    return matchesTeacher && matchesSearch && matchesStatus;
+  }).sort((a, b) => b.date.localeCompare(a.date) || a.periodNumber - b.periodNumber), [plans, teacherFilter, search, statusFilter]);
+
+  const pendingCount = plans.filter((plan) => reviewStatus(plan) === 'Pending').length;
+  const approvedCount = plans.filter((plan) => reviewStatus(plan) === 'Approved').length;
+  const rejectedCount = plans.filter((plan) => reviewStatus(plan) === 'Rejected').length;
+  const returnedCount = plans.filter((plan) => reviewStatus(plan) === 'Sent for Review').length;
+
+  const decide = (plan: WeeklyTeachingItem, decision: PrincipalDecision) => {
+    if ((decision === 'Rejected' || decision === 'Returned for Revision') && !feedback.trim()) {
+      flash('Add a comment before rejecting or sending for review.');
+      return;
+    }
+    persist(plans.map((item) => item.id === plan.id ? {
+      ...item,
+      planSubmitted: decision === 'Returned for Revision' ? false : item.planSubmitted,
+      reviewDecision: decision,
+      reviewFeedback: feedback.trim()
+    } : item));
+    setActive(null);
+    setFeedback('');
+    flash(decision === 'Approved' ? `Teaching plan approved for ${plan.teacher}.` : decision === 'Rejected' ? `Teaching plan rejected for ${plan.teacher}.` : `Teaching plan sent back to ${plan.teacher} for review.`);
+  };
+
+  const exportRows = () => downloadPlanningCsv('teaching-plan-review.csv', filtered.map((plan) => ({
+    Teacher: plan.teacher,
+    Class: `${plan.className} ${plan.section}`,
+    Subject: plan.subject,
+    Chapter: plan.chapter,
+    Topic: plan.topic,
+    Date: plan.date,
+    Period: plan.periodNumber,
+    Status: reviewStatus(plan),
+    Feedback: plan.reviewFeedback || ''
+  })));
+
+  return (
+    <div className="space-y-6 p-4 md:p-6">
+      <PageHeader
+        title="Lesson Plan Review"
+        description="Principal review of teaching plans created on the Teaching Plan page. Approve, reject, or send a plan back for review."
+        actions={<>
+          <Button variant="outline" onClick={exportRows}><Download className="h-4 w-4" />Export</Button>
+          <Button variant="outline" onClick={() => window.print()}><Printer className="h-4 w-4" />Print</Button>
+        </>}
+      />
+
+      {toast && <div className="flex items-start justify-between gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800"><span>{toast}</span><button type="button" onClick={() => setToast('')} className="text-green-700"><X className="h-4 w-4" /></button></div>}
+
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        {[
+          { label: 'Pending', value: pendingCount },
+          { label: 'Approved', value: approvedCount },
+          { label: 'Rejected', value: rejectedCount },
+          { label: 'Sent for Review', value: returnedCount }
+        ].map((card) => (
+          <Card key={card.label}><p className="text-2xl font-bold text-slate-900">{card.value}</p><p className="text-xs text-slate-500">{card.label}</p></Card>
+        ))}
+      </div>
+
+      <Card>
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="block min-w-[220px] flex-1">
+            <span className="mb-1 block text-xs font-medium text-slate-600">Search teaching plans</span>
+            <div className="relative">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <input className="w-full rounded-lg border border-gray-300 py-2 pl-9 pr-3 text-sm" placeholder="Teacher, class, chapter or topic" value={search} onChange={(event) => setSearch(event.target.value)} />
             </div>
-          ))}
+          </label>
+          <SelectField label="Teacher" value={teacherFilter} onChange={setTeacherFilter} options={teachers} />
+          <SelectField label="Status" value={statusFilter} onChange={setStatusFilter} options={['All', 'Pending', 'Approved', 'Rejected', 'Sent for Review', 'Draft']} />
         </div>
       </Card>
-    )}
-    <Card title="Teacher Lesson Plan Tracker" noPadding><div className="overflow-x-auto"><table className="w-full min-w-[1080px] text-left text-sm"><thead className="bg-slate-50 text-[10px] uppercase text-slate-500"><tr><th className="px-3 py-3">Teacher</th><th className="px-3 py-3">Plan</th><th className="px-3 py-3">Class / Subject</th><th className="px-3 py-3">Lesson Date & Period</th><th className="px-3 py-3">Chapter / Topic</th><th className="px-3 py-3">Status</th><th className="px-3 py-3">HOD Review</th><th className="px-3 py-3">Actions</th></tr></thead><tbody className="divide-y divide-slate-100">{[...filtered].sort((a, b) => a.teacher.localeCompare(b.teacher) || a.date.localeCompare(b.date)).map((item) => <tr key={item.id}><td className="px-3 py-3"><p className="font-semibold text-slate-800">{item.teacher}</p><p className="text-[10px] text-slate-400">{item.employeeId || item.id}</p></td><td className="px-3 py-3"><p className="font-medium text-slate-800">{item.title}</p><p className="text-[10px] text-slate-400">{item.id}</p></td><td className="px-3 py-3">{item.className} · {item.section}<p className="text-[10px] text-slate-400">{item.subject}</p></td><td className="px-3 py-3">{item.date}<p className="text-[10px] text-slate-400">P{item.periodNumber} · {item.periodTime}</p></td><td className="px-3 py-3">{item.chapter}<p className="text-[10px] text-slate-400">{item.topic}</p></td><td className="px-3 py-3"><StatusPill status={item.hodDecision || item.status} /></td><td className="px-3 py-3 text-xs">{item.hodDecision ? <><p className="font-medium">{item.hodDecision}</p><p>{item.hodFeedback || '—'}</p>{item.hodSuggestions ? <p className="mt-1 text-indigo-700">{item.hodSuggestions}</p> : null}</> : (item.hodFeedback || (item.submitToHod ? 'Review pending' : 'Not submitted'))}</td><td className="px-3 py-3"><div className="flex flex-wrap gap-1"><Button size="xs" variant="outline" onClick={() => editPlan(item)}>View / Edit</Button><Button size="xs" variant="outline" onClick={() => exportLesson(item)}><Download className="h-3 w-3" />Export</Button><Button size="xs" variant="ghost" onClick={() => deletePlan(item)} title="Delete lesson"><Trash2 className="h-3.5 w-3.5" /></Button></div></td></tr>)}{filtered.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-sm text-slate-400">No lesson plans match the selected filters.</td></tr>}</tbody></table></div></Card>
-    <Modal isOpen={Boolean(form)} onClose={() => setForm(null)} title={form ? `Lesson Plan · ${form.teacher}` : 'Lesson Plan'} size="xl" footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="outline" onClick={() => setForm(null)}>Cancel</Button>{form && form.status !== 'Approved' && form.status !== 'Rejected' && <Button variant="outline" onClick={() => save('Draft')}>Save Draft</Button>}{form && form.status !== 'Approved' && form.status !== 'Rejected' && <Button onClick={() => save('Submitted')}><Send className="h-4 w-4" />{form.status === 'Returned' ? 'Resubmit to HOD' : 'Submit to HOD'}</Button>}</div>}>
-      {form && <div className="max-h-[77vh] space-y-4 overflow-y-auto pr-1">{(form.hodDecision || form.hodFeedback || form.status === 'Returned' || form.status === 'Rejected' || form.status === 'Approved') && <div className={`rounded-xl border p-3 text-sm ${form.status === 'Rejected' ? 'border-red-200 bg-red-50 text-red-800' : form.status === 'Returned' ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-emerald-200 bg-emerald-50 text-emerald-900'}`}><p className="font-semibold">HOD review: {form.hodDecision || form.status}</p><p className="mt-1">{form.hodFeedback || 'No overall comment.'}</p>{form.hodSuggestions ? <p className="mt-1">Suggestions: {form.hodSuggestions}</p> : null}{form.status === 'Rejected' && <p className="mt-1 text-xs">Create a new lesson plan. This one cannot be resubmitted.</p>}{form.status === 'Returned' && <p className="mt-1 text-xs">Revise the plan using the feedback, then resubmit to the HOD.</p>}</div>}<div className="flex flex-wrap items-end gap-2 rounded-xl border border-indigo-100 bg-indigo-50 p-3"><Button size="sm" variant="outline" onClick={copyPrevious}><BookOpenCheck className="h-4 w-4" />Copy Previous Lesson</Button></div>
-        <PlanningPanel title="Panel 1 of 9 · Teacher, Class & Period Identity"><div className="grid gap-3 md:grid-cols-4"><TextField label="Teacher Name · logged-in teacher" value={form.teacher} onChange={(value) => update('teacher', value)} /><TextField label="Employee ID" value={form.employeeId} onChange={(value) => update('employeeId', value)} /><SelectField label="Class" value={form.className} onChange={(value) => { update('className', value); update('chapter', ''); update('topic', ''); }} options={CLASSES} /><TextField label="Section" value={form.section} onChange={(value) => update('section', value)} /><SelectField label="Subject" value={form.subject} onChange={(value) => { update('subject', value); update('chapter', ''); update('topic', ''); }} options={SUBJECTS} /><TextField label="Lesson Date" type="date" value={form.date} onChange={(value) => update('date', value)} /><TextField label="Period Number" type="number" min="1" value={form.periodNumber} onChange={(value) => update('periodNumber', Number(value) || 1)} /><TextField label="Period Time" value={form.periodTime} onChange={(value) => update('periodTime', value)} /><TextField label="Duration (minutes)" type="number" min="1" value={form.durationMinutes} onChange={(value) => update('durationMinutes', Number(value) || 1)} /><TextField label="Classroom / Room" value={form.room} onChange={(value) => update('room', value)} /><SelectField label="Chapter · Curriculum Master" value={form.chapter} onChange={selectChapter} options={['', ...classChapters.map((item) => item.name)]} /><SelectField label="Topic" value={form.topic} onChange={selectTopic} options={['', ...selectedTopics.map((item) => item.name)]} /><SelectField label="Sub-topic" value={form.subTopic} onChange={(value) => update('subTopic', value)} options={['', ...(selectedTopics.find((item) => item.name === form.topic)?.subtopics.map((item) => item.name) || [])]} /><TextField label="Lesson Title" value={form.title} onChange={(value) => update('title', value)} /><label className="flex items-center gap-2 rounded-lg border border-slate-100 px-3 py-2 text-xs"><input type="checkbox" checked={form.isContinuation} onChange={(event) => update('isContinuation', event.target.checked)} />Continuation of previous lesson</label><TextField label="Previous Lesson ID" value={form.previousLessonId} onChange={(value) => update('previousLessonId', value)} /><SelectField label="Linked Monthly Plan" value={form.linkedMonthlyPlan} onChange={(value) => update('linkedMonthlyPlan', value)} options={['', ...activeMonthlyPlans.map((item) => `${item.id} · ${item.month} ${item.year}`)]} /></div><p className="text-[10px] text-slate-500">Linked monthly plans: {activeMonthlyPlans.length}. Resource directory entries for this subject: {linkedResources.length}.</p></PlanningPanel>
-        <PlanningPanel title="Panel 2 of 9 · Learning Objectives"><p className="text-xs text-slate-500">Select aligned curriculum objectives and Bloom’s level. Outcomes are measurable student actions; add rows as needed.</p>{linkedObjectives.length > 0 && <div className="flex flex-wrap gap-2">{linkedObjectives.slice(0, 6).map((objective) => <Button key={objective.id} size="xs" variant="outline" onClick={() => { if (form.objectives.some((item) => item.statement === objective.statement)) return; update('objectives', [...form.objectives, { id: newPlanningId('lesson-objective'), statement: objective.statement, bloomLevel: objective.bloomLevel, actionVerb: objective.actionVerb, expectedOutcome: objective.measurableCriteria, assessmentMethod: objective.howAssessed }]); }}>{objective.topicName}: {objective.actionVerb || objective.bloomLevel}</Button>)}</div>}<div className="space-y-2">{form.objectives.map((objective) => <div key={objective.id} className="grid gap-2 rounded-lg border border-slate-100 p-3 md:grid-cols-5"><TextField label="Measurable Objective" value={objective.statement} onChange={(value) => updateObjective(objective.id, { statement: value })} className="md:col-span-2" /><SelectField label="Bloom’s Taxonomy" value={objective.bloomLevel} onChange={(value) => updateObjective(objective.id, { bloomLevel: value as TopicLearningObjective['bloomLevel'], actionVerb: verbsForBloom[value]?.[0] || 'Explain' })} options={BLOOM_LEVELS} /><SelectField label="Key Action Verb" value={objective.actionVerb || 'Explain'} onChange={(value) => updateObjective(objective.id, { actionVerb: value })} options={verbsForBloom[objective.bloomLevel] || ['Explain']} /><TextField label="Expected Outcome / Criteria" value={objective.expectedOutcome || ''} onChange={(value) => updateObjective(objective.id, { expectedOutcome: value })} /><SelectField label="Assessment Alignment" value={objective.assessmentMethod || 'Questioning'} onChange={(value) => updateObjective(objective.id, { assessmentMethod: value })} options={['Questioning','Exit ticket','Written response','Quiz','Practical','Observation','Peer assessment']} /><Button size="xs" variant="ghost" className="self-end" onClick={() => update('objectives', form.objectives.filter((item) => item.id !== objective.id))}>Remove objective</Button></div>)}</div><Button size="xs" variant="outline" onClick={addObjective}><Plus className="h-3.5 w-3.5" />Add Objective</Button>{form.objectives.length === 0 && <EmptyState>Select a curriculum objective or add a learning outcome.</EmptyState>}</PlanningPanel>
-        <PlanningPanel title="Panel 3 of 9 · Prior Knowledge & Lesson Opening"><div className="grid gap-3 md:grid-cols-2"><TextAreaField label="Prerequisite Knowledge / Skills" value={form.priorKnowledge} onChange={(value) => update('priorKnowledge', value)} /><TextAreaField label="Previous Lesson Recap" value={form.previousRecap} onChange={(value) => update('previousRecap', value)} /><TextAreaField label="Hook Question / Opening Activity" value={form.hookQuestion} onChange={(value) => update('hookQuestion', value)} /><TextAreaField label="Real-life Connection / Context" value={form.realLifeConnection} onChange={(value) => update('realLifeConnection', value)} /><TextAreaField label="Common Misconceptions to Address" value={form.misconceptions} onChange={(value) => update('misconceptions', value)} /></div></PlanningPanel>
-        <PlanningPanel title="Panel 4 of 9 · Teaching Procedure & Timeline" description={`Planned phase time: ${totalProcedureMinutes} minutes · lesson duration: ${form.durationMinutes} minutes.`}><div className="space-y-3">{form.procedure.map((phase, index) => <div key={phase.id} className="rounded-lg border border-slate-200 p-3"><div className="mb-2 flex flex-wrap items-end gap-2"><TextField label={`Phase ${index + 1}`} value={phase.phase} onChange={(value) => updatePhase(phase.id, { phase: value })} className="min-w-48 flex-1" /><TextField label="Minutes" type="number" min="1" value={phase.minutes} onChange={(value) => updatePhase(phase.id, { minutes: Number(value) || 1 })} /><Button size="xs" variant="ghost" onClick={() => update('procedure', form.procedure.filter((item) => item.id !== phase.id))}>Remove phase</Button></div><div className="grid gap-3 md:grid-cols-2"><TextAreaField label="Teacher Activity" value={phase.teacherActivity} onChange={(value) => updatePhase(phase.id, { teacherActivity: value })} /><TextAreaField label="Student Activity" value={phase.studentActivity} onChange={(value) => updatePhase(phase.id, { studentActivity: value })} /><TextAreaField label="Questions to Ask" value={phase.questions} onChange={(value) => updatePhase(phase.id, { questions: value })} /><TextAreaField label="Resources at This Stage" value={phase.resources} onChange={(value) => updatePhase(phase.id, { resources: value })} /><TextAreaField label="Check for Understanding" value={phase.checkUnderstanding} onChange={(value) => updatePhase(phase.id, { checkUnderstanding: value })} /></div></div>)}</div><Button size="xs" variant="outline" onClick={addPhase}><Plus className="h-3.5 w-3.5" />Add Teaching Phase</Button><div className={totalProcedureMinutes > form.durationMinutes ? 'rounded-lg bg-rose-50 p-2 text-xs text-rose-700' : 'rounded-lg bg-emerald-50 p-2 text-xs text-emerald-700'}>{totalProcedureMinutes > form.durationMinutes ? `${totalProcedureMinutes - form.durationMinutes} minutes exceed the lesson duration.` : `${form.durationMinutes - totalProcedureMinutes} minutes available for transitions / flexibility.`}</div></PlanningPanel>
-        <PlanningPanel title="Panel 5 of 9 · Teaching Resources & Materials"><div className="mb-2 flex flex-wrap gap-2">{linkedResources.slice(0, 8).map((resource) => <Button size="xs" variant="outline" key={resource.id} onClick={() => update('textbookPages', [form.textbookPages, resource.name].filter(Boolean).join('; '))}>+ {resource.shortName}</Button>)}</div><div className="grid gap-3 md:grid-cols-3"><TextAreaField label="Board Work / Diagrams" value={form.boardWork} onChange={(value) => update('boardWork', value)} /><TextAreaField label="Projector / PPT" value={form.projectorPpt} onChange={(value) => update('projectorPpt', value)} /><TextField label="Video Link" value={form.videoLink} onChange={(value) => update('videoLink', value)} /><TextAreaField label="Physical Demonstration" value={form.physicalDemo} onChange={(value) => update('physicalDemo', value)} /><TextAreaField label="Lab Experiment" value={form.labExperiment} onChange={(value) => update('labExperiment', value)} /><TextAreaField label="Model / Chart" value={form.modelChart} onChange={(value) => update('modelChart', value)} /><TextAreaField label="Worksheet / Handout" value={form.worksheet} onChange={(value) => update('worksheet', value)} /><TextField label="Textbook Pages / Reference" value={form.textbookPages} onChange={(value) => update('textbookPages', value)} /><TextField label="Digital Tool / URL" value={form.digitalToolUrl} onChange={(value) => update('digitalToolUrl', value)} /></div></PlanningPanel>
-        <PlanningPanel title="Panel 6 of 9 · Differentiation & Inclusive Teaching"><div className="grid gap-3 md:grid-cols-2">{Object.entries(form.differentiation).map(([learner, value]) => <TextAreaField key={learner} label={`${learner} · Strategy`} value={value} onChange={(next) => update('differentiation', { ...form.differentiation, [learner]: next })} />)}</div><p className="text-[10px] text-slate-500">Plan accessible options and support strategies; use school accommodation / IEP records where applicable.</p></PlanningPanel>
-        <PlanningPanel title="Panel 7 of 9 · Homework & Assignment"><div className="grid gap-3 md:grid-cols-3"><label className="flex items-center gap-2 rounded-lg border border-slate-100 px-3 py-2 text-xs"><input type="checkbox" checked={form.homeworkAssigned} onChange={(event) => update('homeworkAssigned', event.target.checked)} />Assign homework</label><SelectField label="Type" value={form.homeworkType} onChange={(value) => update('homeworkType', value)} options={['Practice','Research','Project','Reading','Worksheet','No homework']} /><TextField label="Textbook Reference" value={form.textbookReference} onChange={(value) => update('textbookReference', value)} /><TextAreaField label="Description & Instructions" value={form.homeworkDescription} onChange={(value) => update('homeworkDescription', value)} /><TextField label="Due Date" type="date" value={form.dueDate} onChange={(value) => update('dueDate', value)} /><TextField label="Estimated Completion Time" value={form.estimatedHomeworkTime} onChange={(value) => update('estimatedHomeworkTime', value)} placeholder="e.g. 20 minutes" /><TextAreaField label="Classwork to Complete" value={form.classworkDone} onChange={(value) => update('classworkDone', value)} /><SelectField label="Will Homework Be Graded?" value={form.homeworkGrading} onChange={(value) => update('homeworkGrading', value)} options={['Yes','No','Completion only']} /></div></PlanningPanel>
-        <PlanningPanel title="Panel 8 of 9 · Assessment & Understanding Check"><div className="grid gap-3 md:grid-cols-2"><SelectField label="Assessment Method" value={form.assessmentMethod} onChange={(value) => update('assessmentMethod', value)} options={['Exit ticket','Oral questioning','Quiz','Written response','Practical','Observation','Peer assessment','Worksheet']} /><TextAreaField label="Questions / Tasks to Assess" value={form.assessmentQuestions} onChange={(value) => update('assessmentQuestions', value)} /><TextAreaField label="Expected Responses / Success Criteria" value={form.expectedResponses} onChange={(value) => update('expectedResponses', value)} /><TextAreaField label="How Understanding Will Be Tracked" value={form.understandingTracking} onChange={(value) => update('understandingTracking', value)} /><SelectField label="Reteaching Action if Needed" value={form.reteachAction} onChange={(value) => update('reteachAction', value)} options={['Reteach next period','Small-group support','Peer explanation','Additional practice','Refer to remedial plan']} /></div></PlanningPanel>
-        <PlanningPanel title="Panel 9 of 9 · Post-Lesson Reflection, Completion & HOD Review"><div className="grid gap-3 md:grid-cols-3"><SelectField label="Lesson Completion" value={form.completion} onChange={(value) => update('completion', value)} options={['Planned','Completed','Partially completed','Not completed']} /><TextAreaField label="Topics Not Covered" value={form.topicsNotCovered} onChange={(value) => update('topicsNotCovered', value)} /><TextAreaField label="Reason Incomplete" value={form.incompleteReason} onChange={(value) => update('incompleteReason', value)} /><SelectField label="Student Engagement" value={form.studentEngagement} onChange={(value) => update('studentEngagement', value)} options={['Excellent','Good','Mixed','Low']} /><SelectField label="Student Understanding" value={form.studentUnderstanding} onChange={(value) => update('studentUnderstanding', value)} options={['Most understood','Some understood','Needs reteaching','Not assessed']} /><TextAreaField label="What Worked Well?" value={form.whatWorkedWell} onChange={(value) => update('whatWorkedWell', value)} /><TextAreaField label="What to Improve Next Time?" value={form.whatToImprove} onChange={(value) => update('whatToImprove', value)} /><TextAreaField label="Carry Forward Note for Next Lesson" value={form.carryForwardNote} onChange={(value) => update('carryForwardNote', value)} /><TextAreaField label="Homework Check / Review" value={form.homeworkCheck} onChange={(value) => update('homeworkCheck', value)} /><TextAreaField label="Notable Students / Follow-up" value={form.notableStudents} onChange={(value) => update('notableStudents', value)} /></div><div className="mt-4 border-t border-slate-200 pt-4"><h3 className="mb-3 text-sm font-bold text-slate-800">HOD Submission & Review</h3><div className="grid gap-3 md:grid-cols-3"><SelectField label="Send to HOD" value={form.submitToHod ? 'Yes' : 'No'} onChange={(value) => update('submitToHod', value === 'Yes')} options={['No','Yes']} /><TextField label="HOD Name" value={form.hodName} onChange={(value) => update('hodName', value)} /><SelectField label="Plan Status" value={form.status} onChange={(value) => update('status', value as LessonStatus)} options={['Draft','Submitted','Approved','Returned','Rejected']} /><TextAreaField label="Submission Note" value={form.submissionNote} onChange={(value) => update('submissionNote', value)} /><TextAreaField label="HOD Feedback (from Lesson Plan Review)" value={form.hodFeedback} onChange={() => undefined} /><TextAreaField label="HOD Suggestions" value={form.hodSuggestions || ''} onChange={() => undefined} /><label className="flex items-center gap-2 rounded-lg border border-rose-100 bg-rose-50 px-3 py-2 text-xs text-rose-800"><input type="checkbox" checked={form.urgent} onChange={(event) => update('urgent', event.target.checked)} />Urgent HOD review requested</label></div><p className="text-[10px] text-slate-500">Submitting records the workflow state locally. Notifications, staff identity, timetable and HOD accounts are not connected to a backend.</p></div></PlanningPanel>
-      </div>}
-    </Modal>
-  </div>;
+
+      <Card title="Teaching plans" noPadding>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[960px] text-left text-sm">
+            <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
+              <tr>
+                <th className="px-4 py-3">Teacher</th>
+                <th className="px-4 py-3">Class</th>
+                <th className="px-4 py-3">Subject</th>
+                <th className="px-4 py-3">Chapter / Topic</th>
+                <th className="px-4 py-3">Date</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filtered.map((plan) => (
+                <tr key={plan.id} className="hover:bg-indigo-50/30">
+                  <td className="px-4 py-3 font-medium text-slate-800">{plan.teacher}</td>
+                  <td className="px-4 py-3">{plan.className} · {plan.section}</td>
+                  <td className="px-4 py-3">{plan.subject}</td>
+                  <td className="px-4 py-3">{plan.chapter || '—'}<p className="text-[11px] text-slate-400">{plan.topic || 'No topic'}</p></td>
+                  <td className="px-4 py-3 whitespace-nowrap">{plan.date}<p className="text-[11px] text-slate-400">Period {plan.periodNumber} · {plan.time}</p></td>
+                  <td className="px-4 py-3"><Badge variant={decisionTone(plan.reviewDecision) as 'success' | 'danger' | 'warning' | 'info'}>{reviewStatus(plan)}</Badge></td>
+                  <td className="px-4 py-3">
+                    <div className="flex justify-end gap-1">
+                      <Button size="xs" variant="outline" onClick={() => { setActive(plan); setFeedback(plan.reviewFeedback || ''); }}><Eye className="h-3.5 w-3.5" />Review</Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {filtered.length === 0 && (
+                <tr><td colSpan={7} className="px-4 py-12"><EmptyState>No teaching plans match the selected filters. Submit a plan from Teaching Plan to appear here.</EmptyState></td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      <Modal
+        isOpen={Boolean(active)}
+        onClose={() => setActive(null)}
+        title={active ? `Review teaching plan — ${active.teacher}` : 'Review teaching plan'}
+        size="lg"
+        footer={active && reviewStatus(active) === 'Pending' ? (
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button variant="outline" onClick={() => setActive(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => active && decide(active, 'Returned for Revision')}><RotateCcw className="h-4 w-4" />Send for Review</Button>
+            <Button variant="danger" onClick={() => active && decide(active, 'Rejected')}><X className="h-4 w-4" />Reject</Button>
+            <Button onClick={() => active && decide(active, 'Approved')}><CheckCircle className="h-4 w-4" />Approve</Button>
+          </div>
+        ) : (
+          <div className="flex justify-end"><Button onClick={() => setActive(null)}>Close</Button></div>
+        )}
+      >
+        {active && (
+          <div className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-2 text-sm">
+              <p><span className="text-slate-500">Teacher</span><br /><b>{active.teacher}</b></p>
+              <p><span className="text-slate-500">Class</span><br /><b>{active.className} · {active.section}</b></p>
+              <p><span className="text-slate-500">Subject</span><br /><b>{active.subject}</b></p>
+              <p><span className="text-slate-500">Date / Period</span><br /><b>{active.date} · Period {active.periodNumber} ({active.time})</b></p>
+              <p><span className="text-slate-500">Chapter</span><br /><b>{active.chapter || '—'}</b></p>
+              <p><span className="text-slate-500">Topic</span><br /><b>{active.topic || '—'}</b></p>
+              <p><span className="text-slate-500">Room</span><br /><b>{active.room || '—'}</b></p>
+              <p><span className="text-slate-500">Type</span><br /><b>{active.type}</b></p>
+            </div>
+            {active.reviewFeedback && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Previous comment: {active.reviewFeedback}</p>}
+            <TextAreaField label="Principal comment" value={feedback} onChange={setFeedback} placeholder="Required when rejecting or sending for review" />
+          </div>
+        )}
+      </Modal>
+    </div>
+  );
 }
+
+export default LessonPlanReview;

@@ -42,6 +42,7 @@ import { NotificationPanel } from './components/header/NotificationPanel';
 import { HelpSupportPanel } from './components/header/HelpSupportPanel';
 import { ThemePanel } from './components/header/ThemePanel';
 import { LogoutModal } from './components/header/LogoutModal';
+import { KeyboardShortcutsRuntime } from './pages/my-details/settings/MyDisplayLanguage';
 // Helper: find first page ID for a submodule
 function getFirstPageId(subModule: SubModule): string {
   if (subModule.sidebarConfig && subModule.sidebarConfig.length > 0) {
@@ -270,6 +271,7 @@ function MainLayout() {
   };
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-gray-50 text-gray-900 font-sans">
+      <KeyboardShortcutsRuntime />
       {/* Primary Header */}
       <header className="relative z-40 flex h-16 shrink-0 items-center justify-between px-6 shadow-sm bg-gradient-to-br from-[#0F4C5C] via-[#1E6091] to-[#168AAD]">
         <div className="flex min-w-[250px] items-center gap-5">

@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Select } from '../../../components/ui/Select';
 import { Table } from '../../../components/ui/Table';
 import { Badge } from '../../../components/ui/Badge';
+import { Modal } from '../../../components/ui/Modal';
 import {
   Tabs,
   TabsList,
@@ -26,8 +27,11 @@ import {
   ChevronRightIcon,
   XIcon,
   BookmarkIcon,
-  ClipboardListIcon } from
+  ClipboardListIcon,
+  FilterIcon,
+  RotateCcwIcon } from
 'lucide-react';
+
 interface WorkItem {
   id: number;
   title: string;
@@ -44,6 +48,18 @@ interface WorkItem {
   hasAttachment: boolean;
   description: string;
 }
+
+interface Submission {
+  id: number;
+  student: string;
+  rollNo: string;
+  submittedOn: string;
+  status: 'Evaluated' | 'Submitted' | 'Not Submitted';
+  marks: string;
+  remarks: string;
+  lateSubmission: boolean;
+}
+
 const assignmentsData: WorkItem[] = [
 {
   id: 1,
@@ -180,7 +196,7 @@ const homeworkData: WorkItem[] = [
   'Write a paragraph of 5–7 sentences about your school in Hindi.'
 }];
 
-const submissionData = [
+const submissionData: Submission[] = [
 {
   id: 1,
   student: 'Aarav Sharma',
@@ -262,11 +278,22 @@ const auditData = [
   details: '29 students evaluated, avg marks 8.6/10'
 }];
 
+function parseDisplayDate(str: string): Date | null {
+  if (!str || str === '—') return null;
+  try {
+    const d = new Date(str.replace(/,/g, ''));
+    return isNaN(d.getTime()) ? null : d;
+  } catch {
+    return null;
+  }
+}
+
 interface ActionsPanelProps {
   item: WorkItem;
   onClose: () => void;
   onTrack: () => void;
 }
+
 function ActionsPanel({ item, onClose, onTrack }: ActionsPanelProps) {
   return (
     <div className="fixed inset-y-0 right-0 w-80 bg-white shadow-2xl border-l border-gray-200 z-50 flex flex-col">
@@ -370,36 +397,157 @@ function ActionsPanel({ item, onClose, onTrack }: ActionsPanelProps) {
     </div>);
 
 }
+
 interface SectionPanelProps {
   type: 'assignment' | 'homework';
   data: WorkItem[];
   label: string;
 }
+
 function SectionPanel({ type, data, label }: SectionPanelProps) {
   const [innerTab, setInnerTab] = useState('list');
+  const [showCreate, setShowCreate] = useState(false);
+  const [searchTitle, setSearchTitle] = useState('');
   const [filterClass, setFilterClass] = useState('');
+  const [filterSection, setFilterSection] = useState('');
   const [filterSubject, setFilterSubject] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
-  const [searchTitle, setSearchTitle] = useState('');
+  const [filterTeacher, setFilterTeacher] = useState('');
+  const [filterDueFrom, setFilterDueFrom] = useState('');
+  const [filterDueTo, setFilterDueTo] = useState('');
+  const [subSearchStudent, setSubSearchStudent] = useState('');
+  const [subSearchRollNo, setSubSearchRollNo] = useState('');
+  const [subFilterStatus, setSubFilterStatus] = useState('');
+  const [subFilterLate, setSubFilterLate] = useState('');
+  const [subDateFrom, setSubDateFrom] = useState('');
+  const [subDateTo, setSubDateTo] = useState('');
   const [selectedItem, setSelectedItem] = useState<WorkItem | null>(null);
   const [actionsPanelItem, setActionsPanelItem] = useState<WorkItem | null>(
     null
   );
-  const filtered = data.filter((h) => {
-    if (filterClass && !h.class.toLowerCase().includes(filterClass))
-    return false;
-    if (filterSubject && h.subject !== filterSubject) return false;
-    if (filterStatus && h.status !== filterStatus) return false;
-    if (
-    searchTitle &&
-    !h.title.toLowerCase().includes(searchTitle.toLowerCase()))
 
-    return false;
-    return true;
-  });
+  const filtered = useMemo(() => {
+    return data.filter((h) => {
+      if (
+        searchTitle &&
+        !h.title.toLowerCase().includes(searchTitle.toLowerCase())
+      )
+      return false;
+      if (filterClass && !h.class.toLowerCase().includes(filterClass))
+      return false;
+      if (filterSection && h.section !== filterSection) return false;
+      if (filterSubject && h.subject !== filterSubject) return false;
+      if (filterStatus && h.status !== filterStatus) return false;
+      if (
+        filterTeacher &&
+        !h.teacher.toLowerCase().includes(filterTeacher.toLowerCase())
+      )
+      return false;
+      const due = parseDisplayDate(h.dueDate);
+      if (filterDueFrom) {
+        const from = new Date(filterDueFrom);
+        if (!due || due < from) return false;
+      }
+      if (filterDueTo) {
+        const to = new Date(filterDueTo);
+        to.setHours(23, 59, 59, 999);
+        if (!due || due > to) return false;
+      }
+      return true;
+    });
+  }, [
+    data,
+    searchTitle,
+    filterClass,
+    filterSection,
+    filterSubject,
+    filterStatus,
+    filterTeacher,
+    filterDueFrom,
+    filterDueTo
+  ]);
+
+  const filteredSubmissions = useMemo(() => {
+    return submissionData.filter((s) => {
+      if (
+        subSearchStudent &&
+        !s.student.toLowerCase().includes(subSearchStudent.toLowerCase())
+      )
+      return false;
+      if (
+        subSearchRollNo &&
+        !s.rollNo.toLowerCase().includes(subSearchRollNo.toLowerCase())
+      )
+      return false;
+      if (subFilterStatus && s.status !== subFilterStatus) return false;
+      if (subFilterLate === 'yes' && !s.lateSubmission) return false;
+      if (subFilterLate === 'no' && s.lateSubmission) return false;
+      if (subDateFrom || subDateTo) {
+        const submitted = parseDisplayDate(s.submittedOn);
+        if (!submitted) return false;
+        if (subDateFrom) {
+          const from = new Date(subDateFrom);
+          if (submitted < from) return false;
+        }
+        if (subDateTo) {
+          const to = new Date(subDateTo);
+          to.setHours(23, 59, 59, 999);
+          if (submitted > to) return false;
+        }
+      }
+      return true;
+    });
+  }, [
+    subSearchStudent,
+    subSearchRollNo,
+    subFilterStatus,
+    subFilterLate,
+    subDateFrom,
+    subDateTo
+  ]);
+
+  const resetListFilters = () => {
+    setSearchTitle('');
+    setFilterClass('');
+    setFilterSection('');
+    setFilterSubject('');
+    setFilterStatus('');
+    setFilterTeacher('');
+    setFilterDueFrom('');
+    setFilterDueTo('');
+  };
+
+  const resetSubmissionFilters = () => {
+    setSubSearchStudent('');
+    setSubSearchRollNo('');
+    setSubFilterStatus('');
+    setSubFilterLate('');
+    setSubDateFrom('');
+    setSubDateTo('');
+  };
+
+  const hasListFilters =
+    searchTitle ||
+    filterClass ||
+    filterSection ||
+    filterSubject ||
+    filterStatus ||
+    filterTeacher ||
+    filterDueFrom ||
+    filterDueTo;
+
+  const hasSubFilters =
+    subSearchStudent ||
+    subSearchRollNo ||
+    subFilterStatus ||
+    subFilterLate ||
+    subDateFrom ||
+    subDateTo;
+
   const assignedCount = data.filter((h) => h.status === 'Assigned').length;
   const submittedCount = data.filter((h) => h.status === 'Submitted').length;
   const evaluatedCount = data.filter((h) => h.status === 'Evaluated').length;
+
   return (
     <>
       {actionsPanelItem &&
@@ -446,15 +594,18 @@ function SectionPanel({ type, data, label }: SectionPanelProps) {
         </div>
       </div>
 
+      <div className="mb-3 flex justify-end">
+        <Button variant="primary" size="sm" leftIcon={<EditIcon className="w-4 h-4" />} onClick={() => setShowCreate(true)}>
+          Create / Edit {label}
+        </Button>
+      </div>
+
       <Card noPadding>
         <Tabs value={innerTab} onValueChange={setInnerTab}>
           <div className="px-5 pt-4">
             <TabsList>
               <TabsTrigger value="list">
                 <BookOpenIcon className="w-3.5 h-3.5" /> List
-              </TabsTrigger>
-              <TabsTrigger value="create">
-                <EditIcon className="w-3.5 h-3.5" /> Create / Edit
               </TabsTrigger>
               <TabsTrigger value="submissions">
                 <FileTextIcon className="w-3.5 h-3.5" /> Submission Tracking
@@ -466,112 +617,113 @@ function SectionPanel({ type, data, label }: SectionPanelProps) {
           </div>
 
           <TabsContent value="list" className="p-5">
-            <div className="flex flex-wrap gap-3 items-end mb-4">
-              <Input
-                label="Search"
-                placeholder="Search by title..."
-                value={searchTitle}
-                onChange={(e) => setSearchTitle(e.target.value)}
-                leftIcon={<SearchIcon className="w-4 h-4 text-gray-400" />}
-                className="w-52" />
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <FilterIcon className="w-4 h-4 text-gray-500" />
+                  <span className="text-sm font-medium text-gray-700">
+                    Search & Filters
+                  </span>
+                </div>
+                {hasListFilters &&
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  leftIcon={<RotateCcwIcon className="w-3 h-3" />}
+                  onClick={resetListFilters}>
 
-              <Select
-                label="Class"
-                options={[
-                {
-                  value: '',
-                  label: 'All Classes'
-                },
-                {
-                  value: 'class 2',
-                  label: 'Class 2'
-                },
-                {
-                  value: 'class 3',
-                  label: 'Class 3'
-                },
-                {
-                  value: 'class 4',
-                  label: 'Class 4'
-                },
-                {
-                  value: 'class 5',
-                  label: 'Class 5'
-                },
-                {
-                  value: 'class 6',
-                  label: 'Class 6'
-                },
-                {
-                  value: 'class 7',
-                  label: 'Class 7'
-                },
-                {
-                  value: 'class 8',
-                  label: 'Class 8'
-                }]
+                    Clear Filters
+                  </Button>
                 }
-                value={filterClass}
-                onChange={setFilterClass}
-                className="w-36" />
+              </div>
 
-              <Select
-                label="Subject"
-                options={[
-                {
-                  value: '',
-                  label: 'All Subjects'
-                },
-                {
-                  value: 'Mathematics',
-                  label: 'Mathematics'
-                },
-                {
-                  value: 'English',
-                  label: 'English'
-                },
-                {
-                  value: 'Science',
-                  label: 'Science'
-                },
-                {
-                  value: 'Social Studies',
-                  label: 'Social Studies'
-                },
-                {
-                  value: 'Hindi',
-                  label: 'Hindi'
-                }]
-                }
-                value={filterSubject}
-                onChange={setFilterSubject}
-                className="w-40" />
+              <div className="flex flex-wrap gap-3 items-end">
+                <Input
+                  label="Search Title"
+                  placeholder="Search by title..."
+                  value={searchTitle}
+                  onChange={(e) => setSearchTitle(e.target.value)}
+                  leftIcon={<SearchIcon className="w-4 h-4 text-gray-400" />}
+                  className="w-56" />
 
-              <Select
-                label="Status"
-                options={[
-                {
-                  value: '',
-                  label: 'All Status'
-                },
-                {
-                  value: 'Assigned',
-                  label: 'Assigned'
-                },
-                {
-                  value: 'Submitted',
-                  label: 'Submitted'
-                },
-                {
-                  value: 'Evaluated',
-                  label: 'Evaluated'
-                }]
-                }
-                value={filterStatus}
-                onChange={setFilterStatus}
-                className="w-36" />
+                <Input
+                  label="Teacher"
+                  placeholder="Search teacher..."
+                  value={filterTeacher}
+                  onChange={(e) => setFilterTeacher(e.target.value)}
+                  leftIcon={<SearchIcon className="w-4 h-4 text-gray-400" />}
+                  className="w-48" />
 
+                <Select
+                  label="Class"
+                  options={[
+                  { value: '', label: 'All Classes' },
+                  { value: 'class 2', label: 'Class 2' },
+                  { value: 'class 3', label: 'Class 3' },
+                  { value: 'class 4', label: 'Class 4' },
+                  { value: 'class 5', label: 'Class 5' },
+                  { value: 'class 6', label: 'Class 6' },
+                  { value: 'class 7', label: 'Class 7' },
+                  { value: 'class 8', label: 'Class 8' }]
+                  }
+                  value={filterClass}
+                  onChange={setFilterClass}
+                  className="w-36" />
+
+                <Select
+                  label="Section"
+                  options={[
+                  { value: '', label: 'All Sections' },
+                  { value: 'A', label: 'Section A' },
+                  { value: 'B', label: 'Section B' },
+                  { value: 'C', label: 'Section C' }]
+                  }
+                  value={filterSection}
+                  onChange={setFilterSection}
+                  className="w-32" />
+
+                <Select
+                  label="Subject"
+                  options={[
+                  { value: '', label: 'All Subjects' },
+                  { value: 'Mathematics', label: 'Mathematics' },
+                  { value: 'English', label: 'English' },
+                  { value: 'Science', label: 'Science' },
+                  { value: 'Social Studies', label: 'Social Studies' },
+                  { value: 'Hindi', label: 'Hindi' }]
+                  }
+                  value={filterSubject}
+                  onChange={setFilterSubject}
+                  className="w-40" />
+
+                <Select
+                  label="Status"
+                  options={[
+                  { value: '', label: 'All Status' },
+                  { value: 'Assigned', label: 'Assigned' },
+                  { value: 'Submitted', label: 'Submitted' },
+                  { value: 'Evaluated', label: 'Evaluated' }]
+                  }
+                  value={filterStatus}
+                  onChange={setFilterStatus}
+                  className="w-36" />
+
+                <Input
+                  label="Due From"
+                  type="date"
+                  value={filterDueFrom}
+                  onChange={(e) => setFilterDueFrom(e.target.value)}
+                  className="w-40" />
+
+                <Input
+                  label="Due To"
+                  type="date"
+                  value={filterDueTo}
+                  onChange={(e) => setFilterDueTo(e.target.value)}
+                  className="w-40" />
+              </div>
             </div>
+
             <Table
               columns={[
               {
@@ -672,6 +824,12 @@ function SectionPanel({ type, data, label }: SectionPanelProps) {
               }
               data={filtered} />
 
+            {filtered.length === 0 &&
+            <div className="text-center py-10 text-sm text-gray-400">
+                No {label.toLowerCase()} found matching the selected filters.
+              </div>
+            }
+
             <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
               <span className="text-sm text-gray-500">
                 Showing {filtered.length} of {data.length} {label.toLowerCase()}
@@ -687,7 +845,7 @@ function SectionPanel({ type, data, label }: SectionPanelProps) {
             </div>
           </TabsContent>
 
-          <TabsContent value="create" className="p-5">
+          <Modal isOpen={showCreate} onClose={() => setShowCreate(false)} title={`Create / Edit ${label}`} size="lg">
             <div className="max-w-3xl space-y-5">
               <h3 className="text-base font-semibold text-gray-900">
                 Create New {label}
@@ -701,14 +859,9 @@ function SectionPanel({ type, data, label }: SectionPanelProps) {
                 <Select
                   label="Class"
                   options={[
-                  {
-                    value: '',
-                    label: 'Select Class'
-                  },
+                  { value: '', label: 'Select Class' },
                   ...Array.from(
-                    {
-                      length: 12
-                    },
+                    { length: 12 },
                     (_, i) => ({
                       value: `class-${i + 1}`,
                       label: `Class ${i + 1}`
@@ -720,52 +873,22 @@ function SectionPanel({ type, data, label }: SectionPanelProps) {
                 <Select
                   label="Section"
                   options={[
-                  {
-                    value: '',
-                    label: 'Select Section'
-                  },
-                  {
-                    value: 'a',
-                    label: 'Section A'
-                  },
-                  {
-                    value: 'b',
-                    label: 'Section B'
-                  },
-                  {
-                    value: 'c',
-                    label: 'Section C'
-                  }]
+                  { value: '', label: 'Select Section' },
+                  { value: 'a', label: 'Section A' },
+                  { value: 'b', label: 'Section B' },
+                  { value: 'c', label: 'Section C' }]
                   }
                   placeholder="Select Section" />
 
                 <Select
                   label="Subject"
                   options={[
-                  {
-                    value: '',
-                    label: 'Select Subject'
-                  },
-                  {
-                    value: 'mathematics',
-                    label: 'Mathematics'
-                  },
-                  {
-                    value: 'english',
-                    label: 'English'
-                  },
-                  {
-                    value: 'science',
-                    label: 'Science'
-                  },
-                  {
-                    value: 'social-studies',
-                    label: 'Social Studies'
-                  },
-                  {
-                    value: 'hindi',
-                    label: 'Hindi'
-                  }]
+                  { value: '', label: 'Select Subject' },
+                  { value: 'mathematics', label: 'Mathematics' },
+                  { value: 'english', label: 'English' },
+                  { value: 'science', label: 'Science' },
+                  { value: 'social-studies', label: 'Social Studies' },
+                  { value: 'hindi', label: 'Hindi' }]
                   }
                   placeholder="Select Subject" />
 
@@ -774,30 +897,12 @@ function SectionPanel({ type, data, label }: SectionPanelProps) {
                 <Select
                   label="Assignment Type"
                   options={[
-                  {
-                    value: '',
-                    label: 'Select Type'
-                  },
-                  {
-                    value: 'project',
-                    label: 'Project'
-                  },
-                  {
-                    value: 'worksheet',
-                    label: 'Worksheet'
-                  },
-                  {
-                    value: 'essay',
-                    label: 'Essay'
-                  },
-                  {
-                    value: 'presentation',
-                    label: 'Presentation'
-                  },
-                  {
-                    value: 'lab-report',
-                    label: 'Lab Report'
-                  }]
+                  { value: '', label: 'Select Type' },
+                  { value: 'project', label: 'Project' },
+                  { value: 'worksheet', label: 'Worksheet' },
+                  { value: 'essay', label: 'Essay' },
+                  { value: 'presentation', label: 'Presentation' },
+                  { value: 'lab-report', label: 'Lab Report' }]
                   }
                   placeholder="Select Type" />
 
@@ -829,12 +934,12 @@ function SectionPanel({ type, data, label }: SectionPanelProps) {
               </div>
               <div className="flex gap-3 pt-2">
                 <Button variant="primary">Create {label}</Button>
-                <Button variant="outline" onClick={() => setInnerTab('list')}>
+                <Button variant="outline" onClick={() => setShowCreate(false)}>
                   Cancel
                 </Button>
               </div>
             </div>
-          </TabsContent>
+          </Modal>
 
           <TabsContent value="submissions" className="p-5">
             {selectedItem &&
@@ -884,6 +989,83 @@ function SectionPanel({ type, data, label }: SectionPanelProps) {
                 submissions.
               </div>
             }
+
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <FilterIcon className="w-4 h-4 text-gray-500" />
+                  <span className="text-sm font-medium text-gray-700">
+                    Search Submissions
+                  </span>
+                </div>
+                {hasSubFilters &&
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  leftIcon={<RotateCcwIcon className="w-3 h-3" />}
+                  onClick={resetSubmissionFilters}>
+
+                    Clear Filters
+                  </Button>
+                }
+              </div>
+
+              <div className="flex flex-wrap gap-3 items-end">
+                <Input
+                  label="Student Name"
+                  placeholder="Search student..."
+                  value={subSearchStudent}
+                  onChange={(e) => setSubSearchStudent(e.target.value)}
+                  leftIcon={<SearchIcon className="w-4 h-4 text-gray-400" />}
+                  className="w-52" />
+
+                <Input
+                  label="Roll No"
+                  placeholder="e.g. 01"
+                  value={subSearchRollNo}
+                  onChange={(e) => setSubSearchRollNo(e.target.value)}
+                  leftIcon={<SearchIcon className="w-4 h-4 text-gray-400" />}
+                  className="w-32" />
+
+                <Select
+                  label="Status"
+                  options={[
+                  { value: '', label: 'All Status' },
+                  { value: 'Submitted', label: 'Submitted' },
+                  { value: 'Evaluated', label: 'Evaluated' },
+                  { value: 'Not Submitted', label: 'Not Submitted' }]
+                  }
+                  value={subFilterStatus}
+                  onChange={setSubFilterStatus}
+                  className="w-40" />
+
+                <Select
+                  label="Late Submission"
+                  options={[
+                  { value: '', label: 'All' },
+                  { value: 'yes', label: 'Late' },
+                  { value: 'no', label: 'On Time' }]
+                  }
+                  value={subFilterLate}
+                  onChange={setSubFilterLate}
+                  className="w-36" />
+
+                <Input
+                  label="Submitted From"
+                  type="date"
+                  value={subDateFrom}
+                  onChange={(e) => setSubDateFrom(e.target.value)}
+                  className="w-40" />
+
+                <Input
+                  label="Submitted To"
+                  type="date"
+                  value={subDateTo}
+                  onChange={(e) => setSubDateTo(e.target.value)}
+                  className="w-40" />
+              </div>
+            </div>
+
             <Table
               columns={[
               {
@@ -979,9 +1161,19 @@ function SectionPanel({ type, data, label }: SectionPanelProps) {
 
               }]
               }
-              data={submissionData} />
+              data={filteredSubmissions} />
 
-            <div className="flex justify-end mt-4">
+            {filteredSubmissions.length === 0 &&
+            <div className="text-center py-10 text-sm text-gray-400">
+                No submissions found matching the selected filters.
+              </div>
+            }
+
+            <div className="flex items-center justify-between mt-4">
+              <span className="text-sm text-gray-500">
+                Showing {filteredSubmissions.length} of {submissionData.length}{' '}
+                students
+              </span>
               <Button
                 variant="outline"
                 size="sm"
@@ -1033,6 +1225,7 @@ function SectionPanel({ type, data, label }: SectionPanelProps) {
     </>);
 
 }
+
 export function HomeworkAssignments() {
   const [topTab, setTopTab] = useState('assignments');
   const totalAssignments = assignmentsData.length;
@@ -1058,7 +1251,6 @@ export function HomeworkAssignments() {
         </Button>
       </div>
 
-      {/* Top-level section tabs */}
       <div className="border-b border-gray-200">
         <div className="flex gap-1">
           <button
@@ -1101,3 +1293,5 @@ export function HomeworkAssignments() {
     </div>);
 
 }
+
+export default HomeworkAssignments;

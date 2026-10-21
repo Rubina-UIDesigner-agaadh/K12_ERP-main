@@ -1,11 +1,4 @@
-// DataScopeManagement.tsx — Data Scope Management (Master List · Create / Edit · Rule Builder)
-//
-// PAGE 1  /admin/data-scopes              → Data Scope List (master list + filters + pagination)
-// PAGE 2  /admin/data-scopes/create       → Create / Edit Data Scope (basic info · filters · logic · preview)
-// PAGE 3  /admin/data-scopes/:id/rules    → Scope Rule Builder (rule groups → generated SQL preview)
-//
-// Everything is client-side; the three screens switch in-component (the sidebar link
-// always enters on the master list, exactly like the routes above).
+
 import React, { useState } from 'react';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';

@@ -18,6 +18,10 @@ export const academicRegistry: Record<string, () => any> = {
     () => import('../academic/academics/TeacherPlanProgressPage'),
     'TeacherPlanProgressPage'
   ),
+  'syllabus-planner': rp(
+    () => import('../academic/academics/SyllabusPlanner'),
+    'SyllabusPlanner'
+  ),
   'curriculum-master': rp(
     () => import('../academic/academics/CurriculumMaster'),
     'CurriculumMaster'

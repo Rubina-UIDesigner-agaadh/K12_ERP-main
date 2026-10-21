@@ -1,1943 +1,1128 @@
-import React, { useCallback, useMemo, useState, createElement } from 'react';
-// src/pages/academic/event-activities/BulkPlanning.tsx
-
-import { Card } from '../../../../components/ui/Card';
-import { Button } from '../../../../components/ui/Button';
+import React, { useMemo, useState } from 'react';
+import { Download, Plus, Repeat, Trash2 } from 'lucide-react';
 import { Badge } from '../../../../components/ui/Badge';
+import { Button } from '../../../../components/ui/Button';
+import { Card } from '../../../../components/ui/Card';
+import { Modal } from '../../../../components/ui/Modal';
 import {
-  Calendar,
-  Users,
-  Plus,
-  Search,
-  Filter,
-  Eye,
-  Edit,
-  Trash2,
-  X,
-  Clock,
-  MapPin,
-  CheckCircle,
-  XCircle,
-  AlertTriangle,
-  Download,
-  Upload,
-  RefreshCw,
-  Copy,
-  ChevronDown,
-  ChevronUp,
-  ArrowUpDown,
-  Settings,
-  Shuffle,
-  Save,
-  Send,
-  FileText,
-  UserCheck,
-  UserX,
-  AlertCircle,
-  ClipboardList,
-  Building,
-  Check,
-  Loader2,
-  Bell } from
-'lucide-react';
-// ==================== TYPES ====================
-type ActivityType =
-'Exam Invigilation' |
-'Event Duty' |
-'Sports Day' |
-'PTM' |
-'Annual Day' |
-'Assembly' |
-'Gate Duty' |
-'Cafeteria' |
-'Custom';
-type AssignmentStatus = 'Pending' | 'Confirmed' | 'Conflict' | 'Reassigned';
-type Department =
-'Mathematics' |
-'Science' |
-'English' |
-'Hindi' |
-'Social Studies' |
-'Computer Science' |
-'Physical Education' |
-'Arts' |
-'Commerce' |
-'All';
-type DistributionMethod =
-'Equal' |
-'Round Robin' |
-'Random' |
-'Workload Based' |
-'Manual';
-type TimeSlot = {
-  id: string;
-  label: string;
-  start: string;
-  end: string;
-};
-type Venue = {
-  id: string;
+  DEFAULT_DUTY_ASSIGNMENTS,
+  DEFAULT_DUTY_TYPES,
+  DUTY_ASSIGNMENTS_STORAGE_KEY,
+  DUTY_TYPES_STORAGE_KEY,
+  TEACHER_STAFF,
+  DutyAssignmentRecord,
+  DutyTypeRecord,
+  createTeacherRecordId,
+  downloadTeacherCsv,
+  loadTeacherCollection,
+  saveTeacherCollection,
+} from './teacherData';
+
+// ─── Shared Styles ─────────────────────────────────────────────────────────────
+const inputClass =
+  'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100';
+const labelClass = 'mb-1 block text-xs font-semibold text-slate-600';
+
+// ─── Constants ─────────────────────────────────────────────────────────────────
+const WEEK_DAYS = [
+  { label: 'Sun', value: 0 },
+  { label: 'Mon', value: 1 },
+  { label: 'Tue', value: 2 },
+  { label: 'Wed', value: 3 },
+  { label: 'Thu', value: 4 },
+  { label: 'Fri', value: 5 },
+  { label: 'Sat', value: 6 },
+];
+
+type AssignMode = 'All Teachers → All Duties' | 'Rotate Teachers Across Duties' | 'Auto-assign';
+type BulkStep = 'configure' | 'preview';
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const WEEK_OPTIONS = [
+  { value: 1, label: 'First' },
+  { value: 2, label: 'Second' },
+  { value: 3, label: 'Third' },
+  { value: 4, label: 'Fourth' },
+  { value: 5, label: 'Last' },
+];
+const RECURRENCE_TYPES = [
+  { value: 'daily', label: 'Daily', description: 'Repeats every day or specific weekdays' },
+  { value: 'weekly', label: 'Weekly', description: 'Repeats on selected days every week' },
+  { value: 'biweekly', label: 'Bi-weekly', description: 'Repeats every two weeks' },
+  { value: 'monthly', label: 'Monthly', description: 'Repeats on specific day of month' },
+  { value: 'yearly', label: 'Yearly', description: 'Repeats on specific date each year' },
+  { value: 'custom', label: 'Custom', description: 'Custom interval pattern' },
+];
+const RECURRING_STORAGE_KEY = 'k12-recurring-activities-extra-v1';
+type RecurringDraft = {
   name: string;
-  capacity: number;
-  building: string;
-  floor: string;
-};
-type Teacher = {
-  id: number;
-  name: string;
-  employeeId: string;
-  department: Department;
-  designation: string;
-  email: string;
-  phone: string;
-  isAvailable: boolean;
-  onLeave: boolean;
-  leaveDates: string[];
-  currentWorkload: number;
-  maxWorkload: number;
-  preferences: {
-    preferredSlots?: string[];
-    avoidSlots?: string[];
-    avoidDates?: string[];
-  };
-  classes: string[];
-  selected: boolean;
-};
-type BulkAssignment = {
-  id: string;
-  teacherId: number;
-  teacherName: string;
-  department: Department;
-  date: string;
-  timeSlot: TimeSlot;
-  venue: Venue;
-  activity: string;
-  status: AssignmentStatus;
-  conflict?: string;
-  notes?: string;
-};
-type BulkPlanConfig = {
-  activityType: ActivityType;
-  activityName: string;
+  description: string;
+  type: string;
+  location: string;
+  assignmentType: string;
+  startTime: string;
+  endTime: string;
+  priority: 'low' | 'medium' | 'high';
+  recurrenceType: string;
+  weekDays: number[];
+  monthDay: number;
+  monthWeek: number;
+  monthWeekDay: number;
+  yearMonth: number;
+  yearDay: number;
+  customPattern: string;
+  interval: number;
   startDate: string;
   endDate: string;
-  selectedTimeSlots: string[];
-  selectedVenues: string[];
-  selectedDepartments: Department[];
-  selectedTeachers: number[];
-  distributionMethod: DistributionMethod;
-  teachersPerSlot: number;
-  excludeWeekends: boolean;
-  excludeHolidays: boolean;
-  autoResolveConflicts: boolean;
-  notifyTeachers: boolean;
   notes: string;
 };
-type ConflictInfo = {
-  assignmentId: string;
-  type: string;
-  description: string;
-  suggestion: string;
-};
-type ModalType =
-'none' |
-'preview' |
-'conflicts' |
-'settings' |
-'import' |
-'export' |
-'confirm' |
-'success' |
-'editAssignment';
-// ==================== DATA ====================
-const ACTIVITY_TYPES: ActivityType[] = [
-'Exam Invigilation',
-'Event Duty',
-'Sports Day',
-'PTM',
-'Annual Day',
-'Assembly',
-'Gate Duty',
-'Cafeteria',
-'Custom'];
-
-const DEPARTMENTS: Department[] = [
-'All',
-'Mathematics',
-'Science',
-'English',
-'Hindi',
-'Social Studies',
-'Computer Science',
-'Physical Education',
-'Arts',
-'Commerce'];
-
-const DISTRIBUTION_METHODS: DistributionMethod[] = [
-'Equal',
-'Round Robin',
-'Random',
-'Workload Based',
-'Manual'];
-
-const TIME_SLOTS: TimeSlot[] = [
-{
-  id: 'ts1',
-  label: 'Morning Slot 1',
-  start: '08:00',
-  end: '10:00'
-},
-{
-  id: 'ts2',
-  label: 'Morning Slot 2',
-  start: '10:15',
-  end: '12:15'
-},
-{
-  id: 'ts3',
-  label: 'Afternoon Slot 1',
-  start: '12:30',
-  end: '14:30'
-},
-{
-  id: 'ts4',
-  label: 'Afternoon Slot 2',
-  start: '14:45',
-  end: '16:45'
-},
-{
-  id: 'ts5',
-  label: 'Full Day',
-  start: '08:00',
-  end: '16:00'
-}];
-
-const VENUES: Venue[] = [
-{
-  id: 'v1',
-  name: 'Exam Hall A',
-  capacity: 60,
-  building: 'Main',
-  floor: 'Ground'
-},
-{
-  id: 'v2',
-  name: 'Exam Hall B',
-  capacity: 60,
-  building: 'Main',
-  floor: 'Ground'
-},
-{
-  id: 'v3',
-  name: 'Exam Hall C',
-  capacity: 40,
-  building: 'Main',
-  floor: '1st'
-},
-{
-  id: 'v4',
-  name: 'Room 101',
-  capacity: 30,
-  building: 'Main',
-  floor: '1st'
-},
-{
-  id: 'v5',
-  name: 'Room 102',
-  capacity: 30,
-  building: 'Main',
-  floor: '1st'
-},
-{
-  id: 'v6',
-  name: 'Room 201',
-  capacity: 35,
-  building: 'Main',
-  floor: '2nd'
-},
-{
-  id: 'v7',
-  name: 'Room 202',
-  capacity: 35,
-  building: 'Main',
-  floor: '2nd'
-},
-{
-  id: 'v8',
-  name: 'Computer Lab',
-  capacity: 40,
-  building: 'IT Block',
-  floor: '1st'
-},
-{
-  id: 'v9',
-  name: 'Science Lab',
-  capacity: 30,
-  building: 'Science Block',
-  floor: '2nd'
-},
-{
-  id: 'v10',
-  name: 'Auditorium',
-  capacity: 500,
-  building: 'Main',
-  floor: 'Ground'
-}];
-
-const HOLIDAYS = ['2026-03-14', '2026-03-15', '2026-03-26'];
-const teachersData: Teacher[] = [
-{
-  id: 1,
-  name: 'Dr. Ramesh Sharma',
-  employeeId: 'EMP001',
-  department: 'Mathematics',
-  designation: 'Senior Teacher',
-  email: 'r.sharma@school.edu',
-  phone: '+91 98765 43210',
-  isAvailable: true,
-  onLeave: false,
-  leaveDates: [],
-  currentWorkload: 4,
-  maxWorkload: 8,
-  preferences: {
-    preferredSlots: ['ts1', 'ts2']
-  },
-  classes: ['X-A', 'XI-A'],
-  selected: false
-},
-{
-  id: 2,
-  name: 'Mrs. Anita Gupta',
-  employeeId: 'EMP002',
-  department: 'Science',
-  designation: 'Teacher',
-  email: 'a.gupta@school.edu',
-  phone: '+91 98765 43211',
-  isAvailable: true,
-  onLeave: false,
-  leaveDates: [],
-  currentWorkload: 5,
-  maxWorkload: 8,
-  preferences: {},
-  classes: ['X-A', 'XII-A'],
-  selected: false
-},
-{
-  id: 3,
-  name: 'Mr. Mohit Singh',
-  employeeId: 'EMP003',
-  department: 'English',
-  designation: 'Senior Teacher',
-  email: 'm.singh@school.edu',
-  phone: '+91 98765 43212',
-  isAvailable: true,
-  onLeave: false,
-  leaveDates: [],
-  currentWorkload: 3,
-  maxWorkload: 8,
-  preferences: {
-    preferredSlots: ['ts2', 'ts3']
-  },
-  classes: ['IX-A', 'X-A'],
-  selected: false
-},
-{
-  id: 4,
-  name: 'Mr. Suresh Patel',
-  employeeId: 'EMP004',
-  department: 'Computer Science',
-  designation: 'Teacher',
-  email: 's.patel@school.edu',
-  phone: '+91 98765 43213',
-  isAvailable: true,
-  onLeave: false,
-  leaveDates: [],
-  currentWorkload: 2,
-  maxWorkload: 8,
-  preferences: {},
-  classes: ['XI-A', 'XII-A'],
-  selected: false
-},
-{
-  id: 5,
-  name: 'Mrs. Vidya Kumar',
-  employeeId: 'EMP005',
-  department: 'Social Studies',
-  designation: 'Teacher',
-  email: 'v.kumar@school.edu',
-  phone: '+91 98765 43214',
-  isAvailable: true,
-  onLeave: false,
-  leaveDates: [],
-  currentWorkload: 4,
-  maxWorkload: 8,
-  preferences: {},
-  classes: ['VIII-A', 'IX-A'],
-  selected: false
-},
-{
-  id: 6,
-  name: 'Mrs. Kavita Devi',
-  employeeId: 'EMP006',
-  department: 'Hindi',
-  designation: 'Teacher',
-  email: 'k.devi@school.edu',
-  phone: '+91 98765 43215',
-  isAvailable: false,
-  onLeave: true,
-  leaveDates: ['2026-03-10', '2026-03-11', '2026-03-12'],
-  currentWorkload: 0,
-  maxWorkload: 8,
-  preferences: {},
-  classes: ['VII-A', 'VIII-A'],
-  selected: false
-},
-{
-  id: 7,
-  name: 'Mr. Pradeep Joshi',
-  employeeId: 'EMP007',
-  department: 'Physical Education',
-  designation: 'Sports Teacher',
-  email: 'p.joshi@school.edu',
-  phone: '+91 98765 43216',
-  isAvailable: true,
-  onLeave: false,
-  leaveDates: [],
-  currentWorkload: 6,
-  maxWorkload: 10,
-  preferences: {
-    preferredSlots: ['ts1']
-  },
-  classes: ['All'],
-  selected: false
-},
-{
-  id: 8,
-  name: 'Dr. Priya Verma',
-  employeeId: 'EMP008',
-  department: 'Science',
-  designation: 'HOD',
-  email: 'p.verma@school.edu',
-  phone: '+91 98765 43217',
-  isAvailable: true,
-  onLeave: false,
-  leaveDates: [],
-  currentWorkload: 2,
-  maxWorkload: 6,
-  preferences: {
-    avoidSlots: ['ts4']
-  },
-  classes: ['XI-A', 'XII-A'],
-  selected: false
-},
-{
-  id: 9,
-  name: 'Mr. Ajay Mishra',
-  employeeId: 'EMP009',
-  department: 'Hindi',
-  designation: 'Teacher',
-  email: 'a.mishra@school.edu',
-  phone: '+91 98765 43218',
-  isAvailable: true,
-  onLeave: false,
-  leaveDates: [],
-  currentWorkload: 4,
-  maxWorkload: 8,
-  preferences: {},
-  classes: ['VIII-A', 'IX-A'],
-  selected: false
-},
-{
-  id: 10,
-  name: 'Mrs. Sunita Rao',
-  employeeId: 'EMP010',
-  department: 'Science',
-  designation: 'Teacher',
-  email: 's.rao@school.edu',
-  phone: '+91 98765 43219',
-  isAvailable: true,
-  onLeave: false,
-  leaveDates: [],
-  currentWorkload: 3,
-  maxWorkload: 8,
-  preferences: {},
-  classes: ['XI-A', 'XI-B'],
-  selected: false
-},
-{
-  id: 11,
-  name: 'Mr. Vikram Reddy',
-  employeeId: 'EMP011',
-  department: 'Mathematics',
-  designation: 'Teacher',
-  email: 'v.reddy@school.edu',
-  phone: '+91 98765 43220',
-  isAvailable: true,
-  onLeave: false,
-  leaveDates: [],
-  currentWorkload: 5,
-  maxWorkload: 8,
-  preferences: {},
-  classes: ['IX-A', 'IX-B'],
-  selected: false
-},
-{
-  id: 12,
-  name: 'Mrs. Neha Kapoor',
-  employeeId: 'EMP012',
-  department: 'English',
-  designation: 'Teacher',
-  email: 'n.kapoor@school.edu',
-  phone: '+91 98765 43221',
-  isAvailable: true,
-  onLeave: false,
-  leaveDates: [],
-  currentWorkload: 4,
-  maxWorkload: 8,
-  preferences: {},
-  classes: ['VII-A', 'VIII-A'],
-  selected: false
-},
-{
-  id: 13,
-  name: 'Mr. Sanjay Mehta',
-  employeeId: 'EMP013',
-  department: 'Commerce',
-  designation: 'Teacher',
-  email: 's.mehta@school.edu',
-  phone: '+91 98765 43222',
-  isAvailable: true,
-  onLeave: false,
-  leaveDates: ['2026-03-11'],
-  currentWorkload: 3,
-  maxWorkload: 8,
-  preferences: {},
-  classes: ['XI-Com', 'XII-Com'],
-  selected: false
-},
-{
-  id: 14,
-  name: 'Mrs. Rekha Agarwal',
-  employeeId: 'EMP014',
-  department: 'Arts',
-  designation: 'Teacher',
-  email: 'r.agarwal@school.edu',
-  phone: '+91 98765 43223',
-  isAvailable: true,
-  onLeave: false,
-  leaveDates: [],
-  currentWorkload: 2,
-  maxWorkload: 6,
-  preferences: {},
-  classes: ['VI-A', 'VII-A'],
-  selected: false
-},
-{
-  id: 15,
-  name: 'Mr. Deepak Sharma',
-  employeeId: 'EMP015',
-  department: 'Social Studies',
-  designation: 'Teacher',
-  email: 'd.sharma@school.edu',
-  phone: '+91 98765 43224',
-  isAvailable: true,
-  onLeave: false,
-  leaveDates: [],
-  currentWorkload: 4,
-  maxWorkload: 8,
-  preferences: {},
-  classes: ['X-A', 'X-B'],
-  selected: false
-}];
-
-// ==================== UTILITIES ====================
-const formatDate = (date: string) =>
-new Date(date).toLocaleDateString('en-IN', {
-  weekday: 'short',
-  day: '2-digit',
-  month: 'short'
+const emptyRecurringDraft = (): RecurringDraft => ({
+  name: '',
+  description: '',
+  type: 'duty',
+  location: '',
+  assignmentType: 'individual',
+  startTime: '09:00',
+  endTime: '10:00',
+  priority: 'medium',
+  recurrenceType: 'weekly',
+  weekDays: [1, 2, 3, 4, 5],
+  monthDay: 0,
+  monthWeek: 0,
+  monthWeekDay: 1,
+  yearMonth: 0,
+  yearDay: 1,
+  customPattern: '',
+  interval: 1,
+  startDate: '',
+  endDate: '',
+  notes: '',
 });
-const formatTime = (time: string) => {
-  const [h, m] = time.split(':');
-  const hr = parseInt(h);
-  return `${hr > 12 ? hr - 12 : hr}:${m} ${hr >= 12 ? 'PM' : 'AM'}`;
+const toTimeInput = (value: string) => {
+  if (!value) return '09:00';
+  if (/^\d{2}:\d{2}$/.test(value)) return value;
+  const match = value.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+  if (!match) return '09:00';
+  let hour = Number(match[1]);
+  const minute = match[2];
+  const mer = (match[3] || '').toUpperCase();
+  if (mer === 'PM' && hour < 12) hour += 12;
+  if (mer === 'AM' && hour === 12) hour = 0;
+  return `${String(hour).padStart(2, '0')}:${minute}`;
 };
-const isWeekend = (date: string) => {
-  const d = new Date(date).getDay();
-  return d === 0 || d === 6;
-};
-const isHoliday = (date: string) => HOLIDAYS.includes(date);
-const getDateRange = (
-start: string,
-end: string,
-excludeWeekends: boolean,
-excludeHolidays: boolean)
-: string[] => {
-  const dates: string[] = [];
-  const current = new Date(start);
-  const endDate = new Date(end);
-  while (current <= endDate) {
-    const dateStr = current.toISOString().split('T')[0];
-    if (
-    (!excludeWeekends || !isWeekend(dateStr)) && (
-    !excludeHolidays || !isHoliday(dateStr)))
 
-    dates.push(dateStr);
-    current.setDate(current.getDate() + 1);
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const dateStep = (date: string, days: number): string => {
+  const [y = '1970', m = '1', d = '1'] = date.split('-');
+  const dt = new Date(Number(y), Number(m) - 1, Number(d) + days);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+};
+
+const dateShort = (date: string) =>
+  new Date(`${date}T00:00:00`).toLocaleDateString('en-IN', {
+    weekday: 'short',
+    day: '2-digit',
+    month: 'short',
+  });
+
+const buildDateRange = (from: string, to: string, allowedWeekDays: number[]): string[] => {
+  const dates: string[] = [];
+  let cursor = from;
+  let guard = 0;
+  while (cursor <= to && guard < 366) {
+    const dow = new Date(`${cursor}T00:00:00`).getDay();
+    if (allowedWeekDays.includes(dow)) dates.push(cursor);
+    cursor = dateStep(cursor, 1);
+    guard += 1;
   }
   return dates;
 };
-const getStatusVariant = (
-status: AssignmentStatus)
-: 'success' | 'warning' | 'danger' | 'default' => {
-  const map: Record<
-    AssignmentStatus,
-    'success' | 'warning' | 'danger' | 'default'> =
-  {
-    Pending: 'warning',
-    Confirmed: 'success',
-    Conflict: 'danger',
-    Reassigned: 'default'
+
+// ─── Preview Row ──────────────────────────────────────────────────────────────
+type PreviewRow = {
+  id: string;
+  date: string;
+  duty: DutyTypeRecord;
+  teachers: string[];
+  removed: boolean;
+};
+
+// ─── Component ────────────────────────────────────────────────────────────────
+export function BulkDutyAssign() {
+  // ── persisted state ──
+  const [assignments, setAssignments] = useState<DutyAssignmentRecord[]>(() =>
+    loadTeacherCollection(DUTY_ASSIGNMENTS_STORAGE_KEY, DEFAULT_DUTY_ASSIGNMENTS),
+  );
+  const [duties] = useState<DutyTypeRecord[]>(() =>
+    loadTeacherCollection(DUTY_TYPES_STORAGE_KEY, DEFAULT_DUTY_TYPES),
+  );
+
+  // ── form config ──
+  const [fromDate, setFromDate] = useState('2025-11-24');
+  const [toDate, setToDate] = useState('2025-11-29');
+  const [selectedDutyIds, setSelectedDutyIds] = useState<string[]>([]);
+  const [selectedTeachers, setSelectedTeachers] = useState<string[]>([]);
+  const [allowedDays, setAllowedDays] = useState<number[]>([1, 2, 3, 4, 5]);
+  const [assignMode, setAssignMode] = useState<AssignMode>('All Teachers → All Duties');
+  const [notifyTeachers, setNotifyTeachers] = useState(true);
+  const [notificationChannels, setNotificationChannels] = useState<string[]>(['In-App', 'Email']);
+  const [specialInstructions, setSpecialInstructions] = useState('');
+
+  // ── step / ui state ──
+  const [step, setStep] = useState<BulkStep>('configure');
+  const [previewRows, setPreviewRows] = useState<PreviewRow[]>([]);
+  const [message, setMessage] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [recurringOpen, setRecurringOpen] = useState(false);
+  const [recurringDraft, setRecurringDraft] = useState<RecurringDraft>(emptyRecurringDraft);
+
+  // ─── Helpers ───────────────────────────────────────────────────────────────
+  const persist = (next: DutyAssignmentRecord[]) => {
+    setAssignments(next);
+    saveTeacherCollection(DUTY_ASSIGNMENTS_STORAGE_KEY, next);
   };
-  return map[status];
-};
-// ==================== COMPONENTS ====================
-const Modal = ({
-  isOpen,
-  onClose,
-  title,
-  children,
-  size = 'lg'
 
-
-
-
-
-
-}: {isOpen: boolean;onClose: () => void;title: string;children: React.ReactNode;size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl';}) => {
-  if (!isOpen) return null;
-  const sizeClasses = {
-    sm: 'max-w-sm',
-    md: 'max-w-md',
-    lg: 'max-w-2xl',
-    xl: 'max-w-4xl',
-    '2xl': 'max-w-6xl'
+  const flash = (msg: string, ms = 4000) => {
+    setMessage(msg);
+    window.setTimeout(() => setMessage(''), ms);
   };
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
-      <div
-        className={`relative bg-white rounded-lg shadow-lg w-full ${sizeClasses[size]} mx-4 max-h-[90vh] overflow-y-auto`}>
-        
-        <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-white z-10">
-          <h2 className="text-lg font-semibold">{title}</h2>
-          <button onClick={onClose} className="p-1 rounded hover:bg-gray-100">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        <div className="p-4">{children}</div>
-      </div>
-    </div>);
 
-};
-const FormField = ({
-  label,
-  required,
-  hint,
-  children
-
-
-
-
-
-}: {label: string;required?: boolean;hint?: string;children: React.ReactNode;}) =>
-<div>
-    <label className="block text-sm font-medium mb-1">
-      {label} {required && <span className="text-red-500">*</span>}
-    </label>
-    {children}
-    {hint && <p className="text-xs text-gray-500 mt-1">{hint}</p>}
-  </div>;
-
-const Input = ({
-  className = '',
-  ...props
-}: React.InputHTMLAttributes<HTMLInputElement>) =>
-<input
-  className={`w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 ${className}`}
-  {...props} />;
-
-
-const Textarea = ({
-  className = '',
-  ...props
-}: React.TextareaHTMLAttributes<HTMLTextAreaElement>) =>
-<textarea
-  className={`w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 ${className}`}
-  {...props} />;
-
-
-const Select = ({
-  className = '',
-  children,
-  ...props
-}: React.SelectHTMLAttributes<HTMLSelectElement>) =>
-<select
-  className={`w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 ${className}`}
-  {...props}>
-  
-    {children}
-  </select>;
-
-const StatCard = ({
-  icon: Icon,
-  value,
-  label,
-  color
-
-
-
-
-
-}: {icon: React.ElementType;value: string | number;label: string;color: string;}) =>
-<div className="border rounded-lg p-3">
-    <div className="flex items-center gap-2">
-      <Icon className={`h-5 w-5 ${color}`} />
-      <div>
-        <p className="text-xl font-bold">{value}</p>
-        <p className="text-xs text-gray-500">{label}</p>
-      </div>
-    </div>
-  </div>;
-
-const TeacherSelectionList = ({
-  teachers,
-  selectedIds,
-  onToggle,
-  onSelectAll,
-  onClearAll,
-  departmentFilter
-
-
-
-
-
-
-
-}: {teachers: Teacher[];selectedIds: number[];onToggle: (id: number) => void;onSelectAll: () => void;onClearAll: () => void;departmentFilter: Department;}) => {
-  const filtered =
-  departmentFilter === 'All' ?
-  teachers :
-  teachers.filter((t) => t.department === departmentFilter);
-  const available = filtered.filter((t) => t.isAvailable && !t.onLeave);
-  return (
-    <div className="border rounded-lg">
-      <div className="p-2 border-b bg-gray-50 flex items-center justify-between">
-        <span className="text-sm font-medium">
-          {selectedIds.length} of {available.length} selected
-        </span>
-        <div className="flex gap-2">
-          <Button variant="ghost" size="sm" onClick={onSelectAll}>
-            Select All
-          </Button>
-          <Button variant="ghost" size="sm" onClick={onClearAll}>
-            Clear
-          </Button>
-        </div>
-      </div>
-      <div className="max-h-60 overflow-y-auto p-2 space-y-1">
-        {filtered.map((t) =>
-        <label
-          key={t.id}
-          className={`flex items-center gap-2 p-2 rounded cursor-pointer hover:bg-gray-50 ${!t.isAvailable || t.onLeave ? 'opacity-50' : ''}`}>
-          
-            <input
-            type="checkbox"
-            checked={selectedIds.includes(t.id)}
-            onChange={() => onToggle(t.id)}
-            disabled={!t.isAvailable || t.onLeave}
-            className="h-4 w-4 rounded" />
-          
-            <div className="flex-1">
-              <p className="text-sm font-medium">{t.name}</p>
-              <p className="text-xs text-gray-500">
-                {t.department} • {t.currentWorkload}/{t.maxWorkload}h
-              </p>
-            </div>
-            {t.onLeave && <Badge variant="danger">On Leave</Badge>}
-            {!t.onLeave && t.currentWorkload >= t.maxWorkload &&
-          <Badge variant="warning">Overloaded</Badge>
-          }
-          </label>
-        )}
-      </div>
-    </div>);
-
-};
-const AssignmentPreviewTable = ({
-  assignments,
-  onEdit,
-  onRemove,
-  onResolveConflict
-
-
-
-
-
-}: {assignments: BulkAssignment[];onEdit: (id: string) => void;onRemove: (id: string) => void;onResolveConflict: (id: string) => void;}) => {
-  const [sortKey, setSortKey] = useState<'date' | 'teacher' | 'venue'>('date');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-  const sorted = useMemo(() => {
-    return [...assignments].sort((a, b) => {
-      let cmp = 0;
-      if (sortKey === 'date')
-      cmp =
-      a.date.localeCompare(b.date) ||
-      a.timeSlot.start.localeCompare(b.timeSlot.start);else
-      if (sortKey === 'teacher')
-      cmp = a.teacherName.localeCompare(b.teacherName);else
-      if (sortKey === 'venue')
-      cmp = a.venue.name.localeCompare(b.venue.name);
-      return sortOrder === 'asc' ? cmp : -cmp;
-    });
-  }, [assignments, sortKey, sortOrder]);
-  const handleSort = (key: typeof sortKey) => {
-    if (sortKey === key) setSortOrder((o) => o === 'asc' ? 'desc' : 'asc');else
-    {
-      setSortKey(key);
-      setSortOrder('asc');
+  const openRecurringFromBulk = () => {
+    const selectedDuties = duties.filter((d) => selectedDutyIds.includes(d.id));
+    if (selectedDuties.length === 0) {
+      flash('Select at least one duty type before converting to recurring.');
+      return;
     }
-  };
-  const SortIcon = ({ column }: {column: typeof sortKey;}) =>
-  sortKey === column ?
-  sortOrder === 'asc' ?
-  <ChevronUp className="h-3 w-3" /> :
-
-  <ChevronDown className="h-3 w-3" /> :
-
-
-  <ArrowUpDown className="h-3 w-3 opacity-30" />;
-
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b bg-gray-50">
-            <th
-              className="text-left py-2 px-3 font-medium cursor-pointer hover:bg-gray-100"
-              onClick={() => handleSort('date')}>
-              
-              <div className="flex items-center gap-1">
-                Date & Time <SortIcon column="date" />
-              </div>
-            </th>
-            <th
-              className="text-left py-2 px-3 font-medium cursor-pointer hover:bg-gray-100"
-              onClick={() => handleSort('teacher')}>
-              
-              <div className="flex items-center gap-1">
-                Teacher <SortIcon column="teacher" />
-              </div>
-            </th>
-            <th
-              className="text-left py-2 px-3 font-medium cursor-pointer hover:bg-gray-100"
-              onClick={() => handleSort('venue')}>
-              
-              <div className="flex items-center gap-1">
-                Venue <SortIcon column="venue" />
-              </div>
-            </th>
-            <th className="text-left py-2 px-3 font-medium">Status</th>
-            <th className="text-right py-2 px-3 font-medium">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.map((a) =>
-          <tr
-            key={a.id}
-            className={`border-b hover:bg-gray-50 ${a.status === 'Conflict' ? 'bg-red-50' : ''}`}>
-            
-              <td className="py-2 px-3">
-                <p className="font-medium">{formatDate(a.date)}</p>
-                <p className="text-xs text-gray-500">
-                  {formatTime(a.timeSlot.start)} - {formatTime(a.timeSlot.end)}
-                </p>
-              </td>
-              <td className="py-2 px-3">
-                <p className="font-medium">{a.teacherName}</p>
-                <p className="text-xs text-gray-500">{a.department}</p>
-              </td>
-              <td className="py-2 px-3">
-                <p>{a.venue.name}</p>
-                <p className="text-xs text-gray-500">
-                  {a.venue.building}, {a.venue.floor} Floor
-                </p>
-              </td>
-              <td className="py-2 px-3">
-                <Badge variant={getStatusVariant(a.status)}>{a.status}</Badge>
-                {a.conflict &&
-              <p className="text-xs text-red-500 mt-1">{a.conflict}</p>
-              }
-              </td>
-              <td className="py-2 px-3">
-                <div className="flex justify-end gap-1">
-                  {a.status === 'Conflict' &&
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onResolveConflict(a.id)}
-                  title="Resolve">
-                  
-                      <RefreshCw className="h-4 w-4 text-yellow-500" />
-                    </Button>
-                }
-                  <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onEdit(a.id)}>
-                  
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onRemove(a.id)}>
-                  
-                    <Trash2 className="h-4 w-4 text-red-500" />
-                  </Button>
-                </div>
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
-    </div>);
-
-};
-const EditAssignmentForm = ({
-  assignment,
-  teachers,
-  venues,
-  timeSlots,
-  onSave,
-  onCancel
-
-
-
-
-
-
-
-}: {assignment: BulkAssignment;teachers: Teacher[];venues: Venue[];timeSlots: TimeSlot[];onSave: (data: Partial<BulkAssignment>) => void;onCancel: () => void;}) => {
-  const [data, setData] = useState({
-    teacherId: assignment.teacherId,
-    venueId: assignment.venue.id,
-    timeSlotId: assignment.timeSlot.id,
-    notes: assignment.notes || ''
-  });
-  const update = (key: string, value: any) =>
-  setData((p) => ({
-    ...p,
-    [key]: value
-  }));
-  const handleSave = () => {
-    const teacher = teachers.find((t) => t.id === data.teacherId)!;
-    const venue = venues.find((v) => v.id === data.venueId)!;
-    const timeSlot = timeSlots.find((ts) => ts.id === data.timeSlotId)!;
-    onSave({
-      teacherId: data.teacherId,
-      teacherName: teacher.name,
-      department: teacher.department,
-      venue,
-      timeSlot,
-      notes: data.notes,
-      status: 'Pending',
-      conflict: undefined
+    const duty = selectedDuties[0];
+    setRecurringDraft({
+      name: selectedDuties.length === 1 ? duty.name : `${selectedDuties.length} selected duties`,
+      description: specialInstructions,
+      type: 'duty',
+      location: duty.defaultLocation,
+      assignmentType: 'individual',
+      startTime: toTimeInput(duty.startTime),
+      endTime: duty.endTime ? toTimeInput(duty.endTime) : '10:00',
+      priority: 'medium',
+      recurrenceType: 'weekly',
+      weekDays: allowedDays.length ? allowedDays : [1, 2, 3, 4, 5],
+      monthDay: 0,
+      monthWeek: 0,
+      monthWeekDay: 1,
+      yearMonth: 0,
+      yearDay: 1,
+      customPattern: '',
+      interval: 1,
+      startDate: fromDate,
+      endDate: toDate,
+      notes: specialInstructions,
     });
+    setRecurringOpen(true);
   };
-  return (
-    <div className="space-y-4">
-      <div className="p-3 bg-gray-50 rounded-lg">
-        <p className="text-sm font-medium">{formatDate(assignment.date)}</p>
-        <p className="text-xs text-gray-500">{assignment.activity}</p>
-      </div>
-      <FormField label="Teacher">
-        <Select
-          value={data.teacherId}
-          onChange={(e) => update('teacherId', +e.target.value)}>
-          
-          {teachers.
-          filter((t) => t.isAvailable && !t.onLeave).
-          map((t) =>
-          <option key={t.id} value={t.id}>
-                {t.name} ({t.department})
-              </option>
-          )}
-        </Select>
-      </FormField>
-      <FormField label="Time Slot">
-        <Select
-          value={data.timeSlotId}
-          onChange={(e) => update('timeSlotId', e.target.value)}>
-          
-          {timeSlots.map((ts) =>
-          <option key={ts.id} value={ts.id}>
-              {ts.label} ({formatTime(ts.start)} - {formatTime(ts.end)})
-            </option>
-          )}
-        </Select>
-      </FormField>
-      <FormField label="Venue">
-        <Select
-          value={data.venueId}
-          onChange={(e) => update('venueId', e.target.value)}>
-          
-          {venues.map((v) =>
-          <option key={v.id} value={v.id}>
-              {v.name} (Cap: {v.capacity})
-            </option>
-          )}
-        </Select>
-      </FormField>
-      <FormField label="Notes">
-        <Textarea
-          value={data.notes}
-          onChange={(e) => update('notes', e.target.value)}
-          rows={2}
-          placeholder="Additional notes" />
-        
-      </FormField>
-      <div className="flex justify-end gap-2 pt-4 border-t">
-        <Button variant="outline" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button onClick={handleSave}>
-          <Save className="h-4 w-4 mr-2" />
-          Save
-        </Button>
-      </div>
-    </div>);
 
-};
-// ==================== MAIN COMPONENT ====================
-export function BulkPlanning() {
-  const [teachers] = useState<Teacher[]>(teachersData);
-  const [config, setConfig] = useState<BulkPlanConfig>({
-    activityType: 'Exam Invigilation',
-    activityName: 'Mid-Term Examination Invigilation',
-    startDate: '2026-03-16',
-    endDate: '2026-03-20',
-    selectedTimeSlots: ['ts1', 'ts2'],
-    selectedVenues: ['v1', 'v2', 'v3'],
-    selectedDepartments: ['All'],
-    selectedTeachers: [],
-    distributionMethod: 'Round Robin',
-    teachersPerSlot: 2,
-    excludeWeekends: true,
-    excludeHolidays: true,
-    autoResolveConflicts: true,
-    notifyTeachers: true,
-    notes: ''
-  });
-  const [assignments, setAssignments] = useState<BulkAssignment[]>([]);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [isGenerated, setIsGenerated] = useState(false);
-  const [modal, setModal] = useState<ModalType>('none');
-  const [editingAssignment, setEditingAssignment] =
-  useState<BulkAssignment | null>(null);
-  const [departmentFilter, setDepartmentFilter] = useState<Department>('All');
-  const [searchTeacher, setSearchTeacher] = useState('');
-  // Stats
-  const stats = useMemo(() => {
-    const dates = getDateRange(
-      config.startDate,
-      config.endDate,
-      config.excludeWeekends,
-      config.excludeHolidays
+  const saveRecurringFromBulk = () => {
+    if (!recurringDraft.name.trim() || !recurringDraft.startTime || !recurringDraft.startDate) {
+      flash('Name, start time, and start date are required for a recurring activity.');
+      return;
+    }
+    const selectedDuties = duties.filter((d) => selectedDutyIds.includes(d.id));
+    const sources = selectedDuties.length ? selectedDuties : [undefined];
+    const records = sources.map((duty) => ({
+      id: createTeacherRecordId('ra'),
+      name: (selectedDuties.length <= 1 ? recurringDraft.name.trim() : duty?.name) || recurringDraft.name.trim(),
+      description: recurringDraft.description,
+      type: recurringDraft.type,
+      location: duty?.defaultLocation || recurringDraft.location,
+      startTime: recurringDraft.startTime,
+      endTime: recurringDraft.endTime,
+      recurrenceType: recurringDraft.recurrenceType,
+      weekDays: recurringDraft.weekDays,
+      monthDay: recurringDraft.monthDay,
+      monthWeek: recurringDraft.monthWeek,
+      monthWeekDay: recurringDraft.monthWeekDay,
+      yearMonth: recurringDraft.yearMonth,
+      yearDay: recurringDraft.yearDay,
+      customPattern: recurringDraft.customPattern,
+      interval: Number(recurringDraft.interval) || 1,
+      startDate: recurringDraft.startDate,
+      endDate: recurringDraft.endDate,
+      assignmentType: recurringDraft.assignmentType,
+      assignedTeacherIds: selectedTeachers,
+      rotatingTeacherIds: [],
+      currentRotationIndex: 0,
+      departmentId: '',
+      status: 'active',
+      priority: recurringDraft.priority,
+      reminderMinutes: [15],
+      notes: recurringDraft.notes,
+      createdBy: 'Bulk Planning',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      skipDates: [],
+      totalOccurrences: 0,
+      completedOccurrences: 0,
+    }));
+    try {
+      const existing = JSON.parse(localStorage.getItem(RECURRING_STORAGE_KEY) || '[]');
+      localStorage.setItem(
+        RECURRING_STORAGE_KEY,
+        JSON.stringify(Array.isArray(existing) ? [...records, ...existing] : records),
+      );
+    } catch {
+      localStorage.setItem(RECURRING_STORAGE_KEY, JSON.stringify(records));
+    }
+    setRecurringOpen(false);
+    flash(
+      records.length === 1
+        ? `“${records[0].name}” saved as a recurring activity.`
+        : `${records.length} duty types saved as recurring activities.`,
     );
-    const totalSlots =
-    dates.length *
-    config.selectedTimeSlots.length *
-    config.selectedVenues.length;
-    const totalAssignments = totalSlots * config.teachersPerSlot;
-    const conflicts = assignments.filter((a) => a.status === 'Conflict').length;
-    const confirmed = assignments.filter((a) => a.status === 'Confirmed').length;
-    return {
-      dates: dates.length,
-      totalSlots,
-      totalAssignments,
-      generated: assignments.length,
-      conflicts,
-      confirmed,
-      pending: assignments.length - conflicts - confirmed
+  };
+
+  // ─── Toggle helpers ────────────────────────────────────────────────────────
+  const toggleDuty = (id: string) =>
+    setSelectedDutyIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+
+  const toggleTeacher = (name: string) =>
+    setSelectedTeachers((prev) =>
+      prev.includes(name) ? prev.filter((x) => x !== name) : [...prev, name],
+    );
+
+  const toggleDay = (dow: number) =>
+    setAllowedDays((prev) =>
+      prev.includes(dow) ? prev.filter((x) => x !== dow) : [...prev, dow].sort((a, b) => a - b),
+    );
+
+  const toggleChannel = (ch: string) =>
+    setNotificationChannels((prev) =>
+      prev.includes(ch) ? prev.filter((x) => x !== ch) : [...prev, ch],
+    );
+
+  // ─── Auto-assign logic (mirrors DutyRoster) ────────────────────────────────
+  const selectAutoTeachers = (
+    duty: DutyTypeRecord,
+    date: string,
+    existing: DutyAssignmentRecord[],
+  ): string[] => {
+    const candidates = TEACHER_STAFF.filter(
+      (t) =>
+        duty.eligibleAllTeachingStaff ||
+        t.designation.toLowerCase().includes(duty.specificDesignation.toLowerCase()),
+    );
+    const nonLeadership = candidates.filter(
+      (t) => !['principal', 'hod'].some((term) => t.designation.toLowerCase().includes(term)),
+    );
+    const pool = nonLeadership.length >= duty.teachersPerDuty ? nonLeadership : candidates;
+
+    const priorAssignments = existing.filter((a) => a.date < date);
+    const countFor = (name: string) =>
+      priorAssignments.filter((a) => a.teachers.includes(name)).length;
+    const lastDateFor = (name: string) => {
+      const dates = priorAssignments
+        .filter((a) => a.teachers.includes(name))
+        .map((a) => a.date)
+        .sort();
+      return dates[dates.length - 1] || '';
     };
-  }, [config, assignments]);
-  // Filtered teachers
-  const filteredTeachers = useMemo(() => {
-    let data = teachers;
-    if (departmentFilter !== 'All')
-    data = data.filter((t) => t.department === departmentFilter);
-    if (searchTeacher)
-    data = data.filter((t) =>
-    t.name.toLowerCase().includes(searchTeacher.toLowerCase())
+
+    const eligible = pool
+      .filter((t) => {
+        if (existing.some((a) => a.date === date && a.teachers.includes(t.name))) return false;
+        const prev = lastDateFor(t.name);
+        if (!prev) return true;
+        const gap = Math.round(
+          (new Date(`${date}T00:00:00`).getTime() - new Date(`${prev}T00:00:00`).getTime()) /
+            86400000,
+        );
+        return gap >= (duty.minimumGapDays || 0);
+      })
+      .sort((a, b) => countFor(a.name) - countFor(b.name) || a.name.localeCompare(b.name));
+
+    return eligible.slice(0, duty.teachersPerDuty).map((t) => t.name);
+  };
+
+  // ─── Build Preview ─────────────────────────────────────────────────────────
+  const buildPreview = () => {
+    if (selectedDutyIds.length === 0) {
+      flash('Select at least one duty type before previewing.');
+      return;
+    }
+    if (assignMode !== 'Auto-assign' && selectedTeachers.length === 0) {
+      flash('Select at least one teacher or use Auto-assign mode.');
+      return;
+    }
+    if (!fromDate || !toDate || fromDate > toDate) {
+      flash('Enter a valid date range.');
+      return;
+    }
+    if (allowedDays.length === 0) {
+      flash('Select at least one day of the week.');
+      return;
+    }
+
+    const dates = buildDateRange(fromDate, toDate, allowedDays);
+    if (dates.length === 0) {
+      flash('No dates fall on the selected weekdays within the date range.');
+      return;
+    }
+
+    const selectedDuties = duties.filter(
+      (d) => selectedDutyIds.includes(d.id) && d.status === 'Active',
     );
-    return data;
-  }, [teachers, departmentFilter, searchTeacher]);
-  const updateConfig = (key: keyof BulkPlanConfig, value: any) =>
-  setConfig((p) => ({
-    ...p,
-    [key]: value
-  }));
-  const toggleTeacher = (id: number) => {
-    setConfig((p) => ({
-      ...p,
-      selectedTeachers: p.selectedTeachers.includes(id) ?
-      p.selectedTeachers.filter((tid) => tid !== id) :
-      [...p.selectedTeachers, id]
-    }));
-  };
-  const selectAllTeachers = () => {
-    const available = filteredTeachers.
-    filter((t) => t.isAvailable && !t.onLeave).
-    map((t) => t.id);
-    setConfig((p) => ({
-      ...p,
-      selectedTeachers: [...new Set([...p.selectedTeachers, ...available])]
-    }));
-  };
-  const clearTeachers = () =>
-  setConfig((p) => ({
-    ...p,
-    selectedTeachers: []
-  }));
-  const toggleTimeSlot = (id: string) => {
-    setConfig((p) => ({
-      ...p,
-      selectedTimeSlots: p.selectedTimeSlots.includes(id) ?
-      p.selectedTimeSlots.filter((tsid) => tsid !== id) :
-      [...p.selectedTimeSlots, id]
-    }));
-  };
-  const toggleVenue = (id: string) => {
-    setConfig((p) => ({
-      ...p,
-      selectedVenues: p.selectedVenues.includes(id) ?
-      p.selectedVenues.filter((vid) => vid !== id) :
-      [...p.selectedVenues, id]
-    }));
-  };
-  const generateAssignments = useCallback(() => {
-    setIsGenerating(true);
-    setTimeout(() => {
-      const dates = getDateRange(
-        config.startDate,
-        config.endDate,
-        config.excludeWeekends,
-        config.excludeHolidays
-      );
-      const selectedTeachersList = teachers.filter((t) =>
-      config.selectedTeachers.includes(t.id)
-      );
-      const selectedTimeSlots = TIME_SLOTS.filter((ts) =>
-      config.selectedTimeSlots.includes(ts.id)
-      );
-      const selectedVenues = VENUES.filter((v) =>
-      config.selectedVenues.includes(v.id)
-      );
-      const newAssignments: BulkAssignment[] = [];
-      let teacherIndex = 0;
-      dates.forEach((date) => {
-        selectedTimeSlots.forEach((timeSlot) => {
-          selectedVenues.forEach((venue) => {
-            for (let i = 0; i < config.teachersPerSlot; i++) {
-              if (selectedTeachersList.length === 0) continue;
-              const teacher =
-              selectedTeachersList[teacherIndex % selectedTeachersList.length];
-              const existingOnSameSlot = newAssignments.filter(
-                (a) =>
-                a.date === date &&
-                a.timeSlot.id === timeSlot.id &&
-                a.teacherId === teacher.id
-              );
-              const isOnLeave = teacher.leaveDates.includes(date);
-              let status: AssignmentStatus = 'Pending';
-              let conflict: string | undefined;
-              if (isOnLeave) {
-                status = 'Conflict';
-                conflict = 'Teacher on leave';
-              } else if (existingOnSameSlot.length > 0) {
-                status = 'Conflict';
-                conflict = 'Already assigned to another venue';
-              } else if (teacher.currentWorkload >= teacher.maxWorkload) {
-                status = 'Conflict';
-                conflict = 'Workload exceeded';
-              }
-              newAssignments.push({
-                id: `${date}-${timeSlot.id}-${venue.id}-${i}`,
-                teacherId: teacher.id,
-                teacherName: teacher.name,
-                department: teacher.department,
-                date,
-                timeSlot,
-                venue,
-                activity: config.activityName,
-                status,
-                conflict
-              });
-              teacherIndex++;
-            }
-          });
+    const rows: PreviewRow[] = [];
+    const running = [...assignments]; // grows as we build, for auto-assign context
+
+    dates.forEach((date) => {
+      selectedDuties.forEach((duty, dutyIndex) => {
+        let teachers: string[] = [];
+
+        if (assignMode === 'Auto-assign') {
+          teachers = selectAutoTeachers(duty, date, running);
+        } else if (assignMode === 'All Teachers → All Duties') {
+          teachers = selectedTeachers;
+        } else {
+          // Rotate Teachers Across Duties
+          if (selectedTeachers.length === 0) return;
+          const perDuty = duty.teachersPerDuty || 1;
+          const totalTeachers = selectedTeachers.length;
+          const offset = (dutyIndex * perDuty) % totalTeachers;
+          teachers = Array.from(
+            { length: perDuty },
+            (_, i) => selectedTeachers[(offset + i) % totalTeachers],
+          );
+        }
+
+        const row: PreviewRow = {
+          id: createTeacherRecordId('bulk'),
+          date,
+          duty,
+          teachers,
+          removed: false,
+        };
+        rows.push(row);
+
+        // push into running list so auto-assign can see it
+        running.push({
+          id: row.id,
+          dutyTypeId: duty.id,
+          dutyTypeName: duty.name,
+          date,
+          startTime: duty.startTime,
+          endTime: duty.endTime,
+          location: duty.defaultLocation,
+          teachers,
+          status: 'Scheduled',
+          substituteTeacher: '',
+          specialInstructions,
+          notifyTeachers,
+          notificationChannels,
+          notified: false,
         });
       });
-      setAssignments(newAssignments);
-      setIsGenerating(false);
-      setIsGenerated(true);
-    }, 1500);
-  }, [config, teachers]);
-  const removeAssignment = (id: string) =>
-  setAssignments((p) => p.filter((a) => a.id !== id));
-  const updateAssignment = (id: string, data: Partial<BulkAssignment>) => {
-    setAssignments((p) =>
-    p.map((a) =>
-    a.id === id ?
-    {
-      ...a,
-      ...data
-    } :
-    a
-    )
-    );
-    setEditingAssignment(null);
-    setModal('none');
-  };
-  const resolveConflict = (id: string) => {
-    const assignment = assignments.find((a) => a.id === id);
-    if (!assignment) return;
-    const availableTeacher = teachers.find(
-      (t) =>
-      t.isAvailable &&
-      !t.onLeave &&
-      t.currentWorkload < t.maxWorkload &&
-      !assignments.some(
-        (a) =>
-        a.date === assignment.date &&
-        a.timeSlot.id === assignment.timeSlot.id &&
-        a.teacherId === t.id
-      )
-    );
-    if (availableTeacher) {
-      setAssignments((p) =>
-      p.map((a) =>
-      a.id === id ?
-      {
-        ...a,
-        teacherId: availableTeacher.id,
-        teacherName: availableTeacher.name,
-        department: availableTeacher.department,
-        status: 'Reassigned',
-        conflict: undefined
-      } :
-      a
-      )
-      );
-    }
-  };
-  const resolveAllConflicts = () =>
-  assignments.
-  filter((a) => a.status === 'Conflict').
-  forEach((a) => resolveConflict(a.id));
-  const confirmAllAssignments = () => {
-    setAssignments((p) =>
-    p.map((a) =>
-    a.status !== 'Conflict' ?
-    {
-      ...a,
-      status: 'Confirmed'
-    } :
-    a
-    )
-    );
-    setModal('success');
-  };
-  const shuffleAssignments = () => {
-    const shuffled = [...assignments].sort(() => Math.random() - 0.5);
-    let teacherIndex = 0;
-    const selectedTeachersList = teachers.filter(
-      (t) =>
-      config.selectedTeachers.includes(t.id) && t.isAvailable && !t.onLeave
-    );
-    setAssignments(
-      shuffled.map((a) => {
-        const teacher =
-        selectedTeachersList[teacherIndex % selectedTeachersList.length];
-        teacherIndex++;
-        return {
-          ...a,
-          teacherId: teacher.id,
-          teacherName: teacher.name,
-          department: teacher.department,
-          status: 'Pending',
-          conflict: undefined
-        };
-      })
-    );
-  };
-  const exportAssignments = (format: 'csv' | 'json') => {
-    const content =
-    format === 'csv' ?
-    [
-    ['Date', 'Time', 'Teacher', 'Department', 'Venue', 'Status'].join(
-      ','
-    ),
-    ...assignments.map((a) =>
-    [
-    a.date,
-    `${a.timeSlot.start}-${a.timeSlot.end}`,
-    a.teacherName,
-    a.department,
-    a.venue.name,
-    a.status].
-    join(',')
-    )].
-    join('\n') :
-    JSON.stringify(assignments, null, 2);
-    const blob = new Blob([content], {
-      type: format === 'csv' ? 'text/csv' : 'application/json'
     });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `bulk_assignments.${format}`;
-    a.click();
+
+    setPreviewRows(rows);
+    setStep('preview');
   };
-  const closeModal = () => {
-    setModal('none');
-    setEditingAssignment(null);
+
+  // ─── Remove row from preview ───────────────────────────────────────────────
+  const removePreviewRow = (id: string) =>
+    setPreviewRows((prev) => prev.map((r) => (r.id === id ? { ...r, removed: true } : r)));
+
+  const restorePreviewRow = (id: string) =>
+    setPreviewRows((prev) => prev.map((r) => (r.id === id ? { ...r, removed: false } : r)));
+
+  // ─── Edit teachers inline in preview ──────────────────────────────────────
+  const togglePreviewTeacher = (rowId: string, name: string) =>
+    setPreviewRows((prev) =>
+      prev.map((r) =>
+        r.id === rowId
+          ? {
+              ...r,
+              teachers: r.teachers.includes(name)
+                ? r.teachers.filter((t) => t !== name)
+                : [...r.teachers, name],
+            }
+          : r,
+      ),
+    );
+
+  // ─── Save all ──────────────────────────────────────────────────────────────
+  const saveAll = (notify: boolean) => {
+    const toSave = previewRows.filter((r) => !r.removed);
+    if (toSave.length === 0) {
+      flash('Nothing to save — all rows have been removed.');
+      return;
+    }
+
+    setSaving(true);
+    const newRecords: DutyAssignmentRecord[] = toSave.map((r) => ({
+      id: r.id,
+      dutyTypeId: r.duty.id,
+      dutyTypeName: r.duty.name,
+      date: r.date,
+      startTime: r.duty.startTime,
+      endTime: r.duty.endTime,
+      location: r.duty.defaultLocation,
+      teachers: r.teachers,
+      status: 'Scheduled',
+      substituteTeacher: '',
+      specialInstructions,
+      notifyTeachers: notify,
+      notificationChannels,
+      notified: notify,
+    }));
+
+    persist([...newRecords, ...assignments]);
+    setSaving(false);
+    setStep('configure');
+    setPreviewRows([]);
+    flash(
+      notify
+        ? `${newRecords.length} duty assignment(s) saved and teachers notified.`
+        : `${newRecords.length} duty assignment(s) saved successfully.`,
+    );
   };
+
+  // ─── Export preview ────────────────────────────────────────────────────────
+  const exportPreview = () =>
+    downloadTeacherCsv(
+      'bulk-duty-assignments.csv',
+      previewRows
+        .filter((r) => !r.removed)
+        .map((r) => ({
+          Date: r.date,
+          Duty: r.duty.name,
+          Time: `${r.duty.startTime}–${r.duty.endTime}`,
+          Location: r.duty.defaultLocation,
+          Teachers: r.teachers.join('; '),
+          Status: 'Scheduled',
+        })),
+    );
+
+  // ─── Derived counts ────────────────────────────────────────────────────────
+  const activeRows = useMemo(() => previewRows.filter((r) => !r.removed), [previewRows]);
+  const removedCount = useMemo(() => previewRows.filter((r) => r.removed).length, [previewRows]);
+  const unassignedCount = useMemo(
+    () => activeRows.filter((r) => r.teachers.length === 0).length,
+    [activeRows],
+  );
+
+  const activeDuties = duties.filter((d) => d.status === 'Active');
+
+  // ─── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-6 p-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="space-y-6 p-4 md:p-6">
+      {/* ── Page Header ── */}
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Bulk Planning</h1>
-          <p className="text-sm text-gray-500">
-            Assign duties to multiple teachers simultaneously
+          <p className="text-xs font-semibold uppercase tracking-widest text-indigo-600">
+            Teacher Duties Section
+          </p>
+          <h1 className="mt-1 text-2xl font-bold text-slate-900">Bulk Duty Assignment</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Assign multiple duty types to multiple teachers across a date range in one action.
           </p>
         </div>
-        {isGenerated &&
-        <div className="flex gap-2">
-            <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setModal('export')}>
-            
-              <Download className="h-4 w-4 mr-2" />
-              Export
-            </Button>
-            <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setModal('import')}>
-            
-              <Upload className="h-4 w-4 mr-2" />
-              Import
+
+        {step === 'configure' && (
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" leftIcon={<Repeat className="h-4 w-4" />} onClick={openRecurringFromBulk}>
+              Convert to Recurring
             </Button>
           </div>
-        }
+        )}
+        {step === 'preview' && (
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => setStep('configure')}>
+              ← Back to Configure
+            </Button>
+            <Button variant="outline" leftIcon={<Repeat className="h-4 w-4" />} onClick={openRecurringFromBulk}>
+              Convert to Recurring
+            </Button>
+            <Button variant="outline" leftIcon={<Download className="h-4 w-4" />} onClick={exportPreview}>
+              Export Preview
+            </Button>
+            <Button variant="outline" onClick={() => saveAll(false)}>
+              Save Assignments
+            </Button>
+            <Button onClick={() => saveAll(true)}>Save &amp; Notify Teachers</Button>
+          </div>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Setup Panel */}
-        <div className="lg:col-span-1 space-y-4">
-          <Card>
-            <div className="p-4">
-              <h3 className="font-semibold mb-4">Bulk Assignment Setup</h3>
-              <div className="space-y-4">
-                <FormField label="Activity Type" required>
-                  <Select
-                    value={config.activityType}
-                    onChange={(e) =>
-                    updateConfig('activityType', e.target.value)
-                    }>
-                    
-                    {ACTIVITY_TYPES.map((t) =>
-                    <option key={t} value={t}>
-                        {t}
-                      </option>
-                    )}
-                  </Select>
-                </FormField>
-
-                <FormField label="Activity Name" required>
-                  <Input
-                    value={config.activityName}
-                    onChange={(e) =>
-                    updateConfig('activityName', e.target.value)
-                    }
-                    placeholder="Enter activity name" />
-                  
-                </FormField>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <FormField label="Start Date" required>
-                    <Input
-                      type="date"
-                      value={config.startDate}
-                      onChange={(e) =>
-                      updateConfig('startDate', e.target.value)
-                      } />
-                    
-                  </FormField>
-                  <FormField label="End Date" required>
-                    <Input
-                      type="date"
-                      value={config.endDate}
-                      onChange={(e) => updateConfig('endDate', e.target.value)} />
-                    
-                  </FormField>
-                </div>
-
-                <FormField label="Time Slots" required>
-                  <div className="space-y-1 max-h-32 overflow-y-auto border rounded p-2">
-                    {TIME_SLOTS.map((ts) =>
-                    <label
-                      key={ts.id}
-                      className="flex items-center gap-2 p-1 hover:bg-gray-50 rounded cursor-pointer">
-                      
-                        <input
-                        type="checkbox"
-                        checked={config.selectedTimeSlots.includes(ts.id)}
-                        onChange={() => toggleTimeSlot(ts.id)}
-                        className="h-4 w-4 rounded" />
-                      
-                        <span className="text-sm">{ts.label}</span>
-                        <span className="text-xs text-gray-400 ml-auto">
-                          {formatTime(ts.start)}-{formatTime(ts.end)}
-                        </span>
-                      </label>
-                    )}
-                  </div>
-                </FormField>
-
-                <FormField label="Venues" required>
-                  <div className="space-y-1 max-h-32 overflow-y-auto border rounded p-2">
-                    {VENUES.map((v) =>
-                    <label
-                      key={v.id}
-                      className="flex items-center gap-2 p-1 hover:bg-gray-50 rounded cursor-pointer">
-                      
-                        <input
-                        type="checkbox"
-                        checked={config.selectedVenues.includes(v.id)}
-                        onChange={() => toggleVenue(v.id)}
-                        className="h-4 w-4 rounded" />
-                      
-                        <span className="text-sm">{v.name}</span>
-                        <span className="text-xs text-gray-400 ml-auto">
-                          Cap: {v.capacity}
-                        </span>
-                      </label>
-                    )}
-                  </div>
-                </FormField>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <FormField label="Distribution">
-                    <Select
-                      value={config.distributionMethod}
-                      onChange={(e) =>
-                      updateConfig('distributionMethod', e.target.value)
-                      }>
-                      
-                      {DISTRIBUTION_METHODS.map((m) =>
-                      <option key={m} value={m}>
-                          {m}
-                        </option>
-                      )}
-                    </Select>
-                  </FormField>
-                  <FormField label="Teachers/Slot">
-                    <Input
-                      type="number"
-                      value={config.teachersPerSlot}
-                      onChange={(e) =>
-                      updateConfig(
-                        'teachersPerSlot',
-                        Math.max(1, +e.target.value)
-                      )
-                      }
-                      min="1" />
-                    
-                  </FormField>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={config.excludeWeekends}
-                      onChange={(e) =>
-                      updateConfig('excludeWeekends', e.target.checked)
-                      }
-                      className="h-4 w-4 rounded" />
-                    
-                    Exclude Weekends
-                  </label>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={config.excludeHolidays}
-                      onChange={(e) =>
-                      updateConfig('excludeHolidays', e.target.checked)
-                      }
-                      className="h-4 w-4 rounded" />
-                    
-                    Exclude Holidays
-                  </label>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={config.autoResolveConflicts}
-                      onChange={(e) =>
-                      updateConfig('autoResolveConflicts', e.target.checked)
-                      }
-                      className="h-4 w-4 rounded" />
-                    
-                    Auto-resolve Conflicts
-                  </label>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={config.notifyTeachers}
-                      onChange={(e) =>
-                      updateConfig('notifyTeachers', e.target.checked)
-                      }
-                      className="h-4 w-4 rounded" />
-                    
-                    Notify Teachers
-                  </label>
-                </div>
-              </div>
-            </div>
-          </Card>
-
-          <Card>
-            <div className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold">Select Teachers</h3>
-                <span className="text-xs text-gray-500">
-                  {config.selectedTeachers.length} selected
-                </span>
-              </div>
-              <div className="space-y-3">
-                <div className="flex gap-2">
-                  <Select
-                    value={departmentFilter}
-                    onChange={(e) =>
-                    setDepartmentFilter(e.target.value as Department)
-                    }
-                    className="flex-1">
-                    
-                    {DEPARTMENTS.map((d) =>
-                    <option key={d} value={d}>
-                        {d}
-                      </option>
-                    )}
-                  </Select>
-                </div>
-                <div className="relative">
-                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input
-                    placeholder="Search teachers..."
-                    value={searchTeacher}
-                    onChange={(e) => setSearchTeacher(e.target.value)}
-                    className="pl-8" />
-                  
-                </div>
-                <TeacherSelectionList
-                  teachers={filteredTeachers}
-                  selectedIds={config.selectedTeachers}
-                  onToggle={toggleTeacher}
-                  onSelectAll={selectAllTeachers}
-                  onClearAll={clearTeachers}
-                  departmentFilter={departmentFilter} />
-                
-              </div>
-            </div>
-          </Card>
-
-          <Button
-            className="w-full"
-            onClick={generateAssignments}
-            disabled={
-            isGenerating ||
-            config.selectedTeachers.length === 0 ||
-            config.selectedTimeSlots.length === 0 ||
-            config.selectedVenues.length === 0
-            }>
-            
-            {isGenerating ?
-            <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Generating...
-              </> :
-
-            <>
-                <ClipboardList className="h-4 w-4 mr-2" />
-                Generate Preview
-              </>
-            }
-          </Button>
+      {/* ── Flash Message ── */}
+      {message && (
+        <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm text-indigo-800">
+          {message}
         </div>
+      )}
 
-        {/* Preview Panel */}
-        <div className="lg:col-span-2 space-y-4">
-          <Card>
-            <div className="p-4">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold">Assignment Preview</h3>
-                {isGenerated &&
-                <div className="flex gap-2">
-                    <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={shuffleAssignments}>
-                    
-                      <Shuffle className="h-4 w-4 mr-2" />
-                      Shuffle
-                    </Button>
-                    {stats.conflicts > 0 &&
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={resolveAllConflicts}>
-                    
-                        <RefreshCw className="h-4 w-4 mr-2" />
-                        Resolve All ({stats.conflicts})
-                      </Button>
-                  }
-                  </div>
-                }
+      {/* ══════════════════════════════════════════════════════════════════════
+          STEP 1 — CONFIGURE
+      ══════════════════════════════════════════════════════════════════════ */}
+      {step === 'configure' && (
+        <div className="space-y-5">
+          {/* ── Date Range & Days ── */}
+          <Card title="Step 1 · Date Range & Days">
+            <div className="grid gap-4 md:grid-cols-3">
+              <label>
+                <span className={labelClass}>From Date *</span>
+                <input
+                  type="date"
+                  className={inputClass}
+                  value={fromDate}
+                  onChange={(e) => setFromDate(e.target.value)}
+                />
+              </label>
+              <label>
+                <span className={labelClass}>To Date *</span>
+                <input
+                  type="date"
+                  className={inputClass}
+                  value={toDate}
+                  onChange={(e) => setToDate(e.target.value)}
+                />
+              </label>
+              <div>
+                <span className={labelClass}>
+                  Estimated Dates:{' '}
+                  <span className="font-bold text-indigo-700">
+                    {buildDateRange(fromDate, toDate, allowedDays).length} day(s)
+                  </span>
+                </span>
+                <div className="mt-2 flex gap-2">
+                  {WEEK_DAYS.map((day) => (
+                    <button
+                      key={day.value}
+                      type="button"
+                      onClick={() => toggleDay(day.value)}
+                      className={`h-9 w-9 rounded-full text-xs font-semibold transition-colors ${
+                        allowedDays.includes(day.value)
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                      }`}
+                    >
+                      {day.label.charAt(0)}
+                    </button>
+                  ))}
+                </div>
               </div>
-
-              {!isGenerated ?
-              <div className="h-64 bg-gray-50 border border-dashed rounded-lg flex flex-col items-center justify-center text-gray-400">
-                  <ClipboardList className="h-12 w-12 mb-2" />
-                  <p className="text-sm">
-                    Configure settings and click "Generate Preview"
-                  </p>
-                  <p className="text-xs mt-1">Assignments will appear here</p>
-                </div> :
-
-              <>
-                  {/* Stats Summary */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                    <StatCard
-                    icon={Calendar}
-                    value={stats.dates}
-                    label="Days"
-                    color="text-blue-500" />
-                  
-                    <StatCard
-                    icon={ClipboardList}
-                    value={stats.generated}
-                    label="Assignments"
-                    color="text-green-500" />
-                  
-                    <StatCard
-                    icon={AlertTriangle}
-                    value={stats.conflicts}
-                    label="Conflicts"
-                    color="text-red-500" />
-                  
-                    <StatCard
-                    icon={CheckCircle}
-                    value={stats.confirmed}
-                    label="Confirmed"
-                    color="text-emerald-500" />
-                  
-                  </div>
-
-                  {/* Info Banner */}
-                  <div
-                  className={`p-3 rounded-lg mb-4 text-sm ${stats.conflicts > 0 ? 'bg-yellow-50 border border-yellow-100 text-yellow-800' : 'bg-blue-50 border border-blue-100 text-blue-800'}`}>
-                  
-                    <div className="flex items-center gap-2">
-                      {stats.conflicts > 0 ?
-                    <AlertTriangle className="h-4 w-4" /> :
-
-                    <CheckCircle className="h-4 w-4" />
-                    }
-                      <span>
-                        {stats.conflicts > 0 ?
-                      `${stats.conflicts} conflict(s) detected. Please resolve before confirming.` :
-                      `Generated ${stats.generated} assignments for ${config.selectedTeachers.length} teachers across ${stats.dates} days.`}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Assignments Table */}
-                  <div className="border rounded-lg max-h-96 overflow-y-auto">
-                    <AssignmentPreviewTable
-                    assignments={assignments}
-                    onEdit={(id) => {
-                      setEditingAssignment(
-                        assignments.find((a) => a.id === id)!
-                      );
-                      setModal('editAssignment');
-                    }}
-                    onRemove={removeAssignment}
-                    onResolveConflict={resolveConflict} />
-                  
-                  </div>
-
-                  {/* Actions */}
-                  <div className="mt-4 flex justify-between items-center">
-                    <p className="text-sm text-gray-500">
-                      {assignments.length} total assignments
-                    </p>
-                    <div className="flex gap-2">
-                      <Button
-                      variant="outline"
-                      onClick={() => {
-                        setAssignments([]);
-                        setIsGenerated(false);
-                      }}>
-                      
-                        Clear All
-                      </Button>
-                      <Button
-                      onClick={() => setModal('confirm')}
-                      disabled={stats.conflicts > 0}>
-                      
-                        <Send className="h-4 w-4 mr-2" />
-                        Confirm & Assign All
-                      </Button>
-                    </div>
-                  </div>
-                </>
-              }
             </div>
           </Card>
 
-          {/* Summary by Date */}
-          {isGenerated &&
-          <Card>
-              <div className="p-4">
-                <h3 className="font-semibold mb-3">Summary by Date</h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
-                  {getDateRange(
-                  config.startDate,
-                  config.endDate,
-                  config.excludeWeekends,
-                  config.excludeHolidays
-                ).map((date) => {
-                  const dayAssignments = assignments.filter(
-                    (a) => a.date === date
-                  );
-                  const dayConflicts = dayAssignments.filter(
-                    (a) => a.status === 'Conflict'
-                  ).length;
-                  return (
-                    <div
-                      key={date}
-                      className={`p-2 border rounded text-center ${dayConflicts > 0 ? 'border-red-200 bg-red-50' : 'border-gray-200'}`}>
-                      
-                        <p className="text-xs font-medium">
-                          {formatDate(date)}
-                        </p>
-                        <p className="text-lg font-bold">
-                          {dayAssignments.length}
-                        </p>
-                        {dayConflicts > 0 &&
-                      <p className="text-xs text-red-500">
-                            {dayConflicts} conflict(s)
-                          </p>
-                      }
-                      </div>);
+          {/* ── Duty Types ── */}
+          <Card title="Step 2 · Select Duty Types">
+            <p className="mb-3 text-xs text-slate-500">
+              {selectedDutyIds.length === 0
+                ? 'No duty types selected.'
+                : `${selectedDutyIds.length} duty type(s) selected.`}
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {activeDuties.map((duty) => {
+                const checked = selectedDutyIds.includes(duty.id);
+                return (
+                  <label
+                    key={duty.id}
+                    className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
+                      checked
+                        ? 'border-indigo-300 bg-indigo-50'
+                        : 'border-slate-200 bg-white hover:border-indigo-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      className="mt-0.5"
+                      checked={checked}
+                      onChange={() => toggleDuty(duty.id)}
+                    />
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800">
+                        {duty.icon} {duty.name}
+                      </p>
+                      <p className="text-[11px] text-slate-500">
+                        {duty.startTime} – {duty.endTime} · {duty.defaultLocation || 'No location'}
+                      </p>
+                      <p className="text-[11px] text-slate-400">
+                        Requires {duty.teachersPerDuty} teacher(s) · {duty.category}
+                      </p>
+                    </div>
+                  </label>
+                );
+              })}
+              {activeDuties.length === 0 && (
+                <p className="col-span-3 text-sm text-slate-400">
+                  No active duty types found. Add them in Duty Master first.
+                </p>
+              )}
+            </div>
+            <div className="mt-3 flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setSelectedDutyIds(activeDuties.map((d) => d.id))}
+              >
+                Select All
+              </Button>
+              <Button variant="outline" onClick={() => setSelectedDutyIds([])}>
+                Clear All
+              </Button>
+            </div>
+          </Card>
 
+          {/* ── Assignment Mode ── */}
+          <Card title="Step 3 · Assignment Mode">
+            <div className="grid gap-3 sm:grid-cols-3">
+              {(
+                [
+                  'All Teachers → All Duties',
+                  'Rotate Teachers Across Duties',
+                  'Auto-assign',
+                ] as AssignMode[]
+              ).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setAssignMode(mode)}
+                  className={`rounded-lg border p-3 text-left text-sm transition-colors ${
+                    assignMode === mode
+                      ? 'border-indigo-400 bg-indigo-50 text-indigo-800'
+                      : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-200 hover:bg-slate-50'
+                  }`}
+                >
+                  <p className="font-semibold">{mode}</p>
+                  <p className="mt-0.5 text-[11px] text-slate-500">
+                    {mode === 'All Teachers → All Duties' &&
+                      'All selected teachers are assigned to every selected duty on each date.'}
+                    {mode === 'Rotate Teachers Across Duties' &&
+                      'Teachers are distributed and rotated across duty slots to spread workload.'}
+                    {mode === 'Auto-assign' &&
+                      'System picks teachers automatically using gap, seniority and workload rules.'}
+                  </p>
+                </button>
+              ))}
+            </div>
+          </Card>
+
+          {/* ── Teacher Selection ── */}
+          {assignMode !== 'Auto-assign' && (
+            <Card title="Step 4 · Select Teachers">
+              <p className="mb-3 text-xs text-slate-500">
+                {selectedTeachers.length === 0
+                  ? 'No teachers selected.'
+                  : `${selectedTeachers.length} teacher(s) selected.`}
+              </p>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {TEACHER_STAFF.map((teacher) => {
+                  const checked = selectedTeachers.includes(teacher.name);
+                  return (
+                    <label
+                      key={teacher.id}
+                      className={`flex cursor-pointer items-center gap-2 rounded-lg border p-2.5 text-xs transition-colors ${
+                        checked
+                          ? 'border-indigo-300 bg-indigo-50'
+                          : 'border-slate-200 bg-white hover:border-indigo-100 hover:bg-slate-50'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleTeacher(teacher.name)}
+                      />
+                      <div>
+                        <p className="font-semibold text-slate-800">{teacher.name}</p>
+                        <p className="text-slate-400">{teacher.designation}</p>
+                      </div>
+                    </label>
+                  );
                 })}
-                </div>
+              </div>
+              <div className="mt-3 flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setSelectedTeachers(TEACHER_STAFF.map((t) => t.name))}
+                >
+                  Select All
+                </Button>
+                <Button variant="outline" onClick={() => setSelectedTeachers([])}>
+                  Clear All
+                </Button>
               </div>
             </Card>
-          }
+          )}
+
+          {/* ── Options ── */}
+          <Card title={assignMode !== 'Auto-assign' ? 'Step 5 · Options' : 'Step 4 · Options'}>
+            <div className="grid gap-4 md:grid-cols-2">
+              <label>
+                <span className={labelClass}>Special Instructions (applied to all)</span>
+                <textarea
+                  className={`${inputClass} min-h-20`}
+                  value={specialInstructions}
+                  placeholder="Any instructions for the bulk assigned duties..."
+                  onChange={(e) => setSpecialInstructions(e.target.value)}
+                />
+              </label>
+              <div className="space-y-3">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={notifyTeachers}
+                    onChange={(e) => setNotifyTeachers(e.target.checked)}
+                  />
+                  <span className="font-medium text-slate-700">Notify teachers of assignment</span>
+                </label>
+                {notifyTeachers && (
+                  <div className="flex flex-wrap gap-3 pl-5">
+                    {['In-App', 'Email', 'SMS'].map((ch) => (
+                      <label key={ch} className="flex items-center gap-1.5 text-xs">
+                        <input
+                          type="checkbox"
+                          checked={notificationChannels.includes(ch)}
+                          onChange={() => toggleChannel(ch)}
+                        />
+                        {ch}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </Card>
+
+          {/* ── CTA ── */}
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button variant="outline" leftIcon={<Repeat className="h-4 w-4" />} onClick={openRecurringFromBulk}>
+              Convert to Recurring
+            </Button>
+            <Button leftIcon={<Plus className="h-4 w-4" />} onClick={buildPreview}>
+              Generate Preview →
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Modals */}
+      {/* ══════════════════════════════════════════════════════════════════════
+          STEP 2 — PREVIEW
+      ══════════════════════════════════════════════════════════════════════ */}
+      {step === 'preview' && (
+        <div className="space-y-5">
+          {/* ── Summary Cards ── */}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <Card>
+              <p className="text-2xl font-bold text-indigo-700">{activeRows.length}</p>
+              <p className="text-xs text-slate-500">Total Assignments</p>
+            </Card>
+            <Card>
+              <p className="text-2xl font-bold text-emerald-700">{selectedDutyIds.length}</p>
+              <p className="text-xs text-slate-500">Duty Types Included</p>
+            </Card>
+            <Card>
+              <p className="text-2xl font-bold text-amber-600">{unassignedCount}</p>
+              <p className="text-xs text-slate-500">Unassigned Slots</p>
+            </Card>
+            <Card>
+              <p className="text-2xl font-bold text-rose-600">{removedCount}</p>
+              <p className="text-xs text-slate-500">Removed from Preview</p>
+            </Card>
+          </div>
+
+          {/* ── Preview Alerts ── */}
+          {unassignedCount > 0 && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
+              ⚠️ {unassignedCount} slot(s) have no teachers assigned — check auto-assign eligibility
+              rules or select teachers manually.
+            </div>
+          )}
+
+          {/* ── Preview Table ── */}
+          <Card noPadding className="overflow-hidden">
+            <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+              <p className="text-sm font-semibold text-slate-700">
+                Preview · {activeRows.length} assignment(s) ready to save
+              </p>
+              <p className="text-xs text-slate-500">
+                You can remove rows or adjust teachers before saving. Removed rows are skipped.
+              </p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[900px] border-collapse text-sm">
+                <thead>
+                  <tr className="bg-slate-50 text-left text-[11px] uppercase tracking-wide text-slate-500">
+                    <th className="border border-slate-200 px-3 py-2">#</th>
+                    <th className="border border-slate-200 px-3 py-2">Date</th>
+                    <th className="border border-slate-200 px-3 py-2">Duty Type</th>
+                    <th className="border border-slate-200 px-3 py-2">Time</th>
+                    <th className="border border-slate-200 px-3 py-2">Location</th>
+                    <th className="border border-slate-200 px-3 py-2">Assigned Teachers</th>
+                    <th className="border border-slate-200 px-3 py-2">Status</th>
+                    <th className="border border-slate-200 px-3 py-2">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {previewRows.map((row, index) => (
+                    <tr
+                      key={row.id}
+                      className={
+                        row.removed
+                          ? 'bg-rose-50 opacity-50 line-through'
+                          : index % 2 === 0
+                          ? 'bg-white'
+                          : 'bg-slate-50/60'
+                      }
+                    >
+                      <td className="border border-slate-200 px-3 py-2 text-slate-400">
+                        {index + 1}
+                      </td>
+                      <td className="border border-slate-200 px-3 py-2 font-medium text-slate-700 whitespace-nowrap">
+                        {dateShort(row.date)}
+                      </td>
+                      <td className="border border-slate-200 px-3 py-2">
+                        <p className="font-semibold text-slate-800">
+                          {row.duty.icon} {row.duty.name}
+                        </p>
+                        <p className="text-[11px] text-slate-400">{row.duty.category}</p>
+                      </td>
+                      <td className="border border-slate-200 px-3 py-2 whitespace-nowrap text-slate-600">
+                        {row.duty.startTime} – {row.duty.endTime}
+                      </td>
+                      <td className="border border-slate-200 px-3 py-2 text-slate-600">
+                        {row.duty.defaultLocation || '—'}
+                      </td>
+                      <td className="border border-slate-200 px-3 py-2">
+                        {row.removed ? (
+                          <span className="text-xs text-slate-400">Removed</span>
+                        ) : (
+                          <div className="flex flex-wrap gap-1">
+                            {TEACHER_STAFF.map((t) => (
+                              <label
+                                key={t.id}
+                                className={`flex cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] transition-colors ${
+                                  row.teachers.includes(t.name)
+                                    ? 'border-indigo-300 bg-indigo-100 text-indigo-800'
+                                    : 'border-slate-200 bg-white text-slate-400 hover:border-indigo-200'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  className="sr-only"
+                                  checked={row.teachers.includes(t.name)}
+                                  onChange={() => togglePreviewTeacher(row.id, t.name)}
+                                />
+                                {t.name.split(' ')[0]}
+                              </label>
+                            ))}
+                          </div>
+                        )}
+                        {!row.removed && row.teachers.length === 0 && (
+                          <Badge variant="warning">Unassigned</Badge>
+                        )}
+                      </td>
+                      <td className="border border-slate-200 px-3 py-2">
+                        {row.removed ? (
+                          <Badge variant="danger">Removed</Badge>
+                        ) : row.teachers.length === 0 ? (
+                          <Badge variant="warning">Unassigned</Badge>
+                        ) : (
+                          <Badge variant="info">Scheduled</Badge>
+                        )}
+                      </td>
+                      <td className="border border-slate-200 px-3 py-2">
+                        {row.removed ? (
+                          <button
+                            type="button"
+                            onClick={() => restorePreviewRow(row.id)}
+                            className="text-xs font-medium text-indigo-600 hover:underline"
+                          >
+                            Restore
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => removePreviewRow(row.id)}
+                            className="text-rose-500 hover:text-rose-700"
+                            title="Remove from preview"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {previewRows.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={8}
+                        className="border border-slate-200 px-4 py-12 text-center text-sm text-slate-400"
+                      >
+                        No assignments were generated. Adjust your configuration and try again.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-4 py-3">
+              <div className="flex flex-wrap gap-4 text-[11px] text-slate-500">
+                <span>
+                  <Badge variant="info">Scheduled</Badge> Ready to save
+                </span>
+                <span>
+                  <Badge variant="warning">Unassigned</Badge> No teacher selected
+                </span>
+                <span>
+                  <Badge variant="danger">Removed</Badge> Skipped on save
+                </span>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => saveAll(false)} disabled={saving}>
+                  Save Assignments
+                </Button>
+                <Button onClick={() => saveAll(true)} disabled={saving}>
+                  Save &amp; Notify Teachers
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
       <Modal
-        isOpen={modal === 'editAssignment'}
-        onClose={closeModal}
-        title="Edit Assignment"
-        size="md">
-        
-        {editingAssignment &&
-        <EditAssignmentForm
-          assignment={editingAssignment}
-          teachers={teachers}
-          venues={VENUES}
-          timeSlots={TIME_SLOTS}
-          onSave={(data) => updateAssignment(editingAssignment.id, data)}
-          onCancel={closeModal} />
-
+        isOpen={recurringOpen}
+        onClose={() => setRecurringOpen(false)}
+        title="Convert to Recurring Activity"
+        size="lg"
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setRecurringOpen(false)}>Cancel</Button>
+            <Button onClick={saveRecurringFromBulk}>Save Recurring Activity</Button>
+          </div>
         }
-      </Modal>
-
-      <Modal
-        isOpen={modal === 'confirm'}
-        onClose={closeModal}
-        title="Confirm Bulk Assignment"
-        size="md">
-        
-        <div className="space-y-4">
-          <div className="p-4 bg-gray-50 rounded-lg">
-            <h4 className="font-medium mb-2">Assignment Summary</h4>
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <div>
-                <span className="text-gray-500">Activity:</span>{' '}
-                <span className="font-medium">{config.activityName}</span>
-              </div>
-              <div>
-                <span className="text-gray-500">Duration:</span>{' '}
-                <span className="font-medium">
-                  {formatDate(config.startDate)} - {formatDate(config.endDate)}
-                </span>
-              </div>
-              <div>
-                <span className="text-gray-500">Assignments:</span>{' '}
-                <span className="font-medium">{assignments.length}</span>
-              </div>
-              <div>
-                <span className="text-gray-500">Teachers:</span>{' '}
-                <span className="font-medium">
-                  {config.selectedTeachers.length}
-                </span>
+      >
+        <div className="max-h-[72vh] space-y-4 overflow-y-auto pr-1">
+          <label>
+            <span className={labelClass}>Activity Name *</span>
+            <input className={inputClass} value={recurringDraft.name} onChange={(event) => setRecurringDraft((current) => ({ ...current, name: event.target.value }))} />
+          </label>
+          <div className="grid grid-cols-3 gap-4">
+            <label>
+              <span className={labelClass}>Start Time *</span>
+              <input type="time" className={inputClass} value={recurringDraft.startTime} onChange={(event) => setRecurringDraft((current) => ({ ...current, startTime: event.target.value }))} />
+            </label>
+            <label>
+              <span className={labelClass}>End Time</span>
+              <input type="time" className={inputClass} value={recurringDraft.endTime} onChange={(event) => setRecurringDraft((current) => ({ ...current, endTime: event.target.value }))} />
+            </label>
+            <label>
+              <span className={labelClass}>Priority</span>
+              <select className={inputClass} value={recurringDraft.priority} onChange={(event) => setRecurringDraft((current) => ({ ...current, priority: event.target.value as RecurringDraft['priority'] }))}>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
+            </label>
+          </div>
+          <div className="rounded-lg border p-4">
+            <h4 className="mb-3 flex items-center gap-2 font-medium text-slate-700"><Repeat className="h-4 w-4" /> Recurrence Pattern</h4>
+            <div className="space-y-4">
+              <label>
+                <span className={labelClass}>Frequency</span>
+                <select className={inputClass} value={recurringDraft.recurrenceType} onChange={(event) => setRecurringDraft((current) => ({ ...current, recurrenceType: event.target.value }))}>
+                  {RECURRENCE_TYPES.map((item) => (
+                    <option key={item.value} value={item.value}>{item.label} - {item.description}</option>
+                  ))}
+                </select>
+              </label>
+              {['daily', 'weekly', 'biweekly'].includes(recurringDraft.recurrenceType) && (
+                <div>
+                  <span className="mb-2 block text-sm font-medium text-slate-700">Days of Week</span>
+                  <div className="flex gap-2">
+                    {DAYS.map((day, index) => (
+                      <button
+                        type="button"
+                        key={day}
+                        onClick={() => setRecurringDraft((current) => ({
+                          ...current,
+                          weekDays: current.weekDays.includes(index)
+                            ? current.weekDays.filter((item) => item !== index)
+                            : [...current.weekDays, index].sort((a, b) => a - b),
+                        }))}
+                        className={`h-10 w-10 rounded-full text-sm font-medium ${recurringDraft.weekDays.includes(index) ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600'}`}
+                      >
+                        {day.charAt(0)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {recurringDraft.recurrenceType === 'monthly' && (
+                <div className="grid grid-cols-2 gap-4">
+                  <label>
+                    <span className={labelClass}>Day of Month</span>
+                    <select className={inputClass} value={recurringDraft.monthDay} onChange={(event) => setRecurringDraft((current) => ({ ...current, monthDay: Number(event.target.value) }))}>
+                      <option value={0}>Select day</option>
+                      {Array.from({ length: 31 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1}</option>)}
+                    </select>
+                  </label>
+                  <div>
+                    <span className="mb-1 block text-sm font-medium text-slate-700">Or Week of Month</span>
+                    <div className="flex gap-2">
+                      <select className={inputClass} value={recurringDraft.monthWeek} onChange={(event) => setRecurringDraft((current) => ({ ...current, monthWeek: Number(event.target.value) }))}>
+                        <option value={0}>Select week</option>
+                        {WEEK_OPTIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                      </select>
+                      <select className={inputClass} value={recurringDraft.monthWeekDay} onChange={(event) => setRecurringDraft((current) => ({ ...current, monthWeekDay: Number(event.target.value) }))}>
+                        <option value={0}>Select day</option>
+                        {DAYS.map((day, index) => <option key={day} value={index}>{day}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {recurringDraft.recurrenceType === 'yearly' && (
+                <div className="grid grid-cols-2 gap-4">
+                  <label>
+                    <span className={labelClass}>Month</span>
+                    <select className={inputClass} value={recurringDraft.yearMonth} onChange={(event) => setRecurringDraft((current) => ({ ...current, yearMonth: Number(event.target.value) }))}>
+                      {MONTHS.map((month, index) => <option key={month} value={index}>{month}</option>)}
+                    </select>
+                  </label>
+                  <label>
+                    <span className={labelClass}>Day</span>
+                    <select className={inputClass} value={recurringDraft.yearDay} onChange={(event) => setRecurringDraft((current) => ({ ...current, yearDay: Number(event.target.value) }))}>
+                      {Array.from({ length: 31 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1}</option>)}
+                    </select>
+                  </label>
+                </div>
+              )}
+              {recurringDraft.recurrenceType === 'custom' && (
+                <div className="grid grid-cols-2 gap-4">
+                  <label>
+                    <span className={labelClass}>Interval</span>
+                    <input type="number" min={1} className={inputClass} value={recurringDraft.interval} onChange={(event) => setRecurringDraft((current) => ({ ...current, interval: Number(event.target.value) || 1 }))} />
+                  </label>
+                  <label>
+                    <span className={labelClass}>Custom Pattern</span>
+                    <input className={inputClass} value={recurringDraft.customPattern} onChange={(event) => setRecurringDraft((current) => ({ ...current, customPattern: event.target.value }))} placeholder="Every 3 weeks on Monday" />
+                  </label>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-4">
+                <label>
+                  <span className={labelClass}>Start Date *</span>
+                  <input type="date" className={inputClass} value={recurringDraft.startDate} onChange={(event) => setRecurringDraft((current) => ({ ...current, startDate: event.target.value }))} />
+                </label>
+                <label>
+                  <span className={labelClass}>End Date (Optional)</span>
+                  <input type="date" className={inputClass} value={recurringDraft.endDate} onChange={(event) => setRecurringDraft((current) => ({ ...current, endDate: event.target.value }))} />
+                </label>
               </div>
             </div>
           </div>
-          {config.notifyTeachers &&
-          <div className="flex items-center gap-2 text-sm text-blue-600">
-              <Bell className="h-4 w-4" />
-              <span>
-                Teachers will be notified via email and app notification
-              </span>
-            </div>
-          }
-          <div className="flex items-start gap-2 text-sm text-yellow-600">
-            <AlertTriangle className="h-4 w-4 mt-0.5" />
-            <span>
-              This action will create {assignments.length} duty assignments.
-              Teachers will need to confirm their availability.
-            </span>
-          </div>
-          <div className="flex justify-end gap-2 pt-4 border-t">
-            <Button variant="outline" onClick={closeModal}>
-              Cancel
-            </Button>
-            <Button onClick={confirmAllAssignments}>
-              <CheckCircle className="h-4 w-4 mr-2" />
-              Confirm All
-            </Button>
-          </div>
         </div>
       </Modal>
-
-      <Modal
-        isOpen={modal === 'success'}
-        onClose={closeModal}
-        title="Assignments Created"
-        size="sm">
-        
-        <div className="text-center py-4">
-          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <CheckCircle className="h-8 w-8 text-green-600" />
-          </div>
-          <h3 className="text-lg font-semibold mb-2">Success!</h3>
-          <p className="text-gray-600 mb-4">
-            {stats.confirmed} assignments have been created successfully.
-          </p>
-          {config.notifyTeachers &&
-          <p className="text-sm text-gray-500">
-              Notifications sent to {config.selectedTeachers.length} teachers.
-            </p>
-          }
-          <div className="flex justify-center gap-2 mt-6">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setAssignments([]);
-                setIsGenerated(false);
-                closeModal();
-              }}>
-              
-              Create New
-            </Button>
-            <Button onClick={closeModal}>Done</Button>
-          </div>
-        </div>
-      </Modal>
-
-      <Modal
-        isOpen={modal === 'export'}
-        onClose={closeModal}
-        title="Export Assignments"
-        size="sm">
-        
-        <div className="space-y-4">
-          <p className="text-sm text-gray-600">
-            Export {assignments.length} assignments
-          </p>
-          <div className="space-y-2">
-            <Button
-              variant="outline"
-              className="w-full justify-start"
-              onClick={() => {
-                exportAssignments('csv');
-                closeModal();
-              }}>
-              
-              <FileText className="h-4 w-4 mr-2" />
-              Export as CSV
-            </Button>
-            <Button
-              variant="outline"
-              className="w-full justify-start"
-              onClick={() => {
-                exportAssignments('json');
-                closeModal();
-              }}>
-              
-              <FileText className="h-4 w-4 mr-2" />
-              Export as JSON
-            </Button>
-          </div>
-        </div>
-      </Modal>
-
-      <Modal
-        isOpen={modal === 'import'}
-        onClose={closeModal}
-        title="Import Assignments"
-        size="md">
-        
-        <div className="space-y-4">
-          <div className="border-2 border-dashed rounded-lg p-8 text-center">
-            <Upload className="h-12 w-12 text-gray-300 mx-auto mb-2" />
-            <p className="text-sm text-gray-600">
-              Drag and drop a CSV or JSON file here
-            </p>
-            <p className="text-xs text-gray-400 mt-1">or click to browse</p>
-            <input type="file" className="hidden" accept=".csv,.json" />
-            <Button variant="outline" size="sm" className="mt-4">
-              Browse Files
-            </Button>
-          </div>
-          <div className="text-xs text-gray-500">
-            <p className="font-medium mb-1">Required columns:</p>
-            <p>Date, Time Slot, Venue, Teacher ID</p>
-          </div>
-        </div>
-      </Modal>
-    </div>);
-
+    </div>
+  );
 }
+
+export { BulkDutyAssign as BulkPlanning };

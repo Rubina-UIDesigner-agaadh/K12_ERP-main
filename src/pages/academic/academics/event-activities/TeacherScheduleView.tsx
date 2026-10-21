@@ -493,32 +493,7 @@ export function TeacherScheduleView() {
         </div>
 
         <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
-          <div className="flex space-x-2 border-b border-gray-200">
-            <button
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${viewMode === 'daily' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-              onClick={() => setViewMode('daily')}>
-              
-              Daily
-            </button>
-            <button
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${viewMode === 'weekly' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-              onClick={() => setViewMode('weekly')}>
-              
-              Weekly
-            </button>
-            <button
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${viewMode === 'monthly' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-              onClick={() => setViewMode('monthly')}>
-              
-              Monthly
-            </button>
-            <button
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${viewMode === 'list' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-              onClick={() => setViewMode('list')}>
-              
-              List View
-            </button>
-          </div>
+          <div className="text-sm font-medium text-gray-700">Weekly</div>
 
           <div className="flex items-center gap-2">
             <Select
@@ -630,7 +605,6 @@ export function TeacherScheduleView() {
           </div>
         }
 
-        {viewMode === 'weekly' &&
         <ScheduleGrid
           schedule={schedule}
           selectedDay="all"
@@ -640,15 +614,6 @@ export function TeacherScheduleView() {
             period
           })
           } />
-
-        }
-        {viewMode === 'daily' &&
-        <ScheduleList schedule={schedule} selectedDay="Wednesday" />
-        }
-        {viewMode === 'list' &&
-        <ScheduleList schedule={schedule} selectedDay="all" />
-        }
-        {viewMode === 'monthly' && renderMonthlyCalendar()}
       </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

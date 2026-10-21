@@ -1,12 +1,15 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   LayoutDashboard,
   ChevronRight,
   ChevronDown,
   Star,
-  Heart } from
+  Heart,
+  ExternalLink,
+  Maximize2 } from
 'lucide-react';
 import { SubModule, SidebarSection, FavoriteItem } from '../types/navigation';
+
 interface SidebarProps {
   activeSubModule: SubModule | null;
   activeSidebarItemId: string;
@@ -17,6 +20,28 @@ interface SidebarProps {
   onToggleFavorite: (item: FavoriteItem) => void;
   onNavigateFavorite: (item: FavoriteItem) => void;
 }
+
+type ContextMenuState = {
+  x: number;
+  y: number;
+  path: string;
+  label: string;
+};
+
+function openPath(path: string, mode: 'tab' | 'window') {
+  if (mode === 'tab') {
+    window.open(path, '_blank', 'noopener,noreferrer');
+    return;
+  }
+  const width = Math.min(1280, window.screen.availWidth - 48);
+  const height = Math.min(800, window.screen.availHeight - 80);
+  window.open(
+    path,
+    '_blank',
+    `noopener,noreferrer,width=${width},height=${height},left=48,top=48`,
+  );
+}
+
 export function Sidebar({
   activeSubModule,
   activeSidebarItemId,
@@ -27,7 +52,6 @@ export function Sidebar({
   onToggleFavorite,
   onNavigateFavorite
 }: SidebarProps) {
-  // Default sidebar content if no specific config exists
   const defaultSidebar: SidebarSection[] = [
   {
     title: 'Menu',
@@ -45,24 +69,52 @@ export function Sidebar({
   const [collapsedSections, setCollapsedSections] = useState<
     Record<string, boolean>>(
     {});
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+
   const toggleSection = (title: string) => {
     setCollapsedSections((prev) => ({
       ...prev,
       [title]: !prev[title]
     }));
   };
-  // Check if we should show favorites view
-  // Show favorites if:
-  // 1. Dashboard is selected (activeModuleId === 'dashboard')
-  // 2. OR no submodule is selected/available
+
   const showFavoritesView = activeModuleId === 'dashboard' || !activeSubModule;
-  // Check if an item is favorited
+
   const isFavorited = (itemId: string) => {
     return favorites.some((fav) => fav.sidebarItemId === itemId);
   };
+
+  const openContextMenu = (e: React.MouseEvent, path: string, label: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const width = 220;
+    const height = 108;
+    setContextMenu({
+      x: Math.min(e.clientX, window.innerWidth - width - 8),
+      y: Math.min(e.clientY, window.innerHeight - height - 8),
+      path,
+      label,
+    });
+  };
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const close = () => setContextMenu(null);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close();
+    };
+    window.addEventListener('click', close);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('click', close);
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [contextMenu]);
+
   return (
     <aside className="flex w-80 shrink-0 flex-col overflow-hidden bg-gradient-to-b from-[#0D3B4C] via-[#145369] to-[#1A6B8A] transition-all duration-300">
-      {/* Sidebar Header */}
       <div className="border-b border-white/10 px-5 py-4">
         <h2 className="flex items-center gap-2 text-xl font-semibold tracking-wide text-white">
           <LayoutDashboard className="h-7 w-7 text-cyan-300" />
@@ -75,10 +127,8 @@ export function Sidebar({
         </p>
       </div>
 
-      {/* Sidebar Content */}
       <nav className="flex-1 overflow-y-auto px-3 py-4 custom-scrollbar">
         {showFavoritesView ?
-        // Favorites View
         <div className="space-y-4">
             <div className="mb-2 flex items-center gap-2 px-3">
               <Star className="h-4 w-4 text-yellow-400" />
@@ -93,6 +143,11 @@ export function Sidebar({
             <button
               key={`${fav.moduleId}-${fav.subModuleId}-${fav.sidebarItemId}`}
               onClick={() => onNavigateFavorite(fav)}
+              onContextMenu={(e) => openContextMenu(
+                e,
+                `/${fav.moduleId}/${fav.subModuleId}/${fav.sidebarItemId}`,
+                fav.sidebarItemLabel,
+              )}
               className="group flex w-full items-center justify-between rounded-md px-3 py-3 text-sm font-medium text-white/90 hover:bg-white/10 transition-all duration-200">
 
                     <div className="flex items-center gap-3 overflow-hidden">
@@ -124,7 +179,6 @@ export function Sidebar({
           }
           </div> :
 
-        // Regular Module View
         sections.filter((section) => !section.hidden).map((section, idx) => {
           const isCollapsed = collapsedSections[section.title];
           return (
@@ -147,9 +201,11 @@ export function Sidebar({
                   {section.items.map((item) => {
                   const isActive = activeSidebarItemId === item.id;
                   const favorited = isFavorited(item.id);
+                  const path = `/${activeModuleId}/${activeSubModule?.id || item.id}/${item.id}`;
                   return (
                     <div
                       key={item.id}
+                      onContextMenu={(e) => openContextMenu(e, path, item.label)}
                       className={`group flex w-full items-center justify-between rounded-md pr-2 transition-all duration-200
                           ${isActive ? 'bg-white/10 text-white shadow-sm' : 'text-white/70 hover:bg-white/5 hover:text-white'}`}>
 
@@ -200,13 +256,47 @@ export function Sidebar({
         }
       </nav>
 
-      {/* Footer */}
       <div className="border-t border-white/10 p-4">
         <div className="flex items-center justify-between text-sm text-white/30">
           <span>v3.1.0</span>
           <span>EduManager</span>
         </div>
       </div>
+
+      {contextMenu &&
+      <div
+        className="fixed z-[80] min-w-[200px] overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-xl"
+        style={{ top: contextMenu.y, left: contextMenu.x }}
+        onClick={(e) => e.stopPropagation()}
+        onContextMenu={(e) => e.preventDefault()}>
+
+          <p className="truncate border-b border-gray-100 px-3 py-1.5 text-[11px] font-medium text-gray-500">
+            {contextMenu.label}
+          </p>
+          <button
+          type="button"
+          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-800 hover:bg-gray-50"
+          onClick={() => {
+            openPath(contextMenu.path, 'tab');
+            setContextMenu(null);
+          }}>
+
+            <ExternalLink className="h-4 w-4 text-gray-500" />
+            Open in new tab
+          </button>
+          <button
+          type="button"
+          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-800 hover:bg-gray-50"
+          onClick={() => {
+            openPath(contextMenu.path, 'window');
+            setContextMenu(null);
+          }}>
+
+            <Maximize2 className="h-4 w-4 text-gray-500" />
+            Open in new window
+          </button>
+        </div>
+      }
     </aside>);
 
 }
