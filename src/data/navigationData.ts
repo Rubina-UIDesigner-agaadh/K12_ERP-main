@@ -299,7 +299,7 @@ const payrollSidebar: SidebarSection[] = [
 
 const hrMasterSidebar: SidebarSection[] = [
   { title: 'Employee Masters', items: [{ label: 'Designation Master', id: 'designation-master' }, { label: 'Employee Classification Master', id: 'employee-classification-master' }, { label: 'Employee Document Type Master', id: 'employee-document-type-master' }, { label: 'Vacancy / Requisition Master', id: 'vacancy-requisition-master' }, { label: 'Employee ID Creation Rules', id: 'employee-id-creation' }] },
-  { title: 'Employee Attendance Master', items: [{ label: 'Leave Type Master', id: 'leave-type-master' }, { label: 'Attendance Rule Master', id: 'attendance-rule-master' }] },
+  { title: 'Employee Attendance Master', items: [{ label: 'Leave Policy', id: 'leave-type-master' }, { label: 'Attendance Rule Master', id: 'attendance-rule-master' }] },
   { title: 'Recruitment Master', items: [{ label: 'Evaluation Scorecard Master', id: 'evaluation-criteria-competency-master' }] },
   { title: 'Payroll Master', items: [{ label: 'Pay Head Master', id: 'pay-head-master' }, { label: 'Salary Grade / Pay Scale Master', id: 'salary-grade-pay-scale-master' }, { label: 'Payroll Calendar / Period Master', id: 'payroll-calendar-period-master' }, { label: 'Payroll Setup', id: 'payroll-setup' }, { label: 'Disbursement Mode / Bank Setup', id: 'disbursement-mode-bank-setup' }] },
   { title: 'Appraisal Master', items: [{ label: 'Appraisal Cycle Master', id: 'appraisal-cycle-master' }, { label: 'Appraisal Template Master', id: 'appraisal-template-master' }, { label: 'Competency & KPI Master', id: 'competency-kpi-master' }, { label: 'Rating Scale Master', id: 'rating-scale-master' }, { label: 'Appraisal Role & Workflow Master', id: 'appraisal-role-workflow-master' }] },
@@ -416,8 +416,7 @@ const billingSidebar: SidebarSection[] = [{ title: 'Billing', items: [{ label: '
 const newsfeedSidebar: SidebarSection[] = [{ title: 'Content Management', items: [{ label: 'Internal School Updates', id: 'internal-school-updates' }, { label: 'Government & Policy Updates', id: 'government-policy-updates' }, { label: 'Board & Examination Updates', id: 'board-examination-updates' }, { label: 'Scholarships & Grants', id: 'scholarships-grants' }, { label: 'Health & Safety Advisories', id: 'health-safety-advisories' }, { label: 'Education Industry & Global News', id: 'education-industry-global-news' }] }, { title: 'Media & Engagement', items: [{ label: 'Media & Attachments', id: 'media-attachments' }, { label: 'Engagement & Interaction', id: 'engagement-interaction' }] }, { title: 'Management', items: [{ label: 'Smart Targeting & Filtering', id: 'smart-targeting-filtering' }, { label: 'Moderation & Workflow', id: 'moderation-workflow' }, { label: 'Alerts & Action Center', id: 'alerts-action-center' }, { label: 'Analytics & Insights', id: 'analytics-insights' }] }];
 const reportsSidebar: SidebarSection[] = [
   { title: 'Government Reports', items: [
-    { label: 'Board Compliance', id: 'board-compliance' },
-    { label: 'Custom Reports', id: 'government-custom-reports' }
+    { label: 'Board Compliance', id: 'board-compliance' }
   ] },
   { title: 'Student Reports', items: [
     { label: 'Student Reports & Search', id: 'student-reports' },

@@ -4,25 +4,13 @@ import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Select } from '../../../components/ui/Select';
 import { Badge } from '../../../components/ui/Badge';
-import { Textarea } from '../../../components/ui/Textarea';
-import {
-  Plus,
-  Edit,
-  Trash2,
-  Save,
-  Search,
-  Calendar,
-  Copy,
-  ChevronDown,
-  ChevronRight } from
-'lucide-react';
+import { Plus, Edit, Trash2, Save, Search, Calendar, ChevronLeft } from 'lucide-react';
+
 interface LeaveType {
   id: string;
   code: string;
   name: string;
   category: string;
-  applicableStaffTypes: string[];
-  eligibilityMonths: number;
   creditFrequency: string;
   creditQuota: number;
   prorateOnJoining: boolean;
@@ -34,937 +22,428 @@ interface LeaveType {
   minDuration: number;
   maxDuration: number;
   requiresDocument: boolean;
-  canBeClubbed: string[];
-  lopWhenNegative: boolean;
-  isPaid: boolean;
+  allowNegative: boolean;
+  allowOverAllocation: boolean;
+  includeHoliday: boolean;
+  optionalHoliday: boolean;
+  isCompensatory: boolean;
+  isLwp: boolean;
+  isPartiallyPaid: boolean;
+  isEarned: boolean;
   status: 'Active' | 'Inactive';
 }
-const mockLeaveTypes: LeaveType[] = [
-{
-  id: 'LT001',
-  code: 'CL',
-  name: 'Casual Leave',
+
+interface LeavePolicy {
+  id: string;
+  name: string;
+  academicYear: string;
+  addUnusedFromPrevious: boolean;
+  status: 'Active' | 'Inactive';
+  leaveTypes: LeaveType[];
+}
+
+const YEARS = ['2024-25', '2025-26', '2026-27'].map((v) => ({ value: v, label: v }));
+const CATEGORIES = ['Casual', 'Earned', 'Sick', 'Special', 'Maternity', 'Paternity', 'Compensatory', 'LOP', 'Other'].map((v) => ({ value: v, label: v }));
+const FREQUENCIES = ['On Joining', 'Monthly', 'Quarterly', 'Yearly', 'Manual'].map((v) => ({ value: v, label: v }));
+
+const emptyType = (): Omit<LeaveType, 'id' | 'status'> => ({
+  code: '',
+  name: '',
   category: 'Casual',
-  applicableStaffTypes: ['Teaching', 'Administrative', 'Support'],
-  eligibilityMonths: 0,
-  creditFrequency: 'Monthly',
-  creditQuota: 12,
-  prorateOnJoining: true,
-  carryForwardAllowed: false,
-  maxCarryForward: 0,
-  encashmentAllowed: false,
-  maxEncashable: 0,
-  halfDayAllowed: true,
-  minDuration: 0.5,
-  maxDuration: 3,
-  requiresDocument: false,
-  canBeClubbed: ['EL'],
-  lopWhenNegative: true,
-  isPaid: true,
-  status: 'Active'
-},
-{
-  id: 'LT002',
-  code: 'EL',
-  name: 'Earned Leave',
-  category: 'Earned',
-  applicableStaffTypes: ['Teaching', 'Administrative'],
-  eligibilityMonths: 12,
   creditFrequency: 'Yearly',
-  creditQuota: 30,
-  prorateOnJoining: false,
-  carryForwardAllowed: true,
-  maxCarryForward: 60,
-  encashmentAllowed: true,
-  maxEncashable: 30,
-  halfDayAllowed: false,
-  minDuration: 1,
-  maxDuration: 30,
-  requiresDocument: false,
-  canBeClubbed: ['CL'],
-  lopWhenNegative: true,
-  isPaid: true,
-  status: 'Active'
-},
-{
-  id: 'LT003',
-  code: 'SL',
-  name: 'Sick Leave',
-  category: 'Sick',
-  applicableStaffTypes: ['Teaching', 'Administrative', 'Support'],
-  eligibilityMonths: 0,
-  creditFrequency: 'Yearly',
-  creditQuota: 12,
-  prorateOnJoining: true,
-  carryForwardAllowed: false,
-  maxCarryForward: 0,
-  encashmentAllowed: false,
-  maxEncashable: 0,
-  halfDayAllowed: true,
-  minDuration: 0.5,
-  maxDuration: 7,
-  requiresDocument: true,
-  canBeClubbed: [],
-  lopWhenNegative: true,
-  isPaid: true,
-  status: 'Active'
-},
-{
-  id: 'LT004',
-  code: 'ML',
-  name: 'Maternity Leave',
-  category: 'Maternity',
-  applicableStaffTypes: ['Teaching', 'Administrative'],
-  eligibilityMonths: 12,
-  creditFrequency: 'On Joining',
-  creditQuota: 180,
-  prorateOnJoining: false,
-  carryForwardAllowed: false,
-  maxCarryForward: 0,
-  encashmentAllowed: false,
-  maxEncashable: 0,
-  halfDayAllowed: false,
-  minDuration: 84,
-  maxDuration: 180,
-  requiresDocument: true,
-  canBeClubbed: [],
-  lopWhenNegative: false,
-  isPaid: true,
-  status: 'Active'
-},
-{
-  id: 'LT005',
-  code: 'PL',
-  name: 'Paternity Leave',
-  category: 'Paternity',
-  applicableStaffTypes: ['Teaching', 'Administrative', 'Support'],
-  eligibilityMonths: 12,
-  creditFrequency: 'On Joining',
-  creditQuota: 15,
-  prorateOnJoining: false,
-  carryForwardAllowed: false,
-  maxCarryForward: 0,
-  encashmentAllowed: false,
-  maxEncashable: 0,
-  halfDayAllowed: false,
-  minDuration: 5,
-  maxDuration: 15,
-  requiresDocument: true,
-  canBeClubbed: [],
-  lopWhenNegative: false,
-  isPaid: true,
-  status: 'Active'
-},
-{
-  id: 'LT006',
-  code: 'LOP',
-  name: 'Leave Without Pay',
-  category: 'LOP',
-  applicableStaffTypes: ['Teaching', 'Administrative', 'Support'],
-  eligibilityMonths: 0,
-  creditFrequency: 'Manual',
   creditQuota: 0,
   prorateOnJoining: false,
   carryForwardAllowed: false,
   maxCarryForward: 0,
   encashmentAllowed: false,
   maxEncashable: 0,
-  halfDayAllowed: true,
+  halfDayAllowed: false,
   minDuration: 0.5,
   maxDuration: 30,
   requiresDocument: false,
-  canBeClubbed: [],
-  lopWhenNegative: false,
-  isPaid: false,
-  status: 'Active'
-}];
+  allowNegative: false,
+  allowOverAllocation: false,
+  includeHoliday: false,
+  optionalHoliday: false,
+  isCompensatory: false,
+  isLwp: false,
+  isPartiallyPaid: false,
+  isEarned: false,
+});
+
+const seedTypes = (items: Array<Partial<LeaveType> & Pick<LeaveType, 'id' | 'code' | 'name'>>): LeaveType[] =>
+  items.map((item) => ({ ...emptyType(), creditQuota: 12, status: 'Active', ...item }));
+
+const INITIAL_POLICIES: LeavePolicy[] = [
+  {
+    id: 'LP001',
+    name: 'Teaching Staff Policy',
+    academicYear: '2025-26',
+    addUnusedFromPrevious: true,
+    status: 'Active',
+    leaveTypes: seedTypes([
+      { id: 'LT001', code: 'CL', name: 'Casual Leave', category: 'Casual', creditQuota: 12, halfDayAllowed: true },
+      { id: 'LT002', code: 'EL', name: 'Earned Leave', category: 'Earned', creditQuota: 30, isEarned: true, carryForwardAllowed: true, maxCarryForward: 60, encashmentAllowed: true, maxEncashable: 30 },
+      { id: 'LT003', code: 'SL', name: 'Sick Leave', category: 'Sick', creditQuota: 12, requiresDocument: true, halfDayAllowed: true },
+      { id: 'LT004', code: 'CO', name: 'Comp-Off', category: 'Compensatory', creditQuota: 0, isCompensatory: true, creditFrequency: 'Manual' },
+    ]),
+  },
+  {
+    id: 'LP002',
+    name: 'Non-Teaching Staff Policy',
+    academicYear: '2025-26',
+    addUnusedFromPrevious: false,
+    status: 'Active',
+    leaveTypes: seedTypes([
+      { id: 'LT005', code: 'CL', name: 'Casual Leave', category: 'Casual', creditQuota: 10, halfDayAllowed: true },
+      { id: 'LT006', code: 'LWP', name: 'Leave Without Pay', category: 'LOP', creditQuota: 0, isLwp: true, allowNegative: true, creditFrequency: 'Manual' },
+    ]),
+  },
+];
+
+function CheckRow({
+  checked,
+  onChange,
+  title,
+  hint,
+}: {
+  checked: boolean;
+  onChange: (next: boolean) => void;
+  title: string;
+  hint?: string;
+}) {
+  return (
+    <label className="flex items-start gap-2 rounded-lg border border-gray-200 bg-white p-3 cursor-pointer">
+      <input
+        type="checkbox"
+        className="mt-0.5 h-4 w-4 rounded text-blue-600"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      <span>
+        <span className="block text-sm font-medium text-gray-800">{title}</span>
+        {hint && <span className="mt-0.5 block text-xs text-gray-500">{hint}</span>}
+      </span>
+    </label>
+  );
+}
 
 export function LeaveTypeMaster() {
-  const [leaveTypes, setLeaveTypes] = useState(mockLeaveTypes);
-  const [showForm, setShowForm] = useState(false);
-  const [editId, setEditId] = useState<string | null>(null);
+  const [policies, setPolicies] = useState<LeavePolicy[]>(INITIAL_POLICIES);
   const [search, setSearch] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('');
-  const [expandedSections, setExpandedSections] = useState<string[]>([
-  'basic',
-  'credit']
-  );
-  const [form, setForm] = useState({
-    code: '',
-    name: '',
-    category: 'Casual',
-    applicableStaffTypes: [] as string[],
-    eligibilityMonths: 0,
-    creditFrequency: 'Monthly',
-    creditQuota: 0,
-    prorateOnJoining: false,
-    carryForwardAllowed: false,
-    maxCarryForward: 0,
-    encashmentAllowed: false,
-    maxEncashable: 0,
-    halfDayAllowed: false,
-    minDuration: 1,
-    maxDuration: 30,
-    requiresDocument: false,
-    canBeClubbed: [] as string[],
-    lopWhenNegative: false,
-    isPaid: true
+  const [openPolicyId, setOpenPolicyId] = useState<string | null>(null);
+  const [showPolicyForm, setShowPolicyForm] = useState(false);
+  const [policyName, setPolicyName] = useState('');
+  const [policyYear, setPolicyYear] = useState('2025-26');
+  const [addUnused, setAddUnused] = useState(false);
+  const [editingPolicyId, setEditingPolicyId] = useState<string | null>(null);
+  const [showTypeForm, setShowTypeForm] = useState(false);
+  const [editingTypeId, setEditingTypeId] = useState<string | null>(null);
+  const [typeForm, setTypeForm] = useState(emptyType());
+
+  const openPolicy = policies.find((p) => p.id === openPolicyId) ?? null;
+  const filteredPolicies = policies.filter((p) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return p.name.toLowerCase().includes(q) || p.academicYear.includes(q);
   });
-  const filtered = leaveTypes.filter((lt) => {
-    const matchSearch =
-    lt.name.toLowerCase().includes(search.toLowerCase()) ||
-    lt.code.toLowerCase().includes(search.toLowerCase());
-    const matchCategory = !categoryFilter || lt.category === categoryFilter;
-    return matchSearch && matchCategory;
-  });
-  const resetForm = () => {
-    setForm({
-      code: '',
-      name: '',
-      category: 'Casual',
-      applicableStaffTypes: [],
-      eligibilityMonths: 0,
-      creditFrequency: 'Monthly',
-      creditQuota: 0,
-      prorateOnJoining: false,
-      carryForwardAllowed: false,
-      maxCarryForward: 0,
-      encashmentAllowed: false,
-      maxEncashable: 0,
-      halfDayAllowed: false,
-      minDuration: 1,
-      maxDuration: 30,
-      requiresDocument: false,
-      canBeClubbed: [],
-      lopWhenNegative: false,
-      isPaid: true
-    });
-    setShowForm(false);
-    setEditId(null);
+
+  const resetPolicyForm = () => {
+    setPolicyName('');
+    setPolicyYear('2025-26');
+    setAddUnused(false);
+    setEditingPolicyId(null);
+    setShowPolicyForm(false);
   };
-  const handleSave = () => {
-    if (editId) {
-      setLeaveTypes((prev) =>
-      prev.map((lt) =>
-      lt.id === editId ?
-      {
-        ...lt,
-        ...form
-      } :
-      lt
-      )
-      );
+
+  const savePolicy = () => {
+    if (!policyName.trim()) return;
+    if (editingPolicyId) {
+      setPolicies((prev) => prev.map((p) => (
+        p.id === editingPolicyId
+          ? { ...p, name: policyName.trim(), academicYear: policyYear, addUnusedFromPrevious: addUnused }
+          : p
+      )));
     } else {
-      setLeaveTypes((prev) => [
-      ...prev,
-      {
-        ...form,
-        id: `LT${Date.now()}`,
-        status: 'Active' as const
-      }]
-      );
+      const id = `LP${Date.now()}`;
+      setPolicies((prev) => [...prev, {
+        id,
+        name: policyName.trim(),
+        academicYear: policyYear,
+        addUnusedFromPrevious: addUnused,
+        status: 'Active',
+        leaveTypes: [],
+      }]);
+      setOpenPolicyId(id);
     }
-    resetForm();
+    resetPolicyForm();
   };
-  const handleEdit = (lt: LeaveType) => {
-    setForm({
-      code: lt.code,
-      name: lt.name,
-      category: lt.category,
-      applicableStaffTypes: lt.applicableStaffTypes,
-      eligibilityMonths: lt.eligibilityMonths,
-      creditFrequency: lt.creditFrequency,
-      creditQuota: lt.creditQuota,
-      prorateOnJoining: lt.prorateOnJoining,
-      carryForwardAllowed: lt.carryForwardAllowed,
-      maxCarryForward: lt.maxCarryForward,
-      encashmentAllowed: lt.encashmentAllowed,
-      maxEncashable: lt.maxEncashable,
-      halfDayAllowed: lt.halfDayAllowed,
-      minDuration: lt.minDuration,
-      maxDuration: lt.maxDuration,
-      requiresDocument: lt.requiresDocument,
-      canBeClubbed: lt.canBeClubbed,
-      lopWhenNegative: lt.lopWhenNegative,
-      isPaid: lt.isPaid
-    });
-    setEditId(lt.id);
-    setShowForm(true);
+
+  const startEditPolicy = (policy: LeavePolicy) => {
+    setPolicyName(policy.name);
+    setPolicyYear(policy.academicYear);
+    setAddUnused(policy.addUnusedFromPrevious);
+    setEditingPolicyId(policy.id);
+    setShowPolicyForm(true);
   };
-  const handleClone = (lt: LeaveType) => {
-    setForm({
-      code: `${lt.code}_COPY`,
-      name: `${lt.name} (Copy)`,
-      category: lt.category,
-      applicableStaffTypes: lt.applicableStaffTypes,
-      eligibilityMonths: lt.eligibilityMonths,
-      creditFrequency: lt.creditFrequency,
-      creditQuota: lt.creditQuota,
-      prorateOnJoining: lt.prorateOnJoining,
-      carryForwardAllowed: lt.carryForwardAllowed,
-      maxCarryForward: lt.maxCarryForward,
-      encashmentAllowed: lt.encashmentAllowed,
-      maxEncashable: lt.maxEncashable,
-      halfDayAllowed: lt.halfDayAllowed,
-      minDuration: lt.minDuration,
-      maxDuration: lt.maxDuration,
-      requiresDocument: lt.requiresDocument,
-      canBeClubbed: lt.canBeClubbed,
-      lopWhenNegative: lt.lopWhenNegative,
-      isPaid: lt.isPaid
-    });
-    setShowForm(true);
+
+  const resetTypeForm = () => {
+    setTypeForm(emptyType());
+    setEditingTypeId(null);
+    setShowTypeForm(false);
   };
-  const toggleSection = (section: string) => {
-    setExpandedSections((prev) =>
-    prev.includes(section) ?
-    prev.filter((s) => s !== section) :
-    [...prev, section]
+
+  const saveType = () => {
+    if (!openPolicy || !typeForm.code.trim() || !typeForm.name.trim()) return;
+    setPolicies((prev) => prev.map((p) => {
+      if (p.id !== openPolicy.id) return p;
+      if (editingTypeId) {
+        return {
+          ...p,
+          leaveTypes: p.leaveTypes.map((lt) => (lt.id === editingTypeId ? { ...lt, ...typeForm } : lt)),
+        };
+      }
+      return {
+        ...p,
+        leaveTypes: [...p.leaveTypes, { ...typeForm, id: `LT${Date.now()}`, status: 'Active' }],
+      };
+    }));
+    resetTypeForm();
+  };
+
+  const startEditType = (lt: LeaveType) => {
+    const { id: _id, status: _status, ...rest } = lt;
+    setTypeForm(rest);
+    setEditingTypeId(lt.id);
+    setShowTypeForm(true);
+  };
+
+  const deleteType = (id: string) => {
+    if (!openPolicy) return;
+    setPolicies((prev) => prev.map((p) => (
+      p.id === openPolicy.id ? { ...p, leaveTypes: p.leaveTypes.filter((lt) => lt.id !== id) } : p
+    )));
+  };
+
+  const setFlag = (key: keyof ReturnType<typeof emptyType>, value: boolean | string | number) => {
+    setTypeForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  if (openPolicy) {
+    return (
+      <div className="space-y-6 p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <button type="button" className="mb-1 inline-flex items-center gap-1 text-sm text-blue-700" onClick={() => { setOpenPolicyId(null); resetTypeForm(); }}>
+              <ChevronLeft className="h-4 w-4" /> All policies
+            </button>
+            <h1 className="text-2xl font-bold text-gray-900">{openPolicy.name}</h1>
+            <p className="text-sm text-gray-500">
+              {openPolicy.academicYear}
+              {openPolicy.addUnusedFromPrevious ? ' · Unused leaves from previous allocations are added' : ''}
+            </p>
+          </div>
+          <Button variant="primary" onClick={() => { resetTypeForm(); setShowTypeForm(true); }}>
+            <Plus className="h-4 w-4 mr-2" /> Add Leave Type
+          </Button>
+        </div>
+
+        {showTypeForm && (
+          <Card title={editingTypeId ? 'Edit Leave Type' : 'Add Leave Type'}>
+            <div className="space-y-5">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <Input label="Leave Code *" value={typeForm.code} onChange={(e) => setFlag('code', e.target.value)} placeholder="e.g. CL" />
+                <Input label="Leave Name *" value={typeForm.name} onChange={(e) => setFlag('name', e.target.value)} placeholder="e.g. Casual Leave" />
+                <Select label="Category" options={CATEGORIES} value={typeForm.category} onChange={(v) => setFlag('category', v)} />
+                <Select label="Credit Frequency" options={FREQUENCIES} value={typeForm.creditFrequency} onChange={(v) => setFlag('creditFrequency', v)} />
+                <Input label="Quota (days)" type="number" value={typeForm.creditQuota} onChange={(e) => setFlag('creditQuota', parseFloat(e.target.value) || 0)} />
+                <Input label="Minimum duration (days)" type="number" step="0.5" value={typeForm.minDuration} onChange={(e) => setFlag('minDuration', parseFloat(e.target.value) || 0)} />
+                <Input label="Maximum duration (days)" type="number" value={typeForm.maxDuration} onChange={(e) => setFlag('maxDuration', parseFloat(e.target.value) || 0)} />
+                {typeForm.carryForwardAllowed && (
+                  <Input label="Max carry-forward days" type="number" value={typeForm.maxCarryForward} onChange={(e) => setFlag('maxCarryForward', parseInt(e.target.value, 10) || 0)} />
+                )}
+                {typeForm.encashmentAllowed && (
+                  <Input label="Max encashable days" type="number" value={typeForm.maxEncashable} onChange={(e) => setFlag('maxEncashable', parseInt(e.target.value, 10) || 0)} />
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                <CheckRow checked={typeForm.prorateOnJoining} onChange={(v) => setFlag('prorateOnJoining', v)} title="Prorate on joining / exit" />
+                <CheckRow checked={typeForm.carryForwardAllowed} onChange={(v) => setFlag('carryForwardAllowed', v)} title="Allow carry-forward" />
+                <CheckRow checked={typeForm.encashmentAllowed} onChange={(v) => setFlag('encashmentAllowed', v)} title="Allow encashment" />
+                <CheckRow checked={typeForm.halfDayAllowed} onChange={(v) => setFlag('halfDayAllowed', v)} title="Half-day allowed" />
+                <CheckRow checked={typeForm.requiresDocument} onChange={(v) => setFlag('requiresDocument', v)} title="Requires supporting document" />
+                <CheckRow checked={typeForm.allowNegative} onChange={(v) => setFlag('allowNegative', v)} title="Allow Negative Balance" />
+                <CheckRow
+                  checked={typeForm.allowOverAllocation}
+                  onChange={(v) => setFlag('allowOverAllocation', v)}
+                  title="Allow Over Allocation"
+                  hint="Allows allocating more leaves than the number of days in the allocation period."
+                />
+                <CheckRow checked={typeForm.includeHoliday} onChange={(v) => setFlag('includeHoliday', v)} title="Include holidays within leaves as leaves" />
+                <CheckRow
+                  checked={typeForm.optionalHoliday}
+                  onChange={(v) => setFlag('optionalHoliday', v)}
+                  title="Leave for optional holiday"
+                  hint="These leaves are holidays permitted by the company however, availing it is optional for an Employee."
+                />
+                <CheckRow checked={typeForm.isCompensatory} onChange={(v) => setFlag('isCompensatory', v)} title="Is Compensatory" />
+                <CheckRow checked={typeForm.isLwp} onChange={(v) => setFlag('isLwp', v)} title="Is Leave Without Pay" />
+                <CheckRow checked={typeForm.isPartiallyPaid} onChange={(v) => setFlag('isPartiallyPaid', v)} title="Is Partially Paid Leave" />
+                <CheckRow checked={typeForm.isEarned} onChange={(v) => setFlag('isEarned', v)} title="Is Earned Leave" />
+              </div>
+
+              <div className="flex gap-2">
+                <Button variant="primary" onClick={saveType}>
+                  <Save className="h-4 w-4 mr-2" /> {editingTypeId ? 'Update' : 'Save'} Leave Type
+                </Button>
+                <Button variant="outline" onClick={resetTypeForm}>Cancel</Button>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        <Card title="Leave types in this policy">
+          {openPolicy.leaveTypes.length === 0 ? (
+            <p className="py-8 text-center text-sm text-gray-500">No leave types yet. Add CL, EL, SL and other types with their quota.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-gray-50 text-left text-xs uppercase text-gray-500">
+                    <th className="px-3 py-2">Leave type</th>
+                    <th className="px-3 py-2">Quota</th>
+                    <th className="px-3 py-2">Frequency</th>
+                    <th className="px-3 py-2">Flags</th>
+                    <th className="px-3 py-2">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {openPolicy.leaveTypes.map((lt) => (
+                    <tr key={lt.id} className="border-b">
+                      <td className="px-3 py-2">
+                        <p className="font-medium text-gray-900">{lt.name}</p>
+                        <p className="text-xs text-gray-500">{lt.code} · {lt.category}</p>
+                      </td>
+                      <td className="px-3 py-2">{lt.creditQuota}d</td>
+                      <td className="px-3 py-2">{lt.creditFrequency}</td>
+                      <td className="px-3 py-2">
+                        <div className="flex flex-wrap gap-1">
+                          {lt.allowNegative && <Badge variant="secondary">Negative</Badge>}
+                          {lt.allowOverAllocation && <Badge variant="secondary">Over alloc.</Badge>}
+                          {lt.includeHoliday && <Badge variant="secondary">Incl. holiday</Badge>}
+                          {lt.optionalHoliday && <Badge variant="secondary">Optional holiday</Badge>}
+                          {lt.isCompensatory && <Badge variant="info">Compensatory</Badge>}
+                          {lt.isLwp && <Badge variant="warning">LWP</Badge>}
+                          {lt.isPartiallyPaid && <Badge variant="secondary">Partial pay</Badge>}
+                          {lt.isEarned && <Badge variant="success">Earned</Badge>}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="flex gap-1">
+                          <button type="button" className="rounded p-1.5 hover:bg-blue-50" onClick={() => startEditType(lt)}><Edit className="h-4 w-4 text-blue-600" /></button>
+                          <button type="button" className="rounded p-1.5 hover:bg-red-50" onClick={() => deleteType(lt.id)}><Trash2 className="h-4 w-4 text-red-500" /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      </div>
     );
-  };
-  const paidCount = leaveTypes.filter((lt) => lt.isPaid).length;
-  const carryForwardCount = leaveTypes.filter(
-    (lt) => lt.carryForwardAllowed
-  ).length;
-  const encashmentCount = leaveTypes.filter((lt) => lt.encashmentAllowed).length;
+  }
+
   return (
     <div className="space-y-6 p-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            Leave Type Master
-          </h1>
-          <p className="text-sm text-gray-500">
-            Configure leave types, credit rules, and policies
-          </p>
+          <h1 className="text-2xl font-bold text-gray-900">Leave Policy</h1>
+          <p className="text-sm text-gray-500">Create a policy, then add leave types and quotas inside it</p>
         </div>
         <Button
           variant="primary"
           onClick={() => {
-            resetForm();
-            setShowForm(true);
-          }}>
-
-          <Plus className="w-4 h-4 mr-2" />
-          Add Leave Type
+            resetPolicyForm();
+            setShowPolicyForm(true);
+          }}
+        >
+          <Plus className="h-4 w-4 mr-2" /> Create Policy
         </Button>
       </div>
 
-      <div className="grid grid-cols-4 gap-4">
-        <div className="bg-white rounded-lg border p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-            <Calendar className="w-5 h-5 text-blue-600" />
+      {showPolicyForm && (
+        <Card title={editingPolicyId ? 'Edit Policy' : 'Create Policy'}>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Input label="Policy name *" value={policyName} onChange={(e) => setPolicyName(e.target.value)} placeholder="e.g. Teaching Staff Policy" />
+            <Select label="Academic year" options={YEARS} value={policyYear} onChange={setPolicyYear} />
+            <label className="md:col-span-2 flex items-start gap-2 rounded-lg border border-gray-200 p-3">
+              <input type="checkbox" className="mt-0.5 h-4 w-4 rounded text-blue-600" checked={addUnused} onChange={(e) => setAddUnused(e.target.checked)} />
+              <span>
+                <span className="block text-sm font-medium text-gray-800">Add unused leaves from previous allocations</span>
+                <span className="text-xs text-gray-500">Carry unused balances into this policy when a new allocation is created.</span>
+              </span>
+            </label>
           </div>
-          <div>
-            <p className="text-xl font-bold">{leaveTypes.length}</p>
-            <p className="text-xs text-gray-500">Total Leave Types</p>
-          </div>
-        </div>
-        <div className="bg-white rounded-lg border p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
-            <Calendar className="w-5 h-5 text-green-600" />
-          </div>
-          <div>
-            <p className="text-xl font-bold">{paidCount}</p>
-            <p className="text-xs text-gray-500">Paid Types</p>
-          </div>
-        </div>
-        <div className="bg-white rounded-lg border p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
-            <Calendar className="w-5 h-5 text-purple-600" />
-          </div>
-          <div>
-            <p className="text-xl font-bold">{carryForwardCount}</p>
-            <p className="text-xs text-gray-500">Carry-Forward Enabled</p>
-          </div>
-        </div>
-        <div className="bg-white rounded-lg border p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
-            <Calendar className="w-5 h-5 text-amber-600" />
-          </div>
-          <div>
-            <p className="text-xl font-bold">{encashmentCount}</p>
-            <p className="text-xs text-gray-500">Encashment Enabled</p>
-          </div>
-        </div>
-      </div>
-
-      {showForm &&
-      <Card title={editId ? 'Edit Leave Type' : 'Add New Leave Type'}>
-          <div className="space-y-6">
-            {/* Basic Information Section */}
-            <div>
-              <button
-              onClick={() => toggleSection('basic')}
-              className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-3">
-
-                {expandedSections.includes('basic') ?
-              <ChevronDown className="w-4 h-4" /> :
-
-              <ChevronRight className="w-4 h-4" />
-              }
-                Basic Information
-              </button>
-              {expandedSections.includes('basic') &&
-            <div className="grid grid-cols-2 gap-4 pl-6">
-                  <Input
-                label="Leave Code *"
-                value={form.code}
-                onChange={(e) =>
-                setForm({
-                  ...form,
-                  code: e.target.value
-                })
-                }
-                placeholder="e.g., CL" />
-
-                  <Input
-                label="Leave Name *"
-                value={form.name}
-                onChange={(e) =>
-                setForm({
-                  ...form,
-                  name: e.target.value
-                })
-                }
-                placeholder="e.g., Casual Leave" />
-
-                  <Select
-                label="Category *"
-                options={[
-                {
-                  value: 'Casual',
-                  label: 'Casual'
-                },
-                {
-                  value: 'Earned',
-                  label: 'Earned'
-                },
-                {
-                  value: 'Sick',
-                  label: 'Sick'
-                },
-                {
-                  value: 'Special',
-                  label: 'Special'
-                },
-                {
-                  value: 'Maternity',
-                  label: 'Maternity'
-                },
-                {
-                  value: 'Paternity',
-                  label: 'Paternity'
-                },
-                {
-                  value: 'Compensatory',
-                  label: 'Compensatory'
-                },
-                {
-                  value: 'LOP',
-                  label: 'LOP'
-                },
-                {
-                  value: 'Other',
-                  label: 'Other'
-                }]
-                }
-                value={form.category}
-                onChange={(e) =>
-                setForm({
-                  ...form,
-                  category: e.target.value
-                })
-                } />
-
-                  <Input
-                label="Eligibility (months of service)"
-                type="number"
-                value={form.eligibilityMonths}
-                onChange={(e) =>
-                setForm({
-                  ...form,
-                  eligibilityMonths: parseInt(e.target.value) || 0
-                })
-                } />
-
-                  <div className="col-span-2 flex gap-6">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                    type="checkbox"
-                    checked={form.isPaid}
-                    onChange={(e) =>
-                    setForm({
-                      ...form,
-                      isPaid: e.target.checked
-                    })
-                    }
-                    className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500" />
-
-                      <span className="text-sm text-gray-700">Paid Leave</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                    type="checkbox"
-                    checked={form.halfDayAllowed}
-                    onChange={(e) =>
-                    setForm({
-                      ...form,
-                      halfDayAllowed: e.target.checked
-                    })
-                    }
-                    className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500" />
-
-                      <span className="text-sm text-gray-700">
-                        Half-Day Allowed
-                      </span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                    type="checkbox"
-                    checked={form.requiresDocument}
-                    onChange={(e) =>
-                    setForm({
-                      ...form,
-                      requiresDocument: e.target.checked
-                    })
-                    }
-                    className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500" />
-
-                      <span className="text-sm text-gray-700">
-                        Requires Supporting Document
-                      </span>
-                    </label>
-                  </div>
-                </div>
-            }
-            </div>
-
-            {/* Credit Rules Section */}
-            <div>
-              <button
-              onClick={() => toggleSection('credit')}
-              className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-3">
-
-                {expandedSections.includes('credit') ?
-              <ChevronDown className="w-4 h-4" /> :
-
-              <ChevronRight className="w-4 h-4" />
-              }
-                Credit Rules
-              </button>
-              {expandedSections.includes('credit') &&
-            <div className="grid grid-cols-2 gap-4 pl-6">
-                  <Select
-                label="Credit Frequency *"
-                options={[
-                {
-                  value: 'On Joining',
-                  label: 'On Joining'
-                },
-                {
-                  value: 'Monthly',
-                  label: 'Monthly'
-                },
-                {
-                  value: 'Quarterly',
-                  label: 'Quarterly'
-                },
-                {
-                  value: 'Yearly',
-                  label: 'Yearly'
-                },
-                {
-                  value: 'Manual',
-                  label: 'Manual'
-                }]
-                }
-                value={form.creditFrequency}
-                onChange={(e) =>
-                setForm({
-                  ...form,
-                  creditFrequency: e.target.value
-                })
-                } />
-
-                  <Input
-                label="Credit Quota (days)"
-                type="number"
-                value={form.creditQuota}
-                onChange={(e) =>
-                setForm({
-                  ...form,
-                  creditQuota: parseFloat(e.target.value) || 0
-                })
-                } />
-
-                  <div className="col-span-2">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                    type="checkbox"
-                    checked={form.prorateOnJoining}
-                    onChange={(e) =>
-                    setForm({
-                      ...form,
-                      prorateOnJoining: e.target.checked
-                    })
-                    }
-                    className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500" />
-
-                      <span className="text-sm text-gray-700">
-                        Prorate on Joining/Exit
-                      </span>
-                    </label>
-                  </div>
-                </div>
-            }
-            </div>
-
-            {/* Carry-Forward Rules Section */}
-            <div>
-              <button
-              onClick={() => toggleSection('carryforward')}
-              className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-3">
-
-                {expandedSections.includes('carryforward') ?
-              <ChevronDown className="w-4 h-4" /> :
-
-              <ChevronRight className="w-4 h-4" />
-              }
-                Carry-Forward Rules
-              </button>
-              {expandedSections.includes('carryforward') &&
-            <div className="grid grid-cols-2 gap-4 pl-6">
-                  <div className="col-span-2">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                    type="checkbox"
-                    checked={form.carryForwardAllowed}
-                    onChange={(e) =>
-                    setForm({
-                      ...form,
-                      carryForwardAllowed: e.target.checked
-                    })
-                    }
-                    className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500" />
-
-                      <span className="text-sm text-gray-700">
-                        Allow Carry-Forward
-                      </span>
-                    </label>
-                  </div>
-                  {form.carryForwardAllowed &&
-              <Input
-                label="Maximum Carry-Forward Days"
-                type="number"
-                value={form.maxCarryForward}
-                onChange={(e) =>
-                setForm({
-                  ...form,
-                  maxCarryForward: parseInt(e.target.value) || 0
-                })
-                } />
-
-              }
-                </div>
-            }
-            </div>
-
-            {/* Encashment Rules Section */}
-            <div>
-              <button
-              onClick={() => toggleSection('encashment')}
-              className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-3">
-
-                {expandedSections.includes('encashment') ?
-              <ChevronDown className="w-4 h-4" /> :
-
-              <ChevronRight className="w-4 h-4" />
-              }
-                Encashment Rules
-              </button>
-              {expandedSections.includes('encashment') &&
-            <div className="grid grid-cols-2 gap-4 pl-6">
-                  <div className="col-span-2">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                    type="checkbox"
-                    checked={form.encashmentAllowed}
-                    onChange={(e) =>
-                    setForm({
-                      ...form,
-                      encashmentAllowed: e.target.checked
-                    })
-                    }
-                    className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500" />
-
-                      <span className="text-sm text-gray-700">
-                        Allow Encashment
-                      </span>
-                    </label>
-                  </div>
-                  {form.encashmentAllowed &&
-              <Input
-                label="Maximum Encashable Days"
-                type="number"
-                value={form.maxEncashable}
-                onChange={(e) =>
-                setForm({
-                  ...form,
-                  maxEncashable: parseInt(e.target.value) || 0
-                })
-                } />
-
-              }
-                </div>
-            }
-            </div>
-
-            {/* Duration & Other Rules Section */}
-            <div>
-              <button
-              onClick={() => toggleSection('duration')}
-              className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-3">
-
-                {expandedSections.includes('duration') ?
-              <ChevronDown className="w-4 h-4" /> :
-
-              <ChevronRight className="w-4 h-4" />
-              }
-                Duration & Other Rules
-              </button>
-              {expandedSections.includes('duration') &&
-            <div className="grid grid-cols-2 gap-4 pl-6">
-                  <Input
-                label="Minimum Duration (days)"
-                type="number"
-                step="0.5"
-                value={form.minDuration}
-                onChange={(e) =>
-                setForm({
-                  ...form,
-                  minDuration: parseFloat(e.target.value) || 0
-                })
-                } />
-
-                  <Input
-                label="Maximum Duration (days)"
-                type="number"
-                value={form.maxDuration}
-                onChange={(e) =>
-                setForm({
-                  ...form,
-                  maxDuration: parseInt(e.target.value) || 0
-                })
-                } />
-
-                  <div className="col-span-2">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                    type="checkbox"
-                    checked={form.lopWhenNegative}
-                    onChange={(e) =>
-                    setForm({
-                      ...form,
-                      lopWhenNegative: e.target.checked
-                    })
-                    }
-                    className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500" />
-
-                      <span className="text-sm text-gray-700">
-                        Convert to LOP when balance is negative
-                      </span>
-                    </label>
-                  </div>
-                </div>
-            }
-            </div>
-          </div>
-
-          <div className="flex gap-2 mt-6">
-            <Button variant="primary" onClick={handleSave}>
-              <Save className="w-4 h-4 mr-2" />
-              {editId ? 'Update' : 'Create'} Leave Type
-            </Button>
-            <Button variant="outline" onClick={resetForm}>
-              Cancel
-            </Button>
+          <div className="mt-4 flex gap-2">
+            <Button variant="primary" onClick={savePolicy}><Save className="h-4 w-4 mr-2" /> {editingPolicyId ? 'Update' : 'Save'} Policy</Button>
+            <Button variant="outline" onClick={resetPolicyForm}>Cancel</Button>
           </div>
         </Card>
-      }
+      )}
 
       <Card>
-        <div className="flex items-center gap-3 mb-4">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search leave types..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-
-          </div>
-          <Select
-            options={[
-            {
-              value: '',
-              label: 'All Categories'
-            },
-            {
-              value: 'Casual',
-              label: 'Casual'
-            },
-            {
-              value: 'Earned',
-              label: 'Earned'
-            },
-            {
-              value: 'Sick',
-              label: 'Sick'
-            },
-            {
-              value: 'Special',
-              label: 'Special'
-            },
-            {
-              value: 'Maternity',
-              label: 'Maternity'
-            },
-            {
-              value: 'Paternity',
-              label: 'Paternity'
-            },
-            {
-              value: 'Compensatory',
-              label: 'Compensatory'
-            },
-            {
-              value: 'LOP',
-              label: 'LOP'
-            }]
-            }
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)} />
-
+        <div className="relative mb-4">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search policies" className="w-full rounded-lg border border-gray-300 py-2 pl-9 pr-3 text-sm" />
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full text-sm">
             <thead>
-              <tr className="border-b-2 border-gray-200 bg-gray-50">
-                <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase">
-                  Leave Type
-                </th>
-                <th className="text-center py-3 px-4 text-xs font-semibold text-gray-600 uppercase">
-                  Category
-                </th>
-                <th className="text-center py-3 px-4 text-xs font-semibold text-gray-600 uppercase">
-                  Credit
-                </th>
-                <th className="text-center py-3 px-4 text-xs font-semibold text-gray-600 uppercase">
-                  Quota
-                </th>
-                <th className="text-center py-3 px-4 text-xs font-semibold text-gray-600 uppercase">
-                  Carry-Fwd
-                </th>
-                <th className="text-center py-3 px-4 text-xs font-semibold text-gray-600 uppercase">
-                  Encash
-                </th>
-                <th className="text-center py-3 px-4 text-xs font-semibold text-gray-600 uppercase">
-                  Type
-                </th>
-                <th className="text-center py-3 px-4 text-xs font-semibold text-gray-600 uppercase">
-                  Status
-                </th>
-                <th className="text-center py-3 px-4 text-xs font-semibold text-gray-600 uppercase">
-                  Actions
-                </th>
+              <tr className="border-b bg-gray-50 text-left text-xs uppercase text-gray-500">
+                <th className="px-3 py-2">Policy</th>
+                <th className="px-3 py-2">Year</th>
+                <th className="px-3 py-2">Leave types</th>
+                <th className="px-3 py-2">Unused from previous</th>
+                <th className="px-3 py-2">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((lt, i) =>
-              <tr
-                key={lt.id}
-                className={`border-b border-gray-100 hover:bg-gray-50 ${i % 2 ? 'bg-gray-50/30' : ''}`}>
-
-                  <td className="py-3 px-4">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-blue-500" />
-                      <div>
-                        <p className="text-sm font-semibold text-gray-900">
-                          {lt.name}
-                        </p>
-                        <p className="text-xs text-gray-500">{lt.code}</p>
-                      </div>
-                    </div>
+              {filteredPolicies.map((policy) => (
+                <tr key={policy.id} className="border-b hover:bg-gray-50">
+                  <td className="px-3 py-2">
+                    <button type="button" className="inline-flex items-center gap-2 font-medium text-blue-700" onClick={() => setOpenPolicyId(policy.id)}>
+                      <Calendar className="h-4 w-4" /> {policy.name}
+                    </button>
                   </td>
-                  <td className="py-3 px-4 text-center">
-                    <Badge variant="secondary">{lt.category}</Badge>
-                  </td>
-                  <td className="py-3 px-4 text-center text-sm text-gray-600">
-                    {lt.creditFrequency}
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 text-sm font-bold">
-                      {lt.creditQuota}d
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    <Badge
-                    variant={lt.carryForwardAllowed ? 'success' : 'secondary'}>
-
-                      {lt.carryForwardAllowed ? 'Yes' : 'No'}
-                    </Badge>
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    <Badge
-                    variant={lt.encashmentAllowed ? 'success' : 'secondary'}>
-
-                      {lt.encashmentAllowed ? 'Yes' : 'No'}
-                    </Badge>
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    <Badge variant={lt.isPaid ? 'success' : 'warning'}>
-                      {lt.isPaid ? 'Paid' : 'Unpaid'}
-                    </Badge>
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    <Badge
-                    variant={lt.status === 'Active' ? 'success' : 'secondary'}>
-
-                      {lt.status}
-                    </Badge>
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    <div className="flex items-center justify-center gap-1">
+                  <td className="px-3 py-2">{policy.academicYear}</td>
+                  <td className="px-3 py-2">{policy.leaveTypes.length}</td>
+                  <td className="px-3 py-2">{policy.addUnusedFromPrevious ? 'Yes' : 'No'}</td>
+                  <td className="px-3 py-2">
+                    <div className="flex gap-1">
+                      <button type="button" className="rounded p-1.5 hover:bg-blue-50" onClick={() => startEditPolicy(policy)}><Edit className="h-4 w-4 text-blue-600" /></button>
                       <button
-                      onClick={() => handleEdit(lt)}
-                      className="p-1.5 hover:bg-blue-100 rounded-lg"
-                      title="Edit">
-
-                        <Edit className="w-4 h-4 text-blue-600" />
-                      </button>
-                      <button
-                      onClick={() => handleClone(lt)}
-                      className="p-1.5 hover:bg-gray-100 rounded-lg"
-                      title="Clone">
-
-                        <Copy className="w-4 h-4 text-gray-500" />
-                      </button>
-                      <button
-                      className="p-1.5 hover:bg-red-100 rounded-lg"
-                      title="Delete">
-
-                        <Trash2 className="w-4 h-4 text-red-500" />
+                        type="button"
+                        className="rounded p-1.5 hover:bg-red-50"
+                        onClick={() => setPolicies((prev) => prev.filter((p) => p.id !== policy.id))}
+                      >
+                        <Trash2 className="h-4 w-4 text-red-500" />
                       </button>
                     </div>
                   </td>
                 </tr>
+              ))}
+              {filteredPolicies.length === 0 && (
+                <tr><td colSpan={5} className="px-3 py-8 text-center text-gray-500">No policies yet.</td></tr>
               )}
             </tbody>
           </table>
         </div>
       </Card>
-    </div>);
-
+    </div>
+  );
 }
+
+export default LeaveTypeMaster;

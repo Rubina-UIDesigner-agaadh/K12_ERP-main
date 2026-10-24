@@ -14,6 +14,7 @@ import { Modal } from '../../../components/ui/Modal';
 import { Input } from '../../../components/ui/Input';
 import { Select } from '../../../components/ui/Select';
 import { Badge } from '../../../components/ui/Badge';
+import { MultiSelect } from '../../../components/ui/MultiSelect';
 
 const tabConfig = [
 { id: 'personal', label: 'Personal Details', icon: User },
@@ -45,6 +46,25 @@ const leaveTypeOptions = [{ value: 'cl', label: 'Casual Leave' }, { value: 'sl',
 const ratingOptions = [{ value: '5', label: '5 - Outstanding' }, { value: '4', label: '4 - Exceeds Expectations' }, { value: '3', label: '3 - Meets Expectations' }, { value: '2', label: '2 - Needs Improvement' }, { value: '1', label: '1 - Unsatisfactory' }];
 const roleOptions = [{ value: 'admin', label: 'Administrator' }, { value: 'hr', label: 'HR Manager' }, { value: 'teacher', label: 'Teacher' }, { value: 'staff', label: 'Staff' }, { value: 'viewer', label: 'Viewer' }];
 const branchOptions = [{ value: 'Main Campus', label: 'Main Campus' }, { value: 'City Campus', label: 'City Campus' }, { value: 'North Campus', label: 'North Campus' }];
+const leavePolicyOptions = [
+  { value: 'LP001', label: 'Teaching Staff Policy' },
+  { value: 'LP002', label: 'Non-Teaching Staff Policy' },
+  { value: 'LP003', label: 'Contract Staff Policy' },
+];
+const holidayListOptions = [
+  { value: 'HL-2025-MAIN', label: '2025-26 · Main Campus Holidays' },
+  { value: 'HL-2025-NORTH', label: '2025-26 · North Campus Holidays' },
+  { value: 'HL-2024-MAIN', label: '2024-25 · Main Campus Holidays' },
+];
+const approverOptions = [
+  { value: 'EMP001', label: 'Dr. Rajesh Kumar' },
+  { value: 'EMP002', label: 'Priya Sharma' },
+  { value: 'EMP003', label: 'Neeta Mishra' },
+  { value: 'EMP004', label: 'Amit Rao' },
+  { value: 'EMP006', label: 'Sarah Wilson' },
+  { value: 'EMP-PRIN', label: 'Principal' },
+  { value: 'EMP-HR', label: 'HR Manager' },
+];
 
 const EMPLOYEE_HEALTH_RECORDS_STORAGE_KEY = 'k12-employee-health-records-v1';
 type EmployeeHealthRecord = {
@@ -123,6 +143,11 @@ export function EmployeeProfile() {
   const [applicantSearch, setApplicantSearch] = useState('');
   const [importedApplicant, setImportedApplicant] = useState<ApplicantImportRecord | null>(null);
   const [employeeRole, setEmployeeRole] = useState('');
+  const [leavePolicy, setLeavePolicy] = useState('');
+  const [holidayList, setHolidayList] = useState('');
+  const [expenseApprovers, setExpenseApprovers] = useState<string[]>([]);
+  const [leaveApprovers, setLeaveApprovers] = useState<string[]>([]);
+  const [shiftApprovers, setShiftApprovers] = useState<string[]>([]);
   const [applicantPrefill, setApplicantPrefill] = useState({
     firstName: prefill.firstName ?? '',
     lastName: prefill.lastName ?? '',
@@ -382,6 +407,17 @@ export function EmployeeProfile() {
         <Input label="Probation End Date" type="date" />
         <Input label="Notice Period (Days)" defaultValue={prefill.noticePeriod} type="number" placeholder="30" />
       </div>
+      <FormSection title="Leave, holidays & approvers">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Select label="Leave Policy" options={[{ value: '', label: 'Select leave policy' }, ...leavePolicyOptions]} value={leavePolicy} onChange={setLeavePolicy} />
+          <Select label="Holiday List" options={[{ value: '', label: 'Select holiday list' }, ...holidayListOptions]} value={holidayList} onChange={setHolidayList} />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+          <MultiSelect label="Expense Approver" options={approverOptions} value={expenseApprovers} onChange={setExpenseApprovers} placeholder="Select expense approvers" />
+          <MultiSelect label="Leave Approver" options={approverOptions} value={leaveApprovers} onChange={setLeaveApprovers} placeholder="Select leave approvers" />
+          <MultiSelect label="Shift Request Approver" options={approverOptions} value={shiftApprovers} onChange={setShiftApprovers} placeholder="Select shift request approvers" />
+        </div>
+      </FormSection>
       <FormSection title="Teaching Details (if applicable)">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Input label="Primary Subject" placeholder="Mathematics" value={applicantPrefill.subject} onChange={(event) => setApplicantPrefill((current) => ({ ...current, subject: event.target.value }))} />

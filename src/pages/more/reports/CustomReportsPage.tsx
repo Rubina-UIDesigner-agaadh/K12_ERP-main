@@ -61,24 +61,6 @@ const SECTIONS: Record<string, SectionConfig> = {
       { board: 'GSEB', requirement: 'Index number update', owner: 'Principal', due: '15 Jun 2026', status: 'Complete' },
     ],
   },
-  'employee-custom-reports': {
-    title: 'Employee Custom Reports',
-    description: 'Staff extract with the columns you need.',
-    fields: [
-      { id: 'empId', label: 'Employee ID' },
-      { id: 'name', label: 'Name' },
-      { id: 'department', label: 'Department' },
-      { id: 'designation', label: 'Designation' },
-      { id: 'status', label: 'Status' },
-    ],
-    rows: [
-      { empId: 'E-2041', name: 'Priya Sharma', department: 'Academics', designation: 'PGT', status: 'Active' },
-      { empId: 'E-1988', name: 'Ramesh Patel', department: 'Academics', designation: 'TGT', status: 'Active' },
-      { empId: 'E-2110', name: 'Neeta Mishra', department: 'HR', designation: 'Officer', status: 'Active' },
-      { empId: 'E-1766', name: 'Amit Rao', department: 'Admin', designation: 'Manager', status: 'Notice' },
-      { empId: 'E-2203', name: 'Kavita Das', department: 'Library', designation: 'Librarian', status: 'Active' },
-    ],
-  },
   'finance-custom-reports': {
     title: 'Finance Custom Reports',
     description: 'Fee and receipt fields in a custom layout.',
@@ -1039,6 +1021,238 @@ function academicGroupTitle(f: FilterDef) {
   return f.group;
 }
 
+const EMPLOYEE_STORAGE = 'k12-employee-custom-report-builder-v1';
+const EMPLOYEE_FILTER_SET_STORAGE = 'k12-employee-filter-sets-v1';
+const EMPLOYEE_FILTER_HISTORY_STORAGE = 'k12-employee-filter-history-v1';
+
+const empDepts = opt(['Mathematics', 'English', 'Science', 'Administration', 'HR', 'Accounts', 'Library', 'Sports', 'IT', 'Transport']);
+const empDesigs = opt(['PGT', 'TGT', 'PRT', 'HOD', 'Principal', 'Vice Principal', 'Admin Officer', 'Accountant', 'Librarian', 'Clerk', 'Coordinator']);
+const staffTypes = opt(['Teaching', 'Non-Teaching', 'Support', 'Contract']);
+const empStatuses = opt(['Active', 'Probation', 'On Leave', 'Resigned', 'Terminated', 'Retired']);
+const empTypes = opt(['Permanent', 'Contract', 'Temporary', 'Probation']);
+const empGrades = opt(['Grade A', 'Grade B', 'Grade C', 'Grade D']);
+const empBranches = opt(['Main Campus', 'North Campus', 'West Campus']);
+const empLocations = opt(['Main Campus', 'Annex', 'Hostel Block']);
+const empMarital = opt(['Single', 'Married', 'Widowed', 'Divorced']);
+const empQuais = opt(['Ph.D', 'Post Graduate', 'Graduate', 'Diploma', 'B.Ed', 'M.Ed']);
+const payModes = opt(['Bank Transfer', 'Cheque', 'Cash']);
+const payrollStatuses = opt(['Processed', 'On Hold', 'Exception', 'Draft']);
+const regimes = opt(['Old', 'New']);
+const ratingLabels = opt(['Outstanding', 'Very Good', 'Good', 'Satisfactory', 'Needs Improvement']);
+const appraisalStatuses = opt(['Not Started', 'Self Review', 'Manager Review', 'Completed']);
+const proofStatuses = opt(['Verified', 'Pending', 'Rejected', 'Not Submitted']);
+const form16Statuses = opt(['Generated', 'Pending', 'Issued']);
+const fnfStatuses = opt(['Not Applicable', 'Pending', 'In Progress', 'Settled']);
+const exitReasons = opt(['Resignation', 'Retirement', 'Termination', 'End of Contract']);
+const hireSources = opt(['Direct', 'Referral', 'Job portal', 'Campus', 'Internal']);
+const probationStatuses = opt(['Confirmed', 'On Probation', 'Extended', 'Not Applicable']);
+const empLeaveTypes = opt(['Casual Leave', 'Sick Leave', 'Earned Leave', 'Maternity Leave', 'On Duty']);
+const appraisalCycles = opt(['AY 2024-25', 'AY 2025-26', 'Mid-year 2026']);
+const reporters = opt(['Principal', 'Vice Principal', 'HOD Mathematics', 'HOD English', 'Admin Head', 'HR Manager']);
+
+const EMPLOYEE_FILTERS: FilterDef[] = [
+  F('financialYear', 'Financial Year', 'select', 'Global', 'all', years),
+  F('branch', 'Branch / Campus', 'multi', 'Global', 'all', empBranches),
+  F('department', 'Department', 'multi', 'Global', 'all', empDepts),
+  F('designation', 'Designation', 'multi', 'Global', 'all', empDesigs),
+  F('staffType', 'Staff Type', 'multi', 'Global', 'all', staffTypes),
+  F('gender', 'Gender', 'multi', 'Global', 'all', genders),
+  F('status', 'Employee Status', 'multi', 'Global', 'all', empStatuses),
+  F('shift', 'Shift', 'select', 'Global', 'all', shifts),
+
+  F('empId', 'Employee ID', 'text', 'Identity', 'profile'),
+  F('fullName', 'Employee Full Name', 'text', 'Identity', 'profile'),
+  F('dob', 'Date of Birth', 'dates', 'Identity', 'profile'),
+  F('age', 'Age', 'nums', 'Identity', 'profile'),
+  F('bloodGroup', 'Blood Group', 'multi', 'Identity', 'profile', bloods),
+  F('maritalStatus', 'Marital Status', 'select', 'Identity', 'profile', empMarital),
+  F('category', 'Category', 'multi', 'Identity', 'profile', castes),
+  F('religion', 'Religion', 'select', 'Identity', 'profile', religions),
+  F('aadhar', 'Aadhar Number', 'text', 'Identity', 'profile'),
+  F('pan', 'PAN', 'text', 'Identity', 'profile'),
+  F('email', 'Email', 'text', 'Identity', 'profile'),
+  F('phone', 'Phone', 'text', 'Identity', 'profile'),
+  F('qualification', 'Qualification', 'select', 'Identity', 'profile', empQuais),
+
+  F('joiningDate', 'Joining Date', 'dates', 'Service', 'employment'),
+  F('confirmationDate', 'Confirmation Date', 'dates', 'Service', 'employment'),
+  F('experience', 'Experience (years)', 'nums', 'Service', 'employment'),
+  F('employmentType', 'Employment Type', 'select', 'Service', 'employment', empTypes),
+  F('grade', 'Grade / Level', 'select', 'Service', 'employment', empGrades),
+  F('reportingTo', 'Reporting To', 'select', 'Service', 'employment', reporters),
+  F('location', 'Work Location', 'select', 'Service', 'employment', empLocations),
+  F('subjectsTaught', 'Subjects Taught', 'text', 'Service', 'employment'),
+  F('probationStatus', 'Probation Status', 'select', 'Service', 'employment', probationStatuses),
+  F('hireSource', 'Hire Source', 'select', 'Service', 'employment', hireSources),
+  F('uan', 'UAN', 'text', 'Service', 'employment'),
+  F('esiNo', 'ESI Number', 'text', 'Service', 'employment'),
+
+  F('attMonth', 'Attendance Month', 'select', 'Period', 'attendance', months),
+  F('attYear', 'Attendance Year', 'select', 'Period', 'attendance', years),
+  F('attStatus', 'Today Status', 'multi', 'Period', 'attendance', attStatuses),
+  F('presentDays', 'Present Days', 'nums', 'Period', 'attendance'),
+  F('absentDays', 'Absent Days', 'nums', 'Period', 'attendance'),
+  F('lateDays', 'Late Days', 'nums', 'Period', 'attendance'),
+  F('overtimeHours', 'Overtime Hours', 'nums', 'Period', 'attendance'),
+  F('leaveType', 'Leave Type', 'select', 'Period', 'attendance', empLeaveTypes),
+  F('leaveBalance', 'Leave Balance', 'nums', 'Period', 'attendance'),
+  F('leaveTaken', 'Leave Taken', 'nums', 'Period', 'attendance'),
+  F('overallPct', 'Attendance %', 'nums', 'Period', 'attendance'),
+
+  F('payScale', 'Pay Scale', 'select', 'Salary', 'payroll', empGrades),
+  F('basicSalary', 'Basic Salary', 'nums', 'Salary', 'payroll'),
+  F('grossPay', 'Gross Pay', 'nums', 'Salary', 'payroll'),
+  F('netPay', 'Net Pay', 'nums', 'Salary', 'payroll'),
+  F('pfAmount', 'PF Amount', 'nums', 'Salary', 'payroll'),
+  F('tdsAmount', 'TDS Amount', 'nums', 'Salary', 'payroll'),
+  F('payrollStatus', 'Payroll Status', 'select', 'Salary', 'payroll', payrollStatuses),
+  F('disbursementMode', 'Disbursement Mode', 'select', 'Salary', 'payroll', payModes),
+  F('bankName', 'Bank Name', 'text', 'Salary', 'payroll'),
+  F('advanceOutstanding', 'Advance Outstanding', 'nums', 'Salary', 'payroll'),
+
+  F('appraisalCycle', 'Appraisal Cycle', 'select', 'Review', 'appraisal', appraisalCycles),
+  F('appraisalRating', 'Appraisal Rating', 'select', 'Review', 'appraisal', ratingLabels),
+  F('appraisalScore', 'Appraisal Score', 'nums', 'Review', 'appraisal'),
+  F('appraisalStatus', 'Appraisal Status', 'select', 'Review', 'appraisal', appraisalStatuses),
+  F('trainingNeed', 'Training Need', 'select', 'Review', 'appraisal', yn),
+
+  F('taxRegime', 'Tax Regime', 'select', 'TDS', 'tax', regimes),
+  F('tdsYtd', 'TDS YTD', 'nums', 'TDS', 'tax'),
+  F('form16Status', 'Form-16 Status', 'select', 'TDS', 'tax', form16Statuses),
+  F('investmentDeclared', 'Investment Declared', 'select', 'TDS', 'tax', yn),
+  F('proofStatus', 'Proof Status', 'select', 'TDS', 'tax', proofStatuses),
+
+  F('exitStatus', 'Exit Status', 'select', 'Separation', 'exit', opt(['In Service', 'Notice Period', 'Relieved'])),
+  F('lastWorkingDay', 'Last Working Day', 'dates', 'Separation', 'exit'),
+  F('fnfStatus', 'FnF Status', 'select', 'Separation', 'exit', fnfStatuses),
+  F('exitReason', 'Exit Reason', 'select', 'Separation', 'exit', exitReasons),
+];
+
+const EMP_NAMES: [string, string][] = [
+  ['Priya', 'Sharma'], ['Ramesh', 'Patel'], ['Neeta', 'Mishra'], ['Amit', 'Rao'],
+  ['Kavita', 'Das'], ['Rajesh', 'Kumar'], ['Sarah', 'Jenkins'], ['Michael', 'Chen'],
+  ['Anita', 'Desai'], ['Suresh', 'Iyer'], ['Meera', 'Nair'], ['Vikram', 'Shah'],
+  ['Pooja', 'Joshi'], ['Farhan', 'Khan'], ['Deepa', 'Reddy'], ['Arun', 'Menon'],
+  ['Sunita', 'Verma'], ['Nikhil', 'Gupta'], ['Lata', 'Bhatt'], ['Imran', 'Sheikh'],
+  ['Geeta', 'Trivedi'], ['Harsh', 'Mehta'], ['Ritu', 'Kapoor'], ['Sanjay', 'Yadav'],
+  ['Nisha', 'Pillai'], ['Kiran', 'Solanki'], ['Asha', 'Banerjee'], ['Dev', 'Chauhan'],
+];
+
+function makeEmployee(i: number): Row {
+  const [first, last] = EMP_NAMES[i % EMP_NAMES.length];
+  const staffType = staffTypes[i % staffTypes.length].value;
+  const teaching = staffType === 'Teaching';
+  const status = i % 11 === 0 ? 'Resigned' : i % 7 === 0 ? 'Probation' : i % 9 === 0 ? 'On Leave' : 'Active';
+  const inService = status !== 'Resigned' && status !== 'Terminated' && status !== 'Retired';
+  const present = 18 + (i % 6);
+  const absent = i % 4;
+  const late = i % 3;
+  const working = 24;
+  const pct = Math.round((present / working) * 100);
+  const basic = 22000 + (i % 10) * 4500;
+  const gross = basic + 12000 + (i % 5) * 2000;
+  const tds = Math.round(gross * 0.08);
+  const pf = Math.round(basic * 0.12);
+  const net = gross - tds - pf - (i % 4) * 500;
+  const score = 62 + (i * 7) % 36;
+  const month = String((i % 9) + 1).padStart(2, '0');
+  const joinYear = 2016 + (i % 9);
+  return {
+    financialYear: i % 10 === 0 ? '2024-25' : '2025-26',
+    branch: empBranches[i % empBranches.length].value,
+    department: teaching ? empDepts[i % 4].value : empDepts[4 + (i % 6)].value,
+    designation: teaching ? empDesigs[i % 6].value : empDesigs[6 + (i % 5)].value,
+    staffType,
+    gender: i % 3 === 0 ? 'Female' : 'Male',
+    status,
+    shift: shifts[i % 3].value,
+    empId: `EMP${String(1001 + i).padStart(4, '0')}`,
+    fullName: `${first} ${last}`,
+    dob: `${1976 + (i % 20)}-${month}-12`,
+    age: String(28 + (i % 22)),
+    bloodGroup: bloods[i % bloods.length].value,
+    maritalStatus: empMarital[i % empMarital.length].value,
+    category: castes[i % castes.length].value,
+    religion: religions[i % religions.length].value,
+    aadhar: `XXXX-XXXX-${1000 + i}`,
+    pan: `ABCDE${1000 + i}F`,
+    email: `${first.toLowerCase()}.${last.toLowerCase()}@school.edu`,
+    phone: `98765${43200 + i}`,
+    qualification: empQuais[i % empQuais.length].value,
+    joiningDate: `${joinYear}-06-${String(10 + (i % 18)).padStart(2, '0')}`,
+    confirmationDate: status === 'Probation' ? '' : `${joinYear + 1}-06-15`,
+    experience: String(2026 - joinYear),
+    employmentType: status === 'Probation' ? 'Probation' : empTypes[i % 3].value,
+    grade: empGrades[i % empGrades.length].value,
+    reportingTo: reporters[i % reporters.length].value,
+    location: empLocations[i % empLocations.length].value,
+    subjectsTaught: teaching ? ['Mathematics', 'English', 'Science', 'Hindi', 'Social Science'][i % 5] : '—',
+    probationStatus: status === 'Probation' ? 'On Probation' : inService ? 'Confirmed' : 'Not Applicable',
+    hireSource: hireSources[i % hireSources.length].value,
+    uan: `10020${88000 + i}`,
+    esiNo: i % 5 === 0 ? '—' : `ESI-${2200 + i}`,
+    attMonth: months[i % 12].value,
+    attYear: '2025-26',
+    attStatus: status === 'On Leave' ? 'Leave' : attStatuses[i % 5].value,
+    presentDays: String(present),
+    absentDays: String(absent),
+    lateDays: String(late),
+    overtimeHours: String(i % 8),
+    leaveType: empLeaveTypes[i % empLeaveTypes.length].value,
+    leaveBalance: String(6 + (i % 12)),
+    leaveTaken: String(i % 7),
+    overallPct: String(pct),
+    payScale: empGrades[i % empGrades.length].value,
+    basicSalary: String(basic),
+    grossPay: String(gross),
+    netPay: String(net),
+    pfAmount: String(pf),
+    tdsAmount: String(tds),
+    payrollStatus: i % 8 === 0 ? 'Exception' : 'Processed',
+    disbursementMode: payModes[i % 3].value,
+    bankName: ['SBI', 'HDFC', 'ICICI', 'BOB'][i % 4],
+    advanceOutstanding: String(i % 6 === 0 ? 5000 : 0),
+    appraisalCycle: appraisalCycles[i % appraisalCycles.length].value,
+    appraisalRating: ratingLabels[score >= 90 ? 0 : score >= 80 ? 1 : score >= 70 ? 2 : score >= 60 ? 3 : 4].value,
+    appraisalScore: String(score),
+    appraisalStatus: appraisalStatuses[i % appraisalStatuses.length].value,
+    trainingNeed: score < 75 ? 'Yes' : 'No',
+    taxRegime: regimes[i % 2].value,
+    tdsYtd: String(tds * 8),
+    form16Status: form16Statuses[i % 3].value,
+    investmentDeclared: i % 4 === 0 ? 'No' : 'Yes',
+    proofStatus: proofStatuses[i % proofStatuses.length].value,
+    exitStatus: inService ? (status === 'On Leave' ? 'In Service' : 'In Service') : 'Relieved',
+    lastWorkingDay: inService ? '' : `2026-${month}-28`,
+    fnfStatus: inService ? 'Not Applicable' : fnfStatuses[1 + (i % 3)].value,
+    exitReason: inService ? '' : exitReasons[i % exitReasons.length].value,
+  };
+}
+
+const EMPLOYEE_ROWS = Array.from({ length: 28 }, (_, i) => makeEmployee(i));
+const EMPLOYEE_DEFAULT_COLS = [
+  'empId',
+  'fullName',
+  'department',
+  'designation',
+  'staffType',
+  'status',
+  'attStatus',
+  'overallPct',
+  'netPay',
+];
+
+function employeeGroupTitle(f: FilterDef) {
+  if (f.module === 'profile') return `Employee Profile · ${f.group}`;
+  if (f.module === 'employment') return `Employment · ${f.group}`;
+  if (f.module === 'attendance') return `Attendance & Leave · ${f.group}`;
+  if (f.module === 'payroll') return `Payroll · ${f.group}`;
+  if (f.module === 'appraisal') return `Appraisal · ${f.group}`;
+  if (f.module === 'tax') return `Income Tax · ${f.group}`;
+  if (f.module === 'exit') return `Exit & Separation · ${f.group}`;
+  return f.group;
+}
+
 function SharedCustomReportBuilder({
   title,
   subtitle,
@@ -1051,6 +1265,8 @@ function SharedCustomReportBuilder({
   storageKey,
   filterSetKey,
   historyKey,
+  columnsHint = 'Add or remove columns on the student list. Selected columns are highlighted.',
+  exportFallback = 'Custom report',
 }: {
   title: string;
   subtitle: string;
@@ -1063,6 +1279,8 @@ function SharedCustomReportBuilder({
   storageKey: string;
   filterSetKey: string;
   historyKey: string;
+  columnsHint?: string;
+  exportFallback?: string;
 }) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -1155,7 +1373,8 @@ function SharedCustomReportBuilder({
   const safePage = Math.min(page, totalPages);
   const pageRows = sorted.slice((safePage - 1) * pageSize, safePage * pageSize);
   const cols = selected.map((id) => filters.find((f) => f.id === id)).filter((f): f is FilterDef => Boolean(f));
-  const exportRows = picked.length ? sorted.filter((r) => picked.includes(r.studentId || r.applicationNo)) : sorted;
+  const rowId = (row: Row) => row.empId || row.employeeId || row.academicId || row.studentId || row.applicationNo;
+  const exportRows = picked.length ? sorted.filter((r) => picked.includes(rowId(r))) : sorted;
 
   const setVal = (id: string, v: FVal) => {
     setValues((prev) => ({ ...prev, [id]: v }));
@@ -1221,7 +1440,7 @@ function SharedCustomReportBuilder({
       return;
     }
     if (exportFormat === 'print' || exportFormat === 'pdf') {
-      printRows(name.trim() || 'Student custom report', cols, exportRows);
+      printRows(name.trim() || exportFallback, cols, exportRows);
       setExportOpen(false);
       return;
     }
@@ -1232,7 +1451,7 @@ function SharedCustomReportBuilder({
     const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `${(name.trim() || 'student-report').replace(/\s+/g, '-').toLowerCase()}.csv`;
+    a.download = `${(name.trim() || exportFallback).replace(/\s+/g, '-').toLowerCase()}.csv`;
     a.click();
     URL.revokeObjectURL(a.href);
     setExportOpen(false);
@@ -1251,7 +1470,7 @@ function SharedCustomReportBuilder({
     setPicked((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
 
-  const rowId = (row: Row) => row.academicId || row.studentId || row.applicationNo;
+
 
   return (
     <div className="space-y-4 p-4">
@@ -1393,7 +1612,7 @@ function SharedCustomReportBuilder({
       </Card>
 
       <Card title="Table columns">
-        <p className="mb-2 text-xs text-gray-500">Add or remove columns on the student list. Selected columns are highlighted.</p>
+        <p className="mb-2 text-xs text-gray-500">{columnsHint}</p>
         <div className="flex max-h-40 flex-wrap gap-1 overflow-y-auto">
           {filters.map((f) => {
             const on = selected.includes(f.id);
@@ -1622,6 +1841,26 @@ function AcademicCustomReportBuilder() {
   );
 }
 
+function EmployeeCustomReportBuilder() {
+  return (
+    <SharedCustomReportBuilder
+      title="Employee Custom Report Builder"
+      subtitle="Create, filter and export reports for Employee Profile, Employment, Attendance & Leave, Payroll, Appraisal, Income Tax and Exit"
+      listTitle="Employees"
+      searchPlaceholder="Search employees by any visible column"
+      filters={EMPLOYEE_FILTERS}
+      rows={EMPLOYEE_ROWS}
+      defaultCols={EMPLOYEE_DEFAULT_COLS}
+      groupTitleFn={employeeGroupTitle}
+      storageKey={EMPLOYEE_STORAGE}
+      filterSetKey={EMPLOYEE_FILTER_SET_STORAGE}
+      historyKey={EMPLOYEE_FILTER_HISTORY_STORAGE}
+      columnsHint="Add or remove columns on the employee list. Selected columns are highlighted."
+      exportFallback="Employee custom report"
+    />
+  );
+}
+
 function GenericCustomReports({ pageId }: { pageId: string }) {
   const section = SECTIONS[pageId];
 
@@ -1835,6 +2074,9 @@ export function CustomReportsPage() {
   }
   if (params.pageId === 'academic-custom-reports') {
     return <AcademicCustomReportBuilder />;
+  }
+  if (params.pageId === 'employee-custom-reports') {
+    return <EmployeeCustomReportBuilder />;
   }
   const pageId = PAGE_IDS.includes(params.pageId || '') ? params.pageId! : 'government-custom-reports';
   return <GenericCustomReports pageId={pageId} />;

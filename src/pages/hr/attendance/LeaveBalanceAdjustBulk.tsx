@@ -24,6 +24,8 @@ interface AdjustmentRecord {
   qty: number;
   by: string;
   reason: string;
+  fromDate?: string;
+  toDate?: string;
 }
 
 const LEAVE_TYPES: { code: LeaveCode; name: string; badge: string }[] = [
@@ -68,6 +70,12 @@ const SEED_HISTORY: AdjustmentRecord[] = [
 const todayLabel = () => new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 const leaveName = (code: LeaveCode) => LEAVE_TYPES.find((type) => type.code === code)?.name ?? code;
 const inputClass = 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm';
+const formatIso = (iso: string) => {
+  if (!iso) return '';
+  const d = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+};
 
 export function LeaveBalanceAdjustBulk() {
   const [tab, setTab] = useState<'adjust' | 'history'>('adjust');
@@ -82,6 +90,8 @@ export function LeaveBalanceAdjustBulk() {
   const [quantity, setQuantity] = useState('1');
   const [reasonCategory, setReasonCategory] = useState('');
   const [justification, setJustification] = useState('');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
   const [history, setHistory] = useState<AdjustmentRecord[]>(SEED_HISTORY);
   const [notice, setNotice] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
 
@@ -100,11 +110,23 @@ export function LeaveBalanceAdjustBulk() {
   const currentBal = selected ? balances[selected.id][leave] : 0;
   const nextBal = currentBal + (validQty ? signed : 0);
   const insufficient = action === 'deduct' && validQty && selected && currentBal < qty;
-  const canApply = !!selected && validQty && !!reasonCategory && justification.trim().length >= MIN_JUSTIFICATION && !insufficient;
+  const rangeInvalid = action === 'add' && (!fromDate || !toDate || toDate < fromDate);
+  const canApply = !!selected && validQty && !!reasonCategory && justification.trim().length >= MIN_JUSTIFICATION && !insufficient && !rangeInvalid;
 
   const applyAdjustment = () => {
     if (!selected || !canApply) {
-      setNotice({ type: 'error', text: !selected ? 'Select an employee first.' : insufficient ? 'Insufficient balance.' : 'Fill quantity, reason and justification.' });
+      setNotice({
+        type: 'error',
+        text: !selected
+          ? 'Select an employee first.'
+          : insufficient
+            ? 'Insufficient balance.'
+            : rangeInvalid
+              ? !fromDate || !toDate
+                ? 'Select From date and To date for the added balance.'
+                : 'To date must be on or after From date.'
+              : 'Fill quantity, reason and justification.'
+      });
       return;
     }
     const reasonLabel = REASON_CATEGORIES.find((item) => item.value === reasonCategory)?.label ?? reasonCategory;
@@ -118,11 +140,21 @@ export function LeaveBalanceAdjustBulk() {
       action: action === 'add' ? 'Add' : 'Deduct',
       qty,
       by: 'HR Admin',
-      reason: `${reasonLabel}: ${justification.trim()}`
+      reason: `${reasonLabel}: ${justification.trim()}`,
+      ...(action === 'add' ? { fromDate, toDate } : {})
     }, ...prev]);
-    setNotice({ type: 'success', text: `${action === 'add' ? 'Credited' : 'Debited'} ${qty} day(s) of ${leaveName(leave)} for ${selected.name}.` });
+    setNotice({
+      type: 'success',
+      text: action === 'add'
+        ? `Credited ${qty} day(s) of ${leaveName(leave)} for ${selected.name}, valid ${formatIso(fromDate)} – ${formatIso(toDate)}.`
+        : `Debited ${qty} day(s) of ${leaveName(leave)} for ${selected.name}.`
+    });
     setJustification('');
     setReasonCategory('');
+    if (action === 'add') {
+      setFromDate('');
+      setToDate('');
+    }
   };
 
   return (
@@ -243,6 +275,34 @@ export function LeaveBalanceAdjustBulk() {
                   </div>
                   <Select label="Reason category" value={reasonCategory} onChange={setReasonCategory} options={[{ value: '', label: 'Select reason...' }, ...REASON_CATEGORIES]} />
                 </div>
+                {action === 'add' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">From date</label>
+                      <input
+                        type="date"
+                        value={fromDate}
+                        max={toDate || undefined}
+                        onChange={(e) => setFromDate(e.target.value)}
+                        className={inputClass}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">To date</label>
+                      <input
+                        type="date"
+                        value={toDate}
+                        min={fromDate || undefined}
+                        onChange={(e) => setToDate(e.target.value)}
+                        className={inputClass}
+                      />
+                    </div>
+                    <p className="md:col-span-2 text-xs text-gray-500">Added days can be used only between these dates.</p>
+                    {fromDate && toDate && toDate < fromDate && (
+                      <p className="md:col-span-2 text-xs text-red-600">To date must be on or after From date.</p>
+                    )}
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Justification * (min {MIN_JUSTIFICATION} characters)</label>
                   <textarea rows={3} value={justification} onChange={(e) => setJustification(e.target.value)} className={inputClass} placeholder="Explain why this balance is being changed..." />
@@ -265,7 +325,7 @@ export function LeaveBalanceAdjustBulk() {
             <table className="min-w-full text-sm">
               <thead className="bg-gray-50">
                 <tr>
-                  {['Date', 'Employee', 'Leave', 'Action', 'Qty', 'By', 'Reason'].map((h) =>
+                  {['Date', 'Employee', 'Leave', 'Action', 'Qty', 'Validity', 'By', 'Reason'].map((h) =>
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">{h}</th>
                   )}
                 </tr>
@@ -278,6 +338,9 @@ export function LeaveBalanceAdjustBulk() {
                     <td className="px-4 py-3">{row.leave}</td>
                     <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${row.action === 'Add' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{row.action}</span></td>
                     <td className="px-4 py-3">{row.qty}</td>
+                    <td className="px-4 py-3 text-gray-600">
+                      {row.fromDate && row.toDate ? `${formatIso(row.fromDate)} – ${formatIso(row.toDate)}` : '—'}
+                    </td>
                     <td className="px-4 py-3 text-gray-600">{row.by}</td>
                     <td className="px-4 py-3 text-gray-600">{row.reason}</td>
                   </tr>
