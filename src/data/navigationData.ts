@@ -415,16 +415,21 @@ const marketplaceSidebar: SidebarSection[] = [{ title: 'Marketplace', items: [{ 
 const billingSidebar: SidebarSection[] = [{ title: 'Billing', items: [{ label: 'Subscription Overview', id: 'subscription-overview' }, { label: 'Usage Insights', id: 'usage-insights' }, { label: 'Invoice Archive', id: 'invoice-archive' }, { label: 'Account Details', id: 'account-details' }] }];
 const newsfeedSidebar: SidebarSection[] = [{ title: 'Content Management', items: [{ label: 'Internal School Updates', id: 'internal-school-updates' }, { label: 'Government & Policy Updates', id: 'government-policy-updates' }, { label: 'Board & Examination Updates', id: 'board-examination-updates' }, { label: 'Scholarships & Grants', id: 'scholarships-grants' }, { label: 'Health & Safety Advisories', id: 'health-safety-advisories' }, { label: 'Education Industry & Global News', id: 'education-industry-global-news' }] }, { title: 'Media & Engagement', items: [{ label: 'Media & Attachments', id: 'media-attachments' }, { label: 'Engagement & Interaction', id: 'engagement-interaction' }] }, { title: 'Management', items: [{ label: 'Smart Targeting & Filtering', id: 'smart-targeting-filtering' }, { label: 'Moderation & Workflow', id: 'moderation-workflow' }, { label: 'Alerts & Action Center', id: 'alerts-action-center' }, { label: 'Analytics & Insights', id: 'analytics-insights' }] }];
 const reportsSidebar: SidebarSection[] = [
-  { title: 'Government Reports', items: [{ label: 'Board Compliance', id: 'board-compliance' }] },
+  { title: 'Government Reports', items: [
+    { label: 'Board Compliance', id: 'board-compliance' },
+    { label: 'Custom Reports', id: 'government-custom-reports' }
+  ] },
   { title: 'Student Reports', items: [
     { label: 'Student Reports & Search', id: 'student-reports' },
     { label: 'Admission Report', id: 'admission-report' },
-    { label: 'Attendance Reports', id: 'attendance-reports' }
+    { label: 'Attendance Reports', id: 'attendance-reports' },
+    { label: 'Custom Reports', id: 'student-custom-reports' }
   ] },
   { title: 'Academic Reports', items: [
     { label: 'Event and Competition Reports', id: 'event-competition-reports' },
     { label: "Teacher's Duties Reports", id: 'teachers-duties-reports' },
-    { label: 'Academic Reports', id: 'academic-reports' }
+    { label: 'Academic Reports', id: 'academic-reports' },
+    { label: 'Custom Reports', id: 'academic-custom-reports' }
   ] },
   { title: 'Employee Reports', items: [
     { label: 'Employee Reports', id: 'employee-reports' },
@@ -432,17 +437,22 @@ const reportsSidebar: SidebarSection[] = [
     { label: 'Payroll Report', id: 'payroll-report' },
     { label: 'Appraisal Result Report', id: 'appraisal-result-report' },
     { label: 'Recruitment Reports', id: 'recruitment-pipeline-report' },
-    { label: 'Employee Tax Projection Report', id: 'employee-tax-projection-report' }
+    { label: 'Employee Tax Projection Report', id: 'employee-tax-projection-report' },
+    { label: 'Custom Reports', id: 'employee-custom-reports' }
   ] },
   { title: 'Finance Reports', items: [
     { label: 'Fee Reports', id: 'fee-collection-reports' },
     { label: 'Charge Receipt Report', id: 'charge-receipt-report' },
     { label: 'Scholarship Reports — All Reports (Unified)', id: 'scholarship-report' },
-    { label: 'Expense Reports — All Reports (Unified)', id: 'expense-report' }
+    { label: 'Expense Reports — All Reports (Unified)', id: 'expense-report' },
+    { label: 'Custom Reports', id: 'finance-custom-reports' }
   ] },
-  { title: 'Examination Reports', items: [{ label: 'Internal Exam Reports', id: 'internal-exam-reports' }, { label: 'Board Exam Reports', id: 'board-exam-reports' }] },
+  { title: 'Examination Reports', items: [
+    { label: 'Internal Exam Reports', id: 'internal-exam-reports' },
+    { label: 'Board Exam Reports', id: 'board-exam-reports' },
+    { label: 'Custom Reports', id: 'examination-custom-reports' }
+  ] },
   { title: 'System Reports', items: [
-    { label: 'User Login Reports', id: 'user-login-reports' },
     { label: 'Administrative Control Reports', id: 'administrative-control-reports' }
   ] },
   { title: 'Advanced Builder', items: [{ label: 'Advanced Report Builder', id: 'advanced-report-builder' }] }

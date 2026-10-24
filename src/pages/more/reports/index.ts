@@ -34,3 +34,4 @@ export { ComplianceAuditReports } from './ComplianceAuditReports';
 
 // Advanced Builder
 export { AdvancedReportBuilder } from './AdvancedReportBuilder';
+export { CustomReportsPage } from './CustomReportsPage';

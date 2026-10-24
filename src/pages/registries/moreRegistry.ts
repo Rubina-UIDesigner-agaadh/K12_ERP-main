@@ -56,6 +56,30 @@ export const moreRegistry: Record<string, () => any> = {
     () => import('../more/reports/BoardCompliance'),
     'BoardCompliance'
   ),
+  'government-custom-reports': rp(
+    () => import('../more/reports/CustomReportsPage'),
+    'CustomReportsPage'
+  ),
+  'student-custom-reports': rp(
+    () => import('../more/reports/CustomReportsPage'),
+    'CustomReportsPage'
+  ),
+  'academic-custom-reports': rp(
+    () => import('../more/reports/CustomReportsPage'),
+    'CustomReportsPage'
+  ),
+  'employee-custom-reports': rp(
+    () => import('../more/reports/CustomReportsPage'),
+    'CustomReportsPage'
+  ),
+  'finance-custom-reports': rp(
+    () => import('../more/reports/CustomReportsPage'),
+    'CustomReportsPage'
+  ),
+  'examination-custom-reports': rp(
+    () => import('../more/reports/CustomReportsPage'),
+    'CustomReportsPage'
+  ),
   'event-competition-reports': rp(
     () => import('../more/reports/EventCompetitionReports'),
     'EventCompetitionReports'

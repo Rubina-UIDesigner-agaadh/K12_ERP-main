@@ -60,6 +60,8 @@ interface FeeHead {
 interface FeeStructure {
   id: string
   name: string
+  academicYear: string
+  term: string
   description?: string
   feeHeads: FeeHead[]
 }
@@ -201,30 +203,36 @@ const getMockStudentsList = (): StudentData[] => {
     const sPrefix = studentId === '1' ? 'st' : studentId === '2' ? 'st2_' : studentId === '3' ? 'st3_' : studentId === '4' ? 'st4_' : 'st5_'
     const hasConcession = studentId === '1'
 
-    // Build structures with their fee heads nested inside
+    // Structures split by academic year and term
     const feeStructures: FeeStructure[] = [
       {
-        id: `${sPrefix}1`,
-        name: 'Academic Fee Structure',
-        description: 'Core tuition and institutional development fees',
+        id: `${sPrefix}t1`,
+        name: 'Term 1 Fees',
+        academicYear: '2024-25',
+        term: 'Term 1',
+        description: 'April – September · tuition and development',
         feeHeads: [
           { id: `${prefix}1`, name: 'Tuition Fee', amount: 100000, discountAmount: hasConcession ? 15000 : 0, netAmount: hasConcession ? 85000 : 100000 },
           { id: `${prefix}2`, name: 'Development Fee', amount: 20000, discountAmount: hasConcession ? 3000 : 0, netAmount: hasConcession ? 17000 : 20000 },
         ],
       },
       {
-        id: `${sPrefix}2`,
-        name: 'Laboratory Fee Structure',
-        description: 'Science and computer laboratory charges',
+        id: `${sPrefix}t2`,
+        name: 'Term 2 Fees',
+        academicYear: '2024-25',
+        term: 'Term 2',
+        description: 'October – March · laboratory charges',
         feeHeads: [
           { id: `${prefix}3`, name: 'Computer Lab Fee', amount: 10000, discountAmount: hasConcession ? 1500 : 0, netAmount: hasConcession ? 8500 : 10000 },
           { id: `${prefix}4`, name: 'Science Lab Fee', amount: 8000, discountAmount: hasConcession ? 1200 : 0, netAmount: hasConcession ? 6800 : 8000 },
         ],
       },
       {
-        id: `${sPrefix}3`,
-        name: 'General Fee Structure',
-        description: 'Library, examination, sports and events',
+        id: `${sPrefix}yr`,
+        name: 'Annual / Yearly Fees',
+        academicYear: '2024-25',
+        term: 'Annual',
+        description: 'Charged once for the academic year',
         feeHeads: [
           { id: `${prefix}5`, name: 'Library Fee', amount: 4000, discountAmount: 0, netAmount: 4000 },
           { id: `${prefix}6`, name: 'Examination Fee', amount: 6000, discountAmount: 0, netAmount: 6000 },
@@ -945,16 +953,35 @@ const downloadDocument = (fileName: string, content: string, type = 'text/html;c
 
 const receiptFileName = (receiptNo: string) => `Fee-Receipt-${receiptNo.replace(/[^\w-]+/g, '-')}.html`
 
+const TERM_RANK: Record<string, number> = { 'Term 1': 1, 'Term 2': 2, 'Term 3': 3, Annual: 4 }
+
+function groupStructuresByYear(structures: FeeStructure[]) {
+  const years: string[] = []
+  const map = new Map<string, FeeStructure[]>()
+  structures.forEach((s) => {
+    if (!map.has(s.academicYear)) {
+      map.set(s.academicYear, [])
+      years.push(s.academicYear)
+    }
+    map.get(s.academicYear)!.push(s)
+  })
+  years.sort((a, b) => b.localeCompare(a))
+  years.forEach((y) => {
+    map.get(y)!.sort((a, b) => (TERM_RANK[a.term] || 9) - (TERM_RANK[b.term] || 9))
+  })
+  return years.map((year) => ({ year, structures: map.get(year)! }))
+}
+
 const CompactRow: React.FC<{ icon: React.ReactNode; label: string; value: string }> = ({
   icon,
   label,
   value,
 }) => (
-  <div className="flex items-center gap-1.5 py-0.5 min-w-0">
-    <span className="text-gray-400 flex-shrink-0">{icon}</span>
+  <div className="flex items-start gap-2 py-1.5 min-w-0">
+    <span className="text-gray-400 flex-shrink-0 mt-0.5">{icon}</span>
     <div className="flex-1 min-w-0">
-      <div className="text-[9px] text-gray-500 leading-tight">{label}</div>
-      <div className="text-[11px] font-medium text-gray-900 truncate leading-tight" title={value}>
+      <div className="text-xs text-gray-500 leading-snug">{label}</div>
+      <div className="text-sm font-semibold text-gray-900 break-words leading-snug" title={value}>
         {value}
       </div>
     </div>
@@ -1706,28 +1733,27 @@ export function FeeReceipt() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-        {/* Left Panel */}
-        <div className="space-y-4">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-5">
+        {/* Left Panel — student profile */}
+        <div className="xl:col-span-5 space-y-4">
           {/* Student Header Card */}
           <Card>
-            <div className="bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 p-3">
-              <div className="flex items-center gap-2.5 mb-2">
-                <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center text-white text-base font-bold border-2 border-white/30 flex-shrink-0">
+            <div className="bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 p-4">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center text-white text-lg font-bold border-2 border-white/30 flex-shrink-0">
                   {selectedStudent.firstName[0]}
                   {selectedStudent.lastName[0]}
                 </div>
                 <div className="text-white flex-1 min-w-0">
-                  <h3 className="font-bold text-xs truncate">
+                  <h3 className="font-bold text-base leading-snug">
                     {selectedStudent.firstName} {selectedStudent.middleName}{' '}
                     {selectedStudent.lastName}
                   </h3>
-                  <p className="text-blue-200 text-[10px]">
-                    Class {selectedStudent.class}-{selectedStudent.section} |{' '}
-                    {selectedStudent.department}
+                  <p className="text-blue-100 text-sm mt-0.5">
+                    Class {selectedStudent.class}-{selectedStudent.section} · {selectedStudent.department}
                   </p>
-                  <p className="text-blue-200 text-[10px]">
-                    Roll: {selectedStudent.rollNo} | {selectedStudent.gender}
+                  <p className="text-blue-100 text-sm">
+                    Roll {selectedStudent.rollNo} · {selectedStudent.gender}
                   </p>
                 </div>
               </div>
@@ -1754,76 +1780,76 @@ export function FeeReceipt() {
             </div>
 
             {/* Personal Section */}
-            <div className="px-3 pt-2 pb-1">
-              <div className="text-[9px] font-semibold text-gray-500 uppercase tracking-wider mb-1 border-b pb-0.5">
+            <div className="px-4 pt-3 pb-2">
+              <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 border-b pb-1">
                 Personal
               </div>
-              <div className="grid grid-cols-2 gap-x-2 gap-y-0.5">
-                <CompactRow icon={<IdCard className="w-3 h-3" />} label="Adm No" value={selectedStudent.admissionNo} />
-                <CompactRow icon={<Hash className="w-3 h-3" />} label="GR No" value={selectedStudent.grNo} />
-                <CompactRow icon={<Hash className="w-3 h-3" />} label="SU ID" value={selectedStudent.suId} />
-                <CompactRow icon={<Calendar className="w-3 h-3" />} label="DOB" value={new Date(selectedStudent.dateOfBirth).toLocaleDateString('en-IN')} />
-                <CompactRow icon={<Heart className="w-3 h-3" />} label="Blood" value={selectedStudent.bloodGroup} />
-                <CompactRow icon={<Globe className="w-3 h-3" />} label="Nationality" value={selectedStudent.nationality} />
-                <CompactRow icon={<User className="w-3 h-3" />} label="Religion" value={selectedStudent.religion} />
-                <CompactRow icon={<Shield className="w-3 h-3" />} label="Category" value={selectedStudent.category} />
-              </div>
-              <div className="mt-0.5">
-                <CompactRow icon={<IdCard className="w-3 h-3" />} label="Aadhar" value={selectedStudent.aadharNo} />
-                <CompactRow icon={<MapPin className="w-3 h-3" />} label="Address" value={`${selectedStudent.address}, ${selectedStudent.city} - ${selectedStudent.pincode}`} />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
+                <CompactRow icon={<IdCard className="w-4 h-4" />} label="Adm No" value={selectedStudent.admissionNo} />
+                <CompactRow icon={<Hash className="w-4 h-4" />} label="GR No" value={selectedStudent.grNo} />
+                <CompactRow icon={<Hash className="w-4 h-4" />} label="SU ID" value={selectedStudent.suId} />
+                <CompactRow icon={<Calendar className="w-4 h-4" />} label="DOB" value={new Date(selectedStudent.dateOfBirth).toLocaleDateString('en-IN')} />
+                <CompactRow icon={<Heart className="w-4 h-4" />} label="Blood" value={selectedStudent.bloodGroup} />
+                <CompactRow icon={<Globe className="w-4 h-4" />} label="Nationality" value={selectedStudent.nationality} />
+                <CompactRow icon={<User className="w-4 h-4" />} label="Religion" value={selectedStudent.religion} />
+                <CompactRow icon={<Shield className="w-4 h-4" />} label="Category" value={selectedStudent.category} />
+                <CompactRow icon={<IdCard className="w-4 h-4" />} label="Aadhar" value={selectedStudent.aadharNo} />
+                <CompactRow icon={<MapPin className="w-4 h-4" />} label="Address" value={`${selectedStudent.address}, ${selectedStudent.city} - ${selectedStudent.pincode}`} />
               </div>
             </div>
 
             {/* Parent Section */}
-            <div className="px-3 pt-2 pb-1">
-              <div className="text-[9px] font-semibold text-gray-500 uppercase tracking-wider mb-1 border-b pb-0.5">
+            <div className="px-4 pt-3 pb-2">
+              <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 border-b pb-1">
                 Parents
               </div>
-              <CompactRow icon={<User className="w-3 h-3" />} label="Father" value={selectedStudent.parentName} />
-              <div className="grid grid-cols-2 gap-x-2">
-                <CompactRow icon={<Phone className="w-3 h-3" />} label="Phone" value={selectedStudent.parentPhone} />
-                <CompactRow icon={<Mail className="w-3 h-3" />} label="Email" value={selectedStudent.parentEmail} />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
+                <CompactRow icon={<User className="w-4 h-4" />} label="Father" value={selectedStudent.parentName} />
+                <CompactRow icon={<Phone className="w-4 h-4" />} label="Phone" value={selectedStudent.parentPhone} />
+                <CompactRow icon={<Mail className="w-4 h-4" />} label="Email" value={selectedStudent.parentEmail} />
+                <CompactRow icon={<User className="w-4 h-4" />} label="Mother" value={selectedStudent.motherName} />
+                <CompactRow icon={<Phone className="w-4 h-4" />} label="Mother's Phone" value={selectedStudent.motherPhone} />
               </div>
-              <CompactRow icon={<User className="w-3 h-3" />} label="Mother" value={selectedStudent.motherName} />
-              <CompactRow icon={<Phone className="w-3 h-3" />} label="Mother's Phone" value={selectedStudent.motherPhone} />
             </div>
 
             {/* Academic Section */}
-            <div className="px-3 pt-2 pb-1">
-              <div className="text-[9px] font-semibold text-gray-500 uppercase tracking-wider mb-1 border-b pb-0.5">
+            <div className="px-4 pt-3 pb-2">
+              <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 border-b pb-1">
                 Academic
               </div>
-              <div className="grid grid-cols-2 gap-x-2 gap-y-0.5">
-                <CompactRow icon={<GraduationCap className="w-3 h-3" />} label="Class" value={`${selectedStudent.class}-${selectedStudent.section}`} />
-                <CompactRow icon={<Building className="w-3 h-3" />} label="Branch" value={selectedStudent.branch} />
-                <CompactRow icon={<BookOpen className="w-3 h-3" />} label="Stream" value={selectedStudent.stream} />
-                <CompactRow icon={<BookOpen className="w-3 h-3" />} label="Medium" value={selectedStudent.medium} />
-                <CompactRow icon={<Calendar className="w-3 h-3" />} label="Year" value={selectedStudent.academicYear} />
-                <CompactRow icon={<Calendar className="w-3 h-3" />} label="Adm Date" value={new Date(selectedStudent.admissionDate).toLocaleDateString('en-IN')} />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
+                <CompactRow icon={<GraduationCap className="w-4 h-4" />} label="Class" value={`${selectedStudent.class}-${selectedStudent.section}`} />
+                <CompactRow icon={<Building className="w-4 h-4" />} label="Branch" value={selectedStudent.branch} />
+                <CompactRow icon={<BookOpen className="w-4 h-4" />} label="Stream" value={selectedStudent.stream} />
+                <CompactRow icon={<BookOpen className="w-4 h-4" />} label="Medium" value={selectedStudent.medium} />
+                <CompactRow icon={<Calendar className="w-4 h-4" />} label="Year" value={selectedStudent.academicYear} />
+                <CompactRow icon={<Calendar className="w-4 h-4" />} label="Adm Date" value={new Date(selectedStudent.admissionDate).toLocaleDateString('en-IN')} />
               </div>
             </div>
 
             {/* Benefits */}
             {(selectedStudent.hasConcession || selectedStudent.hasScholarship || selectedStudent.hasHostel) && (
-              <div className="px-3 pt-2 pb-2">
-                <div className="text-[9px] font-semibold text-gray-500 uppercase tracking-wider mb-1 border-b pb-0.5">
+              <div className="px-4 pt-3 pb-3">
+                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 border-b pb-1">
                   Benefits
                 </div>
-                {selectedStudent.hasHostel && (
-                  <CompactRow icon={<Home className="w-3 h-3" />} label="Hostel Room" value={selectedStudent.hostelRoom || '-'} />
-                )}
-                {selectedStudent.hasConcession && (
-                  <div className="grid grid-cols-2 gap-x-2">
-                    <CompactRow icon={<Percent className="w-3 h-3" />} label="Concession" value={selectedStudent.concessionType || '-'} />
-                    <CompactRow icon={<BadgePercent className="w-3 h-3" />} label="Percent" value={`${selectedStudent.concessionPercentage}%`} />
-                  </div>
-                )}
-                {selectedStudent.hasScholarship && (
-                  <div className="grid grid-cols-2 gap-x-2">
-                    <CompactRow icon={<Award className="w-3 h-3" />} label="Scholarship" value={selectedStudent.scholarshipName || '-'} />
-                    <CompactRow icon={<Banknote className="w-3 h-3" />} label="Amount" value={formatCurrency(selectedStudent.scholarshipAmount || 0)} />
-                  </div>
-                )}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
+                  {selectedStudent.hasHostel && (
+                    <CompactRow icon={<Home className="w-4 h-4" />} label="Hostel Room" value={selectedStudent.hostelRoom || '-'} />
+                  )}
+                  {selectedStudent.hasConcession && (
+                    <>
+                      <CompactRow icon={<Percent className="w-4 h-4" />} label="Concession" value={selectedStudent.concessionType || '-'} />
+                      <CompactRow icon={<BadgePercent className="w-4 h-4" />} label="Percent" value={`${selectedStudent.concessionPercentage}%`} />
+                    </>
+                  )}
+                  {selectedStudent.hasScholarship && (
+                    <>
+                      <CompactRow icon={<Award className="w-4 h-4" />} label="Scholarship" value={selectedStudent.scholarshipName || '-'} />
+                      <CompactRow icon={<Banknote className="w-4 h-4" />} label="Amount" value={formatCurrency(selectedStudent.scholarshipAmount || 0)} />
+                    </>
+                  )}
+                </div>
               </div>
             )}
           </Card>
@@ -1861,9 +1887,9 @@ export function FeeReceipt() {
           {/* Payment Summary */}
           {(selectedFeeHeadCount > 0 || finePayingAmount > 0) && (
             <Card className="bg-blue-50 border-blue-200">
-              <div className="p-3">
-                <h4 className="text-xs font-semibold text-blue-800 mb-2">Payment Summary</h4>
-                <table className="w-full text-xs">
+              <div className="p-4">
+                <h4 className="text-sm font-semibold text-blue-800 mb-2">Payment Summary</h4>
+                <table className="w-full text-sm">
                   <tbody>
                     <tr>
                       <td className="text-blue-700 py-0.5">Fee Heads ({selectedFeeHeadCount})</td>
@@ -1897,7 +1923,7 @@ export function FeeReceipt() {
         </div>
 
         {/* Right Panel */}
-        <div className="lg:col-span-3 space-y-4">
+        <div className="xl:col-span-7 space-y-4">
           <div className="flex gap-1 bg-gray-200 p-1 rounded-lg">
             {(
               [
@@ -1997,7 +2023,7 @@ export function FeeReceipt() {
               {/* Fee Structures grouping fee heads */}
               <Card
                 title="Fee Structures"
-                subtitle={`${feeData.feeStructures.length} fee structure(s) assigned · Class ${selectedStudent.class} · ${selectedStudent.academicYear}`}
+                subtitle={`Split by academic year and term · Class ${selectedStudent.class} · ${feeData.feeStructures.length} structure(s)`}
                 action={
                   <div className="flex gap-1">
                     <Button variant="ghost" size="xs" onClick={handleDeselectAllFeeHeads}>
@@ -2026,7 +2052,14 @@ export function FeeReceipt() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {feeData.feeStructures.map((structure) => {
+                      {groupStructuresByYear(feeData.feeStructures).map(({ year, structures }) => (
+                        <Fragment key={year}>
+                          <tr className="bg-slate-700">
+                            <td colSpan={10} className="px-3 py-2 text-sm font-semibold text-white">
+                              Academic Year {year}
+                            </td>
+                          </tr>
+                          {structures.map((structure) => {
                         const isCollapsed = !!collapsedStructures[structure.id]
 
                         // Structure-level aggregates
@@ -2081,8 +2114,11 @@ export function FeeReceipt() {
                                   )}
                                   <Layers className="w-3.5 h-3.5 text-indigo-700" />
                                   <span className="font-semibold text-indigo-900 text-xs">
-                                    {structure.name}
+                                    {structure.term} · {structure.name}
                                   </span>
+                                  <Badge variant="info" size="xs">
+                                    {structure.academicYear}
+                                  </Badge>
                                   <Badge variant="info" size="xs">
                                     {structure.feeHeads.length} head{structure.feeHeads.length !== 1 ? 's' : ''}
                                   </Badge>
@@ -2217,6 +2253,8 @@ export function FeeReceipt() {
                           </Fragment>
                         )
                       })}
+                        </Fragment>
+                      ))}
                     </tbody>
 
                     {/* Fine Row */}

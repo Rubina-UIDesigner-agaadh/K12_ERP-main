@@ -28,7 +28,6 @@ import {
   ZoomIn,
   ZoomOut,
   RefreshCw,
-  History,
   Info,
   ChevronDown,
   ChevronUp,
@@ -854,18 +853,9 @@ export function MyDisplayLanguage() {
   const [saving, setSaving] = useState(false)
 
   const [showResetModal, setShowResetModal] = useState(false)
-  const [showPreviewModal, setShowPreviewModal] = useState(false)
-  const [showHistoryModal, setShowHistoryModal] = useState(false)
 
   const [expandedSections, setExpandedSections] = useState<string[]>([
     'language', 'landing', 'regional', 'display', 'accessibility', 'behavior',
-  ])
-
-  const [changeHistory] = useState([
-    { id: 1, date: '2024-02-15 10:30 AM', setting: 'Language', from: 'English', to: 'Hindi' },
-    { id: 2, date: '2024-02-14 03:45 PM', setting: 'Time Format', from: '24-hour', to: '12-hour' },
-    { id: 3, date: '2024-02-10 02:00 PM', setting: 'Date Format', from: 'MM/DD/YYYY', to: 'DD/MM/YYYY' },
-    { id: 4, date: '2024-02-08 11:20 AM', setting: 'Landing Page', from: 'Inbox', to: LANDING_PAGES[0]?.label || 'User Dashboard' },
   ])
 
   const handleSave = async () => {
@@ -894,10 +884,6 @@ export function MyDisplayLanguage() {
       if (keysEqual(chord, ['Ctrl', 'S'])) {
         e.preventDefault()
         void handleSave()
-      }
-      if (keysEqual(chord, ['Ctrl', 'P'])) {
-        e.preventDefault()
-        setShowPreviewModal(true)
       }
     }
     window.addEventListener('keydown', onKey)
@@ -968,15 +954,13 @@ export function MyDisplayLanguage() {
     return format?.example || new Date().toLocaleDateString()
   }, [preferences.dateFormat])
 
-  const selectedLanguage = LANGUAGES.find((l) => l.value === preferences.language)
-  const selectedLandingPage = LANDING_PAGES.find((p) => p.value === preferences.landingPage) || LANDING_PAGES[0]
   const selectedTimezone = TIMEZONES.find((t) => t.value === preferences.timezone)
   const selectedCurrency = CURRENCIES.find((c) => c.value === preferences.currency)
 
   const sectionProps = { expandedSections, toggleSection }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 px-[2cm]">
 
       <div className="flex flex-col items-start justify-between gap-2 md:flex-row md:items-center">
         <div>
@@ -988,12 +972,6 @@ export function MyDisplayLanguage() {
         <div className="flex flex-wrap gap-1.5">
           <Button variant="outline" size="sm" onClick={() => openShortcutList()}>
             <Keyboard className="mr-1 h-3.5 w-3.5" /> View shortcut list
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setShowPreviewModal(true)}>
-            <Eye className="mr-1 h-3.5 w-3.5" /> Preview
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setShowHistoryModal(true)}>
-            <History className="mr-1 h-3.5 w-3.5" /> History
           </Button>
           <Button variant="outline" size="sm" onClick={() => setShowResetModal(true)}>
             <RotateCcw className="mr-1 h-3.5 w-3.5" /> Reset
@@ -1417,83 +1395,6 @@ export function MyDisplayLanguage() {
         </div>
       )}
 
-      {showPreviewModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="flex max-h-[80vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b px-4 py-3">
-              <h2 className="flex items-center gap-2 text-xl font-bold">
-                <Eye className="h-5 w-5 text-blue-600" /> Preview Your Settings
-              </h2>
-              <button type="button" onClick={() => setShowPreviewModal(false)} className="rounded-lg p-1.5 hover:bg-gray-100">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="flex-1 space-y-3 overflow-y-auto p-4">
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { label: 'Language', value: `${selectedLanguage?.flag} ${selectedLanguage?.label}` },
-                  { label: 'Landing Page', value: selectedLandingPage?.label },
-                  { label: 'Date Format', value: currentDate },
-                  { label: 'Time Format', value: currentTime },
-                  { label: 'Timezone', value: selectedTimezone?.label },
-                  { label: 'Currency', value: selectedCurrency?.label },
-                  { label: 'Font Size', value: preferences.fontSize },
-                ].map(({ label, value }) => (
-                  <div key={label} className="rounded-md bg-gray-50 p-2.5">
-                    <p className="mb-0.5 text-[13px] text-gray-500">{label}</p>
-                    <p className="text-base font-semibold capitalize text-gray-900">{value}</p>
-                  </div>
-                ))}
-              </div>
-              <div className="rounded-md bg-gray-50 p-2.5">
-                <p className="mb-1.5 text-[13px] text-gray-500">Active Features</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {preferences.highContrast && <Badge variant="info">High Contrast</Badge>}
-                  {preferences.autoSave && <Badge variant="success">Auto-Save</Badge>}
-                  {preferences.showWelcomeMessage && <Badge variant="default">Welcome Message</Badge>}
-                </div>
-              </div>
-            </div>
-            <div className="flex justify-end border-t p-3">
-              <Button variant="outline" size="sm" onClick={() => setShowPreviewModal(false)}>Close</Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showHistoryModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="flex max-h-[80vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b px-4 py-3">
-              <h2 className="flex items-center gap-2 text-xl font-bold">
-                <History className="h-5 w-5 text-blue-600" /> Change History
-              </h2>
-              <button type="button" onClick={() => setShowHistoryModal(false)} className="rounded-lg p-1.5 hover:bg-gray-100">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4">
-              <div className="space-y-2">
-                {changeHistory.map((entry) => (
-                  <div key={entry.id} className="flex items-start gap-3 rounded-md bg-gray-50 p-2.5">
-                    <div className="rounded-md border border-gray-200 bg-white p-1.5">
-                      <Clock className="h-3.5 w-3.5 text-gray-500" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-base font-medium text-gray-900">{entry.setting}</p>
-                      <p className="text-sm text-gray-600">{entry.from} → {entry.to}</p>
-                      <p className="mt-0.5 text-[13px] text-gray-400">{entry.date}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="flex justify-end border-t p-3">
-              <Button variant="outline" size="sm" onClick={() => setShowHistoryModal(false)}>Close</Button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

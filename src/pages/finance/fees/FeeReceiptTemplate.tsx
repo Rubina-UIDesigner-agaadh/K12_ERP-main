@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 
 // Types
 interface ReceiptElement {
@@ -16,6 +16,16 @@ interface ReceiptElement {
   color: string
   borderColor: string
   showBorder: boolean
+  rotation?: number
+  flipH?: boolean
+  flipV?: boolean
+  opacity?: number
+  objectFit?: 'contain' | 'cover' | 'fill' | 'none'
+  fontFamily?: string
+  backgroundColor?: string
+  borderWidth?: number
+  borderRadius?: number
+  lineHeight?: number
 }
 
 interface Template {
@@ -40,6 +50,21 @@ const defaultElements: Record<string, Partial<ReceiptElement>> = {
   table: { type: 'table', label: 'Fee Table', content: 'Particulars|Amount\nTuition Fee|{{tuition_fee}}\nLab Fee|{{lab_fee}}\nTotal|{{total}}', width: 400, height: 150, fontSize: 12, fontWeight: 'normal', textAlign: 'left', color: '#000000', borderColor: '#000000', showBorder: true },
   signature: { type: 'signature', label: 'Signature', content: 'Authorized Signatory', width: 150, height: 60, fontSize: 10, fontWeight: 'normal', textAlign: 'center', color: '#000000', borderColor: '#cccccc', showBorder: false },
   qrcode: { type: 'qrcode', label: 'QR Code', content: '{{receipt_url}}', width: 80, height: 80, fontSize: 10, fontWeight: 'normal', textAlign: 'center', color: '#000000', borderColor: '#cccccc', showBorder: false },
+}
+
+function elementVisualStyle(element: ReceiptElement): React.CSSProperties {
+  const rotation = element.rotation || 0
+  const flipH = element.flipH ? -1 : 1
+  const flipV = element.flipV ? -1 : 1
+  return {
+    transform: `rotate(${rotation}deg) scaleX(${flipH}) scaleY(${flipV})`,
+    transformOrigin: 'center center',
+    opacity: element.opacity ?? 1,
+    fontFamily: element.fontFamily || 'Arial, sans-serif',
+    backgroundColor: element.backgroundColor && element.backgroundColor !== 'transparent' ? element.backgroundColor : undefined,
+    borderRadius: element.borderRadius ? `${element.borderRadius}px` : undefined,
+    lineHeight: element.lineHeight,
+  }
 }
 
 const availableFields = [
@@ -231,8 +256,43 @@ const getElementIcon = (type: string) => {
   }
 }
 
+const TEMPLATES_STORAGE_KEY = 'k12-fee-receipt-templates-v1'
+const IN_USE_STORAGE_KEY = 'k12-fee-receipt-template-in-use'
+
+function loadStoredTemplates(): Template[] {
+  try {
+    const raw = localStorage.getItem(TEMPLATES_STORAGE_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed) && parsed.length) return parsed as Template[]
+    }
+  } catch {
+    /* ignore */
+  }
+  return initialTemplates
+}
+
+function persistTemplates(list: Template[]) {
+  try {
+    localStorage.setItem(TEMPLATES_STORAGE_KEY, JSON.stringify(list))
+    const used = list.find((t) => t.isDefault)
+    if (used) localStorage.setItem(IN_USE_STORAGE_KEY, used.id)
+    else localStorage.removeItem(IN_USE_STORAGE_KEY)
+  } catch {
+    /* ignore */
+  }
+}
+
+function isUsedInErp(template: Template) {
+  return Boolean(template.isDefault)
+}
+
 export default function FeeReceiptTemplate() {
-  const [templates, setTemplates] = useState<Template[]>(initialTemplates)
+  const [templates, setTemplates] = useState<Template[]>(() => {
+    const list = loadStoredTemplates().map((t) => ({ ...t }))
+    if (list.length && !list.some((t) => t.isDefault)) list[0].isDefault = true
+    return list
+  })
   const [view, setView] = useState<'list' | 'editor' | 'preview'>('list')
   const [currentTemplate, setCurrentTemplate] = useState<Template | null>(null)
   const [selectedElement, setSelectedElement] = useState<ReceiptElement | null>(null)
@@ -243,6 +303,12 @@ export default function FeeReceiptTemplate() {
   const [showFieldPicker, setShowFieldPicker] = useState(false)
   const canvasRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    persistTemplates(templates)
+  }, [templates])
+
+  const usedInErp = templates.find((t) => isUsedInErp(t)) || null
 
   // Create new template
   const createNewTemplate = () => {
@@ -295,7 +361,9 @@ export default function FeeReceiptTemplate() {
 
   // Delete template
   const deleteTemplate = (id: string) => {
-    setTemplates(templates.filter(t => t.id !== id))
+    const remaining = templates.filter((t) => t.id !== id)
+    if (remaining.length && !remaining.some((t) => t.isDefault)) remaining[0].isDefault = true
+    setTemplates(remaining)
     setShowDeleteModal(null)
   }
 
@@ -313,9 +381,9 @@ export default function FeeReceiptTemplate() {
     setTemplates([...templates, duplicate])
   }
 
-  // Set default template
-  const setDefaultTemplate = (id: string) => {
-    setTemplates(templates.map(t => ({ ...t, isDefault: t.id === id })))
+  /** Mark this template as the one ERP uses for fee receipts. */
+  const useTemplateInErp = (id: string) => {
+    setTemplates((prev) => prev.map((t) => ({ ...t, isDefault: t.id === id })))
   }
 
   // Add element to canvas
@@ -338,6 +406,16 @@ export default function FeeReceiptTemplate() {
       color: defaults.color!,
       borderColor: defaults.borderColor!,
       showBorder: defaults.showBorder!,
+      rotation: defaults.rotation ?? 0,
+      flipH: defaults.flipH ?? false,
+      flipV: defaults.flipV ?? false,
+      opacity: defaults.opacity ?? 1,
+      objectFit: defaults.objectFit ?? 'contain',
+      fontFamily: defaults.fontFamily ?? 'Arial',
+      backgroundColor: defaults.backgroundColor ?? 'transparent',
+      borderWidth: defaults.borderWidth ?? 1,
+      borderRadius: defaults.borderRadius ?? 0,
+      lineHeight: defaults.lineHeight ?? 1.2,
     }
     setCurrentTemplate({
       ...currentTemplate,
@@ -459,10 +537,13 @@ export default function FeeReceiptTemplate() {
   }
 
   // Filter templates
-  const filteredTemplates = templates.filter(t =>
-    t.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    t.description.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const filteredTemplates = templates
+    .filter(t =>
+      t.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      t.description.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+    .slice()
+    .sort((a, b) => Number(isUsedInErp(b)) - Number(isUsedInErp(a)))
 
   // Render element on canvas
   const renderCanvasElement = (element: ReceiptElement) => {
@@ -478,11 +559,15 @@ export default function FeeReceiptTemplate() {
       textAlign: element.textAlign as React.CSSProperties['textAlign'],
       color: element.color,
       cursor: 'move',
-      border: isSelected ? '2px solid #3b82f6' : element.showBorder ? `1px solid ${element.borderColor}` : '1px dashed transparent',
-      borderRadius: 2,
+      border: isSelected
+        ? '2px solid #3b82f6'
+        : element.showBorder
+          ? `${element.borderWidth || 1}px solid ${element.borderColor}`
+          : '1px dashed transparent',
       overflow: 'hidden',
       userSelect: 'none' as const,
       zIndex: isSelected ? 10 : 1,
+      ...elementVisualStyle(element),
     }
 
     switch (element.type) {
@@ -518,10 +603,20 @@ export default function FeeReceiptTemplate() {
             className={`flex items-center justify-center bg-gray-50 hover:border-blue-300 ${isSelected ? 'ring-2 ring-blue-200' : ''}`}
             onMouseDown={(e) => handleElementMouseDown(e, element)}
           >
-            <div className="text-center text-gray-400">
-              {getElementIcon(element.type)}
-              <div className="text-xs mt-1">{element.label}</div>
-            </div>
+            {element.content ? (
+              <img
+                src={element.content}
+                alt={element.label}
+                draggable={false}
+                style={{ width: '100%', height: '100%', objectFit: element.objectFit || 'contain', pointerEvents: 'none' }}
+              />
+            ) : (
+              <div className="text-center text-gray-400">
+                {getElementIcon(element.type)}
+                <div className="text-xs mt-1">{element.label}</div>
+                <div className="text-[10px] mt-0.5">Upload in properties</div>
+              </div>
+            )}
           </div>
         )
       case 'table': {
@@ -624,6 +719,8 @@ export default function FeeReceiptTemplate() {
       textAlign: element.textAlign as React.CSSProperties['textAlign'],
       color: element.color,
       overflow: 'hidden',
+      border: element.showBorder ? `${element.borderWidth || 1}px solid ${element.borderColor}` : undefined,
+      ...elementVisualStyle(element),
     }
 
     switch (element.type) {
@@ -641,20 +738,18 @@ export default function FeeReceiptTemplate() {
           </div>
         )
       case 'logo':
-        return (
-          <div key={element.id} style={baseStyle} className="flex items-center justify-center bg-gray-100 rounded">
-            <div className="text-center text-gray-500">
-              <svg className="w-8 h-8 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-              </svg>
-              <span className="text-xs">Logo</span>
-            </div>
-          </div>
-        )
       case 'image':
         return (
-          <div key={element.id} style={baseStyle} className="flex items-center justify-center bg-gray-100 rounded">
-            <span className="text-xs text-gray-500">{element.label}</span>
+          <div key={element.id} style={baseStyle} className="flex items-center justify-center bg-gray-100">
+            {element.content ? (
+              <img
+                src={element.content}
+                alt={element.label}
+                style={{ width: '100%', height: '100%', objectFit: element.objectFit || 'contain' }}
+              />
+            ) : (
+              <span className="text-xs text-gray-500">{element.label}</span>
+            )}
           </div>
         )
       case 'table': {
@@ -727,6 +822,22 @@ export default function FeeReceiptTemplate() {
           </div>
         </div>
 
+        {usedInErp && (
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
+            <p className="text-sm text-blue-900">
+              <span className="font-semibold">In use in ERP:</span> {usedInErp.name}
+              <span className="text-blue-700"> — this template is used when printing fee receipts</span>
+            </p>
+            <button
+              type="button"
+              onClick={() => previewTemplate(usedInErp)}
+              className="text-sm font-medium text-blue-700 hover:text-blue-900"
+            >
+              Preview
+            </button>
+          </div>
+        )}
+
         {/* Search */}
         <div className="mb-6">
           <div className="relative max-w-md">
@@ -762,7 +873,14 @@ export default function FeeReceiptTemplate() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredTemplates.map((template) => (
-              <div key={template.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow group">
+              <div
+                key={template.id}
+                className={`bg-white rounded-xl overflow-hidden transition-shadow group ${
+                  isUsedInErp(template)
+                    ? 'border-2 border-blue-500 shadow-md ring-2 ring-blue-200'
+                    : 'border border-gray-200 shadow-sm hover:shadow-md'
+                }`}
+              >
                 {/* Template Preview Thumbnail */}
                 <div className="h-48 bg-gradient-to-br from-gray-50 to-gray-100 relative overflow-hidden border-b">
                   <div className="absolute inset-4 bg-white rounded shadow-sm p-3" style={{ transform: 'scale(0.6)', transformOrigin: 'top left', width: '160%', height: '160%' }}>
@@ -791,8 +909,10 @@ export default function FeeReceiptTemplate() {
                       <div className="text-xs text-gray-400 mt-1">+{template.elements.length - 6} more elements</div>
                     )}
                   </div>
-                  {template.isDefault && (
-                    <span className="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-0.5 rounded-full font-medium">Default</span>
+                  {isUsedInErp(template) && (
+                    <span className="absolute top-2 right-2 bg-blue-600 text-white text-xs px-2.5 py-1 rounded-full font-semibold shadow">
+                      In use in ERP
+                    </span>
                   )}
                   {/* Hover overlay */}
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors" />
@@ -846,16 +966,27 @@ export default function FeeReceiptTemplate() {
                       <DownloadIcon />
                     </button>
                     <button
-                      onClick={() => setDefaultTemplate(template.id)}
-                      className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-colors ${template.isDefault ? 'text-yellow-500' : 'text-gray-400 hover:bg-gray-100 hover:text-yellow-500'}`}
-                      title={template.isDefault ? 'Default template' : 'Set as default'}
+                      onClick={() => useTemplateInErp(template.id)}
+                      disabled={isUsedInErp(template)}
+                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                        isUsedInErp(template)
+                          ? 'bg-blue-600 text-white cursor-default'
+                          : 'text-gray-500 hover:bg-blue-50 hover:text-blue-700'
+                      }`}
+                      title={isUsedInErp(template) ? 'Currently used in ERP' : 'Use this template in ERP'}
                     >
-                      <StarIcon filled={template.isDefault} />
+                      <StarIcon filled={isUsedInErp(template)} />
+                      {isUsedInErp(template) ? 'In use' : 'Use in ERP'}
                     </button>
                     <button
-                      onClick={() => setShowDeleteModal(template.id)}
-                      className="flex items-center gap-1.5 px-2 py-1.5 text-gray-400 rounded-lg hover:bg-red-50 hover:text-red-500 transition-colors ml-auto"
-                      title="Delete"
+                      onClick={() => !isUsedInErp(template) && setShowDeleteModal(template.id)}
+                      disabled={isUsedInErp(template)}
+                      className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg ml-auto transition-colors ${
+                        isUsedInErp(template)
+                          ? 'text-gray-300 cursor-not-allowed'
+                          : 'text-gray-400 hover:bg-red-50 hover:text-red-500'
+                      }`}
+                      title={isUsedInErp(template) ? 'Switch ERP template before deleting' : 'Delete'}
                     >
                       <TrashIcon />
                     </button>
@@ -1015,8 +1146,24 @@ export default function FeeReceiptTemplate() {
               className="text-lg font-semibold text-gray-900 border-none outline-none bg-transparent focus:bg-gray-50 rounded px-2 py-1"
               placeholder="Template Name"
             />
+            {isUsedInErp(currentTemplate) && (
+              <span className="bg-blue-600 text-white text-xs px-2.5 py-1 rounded-full font-semibold">In use in ERP</span>
+            )}
           </div>
           <div className="flex items-center gap-3">
+            {!isUsedInErp(currentTemplate) && (
+              <button
+                type="button"
+                onClick={() => {
+                  useTemplateInErp(currentTemplate.id)
+                  setCurrentTemplate({ ...currentTemplate, isDefault: true })
+                }}
+                className="flex items-center gap-2 px-3 py-2 text-blue-700 hover:bg-blue-50 rounded-lg font-medium text-sm"
+              >
+                <StarIcon filled={false} />
+                Use in ERP
+              </button>
+            )}
             <button
               onClick={() => previewTemplate(currentTemplate)}
               className="flex items-center gap-2 px-3 py-2 text-gray-600 hover:bg-gray-100 rounded-lg font-medium text-sm"
@@ -1193,7 +1340,7 @@ export default function FeeReceiptTemplate() {
           </div>
 
           {/* Right Sidebar - Properties Panel */}
-          <div className="w-72 bg-white border-l border-gray-200 overflow-y-auto flex-shrink-0">
+          <div className="w-80 bg-white border-l border-gray-200 overflow-y-auto flex-shrink-0">
             {selectedElement ? (
               <div className="p-4">
                 <div className="flex items-center justify-between mb-4">
@@ -1218,6 +1365,54 @@ export default function FeeReceiptTemplate() {
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                     />
                   </div>
+
+                  {/* Image / Logo source */}
+                  {(selectedElement.type === 'image' || selectedElement.type === 'logo') && (
+                    <div>
+                      <label className="text-xs font-medium text-gray-500 mb-1 block">Image</label>
+                      {selectedElement.content && (
+                        <img src={selectedElement.content} alt="" className="w-full h-24 object-contain border rounded mb-2 bg-gray-50" />
+                      )}
+                      <label className="flex items-center justify-center gap-2 w-full border border-dashed border-gray-300 rounded-lg px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 cursor-pointer">
+                        <UploadIcon />
+                        {selectedElement.content ? 'Replace image' : 'Upload image'}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (!file) return
+                            const reader = new FileReader()
+                            reader.onload = () => updateElement(selectedElement.id, { content: String(reader.result || '') })
+                            reader.readAsDataURL(file)
+                          }}
+                        />
+                      </label>
+                      {selectedElement.content && (
+                        <button
+                          type="button"
+                          className="mt-1 text-xs text-red-500 hover:text-red-700"
+                          onClick={() => updateElement(selectedElement.id, { content: '' })}
+                        >
+                          Remove image
+                        </button>
+                      )}
+                      <div className="mt-2">
+                        <label className="text-xs text-gray-400">Fit</label>
+                        <select
+                          value={selectedElement.objectFit || 'contain'}
+                          onChange={(e) => updateElement(selectedElement.id, { objectFit: e.target.value as ReceiptElement['objectFit'] })}
+                          className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm outline-none"
+                        >
+                          <option value="contain">Contain</option>
+                          <option value="cover">Cover</option>
+                          <option value="fill">Fill</option>
+                          <option value="none">None</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Content */}
                   {selectedElement.type !== 'line' && selectedElement.type !== 'logo' && selectedElement.type !== 'image' && (
@@ -1324,11 +1519,66 @@ export default function FeeReceiptTemplate() {
                     </div>
                   </div>
 
+                  {/* Rotation / Flip / Opacity */}
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 mb-1 block">Transform</label>
+                    <label className="text-xs text-gray-400">Rotation ({selectedElement.rotation || 0}°)</label>
+                    <input
+                      type="range"
+                      min={-180}
+                      max={180}
+                      value={selectedElement.rotation || 0}
+                      onChange={(e) => updateElement(selectedElement.id, { rotation: parseInt(e.target.value) || 0 })}
+                      className="w-full"
+                    />
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                      <button
+                        type="button"
+                        onClick={() => updateElement(selectedElement.id, { flipH: !selectedElement.flipH })}
+                        className={`py-1.5 text-xs rounded-lg border ${selectedElement.flipH ? 'bg-blue-50 border-blue-400 text-blue-700' : 'border-gray-300 text-gray-600'}`}
+                      >
+                        Flip horizontal
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateElement(selectedElement.id, { flipV: !selectedElement.flipV })}
+                        className={`py-1.5 text-xs rounded-lg border ${selectedElement.flipV ? 'bg-blue-50 border-blue-400 text-blue-700' : 'border-gray-300 text-gray-600'}`}
+                      >
+                        Flip vertical
+                      </button>
+                    </div>
+                    <div className="mt-2">
+                      <label className="text-xs text-gray-400">Opacity ({Math.round((selectedElement.opacity ?? 1) * 100)}%)</label>
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        value={Math.round((selectedElement.opacity ?? 1) * 100)}
+                        onChange={(e) => updateElement(selectedElement.id, { opacity: (parseInt(e.target.value) || 0) / 100 })}
+                        className="w-full"
+                      />
+                    </div>
+                  </div>
+
                   {/* Typography */}
                   {selectedElement.type !== 'line' && selectedElement.type !== 'image' && selectedElement.type !== 'logo' && (
                     <div>
                       <label className="text-xs font-medium text-gray-500 mb-1 block">Typography</label>
                       <div className="space-y-2">
+                        <div>
+                          <label className="text-xs text-gray-400">Font</label>
+                          <select
+                            value={selectedElement.fontFamily || 'Arial'}
+                            onChange={(e) => updateElement(selectedElement.id, { fontFamily: e.target.value })}
+                            className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm outline-none"
+                          >
+                            <option value="Arial">Arial</option>
+                            <option value="Times New Roman">Times New Roman</option>
+                            <option value="Georgia">Georgia</option>
+                            <option value="Courier New">Courier New</option>
+                            <option value="Verdana">Verdana</option>
+                          </select>
+                        </div>
                         <div className="flex gap-2">
                           <div className="flex-1">
                             <label className="text-xs text-gray-400">Size</label>
@@ -1390,6 +1640,22 @@ export default function FeeReceiptTemplate() {
                           {selectedElement.type === 'line' ? 'Line Color' : 'Text Color'}
                         </span>
                       </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={selectedElement.backgroundColor && selectedElement.backgroundColor !== 'transparent' ? selectedElement.backgroundColor : '#ffffff'}
+                          onChange={(e) => updateElement(selectedElement.id, { backgroundColor: e.target.value })}
+                          className="w-8 h-8 rounded border border-gray-300 cursor-pointer"
+                        />
+                        <span className="text-sm text-gray-600">Background</span>
+                        <button
+                          type="button"
+                          className="text-xs text-gray-400 hover:text-gray-600"
+                          onClick={() => updateElement(selectedElement.id, { backgroundColor: 'transparent' })}
+                        >
+                          Clear
+                        </button>
+                      </div>
                       {selectedElement.showBorder && (
                         <div className="flex items-center gap-2">
                           <input
@@ -1404,21 +1670,49 @@ export default function FeeReceiptTemplate() {
                     </div>
                   </div>
 
-                  {/* Border Toggle */}
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-medium text-gray-500">Show Border</label>
-                    <button
-                      onClick={() => updateElement(selectedElement.id, { showBorder: !selectedElement.showBorder })}
-                      className={`w-10 h-5 rounded-full transition-colors ${
-                        selectedElement.showBorder ? 'bg-blue-600' : 'bg-gray-300'
-                      }`}
-                    >
-                      <div
-                        className={`w-4 h-4 bg-white rounded-full shadow transition-transform ${
-                          selectedElement.showBorder ? 'translate-x-5' : 'translate-x-0.5'
+                  {/* Border */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-xs font-medium text-gray-500">Show Border</label>
+                      <button
+                        onClick={() => updateElement(selectedElement.id, { showBorder: !selectedElement.showBorder })}
+                        className={`w-10 h-5 rounded-full transition-colors ${
+                          selectedElement.showBorder ? 'bg-blue-600' : 'bg-gray-300'
                         }`}
-                      />
-                    </button>
+                      >
+                        <div
+                          className={`w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                            selectedElement.showBorder ? 'translate-x-5' : 'translate-x-0.5'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                    {selectedElement.showBorder && (
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-xs text-gray-400">Width</label>
+                          <input
+                            type="number"
+                            min={1}
+                            max={12}
+                            value={selectedElement.borderWidth || 1}
+                            onChange={(e) => updateElement(selectedElement.id, { borderWidth: parseInt(e.target.value) || 1 })}
+                            className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-400">Radius</label>
+                          <input
+                            type="number"
+                            min={0}
+                            max={80}
+                            value={selectedElement.borderRadius || 0}
+                            onChange={(e) => updateElement(selectedElement.id, { borderRadius: parseInt(e.target.value) || 0 })}
+                            className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm outline-none"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
