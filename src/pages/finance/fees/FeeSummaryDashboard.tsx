@@ -1,4 +1,4 @@
-import React, { useState, Component } from 'react';
+import React, { useMemo, useState, Component } from 'react';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Select } from '../../../components/ui/Select';
@@ -35,7 +35,6 @@ import {
   Check } from
 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { ReportFilters } from '../../../components/ReportFilters';
 // Updated Info Panel Content Interface
 interface InfoPanelContent {
   title: string;
@@ -206,6 +205,45 @@ const BRANCHES = [
   name: 'East Branch',
   color: 'bg-orange-500'
 }];
+
+const BRANCH_METRICS: Record<string, {
+  demand: number
+  collected: number
+  outstanding: number
+  defaulters: number
+  students: number
+  today: number
+  month: number
+  onlinePct: number
+  concession: number
+  concessionStudents: number
+  todayTx: number
+  monthTx: number
+}> = {
+  main: { demand: 5200000, collected: 3850000, outstanding: 1350000, defaulters: 48, students: 520, today: 98000, month: 620000, onlinePct: 72, concession: 320000, concessionStudents: 32, todayTx: 9, monthTx: 78 },
+  north: { demand: 2800000, collected: 2100000, outstanding: 700000, defaulters: 36, students: 310, today: 62000, month: 380000, onlinePct: 64, concession: 210000, concessionStudents: 22, todayTx: 6, monthTx: 44 },
+  south: { demand: 2400000, collected: 1550000, outstanding: 850000, defaulters: 34, students: 250, today: 51000, month: 310000, onlinePct: 61, concession: 180000, concessionStudents: 18, todayTx: 5, monthTx: 38 },
+  east: { demand: 1600000, collected: 1050000, outstanding: 550000, defaulters: 24, students: 170, today: 34000, month: 210000, onlinePct: 69, concession: 140000, concessionStudents: 13, todayTx: 3, monthTx: 25 },
+}
+
+const YEAR_FACTOR: Record<string, number> = {
+  '2024-2025': 1,
+  '2023-2024': 0.92,
+  '2022-2023': 0.84,
+}
+
+function formatCurrency(amount: number) {
+  if (amount >= 10000000) {
+    return `₹${(amount / 10000000).toFixed(2)} Cr`
+  }
+  if (amount >= 100000) {
+    return `₹${(amount / 100000).toFixed(2)} L`
+  }
+  if (amount >= 1000) {
+    return `₹${(amount / 1000).toFixed(1)}K`
+  }
+  return `₹${amount}`
+}
 
 export function FeeSummaryDashboard() {
   const navigate = useNavigate();
@@ -464,23 +502,84 @@ export function FeeSummaryDashboard() {
 
     }
   };
+  const activeBranchIds = isAllSelected ? BRANCHES.map((b) => b.id) : selectedBranches
+  const yearFactor = YEAR_FACTOR[selectedYear] ?? 1
+  const monthFactor = selectedMonth === 'all' ? 1 : 0.18
+
+  const totals = useMemo(() => {
+    const ids = activeBranchIds.length ? activeBranchIds : BRANCHES.map((b) => b.id)
+    return ids.reduce(
+      (acc, id) => {
+        const m = BRANCH_METRICS[id]
+        if (!m) return acc
+        acc.demand += m.demand
+        acc.collected += m.collected
+        acc.outstanding += m.outstanding
+        acc.defaulters += m.defaulters
+        acc.students += m.students
+        acc.today += m.today
+        acc.month += m.month
+        acc.onlineWeighted += m.onlinePct * m.collected
+        acc.concession += m.concession
+        acc.concessionStudents += m.concessionStudents
+        acc.todayTx += m.todayTx
+        acc.monthTx += m.monthTx
+        return acc
+      },
+      {
+        demand: 0,
+        collected: 0,
+        outstanding: 0,
+        defaulters: 0,
+        students: 0,
+        today: 0,
+        month: 0,
+        onlineWeighted: 0,
+        concession: 0,
+        concessionStudents: 0,
+        todayTx: 0,
+        monthTx: 0,
+      },
+    )
+  }, [activeBranchIds.join('|')])
+
+  const scaled = {
+    demand: Math.round(totals.demand * yearFactor),
+    collected: Math.round(totals.collected * yearFactor * (selectedMonth === 'all' ? 1 : 0.22)),
+    outstanding: Math.round(totals.outstanding * yearFactor),
+    defaulters: Math.round(totals.defaulters * yearFactor),
+    students: totals.students,
+    today: Math.round(totals.today * yearFactor * monthFactor),
+    month: Math.round(totals.month * yearFactor * (selectedMonth === 'all' ? 1 : 0.35)),
+    onlinePct: totals.collected ? Math.round(totals.onlineWeighted / totals.collected) : 0,
+    concession: Math.round(totals.concession * yearFactor),
+    concessionStudents: totals.concessionStudents,
+    todayTx: totals.todayTx,
+    monthTx: totals.monthTx,
+  }
+  const collectionRate = scaled.demand ? Math.round((scaled.collected / scaled.demand) * 100) : 0
+  const defaulterPct = scaled.students ? ((scaled.defaulters / scaled.students) * 100).toFixed(1) : '0.0'
+  const branchLabel = isAllSelected
+    ? `All ${BRANCHES.length} branches`
+    : `${activeBranchIds.length} branch${activeBranchIds.length === 1 ? '' : 'es'} selected`
+
   const stats = [
   {
     id: 'totalDemand',
     title: 'Total Demand',
-    value: '₹1.2 Cr',
+    value: formatCurrency(scaled.demand),
     change: '+12%',
     trend: 'up' as const,
     icon: Wallet,
     color: 'blue',
-    subtext: 'For 1,250 students',
+    subtext: `For ${scaled.students.toLocaleString()} students · ${branchLabel}`,
     gradient: 'from-blue-500 to-blue-600'
   },
   {
     id: 'totalCollected',
     title: 'Total Collected',
-    value: '₹85.5 L',
-    change: '71%',
+    value: formatCurrency(scaled.collected),
+    change: `${collectionRate}%`,
     trend: 'up' as const,
     icon: TrendingUp,
     color: 'green',
@@ -490,8 +589,8 @@ export function FeeSummaryDashboard() {
   {
     id: 'outstanding',
     title: 'Outstanding',
-    value: '₹34.5 L',
-    change: '29%',
+    value: formatCurrency(scaled.outstanding),
+    change: `${scaled.demand ? Math.round((scaled.outstanding / scaled.demand) * 100) : 0}%`,
     trend: 'down' as const,
     icon: AlertTriangle,
     color: 'red',
@@ -501,12 +600,12 @@ export function FeeSummaryDashboard() {
   {
     id: 'defaulters',
     title: 'Defaulters',
-    value: '142',
+    value: String(scaled.defaulters),
     change: '+5',
     trend: 'up' as const,
     icon: Users,
     color: 'orange',
-    subtext: '11.4% of students',
+    subtext: `${defaulterPct}% of students`,
     gradient: 'from-orange-500 to-orange-600'
   }];
 
@@ -514,23 +613,23 @@ export function FeeSummaryDashboard() {
   {
     id: 'todayCollection',
     title: "Today's Collection",
-    value: '₹2.45 L',
+    value: formatCurrency(scaled.today),
     icon: IndianRupee,
     color: 'emerald',
-    description: '23 transactions'
+    description: `${scaled.todayTx} transactions`
   },
   {
     id: 'thisMonthCollection',
     title: 'This Month',
-    value: '₹15.2 L',
+    value: formatCurrency(scaled.month),
     icon: Calendar,
     color: 'blue',
-    description: '185 transactions'
+    description: `${scaled.monthTx} transactions`
   },
   {
     id: 'onlinePayments',
     title: 'Online Payments',
-    value: '68%',
+    value: `${scaled.onlinePct}%`,
     icon: CreditCard,
     color: 'purple',
     description: 'Payment mode share'
@@ -538,10 +637,10 @@ export function FeeSummaryDashboard() {
   {
     id: 'concessionGiven',
     title: 'Concessions',
-    value: '₹8.5 L',
+    value: formatCurrency(scaled.concession),
     icon: Receipt,
     color: 'teal',
-    description: '85 students'
+    description: `${scaled.concessionStudents} students`
   }];
 
   const classWiseData = [
@@ -709,16 +808,6 @@ export function FeeSummaryDashboard() {
     target: 2000000
   }];
 
-  const formatCurrency = (amount: number) => {
-    if (amount >= 10000000) {
-      return `₹${(amount / 10000000).toFixed(2)} Cr`;
-    } else if (amount >= 100000) {
-      return `₹${(amount / 100000).toFixed(2)} L`;
-    } else if (amount >= 1000) {
-      return `₹${(amount / 1000).toFixed(1)}K`;
-    }
-    return `₹${amount}`;
-  };
   const handleInfoNavigate = (path: string) => {
     navigate(path);
   };
@@ -900,8 +989,6 @@ export function FeeSummaryDashboard() {
         </div>
       }
 
-      <ReportFilters />
-
       {/* Main KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat) =>
@@ -945,6 +1032,31 @@ export function FeeSummaryDashboard() {
           </Card>
         )}
       </div>
+
+      {activeBranchIds.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {activeBranchIds.map((id) => {
+            const branch = BRANCHES.find((b) => b.id === id)
+            const metric = BRANCH_METRICS[id]
+            if (!branch || !metric) return null
+            const demand = Math.round(metric.demand * yearFactor)
+            const collected = Math.round(metric.collected * yearFactor)
+            const rate = demand ? Math.round((collected / demand) * 100) : 0
+            return (
+              <div key={id} className="rounded-xl border border-gray-200 bg-white px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <span className={`h-2.5 w-2.5 rounded-full ${branch.color}`} />
+                  <p className="text-sm font-semibold text-gray-800">{branch.name}</p>
+                </div>
+                <p className="mt-2 text-lg font-bold text-gray-900">{formatCurrency(collected)}</p>
+                <p className="text-xs text-gray-500">
+                  of {formatCurrency(demand)} demand · {rate}% · {metric.defaulters} defaulters
+                </p>
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       {/* Secondary Stats Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

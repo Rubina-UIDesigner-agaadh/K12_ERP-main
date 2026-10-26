@@ -1879,7 +1879,7 @@ export function ExpenseReport() {
   };
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="space-y-4 px-2 py-3">
       {/* ---------------- HEADER ---------------- */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-gray-200">
         <div className="flex items-center gap-3">

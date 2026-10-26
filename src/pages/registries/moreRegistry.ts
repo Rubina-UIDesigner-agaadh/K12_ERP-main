@@ -52,6 +52,50 @@ export const moreRegistry: Record<string, () => any> = {
   ),
 
   // Reports — Government
+  'board-compliance': rp(
+    () => import('../more/reports/BoardCompliance'),
+    'BoardCompliance'
+  ),
+  'government-custom-reports': rp(
+    () => import('../more/reports/CustomReportsPage'),
+    'CustomReportsPage'
+  ),
+  'student-custom-reports': rp(
+    () => import('../more/reports/CustomReportsPage'),
+    'CustomReportsPage'
+  ),
+  'academic-custom-reports': rp(
+    () => import('../more/reports/CustomReportsPage'),
+    'CustomReportsPage'
+  ),
+  'employee-custom-reports': rp(
+    () => import('../more/reports/CustomReportsPage'),
+    'CustomReportsPage'
+  ),
+  'finance-custom-reports': rp(
+    () => import('../more/reports/CustomReportsPage'),
+    'CustomReportsPage'
+  ),
+  'examination-custom-reports': rp(
+    () => import('../more/reports/CustomReportsPage'),
+    'CustomReportsPage'
+  ),
+  'event-competition-reports': rp(
+    () => import('../more/reports/EventCompetitionReports'),
+    'EventCompetitionReports'
+  ),
+  'teachers-duties-reports': rp(
+    () => import('../more/reports/TeachersDutiesReports'),
+    'TeachersDutiesReports'
+  ),
+  'academic-reports': rp(
+    () => import('../more/reports/AcademicReportsPage'),
+    'AcademicReportsPage'
+  ),
+  'user-login-reports': rp(
+    () => import('../more/reports/UserLoginReports'),
+    'UserLoginReports'
+  ),
   'cbse-compliance-dashboard': rp(
     () => import('../more/reports/CbseComplianceDashboard'),
     'CbseComplianceDashboard'

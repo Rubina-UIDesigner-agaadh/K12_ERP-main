@@ -26,6 +26,7 @@ type Step =
 'feedback' |
 'human-support';
 export function HelpSupportPanel({ isOpen, onClose }: HelpSupportPanelProps) {
+  const [forceOpen, setForceOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState<Step>('input');
   const [query, setQuery] = useState('');
   const [chatMessages, setChatMessages] = useState<
@@ -37,12 +38,22 @@ export function HelpSupportPanel({ isOpen, onClose }: HelpSupportPanelProps) {
   const [isTyping, setIsTyping] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (isOpen) {
+    const open = () => setForceOpen(true);
+    window.addEventListener('k12-open-help', open);
+    return () => window.removeEventListener('k12-open-help', open);
+  }, []);
+  const shown = isOpen || forceOpen;
+  const close = () => {
+    setForceOpen(false);
+    onClose();
+  };
+  useEffect(() => {
+    if (shown) {
       setCurrentStep('input');
       setQuery('');
       setChatMessages([]);
     }
-  }, [isOpen]);
+  }, [shown]);
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({
       behavior: 'smooth'
@@ -89,16 +100,16 @@ export function HelpSupportPanel({ isOpen, onClose }: HelpSupportPanelProps) {
   return (
     <>
       {/* Backdrop */}
-      {isOpen &&
+      {shown &&
       <div
         className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 transition-opacity"
-        onClick={onClose} />
+        onClick={close} />
 
       }
 
       {/* Panel */}
       <div
-        className={`fixed top-0 right-0 h-full w-[480px] bg-white shadow-2xl z-50 transform transition-transform duration-300 ease-in-out flex flex-col ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+        className={`fixed top-0 right-0 h-full w-[480px] bg-white shadow-2xl z-50 transform transition-transform duration-300 ease-in-out flex flex-col ${shown ? 'translate-x-0' : 'translate-x-full'}`}>
 
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-[#0F4C5C] text-white">
@@ -112,7 +123,7 @@ export function HelpSupportPanel({ isOpen, onClose }: HelpSupportPanelProps) {
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={close}
             className="p-2 hover:bg-white/10 rounded-full transition-colors text-white/80 hover:text-white">
 
             <X className="h-5 w-5" />
@@ -313,7 +324,7 @@ export function HelpSupportPanel({ isOpen, onClose }: HelpSupportPanelProps) {
 
               <div className="flex gap-4">
                 <button
-                onClick={() => onClose()}
+                onClick={close}
                 className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-transparent hover:border-green-100 hover:bg-green-50 transition-all group">
 
                   <div className="p-3 bg-green-100 text-green-600 rounded-full group-hover:scale-110 transition-transform">
