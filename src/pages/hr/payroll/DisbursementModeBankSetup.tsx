@@ -4,7 +4,6 @@ import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Select } from '../../../components/ui/Select';
 import { Badge } from '../../../components/ui/Badge';
-import { Tabs } from '../../../components/ui/Tabs';
 import {
   Plus,
   Edit,
@@ -140,55 +139,57 @@ export function DisbursementModeBankSetup() {
     b.ifscCode.toLowerCase().includes(search.toLowerCase())
   );
   const handleSaveMode = () => {
-    if (editModeId) {
-      setModes((prev) =>
-      prev.map((m) =>
-      m.id === editModeId ?
-      {
-        ...m,
-        ...modeForm
-      } :
-      m
-      )
-      );
-    } else {
-      setModes((prev) => [
-      ...prev,
-      {
-        ...modeForm,
-        id: `DM${Date.now()}`,
-        status: 'Active' as const
-      }]
-      );
-    }
+    if (!modeForm.modeCode.trim() || !modeForm.modeName.trim()) return;
+    const id = editModeId || `DM${Date.now()}`;
+    setModes((prev) => {
+      const next = editModeId
+        ? prev.map((m) => (m.id === editModeId ? { ...m, ...modeForm } : m))
+        : [...prev, { ...modeForm, id, status: 'Active' as const }];
+      if (modeForm.isDefault) {
+        return next.map((m) => ({ ...m, isDefault: m.id === id }));
+      }
+      return next;
+    });
     setModeForm(emptyModeForm);
     setShowModeForm(false);
     setEditModeId(null);
   };
   const handleSaveBank = () => {
-    if (editBankId) {
-      setBanks((prev) =>
-      prev.map((b) =>
-      b.id === editBankId ?
-      {
-        ...b,
-        ...bankForm
-      } :
-      b
-      )
-      );
-    } else {
-      setBanks((prev) => [
-      ...prev,
-      {
-        ...bankForm,
-        id: `BS${Date.now()}`,
-        status: 'Active' as const
-      }]
-      );
-    }
+    if (!bankForm.bankName.trim() || !bankForm.ifscCode.trim() || !bankForm.accountNumber.trim()) return;
+    const id = editBankId || `BS${Date.now()}`;
+    setBanks((prev) => {
+      const next = editBankId
+        ? prev.map((b) => (b.id === editBankId ? { ...b, ...bankForm } : b))
+        : [...prev, { ...bankForm, id, status: 'Active' as const }];
+      if (bankForm.isDefaultForPayroll) {
+        return next.map((b) => ({ ...b, isDefaultForPayroll: b.id === id }));
+      }
+      return next;
+    });
     setBankForm(emptyBankForm);
     setShowBankForm(false);
+    setEditBankId(null);
+  };
+  const deleteMode = (id: string) => {
+    setModes((prev) => prev.filter((m) => m.id !== id));
+    if (editModeId === id) {
+      setShowModeForm(false);
+      setEditModeId(null);
+    }
+  };
+  const deleteBank = (id: string) => {
+    setBanks((prev) => prev.filter((b) => b.id !== id));
+    if (editBankId === id) {
+      setShowBankForm(false);
+      setEditBankId(null);
+    }
+  };
+  const switchTab = (tab: string) => {
+    setActiveTab(tab);
+    setSearch('');
+    setShowModeForm(false);
+    setShowBankForm(false);
+    setEditModeId(null);
     setEditBankId(null);
   };
   const handleEditMode = (m: DisbursementMode) => {
@@ -296,15 +297,24 @@ export function DisbursementModeBankSetup() {
       </div>
 
       <Card>
-        <Tabs
-          tabs={tabs}
-          activeTab={activeTab}
-          onChange={(t) => {
-            setActiveTab(t);
-            setSearch('');
-            setShowModeForm(false);
-            setShowBankForm(false);
-          }} />
+        <div className="border-b border-gray-200">
+          <nav className="flex -mb-px">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => switchTab(tab.id)}
+                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === tab.id
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </nav>
+        </div>
 
         <div className="mt-4">
           <div className="flex items-center gap-3 mb-4">
@@ -433,12 +443,13 @@ export function DisbursementModeBankSetup() {
                         <td className="py-3 px-4 text-center">
                           <div className="flex items-center justify-center gap-1">
                             <button
+                          type="button"
                           onClick={() => handleEditMode(m)}
                           className="p-1.5 hover:bg-blue-100 rounded-lg">
 
                               <Edit className="w-4 h-4 text-blue-600" />
                             </button>
-                            <button className="p-1.5 hover:bg-red-100 rounded-lg">
+                            <button type="button" onClick={() => deleteMode(m.id)} className="p-1.5 hover:bg-red-100 rounded-lg">
                               <Trash2 className="w-4 h-4 text-red-500" />
                             </button>
                           </div>
@@ -643,12 +654,13 @@ export function DisbursementModeBankSetup() {
                         <td className="py-3 px-4 text-center">
                           <div className="flex items-center justify-center gap-1">
                             <button
+                          type="button"
                           onClick={() => handleEditBank(b)}
                           className="p-1.5 hover:bg-blue-100 rounded-lg">
 
                               <Edit className="w-4 h-4 text-blue-600" />
                             </button>
-                            <button className="p-1.5 hover:bg-red-100 rounded-lg">
+                            <button type="button" onClick={() => deleteBank(b.id)} className="p-1.5 hover:bg-red-100 rounded-lg">
                               <Trash2 className="w-4 h-4 text-red-500" />
                             </button>
                           </div>

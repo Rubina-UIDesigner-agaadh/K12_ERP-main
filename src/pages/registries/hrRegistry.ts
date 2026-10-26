@@ -268,6 +268,10 @@ export const hrRegistry: Record<string, () => any> = {
     () => import('../hr/payroll/PayHeadMaster'),
     'PayHeadMaster'
   ),
+  'salary-structure-master': rp(
+    () => import('../hr/payroll/SalaryStructureMaster'),
+    'SalaryStructureMaster'
+  ),
   'salary-grade-pay-scale-master': rp(
     () => import('../hr/payroll/SalaryGradePayScaleMaster'),
     'SalaryGradePayScaleMaster'
@@ -502,7 +506,7 @@ export const hrRegistry: Record<string, () => any> = {
   'evaluation-criteria-competency-master': rp(
     () => import('../hr/recruitment/EvaluationCriteriaCompetencyMaster'),
     'EvaluationCriteriaCompetencyMaster'
-  ), // HR Master → Evaluation Scorecard Master (full page, not UnderConstruction)
+  ),
   'interview-round-panel-master': rp(
     () => import('../hr/recruitment/InterviewRoundPanelMaster'),
     'InterviewRoundPanelMaster'

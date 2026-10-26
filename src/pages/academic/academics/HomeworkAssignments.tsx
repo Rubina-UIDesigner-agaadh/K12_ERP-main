@@ -5,7 +5,6 @@ import { Input } from '../../../components/ui/Input';
 import { Select } from '../../../components/ui/Select';
 import { Table } from '../../../components/ui/Table';
 import { Badge } from '../../../components/ui/Badge';
-import { Modal } from '../../../components/ui/Modal';
 import {
   Tabs,
   TabsList,
@@ -288,114 +287,105 @@ function parseDisplayDate(str: string): Date | null {
   }
 }
 
+function downloadText(filename: string, text: string) {
+  const blob = new Blob([text], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function CenterPanel({
+  title,
+  subtitle,
+  onClose,
+  children,
+  footer,
+  width = 'max-w-md',
+}: {
+  title: string;
+  subtitle?: string;
+  onClose: () => void;
+  children: React.ReactNode;
+  footer?: React.ReactNode;
+  width?: string;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-gray-950/40 p-4"
+      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <aside className={`relative flex max-h-[92vh] w-full ${width} flex-col overflow-hidden rounded-2xl bg-white shadow-2xl`}>
+        <div className="flex items-start justify-between border-b px-5 py-4">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+            {subtitle && <p className="mt-0.5 text-xs text-gray-500">{subtitle}</p>}
+          </div>
+          <button type="button" onClick={onClose} className="rounded-lg p-1.5 hover:bg-gray-100" aria-label="Close">
+            <XIcon className="h-4 w-4 text-gray-500" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-5">{children}</div>
+        {footer && <div className="flex justify-end gap-2 border-t bg-gray-50 px-5 py-4">{footer}</div>}
+      </aside>
+    </div>
+  );
+}
+
 interface ActionsPanelProps {
   item: WorkItem;
   onClose: () => void;
+  onEdit: () => void;
   onTrack: () => void;
+  onRemind: () => void;
+  onDownload: () => void;
+  onDelete: () => void;
 }
 
-function ActionsPanel({ item, onClose, onTrack }: ActionsPanelProps) {
+function ActionsPanel({ item, onClose, onEdit, onTrack, onRemind, onDownload, onDelete }: ActionsPanelProps) {
   return (
-    <div className="fixed inset-y-0 right-0 w-80 bg-white shadow-2xl border-l border-gray-200 z-50 flex flex-col">
-      <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-        <div>
-          <h3 className="font-semibold text-gray-900 text-sm">Actions</h3>
-          <p className="text-xs text-gray-500 mt-0.5 truncate max-w-[200px]">
-            {item.title}
-          </p>
+    <CenterPanel title="Actions" subtitle={item.title} onClose={onClose} width="max-w-md">
+      <div className="mb-4 rounded-lg bg-gray-50 p-3">
+        <p className="mb-1 text-xs text-gray-500">Status</p>
+        <Badge variant={item.status === 'Evaluated' ? 'success' : item.status === 'Submitted' ? 'primary' : 'warning'}>
+          {item.status}
+        </Badge>
+        <div className="mt-2 flex gap-3 text-xs text-gray-600">
+          <span>{item.submitted}/{item.totalStudents} submitted</span>
+          <span>{item.evaluated} evaluated</span>
         </div>
-        <button
-          onClick={onClose}
-          className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
-
-          <XIcon className="w-4 h-4 text-gray-500" />
+      </div>
+      <div className="space-y-2">
+        <button type="button" onClick={onEdit} className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left hover:bg-blue-50">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100"><EditIcon className="h-4 w-4 text-blue-600" /></div>
+          <div><p className="text-sm font-medium text-gray-800">Edit</p><p className="text-xs text-gray-500">Modify details or due date</p></div>
+          <ChevronRightIcon className="ml-auto h-4 w-4 text-gray-400" />
+        </button>
+        <button type="button" onClick={onTrack} className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left hover:bg-green-50">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-100"><FileTextIcon className="h-4 w-4 text-green-600" /></div>
+          <div><p className="text-sm font-medium text-gray-800">Track Submissions</p><p className="text-xs text-gray-500">View student submission status</p></div>
+          <ChevronRightIcon className="ml-auto h-4 w-4 text-gray-400" />
+        </button>
+        <button type="button" onClick={onRemind} className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left hover:bg-yellow-50">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-yellow-100"><BellIcon className="h-4 w-4 text-yellow-600" /></div>
+          <div><p className="text-sm font-medium text-gray-800">Send Reminder</p><p className="text-xs text-gray-500">Notify pending students</p></div>
+          <ChevronRightIcon className="ml-auto h-4 w-4 text-gray-400" />
+        </button>
+        <button type="button" onClick={onDownload} className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left hover:bg-indigo-50">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-100"><DownloadIcon className="h-4 w-4 text-indigo-600" /></div>
+          <div><p className="text-sm font-medium text-gray-800">Download</p><p className="text-xs text-gray-500">Export submission report</p></div>
+          <ChevronRightIcon className="ml-auto h-4 w-4 text-gray-400" />
+        </button>
+        <button type="button" onClick={onDelete} className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left hover:bg-red-50">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-100"><Trash2Icon className="h-4 w-4 text-red-600" /></div>
+          <div><p className="text-sm font-medium text-red-700">Delete</p><p className="text-xs text-gray-500">Permanently remove this item</p></div>
+          <ChevronRightIcon className="ml-auto h-4 w-4 text-gray-400" />
         </button>
       </div>
-      <div className="flex-1 p-4 space-y-2 overflow-y-auto">
-        <div className="p-3 bg-gray-50 rounded-lg mb-4">
-          <p className="text-xs text-gray-500 mb-1">Status</p>
-          <Badge
-            variant={
-            item.status === 'Evaluated' ?
-            'success' :
-            item.status === 'Submitted' ?
-            'primary' :
-            'warning'
-            }>
-
-            {item.status}
-          </Badge>
-          <div className="mt-2 flex gap-3 text-xs text-gray-600">
-            <span>
-              {item.submitted}/{item.totalStudents} submitted
-            </span>
-            <span>{item.evaluated} evaluated</span>
-          </div>
-        </div>
-        <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-blue-50 text-left transition-colors group">
-          <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center group-hover:bg-blue-200 transition-colors">
-            <EditIcon className="w-4 h-4 text-blue-600" />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-gray-800">Edit</p>
-            <p className="text-xs text-gray-500">Modify details or due date</p>
-          </div>
-          <ChevronRightIcon className="w-4 h-4 text-gray-400 ml-auto" />
-        </button>
-        <button
-          onClick={onTrack}
-          className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-green-50 text-left transition-colors group">
-
-          <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center group-hover:bg-green-200 transition-colors">
-            <FileTextIcon className="w-4 h-4 text-green-600" />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-gray-800">
-              Track Submissions
-            </p>
-            <p className="text-xs text-gray-500">
-              View student submission status
-            </p>
-          </div>
-          <ChevronRightIcon className="w-4 h-4 text-gray-400 ml-auto" />
-        </button>
-        <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-yellow-50 text-left transition-colors group">
-          <div className="w-8 h-8 rounded-lg bg-yellow-100 flex items-center justify-center group-hover:bg-yellow-200 transition-colors">
-            <BellIcon className="w-4 h-4 text-yellow-600" />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-gray-800">Send Reminder</p>
-            <p className="text-xs text-gray-500">Notify pending students</p>
-          </div>
-          <ChevronRightIcon className="w-4 h-4 text-gray-400 ml-auto" />
-        </button>
-        <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-indigo-50 text-left transition-colors group">
-          <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center group-hover:bg-indigo-200 transition-colors">
-            <DownloadIcon className="w-4 h-4 text-indigo-600" />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-gray-800">Download</p>
-            <p className="text-xs text-gray-500">Export submission report</p>
-          </div>
-          <ChevronRightIcon className="w-4 h-4 text-gray-400 ml-auto" />
-        </button>
-        <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-red-50 text-left transition-colors group">
-          <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center group-hover:bg-red-200 transition-colors">
-            <Trash2Icon className="w-4 h-4 text-red-600" />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-gray-800 text-red-700">
-              Delete
-            </p>
-            <p className="text-xs text-gray-500">
-              Permanently remove this item
-            </p>
-          </div>
-          <ChevronRightIcon className="w-4 h-4 text-gray-400 ml-auto" />
-        </button>
-      </div>
-    </div>);
-
+    </CenterPanel>
+  );
 }
 
 interface SectionPanelProps {
@@ -405,8 +395,21 @@ interface SectionPanelProps {
 }
 
 function SectionPanel({ type, data, label }: SectionPanelProps) {
+  const [items, setItems] = useState<WorkItem[]>(data);
+  const [submissions, setSubmissions] = useState<Submission[]>(submissionData);
   const [innerTab, setInnerTab] = useState('list');
   const [showCreate, setShowCreate] = useState(false);
+  const [editingItem, setEditingItem] = useState<WorkItem | null>(null);
+  const [formTitle, setFormTitle] = useState('');
+  const [formClass, setFormClass] = useState('');
+  const [formSection, setFormSection] = useState('');
+  const [formSubject, setFormSubject] = useState('');
+  const [formDue, setFormDue] = useState('');
+  const [formDesc, setFormDesc] = useState('');
+  const [notice, setNotice] = useState('');
+  const [evaluateRow, setEvaluateRow] = useState<Submission | null>(null);
+  const [evalMarks, setEvalMarks] = useState('');
+  const [evalRemarks, setEvalRemarks] = useState('');
   const [searchTitle, setSearchTitle] = useState('');
   const [filterClass, setFilterClass] = useState('');
   const [filterSection, setFilterSection] = useState('');
@@ -427,7 +430,7 @@ function SectionPanel({ type, data, label }: SectionPanelProps) {
   );
 
   const filtered = useMemo(() => {
-    return data.filter((h) => {
+    return items.filter((h) => {
       if (
         searchTitle &&
         !h.title.toLowerCase().includes(searchTitle.toLowerCase())
@@ -456,7 +459,7 @@ function SectionPanel({ type, data, label }: SectionPanelProps) {
       return true;
     });
   }, [
-    data,
+    items,
     searchTitle,
     filterClass,
     filterSection,
@@ -468,7 +471,7 @@ function SectionPanel({ type, data, label }: SectionPanelProps) {
   ]);
 
   const filteredSubmissions = useMemo(() => {
-    return submissionData.filter((s) => {
+    return submissions.filter((s) => {
       if (
         subSearchStudent &&
         !s.student.toLowerCase().includes(subSearchStudent.toLowerCase())
@@ -498,6 +501,7 @@ function SectionPanel({ type, data, label }: SectionPanelProps) {
       return true;
     });
   }, [
+    submissions,
     subSearchStudent,
     subSearchRollNo,
     subFilterStatus,
@@ -544,29 +548,128 @@ function SectionPanel({ type, data, label }: SectionPanelProps) {
     subDateFrom ||
     subDateTo;
 
-  const assignedCount = data.filter((h) => h.status === 'Assigned').length;
-  const submittedCount = data.filter((h) => h.status === 'Submitted').length;
-  const evaluatedCount = data.filter((h) => h.status === 'Evaluated').length;
+  const assignedCount = items.filter((h) => h.status === 'Assigned').length;
+  const submittedCount = items.filter((h) => h.status === 'Submitted').length;
+  const evaluatedCount = items.filter((h) => h.status === 'Evaluated').length;
+
+  const openCreate = (item?: WorkItem) => {
+    setEditingItem(item || null);
+    setFormTitle(item?.title || '');
+    setFormClass(item?.class || '');
+    setFormSection(item?.section || '');
+    setFormSubject(item?.subject || '');
+    setFormDue('');
+    setFormDesc(item?.description || '');
+    setShowCreate(true);
+    setActionsPanelItem(null);
+  };
+
+  const saveItem = () => {
+    if (!formTitle.trim()) {
+      setNotice(`Enter a ${label.toLowerCase()} title.`);
+      return;
+    }
+    if (editingItem) {
+      setItems((prev) => prev.map((item) => (item.id === editingItem.id ? { ...item, title: formTitle.trim(), class: formClass || item.class, section: formSection || item.section, subject: formSubject || item.subject, description: formDesc } : item)));
+      setNotice(`${label} updated.`);
+    } else {
+      setItems((prev) => [{
+        id: Date.now(),
+        title: formTitle.trim(),
+        subject: formSubject || 'General',
+        class: formClass || 'Class 1',
+        section: formSection || 'A',
+        dueDate: formDue || '—',
+        assignedDate: '26 Oct 2026',
+        teacher: 'You',
+        status: 'Assigned',
+        totalStudents: 30,
+        submitted: 0,
+        evaluated: 0,
+        hasAttachment: false,
+        description: formDesc,
+      }, ...prev]);
+      setNotice(`${label} created.`);
+    }
+    setShowCreate(false);
+    setEditingItem(null);
+  };
+
+  const openEvaluate = (row: Submission) => {
+    setEvaluateRow(row);
+    setEvalMarks(row.marks === '—' ? '' : row.marks.replace('/10', ''));
+    setEvalRemarks(row.remarks);
+  };
+
+  const saveEvaluate = () => {
+    if (!evaluateRow) return;
+    const marks = evalMarks.trim() ? (evalMarks.includes('/') ? evalMarks : `${evalMarks}/10`) : '0/10';
+    setSubmissions((prev) => prev.map((s) => (s.id === evaluateRow.id ? { ...s, status: 'Evaluated', marks, remarks: evalRemarks.trim() } : s)));
+    setNotice(`Saved evaluation for ${evaluateRow.student}.`);
+    setEvaluateRow(null);
+  };
 
   return (
     <>
-      {actionsPanelItem &&
-      <>
-          <div
-          className="fixed inset-0 bg-black/20 z-40"
-          onClick={() => setActionsPanelItem(null)} />
-
-          <ActionsPanel
+      {notice && (
+        <div className="mb-3 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">{notice}</div>
+      )}
+      {actionsPanelItem && (
+        <ActionsPanel
           item={actionsPanelItem}
           onClose={() => setActionsPanelItem(null)}
+          onEdit={() => openCreate(actionsPanelItem)}
           onTrack={() => {
             setSelectedItem(actionsPanelItem);
             setInnerTab('submissions');
             setActionsPanelItem(null);
-          }} />
-
-        </>
-      }
+          }}
+          onRemind={() => {
+            setNotice(`Reminder sent to pending students for “${actionsPanelItem.title}”.`);
+            setActionsPanelItem(null);
+          }}
+          onDownload={() => {
+            const rows = [['Student', 'Roll', 'Submitted On', 'Status', 'Marks', 'Remarks'], ...submissions.map((s) => [s.student, s.rollNo, s.submittedOn, s.status, s.marks, s.remarks])];
+            downloadText(`${actionsPanelItem.title.replace(/\s+/g, '-').toLowerCase()}-submissions.csv`, rows.map((r) => r.map((c) => `"${c}"`).join(',')).join('\n'));
+            setNotice('Submission report downloaded.');
+            setActionsPanelItem(null);
+          }}
+          onDelete={() => {
+            setItems((prev) => prev.filter((item) => item.id !== actionsPanelItem.id));
+            setNotice(`${label} deleted.`);
+            setActionsPanelItem(null);
+          }}
+        />
+      )}
+      {evaluateRow && (
+        <CenterPanel
+          title={evaluateRow.status === 'Evaluated' ? 'Edit evaluation' : 'Evaluate submission'}
+          subtitle={`${evaluateRow.student} · Roll ${evaluateRow.rollNo}`}
+          onClose={() => setEvaluateRow(null)}
+          width="max-w-lg"
+          footer={
+            <>
+              <Button variant="outline" onClick={() => setEvaluateRow(null)}>Cancel</Button>
+              <Button variant="primary" onClick={saveEvaluate}>Save evaluation</Button>
+            </>
+          }
+        >
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">Submitted: {evaluateRow.submittedOn}{evaluateRow.lateSubmission ? ' · Late' : ''}</p>
+            <Input label="Marks" value={evalMarks} onChange={(e) => setEvalMarks(e.target.value)} placeholder="e.g. 8 or 8/10" />
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">Remarks</label>
+              <textarea
+                className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                rows={3}
+                value={evalRemarks}
+                onChange={(e) => setEvalRemarks(e.target.value)}
+                placeholder="Feedback for the student"
+              />
+            </div>
+          </div>
+        </CenterPanel>
+      )}
 
       <div className="grid grid-cols-3 gap-3 mb-4">
         <div className="bg-yellow-50 border border-yellow-100 rounded-lg p-3 flex items-center gap-3">
@@ -595,7 +698,7 @@ function SectionPanel({ type, data, label }: SectionPanelProps) {
       </div>
 
       <div className="mb-3 flex justify-end">
-        <Button variant="primary" size="sm" leftIcon={<EditIcon className="w-4 h-4" />} onClick={() => setShowCreate(true)}>
+        <Button variant="primary" size="sm" leftIcon={<EditIcon className="w-4 h-4" />} onClick={() => openCreate()}>
           Create / Edit {label}
         </Button>
       </div>
@@ -832,7 +935,7 @@ function SectionPanel({ type, data, label }: SectionPanelProps) {
 
             <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
               <span className="text-sm text-gray-500">
-                Showing {filtered.length} of {data.length} {label.toLowerCase()}
+                Showing {filtered.length} of {items.length} {label.toLowerCase()}
               </span>
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" disabled>
@@ -845,101 +948,59 @@ function SectionPanel({ type, data, label }: SectionPanelProps) {
             </div>
           </TabsContent>
 
-          <Modal isOpen={showCreate} onClose={() => setShowCreate(false)} title={`Create / Edit ${label}`} size="lg">
-            <div className="max-w-3xl space-y-5">
-              <h3 className="text-base font-semibold text-gray-900">
-                Create New {label}
-              </h3>
+          {showCreate && (
+            <CenterPanel
+              title={editingItem ? `Edit ${label}` : `Create ${label}`}
+              subtitle={editingItem ? editingItem.title : `New ${label.toLowerCase()}`}
+              onClose={() => { setShowCreate(false); setEditingItem(null); }}
+              width="max-w-3xl"
+              footer={
+                <>
+                  <Button variant="outline" onClick={() => { setShowCreate(false); setEditingItem(null); }}>Cancel</Button>
+                  <Button variant="primary" onClick={saveItem}>{editingItem ? 'Update' : 'Create'} {label}</Button>
+                </>
+              }
+            >
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Input
                   label={`${label} Title`}
+                  value={formTitle}
+                  onChange={(e) => setFormTitle(e.target.value)}
                   placeholder={`e.g. ${type === 'assignment' ? 'Science Project — Solar System' : 'Addition & Subtraction Worksheet'}`}
-                  className="md:col-span-2" />
-
+                  className="md:col-span-2"
+                />
                 <Select
                   label="Class"
-                  options={[
-                  { value: '', label: 'Select Class' },
-                  ...Array.from(
-                    { length: 12 },
-                    (_, i) => ({
-                      value: `class-${i + 1}`,
-                      label: `Class ${i + 1}`
-                    })
-                  )]
-                  }
-                  placeholder="Select Class" />
-
+                  options={[{ value: '', label: 'Select Class' }, ...Array.from({ length: 12 }, (_, i) => ({ value: `Class ${i + 1}`, label: `Class ${i + 1}` }))]}
+                  value={formClass}
+                  onChange={setFormClass}
+                />
                 <Select
                   label="Section"
-                  options={[
-                  { value: '', label: 'Select Section' },
-                  { value: 'a', label: 'Section A' },
-                  { value: 'b', label: 'Section B' },
-                  { value: 'c', label: 'Section C' }]
-                  }
-                  placeholder="Select Section" />
-
+                  options={[{ value: '', label: 'Select Section' }, { value: 'A', label: 'Section A' }, { value: 'B', label: 'Section B' }, { value: 'C', label: 'Section C' }]}
+                  value={formSection}
+                  onChange={setFormSection}
+                />
                 <Select
                   label="Subject"
-                  options={[
-                  { value: '', label: 'Select Subject' },
-                  { value: 'mathematics', label: 'Mathematics' },
-                  { value: 'english', label: 'English' },
-                  { value: 'science', label: 'Science' },
-                  { value: 'social-studies', label: 'Social Studies' },
-                  { value: 'hindi', label: 'Hindi' }]
-                  }
-                  placeholder="Select Subject" />
-
-                <Input label="Due Date" type="date" />
-                {type === 'assignment' &&
-                <Select
-                  label="Assignment Type"
-                  options={[
-                  { value: '', label: 'Select Type' },
-                  { value: 'project', label: 'Project' },
-                  { value: 'worksheet', label: 'Worksheet' },
-                  { value: 'essay', label: 'Essay' },
-                  { value: 'presentation', label: 'Presentation' },
-                  { value: 'lab-report', label: 'Lab Report' }]
-                  }
-                  placeholder="Select Type" />
-
-                }
+                  options={[{ value: '', label: 'Select Subject' }, { value: 'Mathematics', label: 'Mathematics' }, { value: 'English', label: 'English' }, { value: 'Science', label: 'Science' }, { value: 'Social Studies', label: 'Social Studies' }, { value: 'Hindi', label: 'Hindi' }]}
+                  value={formSubject}
+                  onChange={setFormSubject}
+                />
+                <Input label="Due Date" type="date" value={formDue} onChange={(e) => setFormDue(e.target.value)} />
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Description / Instructions
-                  </label>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">Description / Instructions</label>
                   <textarea
-                    className="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     rows={3}
-                    placeholder="Describe the task in detail..." />
-
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Attach Document
-                  </label>
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors cursor-pointer">
-                    <PaperclipIcon className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                    <p className="text-sm text-gray-600">
-                      Click to upload or drag and drop
-                    </p>
-                    <p className="text-xs text-gray-400 mt-1">
-                      PDF, DOC, DOCX, JPG, PNG up to 10MB
-                    </p>
-                  </div>
+                    value={formDesc}
+                    onChange={(e) => setFormDesc(e.target.value)}
+                    placeholder="Describe the task in detail..."
+                  />
                 </div>
               </div>
-              <div className="flex gap-3 pt-2">
-                <Button variant="primary">Create {label}</Button>
-                <Button variant="outline" onClick={() => setShowCreate(false)}>
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          </Modal>
+            </CenterPanel>
+          )}
 
           <TabsContent value="submissions" className="p-5">
             {selectedItem &&
@@ -1144,7 +1205,7 @@ function SectionPanel({ type, data, label }: SectionPanelProps) {
                 render: (row) =>
                 <div className="flex gap-1">
                       {row.status === 'Submitted' &&
-                  <Button variant="primary" size="xs">
+                  <Button variant="primary" size="xs" onClick={() => openEvaluate(row)}>
                           Evaluate
                         </Button>
                   }
@@ -1152,9 +1213,18 @@ function SectionPanel({ type, data, label }: SectionPanelProps) {
                   <Button
                     variant="ghost"
                     size="xs"
-                    leftIcon={<EditIcon className="w-3 h-3" />}>
+                    leftIcon={<EditIcon className="w-3 h-3" />}
+                    onClick={() => openEvaluate(row)}>
 
                           Edit
+                        </Button>
+                  }
+                      {row.status === 'Not Submitted' &&
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    onClick={() => setNotice(`Reminder sent to ${row.student}.`)}>
+                          Remind
                         </Button>
                   }
                     </div>
@@ -1171,13 +1241,18 @@ function SectionPanel({ type, data, label }: SectionPanelProps) {
 
             <div className="flex items-center justify-between mt-4">
               <span className="text-sm text-gray-500">
-                Showing {filteredSubmissions.length} of {submissionData.length}{' '}
+                Showing {filteredSubmissions.length} of {submissions.length}{' '}
                 students
               </span>
               <Button
                 variant="outline"
                 size="sm"
-                leftIcon={<DownloadIcon className="w-4 h-4" />}>
+                leftIcon={<DownloadIcon className="w-4 h-4" />}
+                onClick={() => {
+                  const rows = [['Student', 'Roll', 'Submitted On', 'Status', 'Marks', 'Remarks'], ...filteredSubmissions.map((s) => [s.student, s.rollNo, s.submittedOn, s.status, s.marks, s.remarks])];
+                  downloadText(`${label.toLowerCase()}-submissions.csv`, rows.map((r) => r.map((c) => `"${c}"`).join(',')).join('\n'));
+                  setNotice('Submission list exported.');
+                }}>
 
                 Export Submission List
               </Button>
