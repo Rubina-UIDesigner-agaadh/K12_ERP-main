@@ -1,6 +1,5 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../../components/ui/Tabs';
 import { StaffStrengthDemographicReport } from './StaffStrengthDemographicReport';
 import { TeachingAllocationSummary } from './TeachingAllocationSummary';
 import {
@@ -2204,29 +2203,32 @@ function AdvancedSearchReport() {
 
 // Combined Employee Reports page: the three report-criteria pages appear as tabs in one place.
 const EMPLOYEE_REPORT_TABS = [
-  { id: 'employee-report-advanced', label: 'Employee Report (Advanced Search)' },
   { id: 'staff-strength-demographic-report', label: 'Staff Strength & Demographic Report' },
   { id: 'teaching-allocation-summary', label: 'Teaching Allocation Summary' }];
 
 function CombinedEmployeeReports({ initialReport }: {initialReport: string;}) {
   const [activeReport, setActiveReport] = useState(initialReport);
   return (
-    <Tabs value={activeReport} onValueChange={setActiveReport}>
-      <TabsList className="overflow-x-auto bg-white px-4 sm:px-6">
+    <div>
+      <div className="flex gap-1 overflow-x-auto bg-white px-4 sm:px-6 border-b">
         {EMPLOYEE_REPORT_TABS.map((tab) =>
-        <TabsTrigger key={tab.id} value={tab.id} className="whitespace-nowrap">{tab.label}</TabsTrigger>
+        <button
+          key={tab.id}
+          type="button"
+          onClick={() => setActiveReport(tab.id)}
+          className={`whitespace-nowrap px-4 py-2.5 text-sm font-medium border-b-2 ${activeReport === tab.id ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500'}`}
+        >
+          {tab.label}
+        </button>
         )}
-      </TabsList>
-      <TabsContent value="employee-report-advanced"><AdvancedSearchReport /></TabsContent>
-      <TabsContent value="staff-strength-demographic-report"><StaffStrengthDemographicReport /></TabsContent>
-      <TabsContent value="teaching-allocation-summary"><TeachingAllocationSummary /></TabsContent>
-    </Tabs>);
+      </div>
+      {activeReport === 'teaching-allocation-summary' ? <TeachingAllocationSummary /> : <StaffStrengthDemographicReport />}
+    </div>);
 
 }
 
 export function EmployeeReportAdvanced() {
-  // The sidebar id (route pageId) selects the matching tab; the combined entry opens the first report.
   const { pageId } = useParams<{pageId: string;}>();
-  const initialReport = EMPLOYEE_REPORT_TABS.find((tab) => tab.id === pageId)?.id ?? 'employee-report-advanced';
+  const initialReport = EMPLOYEE_REPORT_TABS.find((tab) => tab.id === pageId)?.id ?? 'staff-strength-demographic-report';
   return <CombinedEmployeeReports key={pageId} initialReport={initialReport} />;
 }

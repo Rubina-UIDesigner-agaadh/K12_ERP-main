@@ -328,3 +328,5 @@ export const moreRegistry: Record<string, () => any> = {
     'FeedbackClosure'
   )
 };
+
+export default moreRegistry;

@@ -97,6 +97,8 @@ export function WeeklyTeachingPlan({
       planSubmitted: false,
       reviewDecision: '',
       reviewFeedback: '',
+      planNotes: '',
+      checkpoints: [{ id: newPlanningId('cp'), task: '', done: false }],
     });
   };
 
@@ -325,12 +327,30 @@ export function WeeklyTeachingPlan({
               </div>
               <p className="text-xs text-slate-500">Use Approve or Revise on the plan list. Revise asks what needs to change.</p>
             </PlanningPanel>
-            <PlanningPanel title="Substitution & Coverage">
-              <div className="grid gap-3 md:grid-cols-2">
-                <SelectField label="Substitute Teacher" value={form.substitute || 'None'} onChange={(value) => update('substitute', value === 'None' ? '' : value)} options={['None', ...teachers.filter((teacher) => teacher !== form.teacher)]} />
-                <TextAreaField label="Reason for substitution" value={form.substitutionReason || ''} onChange={(value) => update('substitutionReason', value)} />
+            <PlanningPanel title="Checkpoints">
+              <div className="space-y-2">
+                {(form.checkpoints || []).map((checkpoint, index) => (
+                  <div key={checkpoint.id} className="flex flex-wrap items-center gap-2">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                      checked={checkpoint.done}
+                      onChange={(event) => update('checkpoints', (form.checkpoints || []).map((item) => item.id === checkpoint.id ? { ...item, done: event.target.checked } : item))}
+                    />
+                    <input
+                      className="min-w-0 flex-1 rounded-md border border-slate-200 px-3 py-2 text-sm"
+                      placeholder={`Checkpoint ${index + 1} task`}
+                      value={checkpoint.task}
+                      onChange={(event) => update('checkpoints', (form.checkpoints || []).map((item) => item.id === checkpoint.id ? { ...item, task: event.target.value } : item))}
+                    />
+                    <Button size="xs" variant="ghost" onClick={() => update('checkpoints', (form.checkpoints || []).filter((item) => item.id !== checkpoint.id))}>Remove</Button>
+                  </div>
+                ))}
+                <Button size="xs" variant="outline" onClick={() => update('checkpoints', [...(form.checkpoints || []), { id: newPlanningId('cp'), task: '', done: false }])}>Add checkpoint</Button>
               </div>
-              <p className="text-xs text-slate-500">Saving checks timetable conflicts for both the assigned teacher and any substitute, including existing cover assignments.</p>
+            </PlanningPanel>
+            <PlanningPanel title="Notes">
+              <TextAreaField label="Notes" value={form.planNotes || ''} onChange={(value) => update('planNotes', value)} placeholder="Any notes for this teaching plan..." />
             </PlanningPanel>
           </div>
         )}

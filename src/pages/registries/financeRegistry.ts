@@ -240,3 +240,5 @@ export const financeRegistry: Record<string, () => any> = {
   ),
 
 };
+
+export default financeRegistry;

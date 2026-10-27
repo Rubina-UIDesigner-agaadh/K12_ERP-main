@@ -1,8 +1,10 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronDown } from 'lucide-react';
-import { modules } from '../data/navigationData';
+import * as navigationData from '../data/navigationData';
 import { Module, SubModule } from '../types/navigation';
+
+const modules = (navigationData.modules ?? (navigationData as { default?: Module[] }).default ?? []) as Module[];
 interface SecondaryNavProps {
   activeModuleId: string;
   onModuleSelect: (moduleId: string) => void;

@@ -29,11 +29,11 @@ import {
   Keyboard
 } from
   'lucide-react';
-import { modules } from './data/navigationData';
+import * as navigationData from './data/navigationData';
 import { SecondaryNav } from './components/SecondaryNav';
 import { Sidebar } from './components/Sidebar';
 import { DynamicPage } from './components/DynamicPage';
-import { SubModule, FavoriteItem } from './types/navigation';
+import { SubModule, FavoriteItem, Module } from './types/navigation';
 import { LoginPage } from './pages/LoginPage';
 import { HeaderDropdown } from './components/header/HeaderDropdowns';
 import { SettingsPage } from './pages/SettingsPage';
@@ -44,6 +44,8 @@ import { HelpSupportPanel } from './components/header/HelpSupportPanel';
 import { ThemePanel } from './components/header/ThemePanel';
 import { LogoutModal } from './components/header/LogoutModal';
 import { KeyboardShortcutsRuntime, openShortcutList } from './pages/my-details/settings/MyDisplayLanguage';
+
+const modules = (navigationData.modules ?? (navigationData as { default?: Module[] }).default ?? []) as Module[];
 // Helper: find first page ID for a submodule
 function getFirstPageId(subModule: SubModule): string {
   if (subModule.sidebarConfig && subModule.sidebarConfig.length > 0) {

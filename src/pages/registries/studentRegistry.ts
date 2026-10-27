@@ -374,3 +374,5 @@ export const studentRegistry: Record<string, () => any> = {
     'PrintTemplate'
   )
 };
+
+export default studentRegistry;

@@ -83,3 +83,5 @@ export const myDetailsRegistry: Record<string, () => any> = {
     'MyCalendar'
   )
 };
+
+export default myDetailsRegistry;

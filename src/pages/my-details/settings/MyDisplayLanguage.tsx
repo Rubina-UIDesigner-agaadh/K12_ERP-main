@@ -36,8 +36,10 @@ import {
 import { Card } from '../../../components/ui/Card'
 import { Button } from '../../../components/ui/Button'
 import { Badge } from '../../../components/ui/Badge'
-import { modules } from '../../../data/navigationData'
+import * as navigationData from '../../../data/navigationData'
 import type { Module, SubModule } from '../../../types/navigation'
+
+const modules = (navigationData.modules ?? (navigationData as { default?: Module[] }).default ?? []) as Module[]
 
 interface DisplayPreferences {
   language: string

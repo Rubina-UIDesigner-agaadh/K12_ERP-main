@@ -799,6 +799,20 @@ function uid() {
   return `id-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 }
 
+function stampNow() {
+  return new Date().toLocaleString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function reportFingerprint(columns: string[], vals: Record<string, FVal>, lg: Logic) {
+  return JSON.stringify({ columns, values: vals, logic: lg });
+}
+
 function FilterControl({
   def,
   value,
@@ -1253,6 +1267,190 @@ function employeeGroupTitle(f: FilterDef) {
   return f.group;
 }
 
+const FINANCE_STORAGE = 'k12-finance-custom-report-builder-v1';
+const FINANCE_FILTER_SET_STORAGE = 'k12-finance-filter-sets-v1';
+const FINANCE_FILTER_HISTORY_STORAGE = 'k12-finance-filter-history-v1';
+
+const finBranches = opt(['Main Campus', 'East Wing', 'West Wing']);
+const finRecordTypes = opt(['Fee Collection', 'Charge', 'Scholarship', 'Expense', 'Ledger', 'Refund']);
+const finFeeHeads = opt(['Tuition', 'Transport', 'Admission', 'Exam', 'Library', 'Lab', 'Hostel']);
+const finFeeCats = opt(['General', 'RTE', 'Staff Ward', 'Sibling']);
+const finInstallments = opt(['Term 1', 'Term 2', 'Term 3', 'Annual']);
+const finPayModes = opt(['Cash', 'UPI', 'Card', 'NEFT', 'Cheque', 'DD']);
+const finFeeStatuses = opt(['Paid', 'Partial', 'Due', 'Overdue']);
+const finExemptions = opt(['None', 'Sibling', 'Staff Ward', 'RTE', 'Scholarship']);
+const finChargeTypes = opt(['ID Card', 'Certificate', 'Duplicate Marksheet', 'Bus Pass', 'Prospectus']);
+const finChargeStatuses = opt(['Collected', 'Pending', 'Cancelled']);
+const finSchemes = opt(['Merit', 'Minority', 'SC/ST', 'Government', 'Private']);
+const finAgencies = opt(['State Govt', 'Central Govt', 'Trust', 'CSR Partner']);
+const finDisbStatuses = opt(['Awarded', 'Disbursed', 'Pending', 'Cancelled']);
+const finExpenseHeads = opt(['Utilities', 'Stationery', 'Maintenance', 'Transport', 'Lab consumables', 'Petty Cash']);
+const finVendors = opt(['ABC Supplies', 'City Electricals', 'School Books Co', 'Green Clean', 'HDFC Vendor']);
+const finExpenseStatuses = opt(['Requested', 'Approved', 'Paid', 'Rejected']);
+const finAccounts = opt(['Tuition Fees', 'Bank - HDFC', 'Cash in Hand', 'Salary Payable', 'Scholarship Expense', 'Transport Income']);
+const finVoucherTypes = opt(['Receipt', 'Payment', 'Journal', 'Contra']);
+const finBooks = opt(['Cash Book', 'Bank Book', 'Day Book']);
+const finRefundStatuses = opt(['Requested', 'Approved', 'Paid', 'Rejected']);
+const finTerms = opt(['Term 1', 'Term 2', 'Term 3']);
+
+const FINANCE_FILTERS: FilterDef[] = [
+  F('academicYear', 'Academic Year', 'select', 'Global', 'all', years),
+  F('branch', 'Branch / Centre', 'select', 'Global', 'all', finBranches),
+  F('term', 'Term', 'select', 'Global', 'all', finTerms),
+  F('recordType', 'Record type', 'select', 'Global', 'all', finRecordTypes),
+  F('classGrade', 'Class / Grade', 'multi', 'Global', 'all', classes),
+  F('section', 'Section', 'multi', 'Global', 'all', sections),
+
+  F('student', 'Student', 'text', 'Party', 'party'),
+  F('admissionNo', 'Admission No', 'text', 'Party', 'party'),
+  F('parentName', 'Parent', 'text', 'Party', 'party'),
+  F('employee', 'Employee / payee', 'text', 'Party', 'party'),
+  F('vendor', 'Vendor', 'select', 'Party', 'party', finVendors),
+
+  F('receiptNo', 'Receipt No', 'text', 'Collection', 'fees'),
+  F('feeHead', 'Fee head', 'select', 'Collection', 'fees', finFeeHeads),
+  F('feeCategory', 'Fee category', 'select', 'Collection', 'fees', finFeeCats),
+  F('installment', 'Installment', 'select', 'Collection', 'fees', finInstallments),
+  F('grossAmount', 'Gross amount', 'nums', 'Collection', 'fees'),
+  F('concession', 'Concession', 'nums', 'Collection', 'fees'),
+  F('paidAmount', 'Paid amount', 'nums', 'Collection', 'fees'),
+  F('balanceAmount', 'Balance due', 'nums', 'Collection', 'fees'),
+  F('lateFine', 'Late fine', 'nums', 'Collection', 'fees'),
+  F('dueDate', 'Due date', 'dates', 'Collection', 'fees'),
+  F('collectionDate', 'Collection date', 'dates', 'Collection', 'fees'),
+  F('paymentMode', 'Payment mode', 'select', 'Collection', 'fees', finPayModes),
+  F('feeStatus', 'Fee status', 'select', 'Collection', 'fees', finFeeStatuses),
+  F('exemptionType', 'Exemption', 'select', 'Collection', 'fees', finExemptions),
+
+  F('chargeType', 'Charge type', 'select', 'Other receipts', 'charge', finChargeTypes),
+  F('chargeReceipt', 'Charge receipt', 'text', 'Other receipts', 'charge'),
+  F('chargeAmount', 'Charge amount', 'nums', 'Other receipts', 'charge'),
+  F('chargeStatus', 'Charge status', 'select', 'Other receipts', 'charge', finChargeStatuses),
+
+  F('scheme', 'Scholarship scheme', 'select', 'Award', 'scholarship', finSchemes),
+  F('agency', 'Agency / donor', 'select', 'Award', 'scholarship', finAgencies),
+  F('awardAmount', 'Award amount', 'nums', 'Award', 'scholarship'),
+  F('disbursementStatus', 'Disbursement status', 'select', 'Award', 'scholarship', finDisbStatuses),
+  F('disbursementDate', 'Disbursement date', 'dates', 'Award', 'scholarship'),
+
+  F('voucherNo', 'Voucher / bill no', 'text', 'Spend', 'expense'),
+  F('expenseHead', 'Expense head', 'select', 'Spend', 'expense', finExpenseHeads),
+  F('billNo', 'Bill / invoice no', 'text', 'Spend', 'expense'),
+  F('requestedAmount', 'Requested amount', 'nums', 'Spend', 'expense'),
+  F('approvedAmount', 'Approved / paid', 'nums', 'Spend', 'expense'),
+  F('expenseStatus', 'Expense status', 'select', 'Spend', 'expense', finExpenseStatuses),
+  F('expenseDate', 'Expense date', 'dates', 'Spend', 'expense'),
+
+  F('accountName', 'Account', 'select', 'Books', 'ledger', finAccounts),
+  F('accountCode', 'Account code', 'text', 'Books', 'ledger'),
+  F('voucherType', 'Voucher type', 'select', 'Books', 'ledger', finVoucherTypes),
+  F('debit', 'Debit', 'nums', 'Books', 'ledger'),
+  F('credit', 'Credit', 'nums', 'Books', 'ledger'),
+  F('book', 'Book', 'select', 'Books', 'ledger', finBooks),
+
+  F('refundNo', 'Refund no', 'text', 'Returns', 'refund'),
+  F('refundAmount', 'Refund amount', 'nums', 'Returns', 'refund'),
+  F('refundStatus', 'Refund status', 'select', 'Returns', 'refund', finRefundStatuses),
+];
+
+const FIN_STUDENTS = ['Aarav Shah', 'Diya Patel', 'Isha Nair', 'Rohan Joshi', 'Kabir Mehta', 'Ananya Desai', 'Vihaan Rao', 'Myra Kapoor'];
+const FIN_PARENTS = ['Rajesh Shah', 'Nilesh Patel', 'Suresh Nair', 'Amit Joshi', 'Karan Mehta', 'Mehul Desai', 'Arun Rao', 'Nikhil Kapoor'];
+const FIN_EMPLOYEES = ['Mrs. Patel', 'Mr. Verma', 'Accounts Desk', 'Transport Desk', 'Admin Office'];
+
+function makeFinance(i: number): Row {
+  const student = FIN_STUDENTS[i % FIN_STUDENTS.length];
+  const recordType = finRecordTypes[i % finRecordTypes.length].value;
+  const cls = classes[3 + (i % 12)].value;
+  const month = String((i % 8) + 4).padStart(2, '0');
+  const day = String(8 + (i % 18)).padStart(2, '0');
+  const gross = 8000 + (i % 7) * 2500;
+  const concession = i % 4 === 0 ? Math.round(gross * 0.1) : 0;
+  const paid = recordType === 'Refund' ? 0 : i % 5 === 0 ? Math.round((gross - concession) * 0.5) : gross - concession;
+  const balance = Math.max(0, gross - concession - paid);
+  const chargeAmt = 150 + (i % 5) * 50;
+  const award = 5000 + (i % 6) * 2000;
+  const requested = 1200 + (i % 8) * 800;
+  const approved = i % 7 === 0 ? 0 : requested;
+  return {
+    financeId: `FN-${2401 + i}`,
+    academicYear: i % 9 === 0 ? '2024-25' : '2025-26',
+    branch: finBranches[i % finBranches.length].value,
+    term: finTerms[i % 3].value,
+    recordType,
+    classGrade: cls,
+    section: sections[i % 4].value,
+    student,
+    admissionNo: `ADM-2025-${1200 + i}`,
+    parentName: FIN_PARENTS[i % FIN_PARENTS.length],
+    employee: FIN_EMPLOYEES[i % FIN_EMPLOYEES.length],
+    vendor: finVendors[i % finVendors.length].value,
+    receiptNo: `R-88${200 + i}`,
+    feeHead: finFeeHeads[i % finFeeHeads.length].value,
+    feeCategory: finFeeCats[i % finFeeCats.length].value,
+    installment: finInstallments[i % finInstallments.length].value,
+    grossAmount: String(gross),
+    concession: String(concession),
+    paidAmount: String(paid),
+    balanceAmount: String(balance),
+    lateFine: String(balance > 0 && i % 3 === 0 ? 200 : 0),
+    dueDate: `2026-${month}-05`,
+    collectionDate: paid > 0 ? `2026-${month}-${day}` : '',
+    paymentMode: finPayModes[i % finPayModes.length].value,
+    feeStatus: balance === 0 ? 'Paid' : paid > 0 ? 'Partial' : i % 4 === 0 ? 'Overdue' : 'Due',
+    exemptionType: concession > 0 ? finExemptions[(i % 4) + 1].value : 'None',
+    chargeType: finChargeTypes[i % finChargeTypes.length].value,
+    chargeReceipt: `CH-31${100 + i}`,
+    chargeAmount: String(chargeAmt),
+    chargeStatus: finChargeStatuses[i % finChargeStatuses.length].value,
+    scheme: finSchemes[i % finSchemes.length].value,
+    agency: finAgencies[i % finAgencies.length].value,
+    awardAmount: String(award),
+    disbursementStatus: finDisbStatuses[i % finDisbStatuses.length].value,
+    disbursementDate: `2026-${month}-20`,
+    voucherNo: `EXP-9${300 + i}`,
+    expenseHead: finExpenseHeads[i % finExpenseHeads.length].value,
+    billNo: `BILL-${4500 + i}`,
+    requestedAmount: String(requested),
+    approvedAmount: String(approved),
+    expenseStatus: finExpenseStatuses[i % finExpenseStatuses.length].value,
+    expenseDate: `2026-${month}-${day}`,
+    accountName: finAccounts[i % finAccounts.length].value,
+    accountCode: `AC-${1000 + (i % 12)}`,
+    voucherType: finVoucherTypes[i % finVoucherTypes.length].value,
+    debit: String(i % 2 === 0 ? paid || requested : 0),
+    credit: String(i % 2 === 1 ? paid || requested : 0),
+    book: finBooks[i % finBooks.length].value,
+    refundNo: `RF-70${i}`,
+    refundAmount: String(i % 6 === 5 ? 2500 : 0),
+    refundStatus: finRefundStatuses[i % finRefundStatuses.length].value,
+  };
+}
+
+const FINANCE_ROWS = Array.from({ length: 30 }, (_, i) => makeFinance(i));
+const FINANCE_DEFAULT_COLS = [
+  'recordType',
+  'student',
+  'classGrade',
+  'receiptNo',
+  'feeHead',
+  'paidAmount',
+  'balanceAmount',
+  'paymentMode',
+  'feeStatus',
+  'collectionDate',
+];
+
+function financeGroupTitle(f: FilterDef) {
+  if (f.module === 'party') return `Party · ${f.group}`;
+  if (f.module === 'fees') return `Fees · ${f.group}`;
+  if (f.module === 'charge') return `Charges · ${f.group}`;
+  if (f.module === 'scholarship') return `Scholarship · ${f.group}`;
+  if (f.module === 'expense') return `Expenses · ${f.group}`;
+  if (f.module === 'ledger') return `Ledgers · ${f.group}`;
+  if (f.module === 'refund') return `Refunds · ${f.group}`;
+  return f.group;
+}
+
 function SharedCustomReportBuilder({
   title,
   subtitle,
@@ -1265,7 +1463,7 @@ function SharedCustomReportBuilder({
   storageKey,
   filterSetKey,
   historyKey,
-  columnsHint = 'Add or remove columns on the student list. Selected columns are highlighted.',
+  columnsHint = 'Search a field or tick it by group. Selected columns appear in the table below.',
   exportFallback = 'Custom report',
 }: {
   title: string;
@@ -1310,6 +1508,11 @@ function SharedCustomReportBuilder({
   const [time, setTime] = useState('08:00');
   const [recipients, setRecipients] = useState('');
   const [nameError, setNameError] = useState('');
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [saveNameDraft, setSaveNameDraft] = useState('');
+  const [saveDescDraft, setSaveDescDraft] = useState('');
+  const [colSearch, setColSearch] = useState('');
+  const [colGroupsOpen, setColGroupsOpen] = useState<Record<string, boolean>>({});
 
   const groups = Array.from(new Set(filters.map(groupTitleFn)));
 
@@ -1373,7 +1576,8 @@ function SharedCustomReportBuilder({
   const safePage = Math.min(page, totalPages);
   const pageRows = sorted.slice((safePage - 1) * pageSize, safePage * pageSize);
   const cols = selected.map((id) => filters.find((f) => f.id === id)).filter((f): f is FilterDef => Boolean(f));
-  const rowId = (row: Row) => row.empId || row.employeeId || row.academicId || row.studentId || row.applicationNo;
+  const rowId = (row: Row) =>
+    row.financeId || row.empId || row.employeeId || row.academicId || row.studentId || row.applicationNo || row.receiptNo;
   const exportRows = picked.length ? sorted.filter((r) => picked.includes(rowId(r))) : sorted;
 
   const setVal = (id: string, v: FVal) => {
@@ -1408,40 +1612,91 @@ function SharedCustomReportBuilder({
     setNotice('Filter set saved');
   };
 
-  const saveReport = () => {
-    if (!name.trim()) {
-      setNameError('Report name is required');
+  const rememberRun = (named?: string) => {
+    const label = (named || name).trim() || `Generated ${stampNow()}`;
+    const fp = reportFingerprint(selected, values, logic);
+    const existing = saved.find((s) => reportFingerprint(s.columns, s.values, s.logic) === fp);
+    const now = stampNow();
+    if (existing) {
+      persistSaved(
+        saved.map((s) =>
+          s.id === existing.id
+            ? { ...s, lastRun: now, name: named?.trim() || s.name, description: named ? description : s.description }
+            : s,
+        ),
+      );
       return;
     }
-    setNameError('');
     persistSaved([
       {
         id: uid(),
-        name: name.trim(),
+        name: label,
         description,
+        tag: named ? 'custom' : 'generated',
+        module: 'info',
+        columns: selected,
+        values,
+        logic,
+        createdBy: 'Admin',
+        createdDate: now,
+        lastRun: now,
+      },
+      ...saved,
+    ]);
+  };
+
+  const saveReport = () => {
+    setSaveNameDraft(name);
+    setSaveDescDraft(description);
+    setNameError('');
+    setSaveOpen(true);
+  };
+
+  const confirmSave = () => {
+    const label = saveNameDraft.trim();
+    if (!label) {
+      setNameError('Report name is required');
+      return;
+    }
+    if (selected.length === 0) {
+      setNameError('Select at least one column');
+      return;
+    }
+    setName(label);
+    setDescription(saveDescDraft);
+    setNameError('');
+    const now = stampNow();
+    persistSaved([
+      {
+        id: uid(),
+        name: label,
+        description: saveDescDraft,
         tag: 'custom',
         module: 'info',
         columns: selected,
         values,
         logic,
         createdBy: 'Admin',
-        createdDate: '23 Oct 2026',
-        lastRun: '—',
+        createdDate: now,
+        lastRun: now,
       },
-      ...saved,
+      ...saved.filter((s) => s.name.toLowerCase() !== label.toLowerCase()),
     ]);
-    setNotice(`Saved “${name.trim()}”`);
+    setSaveOpen(false);
+    setNotice(`Saved “${label}”. Open it anytime from Previously generated reports.`);
   };
 
   const doExport = () => {
+    rememberRun();
     if (exportFormat === 'email') {
       setExportOpen(false);
-      setNotice(`Report queued to ${emailTo || 'recipients'}`);
+      setNotice(`Report queued to ${emailTo || 'recipients'} and saved for re-run`);
       return;
     }
     if (exportFormat === 'print' || exportFormat === 'pdf') {
       printRows(name.trim() || exportFallback, cols, exportRows);
       setExportOpen(false);
+      setNotice('Report printed and saved for re-run');
       return;
     }
     const lines = [
@@ -1455,7 +1710,7 @@ function SharedCustomReportBuilder({
     a.click();
     URL.revokeObjectURL(a.href);
     setExportOpen(false);
-    setNotice('Export downloaded');
+    setNotice('Export downloaded and saved for re-run');
   };
 
   const toggleSort = (key: string) => {
@@ -1494,6 +1749,35 @@ function SharedCustomReportBuilder({
       </div>
 
       {notice && <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">{notice}</div>}
+
+      {saved.length > 0 && (
+        <Card
+          title="Previously generated reports"
+          headerAction={<span className="text-sm text-gray-500">{saved.length} saved</span>}
+        >
+          <p className="mb-3 text-sm text-gray-500">Run a saved layout again with the same filters and columns.</p>
+          <div className="flex flex-wrap gap-2">
+            {saved.slice(0, 10).map((r) => (
+              <button
+                key={r.id}
+                type="button"
+                onClick={() => {
+                  setName(r.name);
+                  setDescription(r.description);
+                  applyBundle(r.values, r.columns, r.name);
+                  persistSaved(saved.map((s) => (s.id === r.id ? { ...s, lastRun: stampNow() } : s)));
+                }}
+                className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 hover:border-blue-300 hover:bg-blue-50"
+              >
+                <span className="font-medium">{r.name}</span>
+                <Badge variant={r.tag === 'generated' ? 'secondary' : 'primary'}>
+                  {r.tag === 'generated' ? 'Generated' : 'Named'}
+                </Badge>
+              </button>
+            ))}
+          </div>
+        </Card>
+      )}
 
       <Card>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_140px] md:items-end">
@@ -1611,20 +1895,102 @@ function SharedCustomReportBuilder({
         )}
       </Card>
 
-      <Card title="Table columns">
-        <p className="mb-2 text-xs text-gray-500">{columnsHint}</p>
-        <div className="flex max-h-40 flex-wrap gap-1 overflow-y-auto">
-          {filters.map((f) => {
-            const on = selected.includes(f.id);
+      <Card
+        title="Table columns"
+        headerAction={<span className="text-sm text-gray-500">{selected.length} of {filters.length} selected</span>}
+      >
+        <p className="mb-3 text-sm text-gray-500">{columnsHint}</p>
+        <div className="mb-3 rounded-lg border border-blue-100 bg-blue-50/60 p-3">
+          <p className="mb-2 text-sm font-medium text-gray-800">Shown in table</p>
+          {cols.length === 0 ? (
+            <p className="text-sm text-gray-500">No columns selected. Tick fields below.</p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {cols.map((f) => (
+                <span
+                  key={f.id}
+                  className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-white px-2 py-1 text-sm text-gray-800"
+                >
+                  {f.label}
+                  <button
+                    type="button"
+                    className="rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                    onClick={() => setSelected((prev) => prev.filter((x) => x !== f.id))}
+                    aria-label={`Remove ${f.label}`}
+                  >
+                    <XIcon className="h-3.5 w-3.5" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-end">
+          <Input
+            className="flex-1"
+            label="Find a column"
+            leftIcon={<SearchIcon className="h-4 w-4 text-gray-400" />}
+            placeholder="Type a field name, e.g. Class or Receipt"
+            value={colSearch}
+            onChange={(e) => setColSearch(e.target.value)}
+          />
+          <div className="flex flex-wrap gap-1.5">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const q = colSearch.trim().toLowerCase();
+                const ids = filters.filter((f) => !q || f.label.toLowerCase().includes(q)).map((f) => f.id);
+                setSelected((prev) => Array.from(new Set([...prev, ...ids])));
+              }}
+            >
+              Select visible
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setSelected([])}>Clear</Button>
+            <Button variant="outline" size="sm" onClick={() => setSelected(defaultCols)}>Reset</Button>
+          </div>
+        </div>
+        <div className="max-h-[360px] space-y-2 overflow-y-auto pr-1">
+          {groups.map((group) => {
+            const q = colSearch.trim().toLowerCase();
+            const items = filters.filter((f) => groupTitleFn(f) === group && (!q || f.label.toLowerCase().includes(q)));
+            if (!items.length) return null;
+            const open = colGroupsOpen[group] !== false;
+            const selectedInGroup = items.filter((f) => selected.includes(f.id)).length;
             return (
-              <button
-                key={f.id}
-                type="button"
-                onClick={() => setSelected((prev) => (on ? prev.filter((x) => x !== f.id) : [...prev, f.id]))}
-                className={`rounded-full border px-2 py-0.5 text-[11px] ${on ? 'border-blue-300 bg-blue-50 text-blue-800' : 'border-gray-200 text-gray-600'}`}
-              >
-                {on ? '− ' : '+ '}{f.label}
-              </button>
+              <div key={group} className="rounded-lg border border-gray-200">
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between px-3 py-2 text-left"
+                  onClick={() => setColGroupsOpen((prev) => ({ ...prev, [group]: prev[group] === false }))}
+                >
+                  <span className="text-sm font-medium text-gray-800">{group}</span>
+                  <span className="flex items-center gap-2 text-sm text-gray-500">
+                    {selectedInGroup}/{items.length}
+                    {open ? <ChevronDownIcon className="h-4 w-4" /> : <ChevronRightIcon className="h-4 w-4" />}
+                  </span>
+                </button>
+                {open && (
+                  <div className="grid grid-cols-1 gap-1 border-t border-gray-100 p-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {items.map((f) => {
+                      const on = selected.includes(f.id);
+                      return (
+                        <label key={f.id} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-gray-800 hover:bg-gray-50">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                            checked={on}
+                            onChange={() =>
+                              setSelected((prev) => (on ? prev.filter((x) => x !== f.id) : [...prev, f.id]))
+                            }
+                          />
+                          <span>{f.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             );
           })}
         </div>
@@ -1634,7 +2000,14 @@ function SharedCustomReportBuilder({
         title={listTitle}
         headerAction={
           <div className="flex flex-wrap gap-1.5">
-            <Button variant="outline" size="xs" onClick={() => setPreviewOpen(true)}>
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={() => {
+                rememberRun();
+                setPreviewOpen(true);
+              }}
+            >
               <EyeIcon className="h-3.5 w-3.5" /> Preview
             </Button>
             <Button variant="outline" size="xs" onClick={() => setExportOpen(true)}>
@@ -1709,6 +2082,15 @@ function SharedCustomReportBuilder({
         <Table
           columns={[
             { key: 'name', header: 'Report Name' },
+            {
+              key: 'tag',
+              header: 'Type',
+              render: (r: StudentSaved) => (
+                <Badge variant={r.tag === 'generated' ? 'secondary' : 'primary'}>
+                  {r.tag === 'generated' ? 'Generated' : 'Named'}
+                </Badge>
+              ),
+            },
             { key: 'createdBy', header: 'Created By' },
             { key: 'createdDate', header: 'Created Date' },
             { key: 'lastRun', header: 'Last Run' },
@@ -1723,8 +2105,11 @@ function SharedCustomReportBuilder({
                     variant="primary"
                     size="xs"
                     onClick={() => {
+                      setName(r.name);
+                      setDescription(r.description);
                       applyBundle(r.values, r.columns, r.name);
-                      persistSaved(saved.map((s) => (s.id === r.id ? { ...s, lastRun: '23 Oct 2026' } : s)));
+                      persistSaved(saved.map((s) => (s.id === r.id ? { ...s, lastRun: stampNow() } : s)));
+                      setNotice(`Generated “${r.name}” again`);
                     }}
                   >
                     Run
@@ -1735,9 +2120,38 @@ function SharedCustomReportBuilder({
             },
           ]}
           data={saved}
-          emptyMessage="No saved reports"
+          emptyMessage="No saved reports yet. Preview, export, or Save as Named Report to keep a layout."
         />
       </Card>
+
+      <Modal
+        isOpen={saveOpen}
+        onClose={() => setSaveOpen(false)}
+        title="Save as Named Report"
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setSaveOpen(false)}>Cancel</Button>
+            <Button onClick={confirmSave}>Save report</Button>
+          </div>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-gray-500">Give this layout a name so you can generate it again from this page.</p>
+          <Input
+            label="Report name"
+            value={saveNameDraft}
+            error={nameError}
+            onChange={(e) => { setSaveNameDraft(e.target.value); setNameError(''); }}
+            placeholder="e.g. Pending tuition Term 1"
+          />
+          <Textarea
+            label="Description"
+            value={saveDescDraft}
+            rows={2}
+            onChange={(e) => setSaveDescDraft(e.target.value)}
+          />
+        </div>
+      </Modal>
 
       <Modal isOpen={previewOpen} onClose={() => setPreviewOpen(false)} title="Preview before export" size="xl" footer={<Button onClick={() => setPreviewOpen(false)}>Close</Button>}>
         <p className="mb-2 text-xs text-gray-500">{exportRows.length} row(s) · {cols.length} column(s)</p>
@@ -1855,8 +2269,28 @@ function EmployeeCustomReportBuilder() {
       storageKey={EMPLOYEE_STORAGE}
       filterSetKey={EMPLOYEE_FILTER_SET_STORAGE}
       historyKey={EMPLOYEE_FILTER_HISTORY_STORAGE}
-      columnsHint="Add or remove columns on the employee list. Selected columns are highlighted."
+      columnsHint="Search a field or tick it by group. Selected columns appear in the employee table."
       exportFallback="Employee custom report"
+    />
+  );
+}
+
+function FinanceCustomReportBuilder() {
+  return (
+    <SharedCustomReportBuilder
+      title="Finance Custom Report Builder"
+      subtitle="Create, filter and export reports for Fees, Charges, Scholarships, Expenses, Ledgers and Refunds"
+      listTitle="Finance records"
+      searchPlaceholder="Search finance records by any visible column"
+      filters={FINANCE_FILTERS}
+      rows={FINANCE_ROWS}
+      defaultCols={FINANCE_DEFAULT_COLS}
+      groupTitleFn={financeGroupTitle}
+      storageKey={FINANCE_STORAGE}
+      filterSetKey={FINANCE_FILTER_SET_STORAGE}
+      historyKey={FINANCE_FILTER_HISTORY_STORAGE}
+      columnsHint="Search a field or tick it by group. Selected columns appear in the finance table."
+      exportFallback="Finance custom report"
     />
   );
 }
@@ -2077,6 +2511,9 @@ export function CustomReportsPage() {
   }
   if (params.pageId === 'employee-custom-reports') {
     return <EmployeeCustomReportBuilder />;
+  }
+  if (params.pageId === 'finance-custom-reports') {
+    return <FinanceCustomReportBuilder />;
   }
   const pageId = PAGE_IDS.includes(params.pageId || '') ? params.pageId! : 'government-custom-reports';
   return <GenericCustomReports pageId={pageId} />;

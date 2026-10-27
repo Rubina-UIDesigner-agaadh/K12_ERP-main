@@ -2576,262 +2576,154 @@ function FeeGenerateModal({
 // reports (249 = 59 government + 190 ERP pre-made) live on this ONE page.
 // ============================================
 export function FeeReportsPage() {
-  const [feeDraft, setFeeDraft] = useState<Record<string, any>>({});
-  const [feeApplied, setFeeApplied] = useState<Record<string, any>>({});
-  const [feePanelOpen, setFeePanelOpen] = useState(true);
-  const [feeRecordsOpen, setFeeRecordsOpen] = useState(false);
-  const [reportSearch, setReportSearch] = useState('');
-  const [reportScope, setReportScope] = useState<'all' | 'government' | 'erp'>('all');
-  const [selectedReports, setSelectedReports] = useState<string[]>([]);
-  const [genOpen, setGenOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [activeTab, setActiveTab] = useState<'templates' | 'generated' | 'data'>('templates');
   const [genLog, setGenLog] = useState<{ id: string; title: string; format: string; when: string }[]>([]);
+  const [picked, setPicked] = useState<string | null>(null);
 
-  const feeRows = useMemo(() => applyFeeFilters(FEE_ROWS_PATCHED, feeApplied), [feeApplied]);
-  const feeAppliedCount = useMemo(
-    () => Object.keys(feeApplied).filter((k) => !isBlankFeeValue(feeApplied[k])).length,
-    [feeApplied]
-  );
-  const selectedDefs = useMemo(
-    () => FEE_REPORTS_FLAT.filter((r) => selectedReports.includes(r.code)),
-    [selectedReports]
-  );
-
-  /** Header shortcut: open the single criteria panel and scroll it into view. */
-  const openFeeCriteria = () => {
-    setFeePanelOpen(true);
-    if (typeof requestAnimationFrame === 'function') {
-      requestAnimationFrame(() => {
-        const el = document.getElementById('fee-criteria-panel');
-        if (el && typeof el.scrollIntoView === 'function') el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      });
-    }
-  };
-
-  const setDraftValue = (id: string, value: any) => setFeeDraft((prev) => ({ ...prev, [id]: value }));
-  const applyCriteria = () => setFeeApplied({ ...feeDraft });
-  const resetCriteria = () => {
-    setFeeDraft({});
-    setFeeApplied({});
-  };
-  const applyPreset = (preset: Record<string, any>) => {
-    setFeeDraft((prev) => ({ ...prev, ...preset }));
-    setFeeApplied((prev) => ({ ...prev, ...preset }));
-  };
-
-  const toggleReport = (code: string) =>
-    setSelectedReports((prev) => (prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]));
-  const selectGroup = (codes: string[], on: boolean) =>
-    setSelectedReports((prev) => (on ? Array.from(new Set([...prev, ...codes])) : prev.filter((c) => !codes.includes(c))));
-
-  /** Client-side CSV download (no alert() — keeps the sandboxed preview working). */
-  const feeDownloadCsv = (data: any[], filename: string) => {
-    const clean = data.map((row) => {
-      const out: any = {};
-      Object.entries(row).forEach(([k, v]) => {
-        if (typeof v !== 'function' && typeof v !== 'object') out[k] = v;
-      });
-      return out;
+  const feeRows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return FEE_ROWS_PATCHED.filter((row) => {
+      if (statusFilter !== 'all' && row.overallFeeStatus !== statusFilter) return false;
+      if (!q) return true;
+      const hay = `${row.studentName} ${row.studentId} ${row.className} ${row.feeHead} ${row.invoiceNo} ${row.overallFeeStatus}`.toLowerCase();
+      return hay.includes(q);
     });
-    if (clean.length === 0) return;
-    const headers = Object.keys(clean[0]).join(',');
-    const lines = clean.map((row) =>
-      Object.values(row)
-        .map((v) => (typeof v === 'string' && v.includes(',') ? `"${v}"` : v))
-        .join(',')
-    );
-    const blob = new Blob([[headers, ...lines].join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${filename}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
-  };
+  }, [search, statusFilter]);
 
-  const exportReportList = (fmt: 'csv' | 'excel') => {
-    feeDownloadCsv(
-      FEE_REPORTS_FLAT.map((r) => ({
-        'Report Code': r.code,
-        'Report Name': r.title,
-        'Report Type': r.group === 'government' ? 'Government' : 'ERP Pre-made',
-        Category: r.category,
-        Selected: selectedReports.includes(r.code) ? 'Yes' : 'No'
-      })),
-      fmt === 'excel' ? 'fee-reports-master-list-excel' : 'fee-reports-master-list'
-    );
-  };
+  const templates = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return FEE_REPORTS_FLAT.filter((r) => !q || `${r.code} ${r.title} ${r.category}`.toLowerCase().includes(q));
+  }, [search]);
 
-  const exportMatchedRecords = () => {
-    feeDownloadCsv(
-      feeRows.map((r) => ({
-        'Student ID': r.studentId,
-        Student: r.studentName,
-        Class: `${r.className} ${r.section}`,
-        'Fee Head': r.feeHead,
-        'Invoice No': r.invoiceNo,
-        Invoiced: r.totalInvoiced,
-        Collected: r.totalCollected,
-        Outstanding: r.totalOutstanding,
-        Status: r.overallFeeStatus,
-        'Payment Mode': r.paymentMode,
-        'Receipt No': r.receiptNo,
-        'Due Date': r.feeDueDate
-      })),
-      'fee-report-matched-records'
-    );
+  const generate = (title: string) => {
+    setGenLog((prev) => [
+      {
+        id: `${title}-${prev.length + 1}`,
+        title,
+        format: 'Excel',
+        when: new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
+      },
+      ...prev
+    ]);
+    setActiveTab('generated');
   };
-
-  const feeStats = [
-    { label: 'Filter Groups', value: String(FEE_FILTER_GROUPS.length), tone: 'text-gray-900' },
-    { label: 'Search Filters', value: String(TOTAL_FEE_FILTERS), tone: 'text-indigo-700' },
-    { label: 'Total Reports', value: String(TOTAL_FEE_REPORTS), tone: 'text-gray-900' },
-    { label: 'Government Reports', value: String(FEE_GOV_REPORT_COUNT), tone: 'text-indigo-700' },
-    { label: 'ERP Pre-made Reports', value: String(FEE_ERP_REPORT_COUNT), tone: 'text-emerald-700' },
-    { label: 'Fee Accounts in Scope', value: `${feeRows.length} / ${FEE_ROWS_PATCHED.length}`, tone: 'text-amber-700' }
-  ];
 
   return (
-    <div className="space-y-6 py-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-gray-200">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-indigo-600 flex items-center justify-center text-white shadow-sm">
-            <FileText className="w-5 h-5" />
-          </div>
+    <div className="flex flex-col h-full bg-gray-50 min-h-full">
+      <div className="flex-shrink-0 bg-white border-b px-6 py-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div>
-            <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-              Fee Reports
-              <span className="text-xs bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full px-2 py-0.5">
-                FY 2025-26
-              </span>
-            </h1>
-            <p className="text-xs text-gray-500 mt-0.5">
-              {FEE_FILTER_GROUPS.length} filter groups ({TOTAL_FEE_FILTERS} filters) and {TOTAL_FEE_REPORTS} reports on one page
-              {feeAppliedCount > 0 ? ` · ${feeAppliedCount} filters applied` : ''}
-            </p>
+            <h1 className="text-xl font-bold text-gray-900">Fee Reports</h1>
+            <p className="text-gray-500 text-sm mt-1">Search fee accounts, apply one status filter, and generate reports</p>
           </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" onClick={openFeeCriteria}>
-            <Filter className="w-4 h-4 mr-1" />
-            Report Criteria
-          </Button>
-          <Button variant="outline" size="sm" onClick={exportMatchedRecords}>
-            <Download className="w-4 h-4 mr-1" />
-            Export Records
-          </Button>
-          <Button
-            size="sm"
-            className="bg-indigo-600 hover:bg-indigo-700 text-white"
-            onClick={() => {
-              if (selectedReports.length === 0) {
-                openFeeCriteria();
-              } else {
-                setGenOpen(true);
-              }
-            }}
-          >
-            <Play className="w-4 h-4 mr-1" />
-            Generate Report{selectedReports.length > 0 ? ` (${selectedReports.length})` : ''}
+          <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white" onClick={() => generate(picked ? FEE_REPORTS_FLAT.find((r) => r.code === picked)?.title || 'Fee Report' : 'Fee Collection Summary')}>
+            Generate Report
           </Button>
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
-        {feeStats.map((s) => (
-          <Card key={s.label} className="rounded-xl border border-gray-200 p-3">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">{s.label}</p>
-            <p className={`text-lg font-bold ${s.tone}`}>{s.value}</p>
+      <div className="flex-shrink-0 bg-white border-b px-6 py-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-[220px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search students, invoices, fee heads, reports…"
+              className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm bg-white"
+            />
+          </div>
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-3 py-2 bg-white border rounded-lg text-sm">
+            <option value="all">All fee statuses</option>
+            {FEE_OVERALL_STATUS.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <div className="flex-shrink-0 bg-white border-b px-6">
+        <div className="flex gap-1">
+          {[
+            { id: 'templates' as const, label: 'Templates', count: templates.length },
+            { id: 'generated' as const, label: 'Generated', count: genLog.length },
+            { id: 'data' as const, label: 'Live Data', count: feeRows.length }
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-4 py-2.5 text-sm font-medium border-b-2 ${activeTab === tab.id ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500'}`}
+            >
+              {tab.label}
+              <span className="ml-1 px-1.5 py-0.5 text-xs bg-gray-100 rounded-full text-gray-600">{tab.count}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-6 space-y-3">
+        {activeTab === 'templates' && templates.map((r) => (
+          <Card key={r.code} className={`rounded-xl border p-4 ${picked === r.code ? 'border-blue-400 bg-blue-50/40' : 'border-gray-200'}`}>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-gray-900">{r.title}</p>
+                <p className="mt-1 text-xs text-gray-500">{r.code} · {r.category} · {r.group === 'government' ? 'Government' : 'ERP'}</p>
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => setPicked(r.code)}>Select</Button>
+                <Button size="sm" onClick={() => generate(r.title)}>Generate</Button>
+              </div>
+            </div>
           </Card>
         ))}
-      </div>
+        {activeTab === 'templates' && templates.length === 0 && <p className="text-sm text-gray-500">No fee reports match the search.</p>}
 
-      {/* Generated-in-session log */}
-      {genLog.length > 0 && (
-        <Card className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-          <div className="flex items-center justify-between gap-3 mb-2">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              <h2 className="text-xs font-bold text-emerald-900">
-                Generated in this session ({genLog.length})
-              </h2>
+        {activeTab === 'generated' && (
+          genLog.length === 0
+            ? <p className="text-sm text-gray-500">No reports generated this session.</p>
+            : genLog.map((g) => (
+              <Card key={g.id} className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                <p className="text-sm font-semibold text-emerald-900">{g.title}</p>
+                <p className="mt-1 text-xs text-emerald-700">{g.format} · {g.when} · {feeRows.length} fee accounts in scope</p>
+              </Card>
+            ))
+        )}
+
+        {activeTab === 'data' && (
+          <Card className="rounded-xl border border-gray-200 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
+                  <tr>
+                    {['Student', 'Class', 'Fee Head', 'Invoice', 'Invoiced', 'Collected', 'Outstanding', 'Status'].map((h) => (
+                      <th key={h} className="px-3 py-2 font-semibold">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {feeRows.map((row) => (
+                    <tr key={row.id} className="border-t border-gray-100">
+                      <td className="px-3 py-2">
+                        <p className="font-medium text-gray-900">{row.studentName}</p>
+                        <p className="text-xs text-gray-500">{row.studentId}</p>
+                      </td>
+                      <td className="px-3 py-2 text-gray-700">{row.className} {row.section}</td>
+                      <td className="px-3 py-2 text-gray-700">{row.feeHead}</td>
+                      <td className="px-3 py-2 text-gray-700">{row.invoiceNo}</td>
+                      <td className="px-3 py-2">{feeInr(row.totalInvoiced)}</td>
+                      <td className="px-3 py-2">{feeInr(row.totalCollected)}</td>
+                      <td className="px-3 py-2">{feeInr(row.totalOutstanding)}</td>
+                      <td className="px-3 py-2">{row.overallFeeStatus}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-            <Button variant="ghost" size="sm" onClick={() => setGenLog([])}>
-              <X className="w-4 h-4 mr-1" />
-              Clear log
-            </Button>
-          </div>
-          <ul className="space-y-1">
-            {genLog.map((g) => (
-              <li key={g.id} className="flex flex-wrap items-center gap-2 text-[11px] text-emerald-900">
-                <Badge variant="success">{g.format}</Badge>
-                <span className="font-semibold">{g.title}</span>
-                <span className="text-emerald-700">· {g.when}</span>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
-
-      {/* ONE criteria panel — all 17 groups / 228 filters */}
-      <FeeCriteriaPanel
-        draft={feeDraft}
-        applied={feeApplied}
-        onChange={setDraftValue}
-        onApply={applyCriteria}
-        onReset={resetCriteria}
-        onQuick={applyPreset}
-        rows={feeRows}
-        totalRows={FEE_ROWS_PATCHED.length}
-        open={feePanelOpen}
-        setOpen={setFeePanelOpen}
-        onViewRecords={() => setFeeRecordsOpen(true)}
-      />
-
-      {/* ALL reports — 249 in one catalogue */}
-      <FeeReportCatalog
-        search={reportSearch}
-        setSearch={setReportSearch}
-        scope={reportScope}
-        setScope={setReportScope}
-        selected={selectedReports}
-        toggleReport={toggleReport}
-        selectGroup={selectGroup}
-        clearSelection={() => setSelectedReports([])}
-        onGenerate={() => {
-          if (selectedReports.length === 0) {
-            setReportSearch('');
-            setReportScope('all');
-            return;
-          }
-          setGenOpen(true);
-        }}
-        onExportList={exportReportList}
-        generatedCount={genLog.length}
-        matchedCount={feeRows.length}
-      />
-
-      <FeeRecordsModal open={feeRecordsOpen} onClose={() => setFeeRecordsOpen(false)} rows={feeRows} />
-      <FeeGenerateModal
-        open={genOpen}
-        onClose={() => setGenOpen(false)}
-        reports={selectedDefs}
-        matched={feeRows.length}
-        onGenerated={(info) =>
-          setGenLog((prev) => [
-            {
-              id: `${info.title}-${prev.length + 1}`,
-              title: info.title,
-              format: info.format,
-              when: new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
-            },
-            ...prev
-          ])
-        }
-      />
+            {feeRows.length === 0 && <p className="p-4 text-sm text-gray-500">No fee accounts match the search and status filter.</p>}
+          </Card>
+        )}
+      </div>
     </div>
   );
 }

@@ -61,36 +61,6 @@ export const pluginsRegistry: Record<string, () => any> = {
     'TransportAnalytics'
   ),
 
-  // ── Mobile App ─────────────────────────────────────────────────────────────
-  'app-configuration': rp(
-    () => import('../plugins/mobile-app/AppConfiguration'),
-    'AppConfiguration'
-  ),
-  'role-based-access-setup': rp(
-    () => import('../plugins/mobile-app/RoleBasedAccessSetup'),
-    'RoleBasedAccessSetup'
-  ),
-  'push-notification-management': rp(
-    () => import('../plugins/mobile-app/PushNotificationManagement'),
-    'PushNotificationManagement'
-  ),
-  'content-announcement-control': rp(
-    () => import('../plugins/mobile-app/ContentAnnouncementControl'),
-    'ContentAnnouncementControl'
-  ),
-  'app-authentication': rp(
-    () => import('../plugins/mobile-app/Authentication'),
-    'Authentication'
-  ),
-  'app-usage-analytics': rp(
-    () => import('../plugins/mobile-app/AppUsageAnalytics'),
-    'AppUsageAnalytics'
-  ),
-  'app-logs-monitoring': rp(
-    () => import('../plugins/mobile-app/AppLogsMonitoring'),
-    'AppLogsMonitoring'
-  ),
-
   // ── WhatsApp ───────────────────────────────────────────────────────────────
   'whatsapp-api-configuration': rp(
     () => import('../plugins/whatsapp/ApiConfiguration'),
@@ -322,7 +292,7 @@ export const pluginsRegistry: Record<string, () => any> = {
     'DeviceMonitoring'
   ),
 
-  // ── SMS & Calling ──────────────────────────────────────────────────────────
+  // ── SMS ───────────────────────────────────────────────────────────────────
   'sms-gateway-configuration': rp(
     () => import('../plugins/sms-calling/SmsGatewayConfiguration'),
     'SmsGatewayConfiguration'
@@ -412,33 +382,6 @@ export const pluginsRegistry: Record<string, () => any> = {
     'MsSyncLogsMonitoring'
   ),
 
-  // ── Alert ──────────────────────────────────────────────────────────────────
-  'alert-master': rp(
-    () => import('../plugins/alert/AlertMaster'),
-    'AlertMaster'
-  ),
-  'alert-rule-engine': rp(
-    () => import('../plugins/alert/RuleEngine'),
-    'RuleEngine'
-  ),
-  'channel-delivery-management': rp(
-    () => import('../plugins/alert/ChannelDeliveryManagement'),
-    'ChannelDeliveryManagement'
-  ),
-  'alert-templates': rp(
-    () => import('../plugins/alert/AlertTemplates'),
-    'AlertTemplates'
-  ),
-  'escalation-automation': rp(
-    () => import('../plugins/alert/EscalationAutomation'),
-    'EscalationAutomation'
-  ),
-  'alert-dashboard': rp(
-    () => import('../plugins/alert/AlertDashboard'),
-    'AlertDashboard'
-  ),
-  'alert-logs-analytics': rp(
-    () => import('../plugins/alert/AlertLogsAnalytics'),
-    'AlertLogsAnalytics'
-  )
 };
+
+export default pluginsRegistry;

@@ -229,3 +229,5 @@ export const adminRegistry: Record<string, () => any> = {
     () => import('../admin/billing/InvoiceArchive'),
     'InvoiceArchive'
   ),};
+
+export default adminRegistry;

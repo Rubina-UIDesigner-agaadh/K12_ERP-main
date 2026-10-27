@@ -610,3 +610,5 @@ export const hrRegistry: Record<string, () => any> = {
     'HraSpecialExemptionRuleMaster'
   )
 };
+
+export default hrRegistry;
