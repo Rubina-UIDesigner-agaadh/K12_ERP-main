@@ -1,14 +1,62 @@
 import React, { useEffect, useState } from 'react';
 import {
-  LayoutDashboard,
+  Activity,
+  Award,
+  BarChart3,
+  Bell,
+  BookOpen,
+  Briefcase,
+  Bus,
+  CalendarDays,
   ChevronRight,
   ChevronDown,
-  Star,
+  ClipboardList,
+  Clock,
+  FileText,
   Heart,
+  LayoutDashboard,
+  List,
+  Mail,
+  Maximize2,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Puzzle,
+  QrCode,
+  Receipt,
+  Settings,
+  Shield,
+  Star,
+  Users,
+  Wallet,
   ExternalLink,
-  Maximize2 } from
+  type LucideIcon } from
 'lucide-react';
 import { SubModule, SidebarSection, FavoriteItem } from '../types/navigation';
+
+function pageIcon(id: string, label: string): LucideIcon {
+  const t = `${id} ${label}`.toLowerCase();
+  if (/(dashboard|overview|kpi)/.test(t)) return LayoutDashboard;
+  if (/(teacher|staff|employee|payroll|salary|hr )/.test(t)) return Briefcase;
+  if (/(student|enrol|admission|applicant)/.test(t)) return Users;
+  if (/(fee|invoice|payment|wallet|collection|scholarship)/.test(t)) return Wallet;
+  if (/(expense|bill|vendor|purchase)/.test(t)) return Receipt;
+  if (/(report|analytic|mis)/.test(t)) return BarChart3;
+  if (/(attend|leave|calendar)/.test(t)) return CalendarDays;
+  if (/(exam|assessment|result|mark)/.test(t)) return ClipboardList;
+  if (/(academic|curriculum|plan|lesson|syllabus|subject)/.test(t)) return BookOpen;
+  if (/(timetable|schedule)/.test(t)) return Clock;
+  if (/(setting|config|setup|master)/.test(t)) return Settings;
+  if (/(alert|notif)/.test(t)) return Bell;
+  if (/(message|inbox|mail|email|sms|whatsapp)/.test(t)) return Mail;
+  if (/(transport|bus|gps|route|vehicle)/.test(t)) return Bus;
+  if (/(barcode|qr|id-register|id card)/.test(t)) return QrCode;
+  if (/(certificate|award)/.test(t)) return Award;
+  if (/(security|role|permission|audit)/.test(t)) return Shield;
+  if (/(plugin)/.test(t)) return Puzzle;
+  if (/(health)/.test(t)) return Activity;
+  if (/(list|register)/.test(t)) return List;
+  return FileText;
+}
 
 interface SidebarProps {
   activeSubModule: SubModule | null;
@@ -19,6 +67,8 @@ interface SidebarProps {
   favorites: FavoriteItem[];
   onToggleFavorite: (item: FavoriteItem) => void;
   onNavigateFavorite: (item: FavoriteItem) => void;
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
 }
 
 type ContextMenuState = {
@@ -50,7 +100,9 @@ export function Sidebar({
   activeModuleLabel,
   favorites,
   onToggleFavorite,
-  onNavigateFavorite
+  onNavigateFavorite,
+  collapsed,
+  onToggleCollapsed
 }: SidebarProps) {
   const defaultSidebar: SidebarSection[] = [
   {
@@ -114,21 +166,93 @@ export function Sidebar({
   }, [contextMenu]);
 
   return (
-    <aside className="flex w-80 shrink-0 flex-col overflow-hidden bg-gradient-to-b from-[#0D3B4C] via-[#145369] to-[#1A6B8A] transition-all duration-300">
-      <div className="border-b border-white/10 px-5 py-4">
-        <h2 className="flex items-center gap-2 text-xl font-semibold tracking-wide text-white">
-          <LayoutDashboard className="h-7 w-7 text-cyan-300" />
-          {showFavoritesView ?
-          'Dashboard' :
-          activeSubModule?.label || 'Dashboard'}
-        </h2>
-        <p className="mt-1 pl-9 text-sm font-medium uppercase tracking-wider text-white/60">
-          {showFavoritesView ? 'My Favorites' : 'Module View'}
-        </p>
+    <aside className={`flex shrink-0 flex-col overflow-hidden bg-gradient-to-b from-[#0D3B4C] via-[#145369] to-[#1A6B8A] transition-[width] duration-300 ${collapsed ? 'w-16' : 'w-80'}`}>
+      <div className={`border-b border-white/10 ${collapsed ? 'px-1 py-3' : 'px-5 py-4'}`}>
+        {collapsed ? (
+          <button
+            type="button"
+            title="Expand sidebar"
+            aria-label="Expand sidebar"
+            onClick={onToggleCollapsed}
+            className="flex h-10 w-full items-center justify-center rounded-md text-white/90 transition-colors hover:bg-white/10 hover:text-white"
+          >
+            <PanelLeftOpen className="h-5 w-5" />
+          </button>
+        ) : (
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <h2 className="flex items-center gap-2 text-xl font-semibold tracking-wide text-white">
+                <LayoutDashboard className="h-7 w-7 shrink-0 text-cyan-300" />
+                <span className="truncate">{showFavoritesView ? 'Dashboard' : activeSubModule?.label || 'Dashboard'}</span>
+              </h2>
+              <p className="mt-1 pl-9 text-sm font-medium uppercase tracking-wider text-white/60">
+                {showFavoritesView ? 'My Favorites' : 'Module View'}
+              </p>
+            </div>
+            <button
+              type="button"
+              title="Collapse sidebar"
+              aria-label="Collapse sidebar"
+              onClick={onToggleCollapsed}
+              className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+            >
+              <PanelLeftClose className="h-4 w-4" />
+            </button>
+          </div>
+        )}
       </div>
 
-      <nav className="flex-1 overflow-y-auto px-3 py-4 custom-scrollbar">
-        {showFavoritesView ?
+      <nav className={`flex-1 overflow-y-auto custom-scrollbar ${collapsed ? 'px-1.5 py-3' : 'px-3 py-4'}`}>
+        {collapsed ? (
+        <div className="space-y-1">
+          {showFavoritesView ? (
+            favorites.length === 0 ? (
+              <p className="px-1 text-center text-[10px] text-white/40">No favorites</p>
+            ) : (
+              favorites.map((fav) => {
+                const Icon = pageIcon(fav.sidebarItemId, fav.sidebarItemLabel);
+                return (
+                  <button
+                    key={`${fav.moduleId}-${fav.subModuleId}-${fav.sidebarItemId}`}
+                    type="button"
+                    title={`${fav.sidebarItemLabel} · ${fav.moduleLabel}`}
+                    aria-label={fav.sidebarItemLabel}
+                    onClick={() => onNavigateFavorite(fav)}
+                    onContextMenu={(e) => openContextMenu(
+                      e,
+                      `/${fav.moduleId}/${fav.subModuleId}/${fav.sidebarItemId}`,
+                      fav.sidebarItemLabel,
+                    )}
+                    className="flex h-10 w-full items-center justify-center rounded-md text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+                  >
+                    <Icon className="h-5 w-5" />
+                  </button>
+                );
+              })
+            )
+          ) : (
+            sections.filter((section) => !section.hidden).flatMap((section) => section.items).map((item) => {
+              const Icon = pageIcon(item.id, item.label);
+              const isActive = activeSidebarItemId === item.id;
+              const path = `/${activeModuleId}/${activeSubModule?.id || item.id}/${item.id}`;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  title={item.label}
+                  aria-label={item.label}
+                  aria-current={isActive ? 'page' : undefined}
+                  onClick={() => onSidebarItemSelect(item.id)}
+                  onContextMenu={(e) => openContextMenu(e, path, item.label)}
+                  className={`flex h-10 w-full items-center justify-center rounded-md transition-colors ${isActive ? 'bg-white/15 text-cyan-300 shadow-sm' : 'text-white/75 hover:bg-white/10 hover:text-white'}`}
+                >
+                  <Icon className="h-5 w-5" />
+                </button>
+              );
+            })
+          )}
+        </div>
+        ) : showFavoritesView ?
         <div className="space-y-4">
             <div className="mb-2 flex items-center gap-2 px-3">
               <Star className="h-4 w-4 text-yellow-400" />
@@ -256,12 +380,14 @@ export function Sidebar({
         }
       </nav>
 
+      {!collapsed && (
       <div className="border-t border-white/10 p-4">
         <div className="flex items-center justify-between text-sm text-white/30">
           <span>v3.1.0</span>
           <span>EduManager</span>
         </div>
       </div>
+      )}
 
       {contextMenu &&
       <div

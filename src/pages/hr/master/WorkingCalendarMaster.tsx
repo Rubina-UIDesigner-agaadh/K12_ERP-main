@@ -1,880 +1,200 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Select } from '../../../components/ui/Select';
 import { Badge } from '../../../components/ui/Badge';
-import { Tabs } from '../../../components/ui/Tabs';
+import { MultiSelect } from '../../../components/ui/MultiSelect';
+import { Plus, Edit, Trash2, Save, Search, Calendar, Copy } from 'lucide-react';
 import {
-  Plus,
-  Edit,
-  Trash2,
-  Save,
-  Search,
-  Calendar,
-  Copy,
-  Upload } from
-'lucide-react';
-interface WeeklyOffPattern {
-  id: string;
-  name: string;
-  campus: string;
-  staffTypes: string[];
-  offDays: string[];
-  monthlyVariation: string;
-  effectiveFrom: string;
-  effectiveTo: string;
-  status: 'Active' | 'Inactive';
-}
-interface Holiday {
-  id: string;
-  date: string;
-  name: string;
-  type: 'National' | 'Festival' | 'Institutional' | 'Exam' | 'Other';
-  recurrence: 'One-time' | 'Annual';
-  isPaid: boolean;
-  applicableTo: string[];
-  treatAsWorking: boolean;
-  status: 'Active' | 'Inactive';
-}
-interface SpecialDay {
-  id: string;
-  date: string;
-  description: string;
-  appliesTo: string[];
-  overrideType: 'Off-to-Working' | 'Working-to-Off';
-}
-const mockWeeklyOffPatterns: WeeklyOffPattern[] = [
-{
-  id: 'WO001',
-  name: 'Standard Weekly Off',
-  campus: 'Main Campus',
-  staffTypes: ['Teaching', 'Administrative'],
-  offDays: ['Sunday'],
-  monthlyVariation: 'None',
-  effectiveFrom: '2024-01-01',
-  effectiveTo: '2025-12-31',
-  status: 'Active'
-},
-{
-  id: 'WO002',
-  name: 'Alternate Saturday Off',
-  campus: 'Main Campus',
-  staffTypes: ['Teaching'],
-  offDays: ['Sunday', '2nd Saturday', '4th Saturday'],
-  monthlyVariation: '2nd & 4th Saturday',
-  effectiveFrom: '2024-01-01',
-  effectiveTo: '2025-12-31',
-  status: 'Active'
-}];
+  PAYROLL_CAMPUSES,
+  PAYROLL_STAFF_CATEGORIES,
+  WEEKDAY_OPTIONS,
+  loadPayrollPolicyConfig,
+  savePayrollPolicyConfig,
+  subscribePayrollPolicyConfig,
+  type WorkingHolidayCalendarRecord,
+  type WorkingHoliday,
+  type WorkingSpecialDay
+} from '../payroll/PayrollSetup';
 
-const mockHolidays: Holiday[] = [
-{
-  id: 'H001',
-  date: '2024-01-26',
-  name: 'Republic Day',
-  type: 'National',
-  recurrence: 'Annual',
-  isPaid: true,
-  applicableTo: ['All Staff', 'Students'],
-  treatAsWorking: false,
-  status: 'Active'
-},
-{
-  id: 'H002',
-  date: '2024-08-15',
-  name: 'Independence Day',
-  type: 'National',
-  recurrence: 'Annual',
-  isPaid: true,
-  applicableTo: ['All Staff', 'Students'],
-  treatAsWorking: false,
-  status: 'Active'
-},
-{
-  id: 'H003',
-  date: '2024-10-02',
-  name: 'Gandhi Jayanti',
-  type: 'National',
-  recurrence: 'Annual',
-  isPaid: true,
-  applicableTo: ['All Staff', 'Students'],
-  treatAsWorking: false,
-  status: 'Active'
-},
-{
-  id: 'H004',
-  date: '2024-10-24',
-  name: 'Diwali',
-  type: 'Festival',
-  recurrence: 'Annual',
-  isPaid: true,
-  applicableTo: ['All Staff', 'Students'],
-  treatAsWorking: false,
-  status: 'Active'
-}];
+const staffOpts = PAYROLL_STAFF_CATEGORIES.map((item) => ({ value: item, label: item }));
+const dayOpts = WEEKDAY_OPTIONS.map((item) => ({ value: item, label: item }));
+const campusOpts = PAYROLL_CAMPUSES.filter((item) => item.value !== 'all');
 
-const mockSpecialDays: SpecialDay[] = [
-{
-  id: 'SD001',
-  date: '2024-12-15',
-  description: 'Annual Day Preparation',
-  appliesTo: ['Teaching Staff'],
-  overrideType: 'Off-to-Working'
-}];
+const emptyCalendar = (): WorkingHolidayCalendarRecord => ({
+  id: `WC-${Date.now()}`,
+  name: '',
+  campusId: 'main',
+  staffTypes: [],
+  effectiveFrom: '',
+  effectiveTo: '',
+  status: 'Draft',
+  weeklyOffDays: ['Sunday'],
+  saturdayPattern: 'none',
+  holidays: [],
+  specialDays: []
+});
 
 export function WorkingCalendarMaster() {
-  const [activeTab, setActiveTab] = useState('weekly-off');
-  const [weeklyOffPatterns, setWeeklyOffPatterns] = useState(
-    mockWeeklyOffPatterns
-  );
-  const [holidays, setHolidays] = useState(mockHolidays);
-  const [specialDays, setSpecialDays] = useState(mockSpecialDays);
+  const boot = loadPayrollPolicyConfig();
+  const [calendars, setCalendars] = useState<WorkingHolidayCalendarRecord[]>(boot.config.workingCalendars);
+  const [selectedId, setSelectedId] = useState(boot.config.workingCalendars[0]?.id || '');
+  const [activeTab, setActiveTab] = useState<'weekly-off' | 'holidays' | 'special-days'>('weekly-off');
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const [weeklyOffForm, setWeeklyOffForm] = useState({
-    name: '',
-    campus: 'Main Campus',
-    staffTypes: [] as string[],
-    offDays: [] as string[],
-    monthlyVariation: 'None',
-    effectiveFrom: '',
-    effectiveTo: ''
-  });
-  const [holidayForm, setHolidayForm] = useState({
-    date: '',
-    name: '',
-    type: 'Festival' as const,
-    recurrence: 'One-time' as const,
-    isPaid: true,
-    applicableTo: [] as string[],
-    treatAsWorking: false
-  });
-  const [specialDayForm, setSpecialDayForm] = useState({
-    date: '',
-    description: '',
-    appliesTo: [] as string[],
-    overrideType: 'Off-to-Working' as const
-  });
-  const resetForms = () => {
-    setWeeklyOffForm({
-      name: '',
-      campus: 'Main Campus',
-      staffTypes: [],
-      offDays: [],
-      monthlyVariation: 'None',
-      effectiveFrom: '',
-      effectiveTo: ''
-    });
-    setHolidayForm({
-      date: '',
-      name: '',
-      type: 'Festival',
-      recurrence: 'One-time',
-      isPaid: true,
-      applicableTo: [],
-      treatAsWorking: false
-    });
-    setSpecialDayForm({
-      date: '',
-      description: '',
-      appliesTo: [],
-      overrideType: 'Off-to-Working'
-    });
-    setShowForm(false);
-    setEditId(null);
-  };
-  const handleSaveWeeklyOff = () => {
-    if (editId) {
-      setWeeklyOffPatterns((prev) =>
-      prev.map((w) =>
-      w.id === editId ?
-      {
-        ...w,
-        ...weeklyOffForm
-      } :
-      w
-      )
-      );
-    } else {
-      setWeeklyOffPatterns((prev) => [
-      ...prev,
-      {
-        ...weeklyOffForm,
-        id: `WO${Date.now()}`,
-        status: 'Active' as const
-      }]
-      );
-    }
-    resetForms();
-  };
-  const handleSaveHoliday = () => {
-    if (editId) {
-      setHolidays((prev) =>
-      prev.map((h) =>
-      h.id === editId ?
-      {
-        ...h,
-        ...holidayForm
-      } :
-      h
-      )
-      );
-    } else {
-      setHolidays((prev) => [
-      ...prev,
-      {
-        ...holidayForm,
-        id: `H${Date.now()}`,
-        status: 'Active' as const
-      }]
-      );
-    }
-    resetForms();
-  };
-  const handleSaveSpecialDay = () => {
-    if (editId) {
-      setSpecialDays((prev) =>
-      prev.map((s) =>
-      s.id === editId ?
-      {
-        ...s,
-        ...specialDayForm
-      } :
-      s
-      )
-      );
-    } else {
-      setSpecialDays((prev) => [
-      ...prev,
-      {
-        ...specialDayForm,
-        id: `SD${Date.now()}`
-      }]
-      );
-    }
-    resetForms();
-  };
-  const tabs = [
-  {
-    id: 'weekly-off',
-    label: 'Weekly Off Patterns'
-  },
-  {
-    id: 'holidays',
-    label: 'Holiday Calendar'
-  },
-  {
-    id: 'special-days',
-    label: 'Special Working Days'
-  }];
+  const [notice, setNotice] = useState(boot.warning || '');
+  const [calendarForm, setCalendarForm] = useState(emptyCalendar());
+  const [holidayForm, setHolidayForm] = useState({ date: '', name: '', type: 'Festival', applicableTo: [] as string[], treatAsWorking: false });
+  const [specialForm, setSpecialForm] = useState({ date: '', description: '', appliesTo: [] as string[], overrideType: 'Off-to-Working' as WorkingSpecialDay['overrideType'] });
 
-  const filteredWeeklyOff = weeklyOffPatterns.filter((w) =>
-  w.name.toLowerCase().includes(search.toLowerCase())
-  );
-  const filteredHolidays = holidays.filter((h) =>
-  h.name.toLowerCase().includes(search.toLowerCase())
-  );
-  const filteredSpecialDays = specialDays.filter((s) =>
-  s.description.toLowerCase().includes(search.toLowerCase())
-  );
+  const persist = (next: WorkingHolidayCalendarRecord[], success?: string) => {
+    const loaded = loadPayrollPolicyConfig();
+    const result = savePayrollPolicyConfig({ ...loaded.config, workingCalendars: next });
+    if (!result.ok) { setNotice(result.error || 'Save failed. Edits remain on screen.'); return false; }
+    setCalendars(next); setNotice(success || 'Saved in this browser only.'); return true;
+  };
+
+  useEffect(() => subscribePayrollPolicyConfig(() => {
+    const next = loadPayrollPolicyConfig();
+    setCalendars(next.config.workingCalendars);
+  }), []);
+
+  const selected = calendars.find((item) => item.id === selectedId);
+  const referenced = (id: string) => {
+    const { config } = loadPayrollPolicyConfig();
+    return config.policies.some((item) => item.workingCalendarId === id) || config.snapshots.some((item) => item.workingCalendarId === id);
+  };
+
+  const saveCalendar = () => {
+    if (!calendarForm.name.trim()) { setNotice('Calendar name is required.'); return; }
+    if (editId) persist(calendars.map((item) => item.id === editId ? { ...calendarForm, id: editId } : item), 'Calendar updated.');
+    else {
+      const created = { ...calendarForm, id: `WC-${Date.now()}` };
+      persist([...calendars, created], 'Calendar created.');
+      setSelectedId(created.id);
+    }
+    setShowForm(false); setEditId(null);
+  };
+
+  const cloneCalendar = (item: WorkingHolidayCalendarRecord) => {
+    const copy = { ...item, id: `WC-${Date.now()}`, name: `${item.name} (copy)`, status: 'Draft' as const, sample: false, holidays: item.holidays.map((h) => ({ ...h, id: `H-${Date.now()}-${h.id}` })), specialDays: item.specialDays.map((s) => ({ ...s, id: `SD-${Date.now()}-${s.id}` })) };
+    persist([...calendars, copy], 'Calendar cloned as draft.');
+  };
+
+  const deleteCalendar = (item: WorkingHolidayCalendarRecord) => {
+    if (referenced(item.id)) { setNotice('This calendar is selected on a saved payroll policy or preview and cannot be deleted.'); return; }
+    persist(calendars.filter((row) => row.id !== item.id), 'Calendar deleted.');
+    if (selectedId === item.id) setSelectedId(calendars.find((row) => row.id !== item.id)?.id || '');
+  };
+
+  const addHoliday = () => {
+    if (!selected || !holidayForm.date || !holidayForm.name) { setNotice('Holiday date and name are required.'); return; }
+    const row: WorkingHoliday = { id: `H-${Date.now()}`, date: holidayForm.date, name: holidayForm.name, type: holidayForm.type, applicableTo: holidayForm.applicableTo, treatAsWorking: holidayForm.treatAsWorking };
+    persist(calendars.map((item) => item.id === selected.id ? { ...item, holidays: [...item.holidays, row] } : item), 'Holiday added.');
+    setHolidayForm({ date: '', name: '', type: 'Festival', applicableTo: [], treatAsWorking: false });
+  };
+  const addSpecial = () => {
+    if (!selected || !specialForm.date || !specialForm.description) { setNotice('Special-day date and description are required.'); return; }
+    const row: WorkingSpecialDay = { id: `SD-${Date.now()}`, ...specialForm };
+    persist(calendars.map((item) => item.id === selected.id ? { ...item, specialDays: [...item.specialDays, row] } : item), 'Special day added.');
+    setSpecialForm({ date: '', description: '', appliesTo: [], overrideType: 'Off-to-Working' });
+  };
+
+  const filteredCalendars = calendars.filter((item) => item.name.toLowerCase().includes(search.toLowerCase()));
+
   return (
     <div className="space-y-6 p-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            Working Calendar Master
-          </h1>
-          <p className="text-sm text-gray-500">
-            Unified management of weekly offs, holidays, and special working
-            days
-          </p>
+          <h1 className="text-2xl font-bold text-gray-900">Working Calendar Master</h1>
+          <p className="text-sm text-gray-500">Named working/holiday calendars for campus and staff groups. Saturdays are not assumed off.</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline">
-            <Upload className="w-4 h-4 mr-2" />
-            Import
-          </Button>
-          <Button
-            variant="primary"
-            onClick={() => {
-              resetForms();
-              setShowForm(true);
-            }}>
+        <Button variant="primary" onClick={() => { setCalendarForm(emptyCalendar()); setEditId(null); setShowForm(true); }}><Plus className="w-4 h-4 mr-2" />Add New</Button>
+      </div>
+      {notice && <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800">{notice}</div>}
 
-            <Plus className="w-4 h-4 mr-2" />
-            Add New
-          </Button>
-        </div>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="bg-white rounded-lg border p-4 flex items-center gap-3"><div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center"><Calendar className="w-5 h-5 text-blue-600" /></div><div><p className="text-xl font-bold">{calendars.length}</p><p className="text-xs text-gray-500">Calendars</p></div></div>
+        <div className="bg-white rounded-lg border p-4 flex items-center gap-3"><div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center"><Calendar className="w-5 h-5 text-green-600" /></div><div><p className="text-xl font-bold">{calendars.reduce((sum, item) => sum + item.holidays.length, 0)}</p><p className="text-xs text-gray-500">Holidays</p></div></div>
+        <div className="bg-white rounded-lg border p-4 flex items-center gap-3"><div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center"><Calendar className="w-5 h-5 text-purple-600" /></div><div><p className="text-xl font-bold">{calendars.reduce((sum, item) => sum + item.specialDays.length, 0)}</p><p className="text-xs text-gray-500">Special Days</p></div></div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        <div className="bg-white rounded-lg border p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-            <Calendar className="w-5 h-5 text-blue-600" />
-          </div>
-          <div>
-            <p className="text-xl font-bold">{weeklyOffPatterns.length}</p>
-            <p className="text-xs text-gray-500">Weekly Off Patterns</p>
-          </div>
+      {showForm && <Card title={editId ? 'Edit working calendar' : 'Add working calendar'}>
+        <div className="grid gap-4 mb-4 md:grid-cols-2">
+          <Input label="Calendar name *" value={calendarForm.name} onChange={(e) => setCalendarForm({ ...calendarForm, name: e.target.value })} />
+          <Select label="Campus *" options={campusOpts} value={calendarForm.campusId} onChange={(e) => setCalendarForm({ ...calendarForm, campusId: typeof e === 'string' ? e : e.target.value })} />
+          <div className="md:col-span-2"><MultiSelect label="Applicable staff types" options={staffOpts} value={calendarForm.staffTypes} onChange={(value) => setCalendarForm({ ...calendarForm, staffTypes: value })} /></div>
+          <div className="md:col-span-2"><MultiSelect label="Weekly off days" options={dayOpts} value={calendarForm.weeklyOffDays} onChange={(value) => setCalendarForm({ ...calendarForm, weeklyOffDays: value })} /></div>
+          <Select label="Saturday pattern" options={[{ value: 'none', label: 'Saturdays working (unless listed as off)' }, { value: 'all', label: 'All Saturdays off' }, { value: '2nd-4th', label: '2nd and 4th Saturday off' }, { value: '1st-3rd', label: '1st and 3rd Saturday off' }]} value={calendarForm.saturdayPattern} onChange={(e) => setCalendarForm({ ...calendarForm, saturdayPattern: (typeof e === 'string' ? e : e.target.value) as WorkingHolidayCalendarRecord['saturdayPattern'] })} />
+          <Select label="Status" options={['Draft', 'Active', 'Inactive'].map((v) => ({ value: v, label: v }))} value={calendarForm.status} onChange={(e) => setCalendarForm({ ...calendarForm, status: (typeof e === 'string' ? e : e.target.value) as WorkingHolidayCalendarRecord['status'] })} />
+          <Input label="Effective from" type="date" value={calendarForm.effectiveFrom} onChange={(e) => setCalendarForm({ ...calendarForm, effectiveFrom: e.target.value })} />
+          <Input label="Effective to" type="date" value={calendarForm.effectiveTo} onChange={(e) => setCalendarForm({ ...calendarForm, effectiveTo: e.target.value })} />
         </div>
-        <div className="bg-white rounded-lg border p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
-            <Calendar className="w-5 h-5 text-green-600" />
-          </div>
-          <div>
-            <p className="text-xl font-bold">{holidays.length}</p>
-            <p className="text-xs text-gray-500">Holidays</p>
-          </div>
-        </div>
-        <div className="bg-white rounded-lg border p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
-            <Calendar className="w-5 h-5 text-purple-600" />
-          </div>
-          <div>
-            <p className="text-xl font-bold">{specialDays.length}</p>
-            <p className="text-xs text-gray-500">Special Days</p>
-          </div>
-        </div>
-      </div>
+        <div className="flex gap-2"><Button onClick={saveCalendar}><Save className="w-4 h-4 mr-2" />{editId ? 'Update' : 'Create'}</Button><Button variant="outline" onClick={() => { setShowForm(false); setEditId(null); }}>Cancel</Button></div>
+      </Card>}
 
-      {showForm &&
-      <Card
-        title={
-        editId ?
-        `Edit ${activeTab === 'weekly-off' ? 'Weekly Off Pattern' : activeTab === 'holidays' ? 'Holiday' : 'Special Day'}` :
-        `Add New ${activeTab === 'weekly-off' ? 'Weekly Off Pattern' : activeTab === 'holidays' ? 'Holiday' : 'Special Day'}`
-        }>
+      <div className="relative"><Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search calendars..." className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm" /></div>
 
-          {activeTab === 'weekly-off' &&
-        <>
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <Input
-              label="Pattern Name *"
-              value={weeklyOffForm.name}
-              onChange={(e) =>
-              setWeeklyOffForm({
-                ...weeklyOffForm,
-                name: e.target.value
-              })
-              }
-              placeholder="e.g., Standard Weekly Off" />
-
-                <Select
-              label="Campus *"
-              options={[
-              {
-                value: 'Main Campus',
-                label: 'Main Campus'
-              },
-              {
-                value: 'Branch Campus',
-                label: 'Branch Campus'
-              }]
-              }
-              value={weeklyOffForm.campus}
-              onChange={(e) =>
-              setWeeklyOffForm({
-                ...weeklyOffForm,
-                campus: e.target.value
-              })
-              } />
-
-                <Input
-              label="Monthly Variation"
-              value={weeklyOffForm.monthlyVariation}
-              onChange={(e) =>
-              setWeeklyOffForm({
-                ...weeklyOffForm,
-                monthlyVariation: e.target.value
-              })
-              }
-              placeholder="e.g., 2nd & 4th Saturday" />
-
-                <div />
-                <Input
-              label="Effective From"
-              type="date"
-              value={weeklyOffForm.effectiveFrom}
-              onChange={(e) =>
-              setWeeklyOffForm({
-                ...weeklyOffForm,
-                effectiveFrom: e.target.value
-              })
-              } />
-
-                <Input
-              label="Effective To"
-              type="date"
-              value={weeklyOffForm.effectiveTo}
-              onChange={(e) =>
-              setWeeklyOffForm({
-                ...weeklyOffForm,
-                effectiveTo: e.target.value
-              })
-              } />
-
-              </div>
-              <div className="flex gap-2">
-                <Button variant="primary" onClick={handleSaveWeeklyOff}>
-                  <Save className="w-4 h-4 mr-2" />
-                  {editId ? 'Update' : 'Create'}
-                </Button>
-                <Button variant="outline" onClick={resetForms}>
-                  Cancel
-                </Button>
-              </div>
-            </>
-        }
-
-          {activeTab === 'holidays' &&
-        <>
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <Input
-              label="Date *"
-              type="date"
-              value={holidayForm.date}
-              onChange={(e) =>
-              setHolidayForm({
-                ...holidayForm,
-                date: e.target.value
-              })
-              } />
-
-                <Input
-              label="Holiday Name *"
-              value={holidayForm.name}
-              onChange={(e) =>
-              setHolidayForm({
-                ...holidayForm,
-                name: e.target.value
-              })
-              }
-              placeholder="e.g., Republic Day" />
-
-                <Select
-              label="Type *"
-              options={[
-              {
-                value: 'National',
-                label: 'National'
-              },
-              {
-                value: 'Festival',
-                label: 'Festival'
-              },
-              {
-                value: 'Institutional',
-                label: 'Institutional'
-              },
-              {
-                value: 'Exam',
-                label: 'Exam'
-              },
-              {
-                value: 'Other',
-                label: 'Other'
-              }]
-              }
-              value={holidayForm.type}
-              onChange={(e) =>
-              setHolidayForm({
-                ...holidayForm,
-                type: e.target.value as any
-              })
-              } />
-
-                <Select
-              label="Recurrence"
-              options={[
-              {
-                value: 'One-time',
-                label: 'One-time'
-              },
-              {
-                value: 'Annual',
-                label: 'Annual'
-              }]
-              }
-              value={holidayForm.recurrence}
-              onChange={(e) =>
-              setHolidayForm({
-                ...holidayForm,
-                recurrence: e.target.value as any
-              })
-              } />
-
-                <div className="col-span-2 flex gap-6">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                  type="checkbox"
-                  checked={holidayForm.isPaid}
-                  onChange={(e) =>
-                  setHolidayForm({
-                    ...holidayForm,
-                    isPaid: e.target.checked
-                  })
-                  }
-                  className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500" />
-
-                    <span className="text-sm text-gray-700">Paid Holiday</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                  type="checkbox"
-                  checked={holidayForm.treatAsWorking}
-                  onChange={(e) =>
-                  setHolidayForm({
-                    ...holidayForm,
-                    treatAsWorking: e.target.checked
-                  })
-                  }
-                  className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500" />
-
-                    <span className="text-sm text-gray-700">
-                      Treat as Working Day (for specific groups)
-                    </span>
-                  </label>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <Button variant="primary" onClick={handleSaveHoliday}>
-                  <Save className="w-4 h-4 mr-2" />
-                  {editId ? 'Update' : 'Create'}
-                </Button>
-                <Button variant="outline" onClick={resetForms}>
-                  Cancel
-                </Button>
-              </div>
-            </>
-        }
-
-          {activeTab === 'special-days' &&
-        <>
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <Input
-              label="Date *"
-              type="date"
-              value={specialDayForm.date}
-              onChange={(e) =>
-              setSpecialDayForm({
-                ...specialDayForm,
-                date: e.target.value
-              })
-              } />
-
-                <Select
-              label="Override Type *"
-              options={[
-              {
-                value: 'Off-to-Working',
-                label: 'Off Day → Working Day'
-              },
-              {
-                value: 'Working-to-Off',
-                label: 'Working Day → Off Day'
-              }]
-              }
-              value={specialDayForm.overrideType}
-              onChange={(e) =>
-              setSpecialDayForm({
-                ...specialDayForm,
-                overrideType: e.target.value as any
-              })
-              } />
-
-                <div className="col-span-2">
-                  <Input
-                label="Description *"
-                value={specialDayForm.description}
-                onChange={(e) =>
-                setSpecialDayForm({
-                  ...specialDayForm,
-                  description: e.target.value
-                })
-                }
-                placeholder="e.g., Annual Day Preparation" />
-
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <Button variant="primary" onClick={handleSaveSpecialDay}>
-                  <Save className="w-4 h-4 mr-2" />
-                  {editId ? 'Update' : 'Create'}
-                </Button>
-                <Button variant="outline" onClick={resetForms}>
-                  Cancel
-                </Button>
-              </div>
-            </>
-        }
-        </Card>
-      }
-
-      <Card>
-        <Tabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
-
-        <div className="mt-4">
-          <div className="relative mb-4">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-
-          </div>
-
-          {activeTab === 'weekly-off' &&
-          <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b-2 border-gray-200 bg-gray-50">
-                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase">
-                      Pattern Name
-                    </th>
-                    <th className="text-center py-3 px-4 text-xs font-semibold text-gray-600 uppercase">
-                      Campus
-                    </th>
-                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase">
-                      Off Days
-                    </th>
-                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase">
-                      Variation
-                    </th>
-                    <th className="text-center py-3 px-4 text-xs font-semibold text-gray-600 uppercase">
-                      Status
-                    </th>
-                    <th className="text-center py-3 px-4 text-xs font-semibold text-gray-600 uppercase">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredWeeklyOff.map((w, i) =>
-                <tr
-                  key={w.id}
-                  className={`border-b border-gray-100 hover:bg-gray-50 ${i % 2 ? 'bg-gray-50/30' : ''}`}>
-
-                      <td className="py-3 px-4 text-sm font-semibold text-gray-900">
-                        {w.name}
-                      </td>
-                      <td className="py-3 px-4 text-center text-sm text-gray-600">
-                        {w.campus}
-                      </td>
-                      <td className="py-3 px-4 text-sm text-gray-600">
-                        {w.offDays.join(', ')}
-                      </td>
-                      <td className="py-3 px-4 text-sm text-gray-600">
-                        {w.monthlyVariation}
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <Badge
-                      variant={
-                      w.status === 'Active' ? 'success' : 'secondary'
-                      }>
-
-                          {w.status}
-                        </Badge>
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <button
-                        className="p-1.5 hover:bg-blue-100 rounded-lg"
-                        title="Edit">
-
-                            <Edit className="w-4 h-4 text-blue-600" />
-                          </button>
-                          <button
-                        className="p-1.5 hover:bg-gray-100 rounded-lg"
-                        title="Clone">
-
-                            <Copy className="w-4 h-4 text-gray-500" />
-                          </button>
-                          <button
-                        className="p-1.5 hover:bg-red-100 rounded-lg"
-                        title="Delete">
-
-                            <Trash2 className="w-4 h-4 text-red-500" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                )}
-                </tbody>
-              </table>
-            </div>
-          }
-
-          {activeTab === 'holidays' &&
-          <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b-2 border-gray-200 bg-gray-50">
-                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase">
-                      Date
-                    </th>
-                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase">
-                      Holiday Name
-                    </th>
-                    <th className="text-center py-3 px-4 text-xs font-semibold text-gray-600 uppercase">
-                      Type
-                    </th>
-                    <th className="text-center py-3 px-4 text-xs font-semibold text-gray-600 uppercase">
-                      Recurrence
-                    </th>
-                    <th className="text-center py-3 px-4 text-xs font-semibold text-gray-600 uppercase">
-                      Paid
-                    </th>
-                    <th className="text-center py-3 px-4 text-xs font-semibold text-gray-600 uppercase">
-                      Status
-                    </th>
-                    <th className="text-center py-3 px-4 text-xs font-semibold text-gray-600 uppercase">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredHolidays.map((h, i) =>
-                <tr
-                  key={h.id}
-                  className={`border-b border-gray-100 hover:bg-gray-50 ${i % 2 ? 'bg-gray-50/30' : ''}`}>
-
-                      <td className="py-3 px-4 text-sm font-medium text-gray-900">
-                        {new Date(h.date).toLocaleDateString('en-IN', {
-                      day: '2-digit',
-                      month: 'short',
-                      year: 'numeric'
-                    })}
-                      </td>
-                      <td className="py-3 px-4 text-sm font-semibold text-gray-900">
-                        {h.name}
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <Badge
-                      variant={
-                      h.type === 'National' ?
-                      'info' :
-                      h.type === 'Festival' ?
-                      'success' :
-                      'secondary'
-                      }>
-
-                          {h.type}
-                        </Badge>
-                      </td>
-                      <td className="py-3 px-4 text-center text-sm text-gray-600">
-                        {h.recurrence}
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <Badge variant={h.isPaid ? 'success' : 'secondary'}>
-                          {h.isPaid ? 'Yes' : 'No'}
-                        </Badge>
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <Badge
-                      variant={
-                      h.status === 'Active' ? 'success' : 'secondary'
-                      }>
-
-                          {h.status}
-                        </Badge>
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <button
-                        className="p-1.5 hover:bg-blue-100 rounded-lg"
-                        title="Edit">
-
-                            <Edit className="w-4 h-4 text-blue-600" />
-                          </button>
-                          <button
-                        className="p-1.5 hover:bg-red-100 rounded-lg"
-                        title="Delete">
-
-                            <Trash2 className="w-4 h-4 text-red-500" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                )}
-                </tbody>
-              </table>
-            </div>
-          }
-
-          {activeTab === 'special-days' &&
-          <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b-2 border-gray-200 bg-gray-50">
-                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase">
-                      Date
-                    </th>
-                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase">
-                      Description
-                    </th>
-                    <th className="text-center py-3 px-4 text-xs font-semibold text-gray-600 uppercase">
-                      Override Type
-                    </th>
-                    <th className="text-center py-3 px-4 text-xs font-semibold text-gray-600 uppercase">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredSpecialDays.map((s, i) =>
-                <tr
-                  key={s.id}
-                  className={`border-b border-gray-100 hover:bg-gray-50 ${i % 2 ? 'bg-gray-50/30' : ''}`}>
-
-                      <td className="py-3 px-4 text-sm font-medium text-gray-900">
-                        {new Date(s.date).toLocaleDateString('en-IN', {
-                      day: '2-digit',
-                      month: 'short',
-                      year: 'numeric'
-                    })}
-                      </td>
-                      <td className="py-3 px-4 text-sm text-gray-900">
-                        {s.description}
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <Badge
-                      variant={
-                      s.overrideType === 'Off-to-Working' ?
-                      'success' :
-                      'warning'
-                      }>
-
-                          {s.overrideType}
-                        </Badge>
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <button
-                        className="p-1.5 hover:bg-blue-100 rounded-lg"
-                        title="Edit">
-
-                            <Edit className="w-4 h-4 text-blue-600" />
-                          </button>
-                          <button
-                        className="p-1.5 hover:bg-red-100 rounded-lg"
-                        title="Delete">
-
-                            <Trash2 className="w-4 h-4 text-red-500" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                )}
-                </tbody>
-              </table>
-            </div>
-          }
+      <Card title="Calendars">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[720px] text-sm">
+            <thead className="bg-gray-50 text-xs uppercase text-gray-500"><tr><th className="px-3 py-2 text-left">Name</th><th>Campus</th><th>Staff</th><th>Weekly offs</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody>
+              {filteredCalendars.map((item) => (
+                <tr key={item.id} className={`border-t ${selectedId === item.id ? 'bg-blue-50' : ''}`}>
+                  <td className="px-3 py-2"><button type="button" className="text-left font-semibold text-blue-700" onClick={() => setSelectedId(item.id)}>{item.name}{item.sample ? ' (sample)' : ''}</button><p className="text-xs text-gray-400">{item.id}</p></td>
+                  <td>{PAYROLL_CAMPUSES.find((c) => c.value === item.campusId)?.label || item.campusId}</td>
+                  <td>{item.staffTypes.join(', ') || '—'}</td>
+                  <td>{item.weeklyOffDays.join(', ')}{item.saturdayPattern !== 'none' ? ` · Sat ${item.saturdayPattern}` : ''}</td>
+                  <td><Badge variant={item.status === 'Active' ? 'success' : 'secondary'}>{item.status}</Badge></td>
+                  <td>
+                    <button type="button" className="p-1.5" title="Edit" onClick={() => { setCalendarForm({ ...item }); setEditId(item.id); setShowForm(true); }}><Edit className="w-4 h-4 text-blue-600" /></button>
+                    <button type="button" className="p-1.5" title="Clone" onClick={() => cloneCalendar(item)}><Copy className="w-4 h-4 text-gray-500" /></button>
+                    <button type="button" className="p-1.5" title="Delete" onClick={() => deleteCalendar(item)}><Trash2 className="w-4 h-4 text-red-500" /></button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </Card>
-    </div>);
 
+      {selected && <>
+        <div className="flex flex-wrap gap-1 border-b border-gray-200 bg-white">
+          {([{ id: 'weekly-off', label: 'Weekly Off Patterns' }, { id: 'holidays', label: 'Holiday Calendar' }, { id: 'special-days', label: 'Special Working Days' }] as const).map((item) => (
+            <button key={item.id} type="button" onClick={() => setActiveTab(item.id)} className={`px-4 py-2.5 text-sm font-medium border-b-2 ${activeTab === item.id ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500'}`}>{item.label}</button>
+          ))}
+        </div>
+        {activeTab === 'weekly-off' && <Card title={`Weekly offs · ${selected.name}`}><div className="p-4 text-sm text-gray-700">
+          <p>Off days: {selected.weeklyOffDays.join(', ') || 'None'}</p>
+          <p>Saturday pattern: {selected.saturdayPattern}</p>
+          <p>Staff types: {selected.staffTypes.join(', ') || '—'}</p>
+          <p className="mt-2 text-xs text-gray-500">Edit the calendar to change weekly-off days. Working Saturdays are allowed.</p>
+        </div></Card>}
+        {activeTab === 'holidays' && <Card title="Holidays">
+          <div className="grid gap-3 p-4 md:grid-cols-2">
+            <Input label="Date *" type="date" value={holidayForm.date} onChange={(e) => setHolidayForm({ ...holidayForm, date: e.target.value })} />
+            <Input label="Holiday name *" value={holidayForm.name} onChange={(e) => setHolidayForm({ ...holidayForm, name: e.target.value })} />
+            <Select label="Type" options={['National', 'Festival', 'Institutional', 'Exam', 'Other'].map((v) => ({ value: v, label: v }))} value={holidayForm.type} onChange={(e) => setHolidayForm({ ...holidayForm, type: typeof e === 'string' ? e : e.target.value })} />
+            <MultiSelect label="Holiday applicability" options={staffOpts} value={holidayForm.applicableTo} onChange={(value) => setHolidayForm({ ...holidayForm, applicableTo: value })} />
+            <Select label="Treat as working day" options={[{ value: 'no', label: 'No' }, { value: 'yes', label: 'Yes' }]} value={holidayForm.treatAsWorking ? 'yes' : 'no'} onChange={(e) => setHolidayForm({ ...holidayForm, treatAsWorking: (typeof e === 'string' ? e : e.target.value) === 'yes' })} />
+            <div className="flex items-end"><Button onClick={addHoliday}>Add holiday</Button></div>
+          </div>
+          <div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-gray-50 text-xs uppercase text-gray-500"><tr><th className="px-3 py-2 text-left">Date</th><th>Name</th><th>Applies to</th><th></th></tr></thead><tbody>{selected.holidays.map((h) => <tr key={h.id} className="border-t"><td className="px-3 py-2">{h.date}</td><td>{h.name}</td><td>{h.applicableTo.join(', ') || '—'}</td><td><button type="button" onClick={() => persist(calendars.map((item) => item.id === selected.id ? { ...item, holidays: item.holidays.filter((row) => row.id !== h.id) } : item))}><Trash2 className="h-4 w-4 text-red-500" /></button></td></tr>)}</tbody></table></div>
+        </Card>}
+        {activeTab === 'special-days' && <Card title="Special days">
+          <div className="grid gap-3 p-4 md:grid-cols-2">
+            <Input label="Date *" type="date" value={specialForm.date} onChange={(e) => setSpecialForm({ ...specialForm, date: e.target.value })} />
+            <Input label="Description *" value={specialForm.description} onChange={(e) => setSpecialForm({ ...specialForm, description: e.target.value })} />
+            <Select label="Override" options={[{ value: 'Off-to-Working', label: 'Off → Working' }, { value: 'Working-to-Off', label: 'Working → Off' }]} value={specialForm.overrideType} onChange={(e) => setSpecialForm({ ...specialForm, overrideType: (typeof e === 'string' ? e : e.target.value) as WorkingSpecialDay['overrideType'] })} />
+            <MultiSelect label="Special-day applicability" options={staffOpts} value={specialForm.appliesTo} onChange={(value) => setSpecialForm({ ...specialForm, appliesTo: value })} />
+            <div className="flex items-end"><Button onClick={addSpecial}>Add special day</Button></div>
+          </div>
+          <div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-gray-50 text-xs uppercase text-gray-500"><tr><th className="px-3 py-2 text-left">Date</th><th>Description</th><th>Type</th><th>Applies to</th></tr></thead><tbody>{selected.specialDays.map((s) => <tr key={s.id} className="border-t"><td className="px-3 py-2">{s.date}</td><td>{s.description}</td><td>{s.overrideType}</td><td>{s.appliesTo.join(', ') || '—'}</td></tr>)}</tbody></table></div>
+        </Card>}
+      </>}
+    </div>
+  );
 }

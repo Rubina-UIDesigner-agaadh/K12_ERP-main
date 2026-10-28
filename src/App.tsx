@@ -217,6 +217,18 @@ function MainLayout() {
   const [medium, setMedium] = useState('English Medium');
   const [branch, setBranch] = useState('Main Campus');
   const [academicYear, setAcademicYear] = useState('AY: 2024-2025');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('k12-sidebar-collapsed') === '1';
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem('k12-sidebar-collapsed', sidebarCollapsed ? '1' : '0');
+    } catch { /* ignore */ }
+  }, [sidebarCollapsed]);
   // Favorites State
   const [favorites, setFavorites] = useState<FavoriteItem[]>(() => {
     try {
@@ -445,7 +457,9 @@ function MainLayout() {
           activeModuleLabel={activeModule?.label || ''}
           favorites={favorites}
           onToggleFavorite={toggleFavorite}
-          onNavigateFavorite={navigateToFavorite} />
+          onNavigateFavorite={navigateToFavorite}
+          collapsed={sidebarCollapsed}
+          onToggleCollapsed={() => setSidebarCollapsed((value) => !value)} />
 
 
         <div className="flex min-w-0 flex-1 flex-col">

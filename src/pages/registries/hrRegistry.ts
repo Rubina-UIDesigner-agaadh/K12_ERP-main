@@ -220,6 +220,10 @@ export const hrRegistry: Record<string, () => any> = {
     () => import('../hr/payroll/PayrollProcess'),
     'PayrollProcess'
   ),
+  'payroll-entry': rp(
+    () => import('../hr/payroll/PayrollEntry'),
+    'PayrollEntry'
+  ),
   'supplementary-arrear-payroll': rp(
     () => import('../hr/payroll/SupplementaryArrearPayroll'),
     'SupplementaryArrearPayroll'
@@ -253,16 +257,16 @@ export const hrRegistry: Record<string, () => any> = {
     'PayrollReport'
   ),
   'earnings-deduction-summary': rp(
-    () => import('../hr/payroll/EarningsDeductionSummary'),
-    'EarningsDeductionSummary'
+    () => import('../hr/payroll/PayrollReport'),
+    'PayrollReport'
   ),
   'department-cost-center-salary': rp(
-    () => import('../hr/payroll/DepartmentCostCenterSalary'),
-    'DepartmentCostCenterSalary'
+    () => import('../hr/payroll/PayrollReport'),
+    'PayrollReport'
   ),
   'payroll-audit-variance-report': rp(
-    () => import('../hr/payroll/PayrollAuditVarianceReport'),
-    'PayrollAuditVarianceReport'
+    () => import('../hr/payroll/PayrollReport'),
+    'PayrollReport'
   ),
   'pay-head-master': rp(
     () => import('../hr/payroll/PayHeadMaster'),
@@ -398,12 +402,12 @@ export const hrRegistry: Record<string, () => any> = {
     'AppraisalResultReport'
   ),
   'rating-distribution-normalisation': rp(
-    () => import('../hr/appraisal/RatingDistributionNormalisation'),
-    'RatingDistributionNormalisation'
+    () => import('../hr/appraisal/AppraisalResultReport'),
+    'AppraisalResultReport'
   ),
   'training-needs-action-plan-report': rp(
-    () => import('../hr/appraisal/TrainingNeedsActionPlanReport'),
-    'TrainingNeedsActionPlanReport'
+    () => import('../hr/appraisal/AppraisalResultReport'),
+    'AppraisalResultReport'
   ),
   'appraisal-cycle-master': rp(
     () => import('../hr/appraisal/AppraisalCycleMaster'),

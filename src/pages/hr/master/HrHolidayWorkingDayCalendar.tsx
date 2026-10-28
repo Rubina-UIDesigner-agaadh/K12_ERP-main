@@ -1,5 +1,6 @@
 import React from 'react';
-import { MasterPage } from '../../templates/MasterPage';
+import { WorkingCalendarMaster } from './WorkingCalendarMaster';
+
 export function HrHolidayWorkingDayCalendar() {
-  return <MasterPage title="Holiday & Working Day Calendar" />;
+  return <WorkingCalendarMaster />;
 }

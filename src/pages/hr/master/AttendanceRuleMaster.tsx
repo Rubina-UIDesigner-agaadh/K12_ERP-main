@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { loadPayrollPolicyConfig, savePayrollPolicyConfig, subscribePayrollPolicyConfig, type AttendanceRuleRecord } from '../payroll/PayrollSetup';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
@@ -233,7 +234,20 @@ function Modal({ open, title, onClose, children, footer, size = 'md' }: ModalPro
 }
 
 export function AttendanceRuleMaster() {
-  const [rules, setRules] = useState(mockRules);
+  const [rules, setRules] = useState<AttendanceRule[]>(() => {
+    const loaded = loadPayrollPolicyConfig();
+    return loaded.config.attendanceRules.length ? loaded.config.attendanceRules : mockRules;
+  });
+  const persistRules = (next: AttendanceRuleRecord[]) => {
+    setRules(next);
+    const loaded = loadPayrollPolicyConfig();
+    const result = savePayrollPolicyConfig({ ...loaded.config, attendanceRules: next });
+    if (!result.ok) window.alert(result.error || 'Attendance rules could not be saved. Edits remain on this screen.');
+  };
+  useEffect(() => subscribePayrollPolicyConfig(() => {
+    const loaded = loadPayrollPolicyConfig();
+    if (loaded.config.attendanceRules.length) setRules(loaded.config.attendanceRules);
+  }), []);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -337,25 +351,9 @@ export function AttendanceRuleMaster() {
       return;
     }
     if (editId) {
-      setRules((prev) =>
-      prev.map((r) =>
-      r.id === editId ?
-      {
-        ...r,
-        ...form
-      } :
-      r
-      )
-      );
+      persistRules(rules.map((r) => r.id === editId ? { ...r, ...form } : r));
     } else {
-      setRules((prev) => [
-      ...prev,
-      {
-        ...form,
-        id: `AR${Date.now()}`,
-        status: 'Active' as const
-      }]
-      );
+      persistRules([...rules, { ...form, id: `AR${Date.now()}`, status: 'Active' as const }]);
     }
     resetForm();
   };
@@ -440,7 +438,7 @@ export function AttendanceRuleMaster() {
 
   const confirmDelete = () => {
     if (!deleteTarget) return;
-    setRules((prev) => prev.filter((r) => r.id !== deleteTarget.id));
+    persistRules(rules.filter((r) => r.id !== deleteTarget.id));
     if (editId === deleteTarget.id) resetForm();
     setDeleteTarget(null);
     setToast('Rule deleted successfully.');
@@ -448,7 +446,7 @@ export function AttendanceRuleMaster() {
 
   const toggleStatus = (rule: AttendanceRule) => {
     const nextStatus = rule.status === 'Active' ? 'Inactive' : 'Active';
-    setRules((prev) => prev.map((r) => r.id === rule.id ? { ...r, status: nextStatus } : r));
+    persistRules(rules.map((r) => r.id === rule.id ? { ...r, status: nextStatus } : r));
     setToast(`Rule marked as ${nextStatus}.`);
   };
 

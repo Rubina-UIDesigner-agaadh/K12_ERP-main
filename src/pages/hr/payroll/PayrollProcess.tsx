@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   Play,
   CheckCircle,
@@ -33,6 +33,13 @@ import {
   Search,
   MoreVertical } from
 'lucide-react';
+import {
+  loadPayrollPolicyConfig,
+  savePayrollPolicyConfig,
+  subscribePayrollPolicyConfig,
+  type PayrollPolicyConfig,
+  type PolicyPreviewSnapshot
+} from './PayrollSetup';
 
 // ==================== TYPES ====================
 
@@ -362,6 +369,8 @@ export function PayrollProcess() {
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [confirmAction, setConfirmAction] = useState<string>('');
   const [confirmMessage, setConfirmMessage] = useState<string>('');
+  const [policyConfig, setPolicyConfig] = useState<PayrollPolicyConfig>(() => loadPayrollPolicyConfig().config);
+  const [viewedSnapshotId, setViewedSnapshotId] = useState('');
 
   // ==================== COMPUTED VALUES ====================
 
@@ -406,6 +415,18 @@ export function PayrollProcess() {
     return exceptionsFound === 0 && employeesPending === 0;
   }, [exceptionsFound, employeesPending]);
 
+  useEffect(() => subscribePayrollPolicyConfig(() => setPolicyConfig(loadPayrollPolicyConfig().config)), []);
+  const monthIndex = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].indexOf(selectedMonth);
+  const periodToken = monthIndex >= 0 ? `${selectedMonth.slice(0, 3).toUpperCase()}-${selectedYear}` : '';
+  const matchedPeriod = policyConfig.calendars.flatMap((cal) => cal.periods.map((period) => ({ cal, period }))).find((item) => item.period.periodCode === periodToken);
+  const onDate = matchedPeriod?.period.startDate || `${selectedYear}-${String(Math.max(monthIndex, 0) + 1).padStart(2, '0')}-01`;
+  const activePolicies = policyConfig.policies.filter((item) => item.status === 'Active' && item.effectiveFrom <= (matchedPeriod?.period.endDate || onDate) && (!item.effectiveTo || item.effectiveTo >= (matchedPeriod?.period.startDate || onDate)));
+  const policyShift = activePolicies.length > 1;
+  const livePolicy = activePolicies[0];
+  const liveCalendar = policyConfig.calendars.find((item) => item.id === (matchedPeriod?.cal.id || livePolicy?.calendarId));
+  const liveWorking = policyConfig.workingCalendars.find((item) => item.id === livePolicy?.workingCalendarId);
+  const runSnapshots = policyConfig.snapshots.filter((item) => item.periodName.includes(selectedMonth) && item.periodName.includes(selectedYear));
+  const viewedSnapshot: PolicyPreviewSnapshot | undefined = policyConfig.snapshots.find((item) => item.id === viewedSnapshotId) || runSnapshots[0];
   const progressPercentage = useMemo(() => {
     return (currentStepIndex + 1) / steps.length * 100;
   }, [currentStepIndex, steps.length]);
@@ -437,6 +458,32 @@ export function PayrollProcess() {
     setProcessingProgress(0);
 
     addLog('Started payroll processing', `Month: ${selectedMonth} ${selectedYear}, Type: ${payrollType}`);
+    const loaded = loadPayrollPolicyConfig();
+    const token = `${selectedMonth.slice(0, 3).toUpperCase()}-${selectedYear}`;
+    const found = loaded.config.calendars.flatMap((cal) => cal.periods.map((period) => ({ cal, period }))).find((item) => item.period.periodCode === token);
+    const policy = loaded.config.policies.find((item) => item.status === 'Active');
+    const working = loaded.config.workingCalendars.find((item) => item.id === policy?.workingCalendarId);
+    const snapshot: PolicyPreviewSnapshot = {
+      id: `snap-${Date.now()}`,
+      runId: `preview-${selectedMonth}-${selectedYear}-${Date.now()}`,
+      savedAt: new Date().toISOString(),
+      periodId: found?.period.id || '',
+      calendarId: found?.cal.id || policy?.calendarId || '',
+      calendarName: found?.cal.calendarName || '',
+      periodName: found?.period.periodName || `${selectedMonth} ${selectedYear}`,
+      policyVersionId: policy?.id || '',
+      policyName: policy?.name || '',
+      policyVersion: policy?.version || 0,
+      workingCalendarId: working?.id || '',
+      workingCalendarName: working?.name || '',
+      attendanceBasis: policy?.dayBasis || '',
+      effectiveFrom: policy?.effectiveFrom || '',
+      effectiveTo: policy?.effectiveTo || '',
+      assignmentNote: 'Frontend policy preview snapshot. Sample salary figures were not recalculated.'
+    };
+    savePayrollPolicyConfig({ ...loaded.config, snapshots: [snapshot, ...loaded.config.snapshots] });
+    setPolicyConfig(loadPayrollPolicyConfig().config);
+    setViewedSnapshotId(snapshot.id);
 
     // Simulate processing each employee
     const totalEmployees = employees.length;
@@ -810,6 +857,40 @@ export function PayrollProcess() {
             }
           </button>
         </div>
+      </div>
+
+      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+        <p className="font-semibold">Frontend policy preview — sample salary figures on this screen have not been recalculated from the policy.</p>
+        {policyShift && <p className="mt-1 text-red-700">More than one active policy version overlaps this period. Review is required; one version was not applied silently.</p>}
+        {!matchedPeriod && <p className="mt-1">No payroll calendar period matches {selectedMonth} {selectedYear} by period code.</p>}
+        {viewedSnapshot ? (
+          <div className="mt-2 grid gap-1 md:grid-cols-2">
+            <p>Saved preview run: {viewedSnapshot.runId}</p>
+            <p>Captured: {viewedSnapshot.savedAt}</p>
+            <p>Calendar / period: {viewedSnapshot.calendarName || '—'} · {viewedSnapshot.periodName}</p>
+            <p>Policy: {viewedSnapshot.policyName || '—'} v{viewedSnapshot.policyVersion || '—'}</p>
+            <p>Working/holiday calendar: {viewedSnapshot.workingCalendarName || '—'}</p>
+            <p>Attendance basis: {viewedSnapshot.attendanceBasis || '—'}</p>
+            <p>Effective dates: {viewedSnapshot.effectiveFrom || '—'} → {viewedSnapshot.effectiveTo || 'open'}</p>
+            <p>{viewedSnapshot.assignmentNote}</p>
+          </div>
+        ) : (
+          <div className="mt-2 grid gap-1 md:grid-cols-2">
+            <p>Calendar / period: {liveCalendar?.calendarName || '—'} · {matchedPeriod?.period.periodName || '—'}</p>
+            <p>Applicable policy: {livePolicy ? `${livePolicy.name} v${livePolicy.version}` : 'No saved policy preview available'}</p>
+            <p>Working/holiday calendar: {liveWorking?.name || '—'}</p>
+            <p>Attendance basis: {livePolicy?.dayBasis || '—'}</p>
+            <p>Effective dates: {livePolicy?.effectiveFrom || '—'} → {livePolicy?.effectiveTo || 'open'}</p>
+            <p>Assignments: {policyConfig.assignments.length ? `${policyConfig.assignments.length} saved` : 'Missing — needs review'}</p>
+          </div>
+        )}
+        {runSnapshots.length > 1 && (
+          <label className="mt-2 block text-xs">View saved preview
+            <select className="ml-2 rounded border px-2 py-1" value={viewedSnapshotId} onChange={(event) => setViewedSnapshotId(event.target.value)}>
+              {runSnapshots.map((item) => <option key={item.id} value={item.id}>{item.runId}</option>)}
+            </select>
+          </label>
+        )}
       </div>
 
       {/* Controls */}
