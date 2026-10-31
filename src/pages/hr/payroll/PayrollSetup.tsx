@@ -23,7 +23,9 @@ export const PAYROLL_CAMPUSES = [
   { value: 'city', label: 'City Campus' },
   { value: 'north', label: 'North Campus' }
 ];
-export const PAYROLL_STAFF_CATEGORIES = ['Teaching', 'Administrative', 'Support Staff'];
+export const PAYROLL_STAFF_CATEGORIES = ['Teaching Staff', 'Non-Teaching Staff', 'Administrative Staff', 'Support Staff', 'Visiting Faculty', 'Management Staff'];
+export const PAYROLL_EMPLOYMENT_CATEGORIES = ['Regular', 'Contract', 'Part-Time', 'Probation', 'Temporary', 'Apprentice / Intern', 'Deputation'];
+export const PAYROLL_PAYMENT_METHODS = ['Bank Transfer', 'Cheque', 'Cash', 'Other'];
 export const WEEKDAY_OPTIONS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 export type PayrollPeriodStatus = 'Draft' | 'Open' | 'Reviewed' | 'Processed' | 'Locked' | 'Closed';
@@ -49,11 +51,15 @@ export interface PayrollPeriodRecord {
 export interface PayrollCalendarRecord {
   id: string;
   calendarName: string;
-  frequency: 'Monthly' | 'Weekly' | 'Bi-weekly' | 'Custom';
+  frequency: 'Monthly' | 'Weekly' | 'Bi-weekly' | 'Every Two Weeks' | 'Twice Monthly' | 'Custom';
+  calendarCode?: string;
+  description?: string;
+  campusId?: string;
+  staffScope?: string[];
   financialYear: string;
   fyStart: string;
   fyEnd: string;
-  status: 'Active' | 'Inactive';
+  status: 'Draft' | 'Active' | 'Inactive';
   periods: PayrollPeriodRecord[];
   sample?: boolean;
 }
@@ -61,6 +67,9 @@ export interface AttendanceRuleRecord {
   id: string;
   name: string;
   academicYear: string;
+  campusId?: string;
+  effectiveFrom?: string;
+  effectiveTo?: string;
   applicableStaffTypes: string[];
   minHoursFullDay: number;
   halfDayMinHours: number;
@@ -78,7 +87,7 @@ export interface AttendanceRuleRecord {
   sandwichRule: boolean;
   lopBasis: string;
   overtimePaid: boolean;
-  status: 'Active' | 'Inactive';
+  status: 'Draft' | 'Active' | 'Inactive';
   sample?: boolean;
 }
 export interface WorkingHoliday {
@@ -110,33 +119,48 @@ export interface WorkingHolidayCalendarRecord {
   specialDays: WorkingSpecialDay[];
   sample?: boolean;
 }
-export type PolicyStatus = 'Draft' | 'Active' | 'Superseded';
+export type PolicyStatus = 'Draft' | 'In Review' | 'Scheduled' | 'Active' | 'Retired' | 'Superseded';
 export interface PayrollPolicyVersion {
   id: string;
   policyFamilyId: string;
   version: number;
   name: string;
+  description: string;
   schoolScope: string;
+  legalEmployer: string;
   campusId: string;
   staffCategories: string[];
+  employmentCategories: string[];
+  academicYear: string;
+  financialYear: string;
   effectiveFrom: string;
   effectiveTo: string;
   status: PolicyStatus;
   changeReason: string;
+  reviewComment: string;
   currency: string;
   paymentMethods: string[];
+  defaultPaymentMethod: string;
+  costCentre: string;
   calendarId: string;
   workingCalendarId: string;
   attendanceRuleId: string;
+  leavePolicyName: string;
   dayBasis: 'attendance' | 'leave-application';
-  unmarkedAttendance: 'absent' | 'present' | 'ignore';
+  unmarkedAttendance: 'absent' | 'present' | 'review';
+  workingDayDenominator: 'calendar' | 'scheduled' | 'fixed-30';
   holidaysInDenominator: boolean;
+  weeklyOffsInDenominator: boolean;
   holidayAttendanceCounts: boolean;
+  holidaySource: 'employee' | 'shift' | 'staff-group' | 'precedence' | 'review';
+  holidayListName: string;
   halfDayFraction: number;
   partialLeaveFraction: number;
   lopBasis: string;
   roundingNet: string;
   roundingPayHead: string;
+  roundingUnit: string;
+  roundingTie: string;
   savedAt: string;
   previousValues?: Record<string, string>;
   newValues?: Record<string, string>;
@@ -149,7 +173,12 @@ export interface PolicyAssignment {
   kind: AssignmentKind;
   campusId?: string;
   staffCategory?: string;
+  employmentCategory?: string;
   employeeId?: string;
+  holidayListName?: string;
+  weeklyOffPattern?: string;
+  effectiveFrom?: string;
+  effectiveTo?: string;
 }
 export interface PolicyPreviewSnapshot {
   id: string;
@@ -180,9 +209,9 @@ export interface PayrollPolicyConfig {
 }
 
 export const PAYROLL_POLICY_STAFF_PREVIEW = [
-  { employeeId: 'EMP001', code: 'EMP-2020-001', name: 'Rajesh Kumar', staffCategory: 'Teaching', campusId: 'main' },
-  { employeeId: 'EMP002', code: 'EMP-2019-014', name: 'Priya Sharma', staffCategory: 'Teaching', campusId: 'main' },
-  { employeeId: 'EMP003', code: 'EMP-2021-008', name: 'Amit Singh', staffCategory: 'Administrative', campusId: 'city' }
+  { employeeId: 'EMP001', code: 'EMP-2020-001', name: 'Rajesh Kumar', staffCategory: 'Teaching Staff', campusId: 'main', employmentCategory: 'Regular' },
+  { employeeId: 'EMP002', code: 'EMP-2019-014', name: 'Priya Sharma', staffCategory: 'Teaching Staff', campusId: 'main', employmentCategory: 'Contract' },
+  { employeeId: 'EMP003', code: 'EMP-2021-008', name: 'Amit Singh', staffCategory: 'Administrative Staff', campusId: 'city', employmentCategory: 'Regular' }
 ];
 
 const BRANCHES = PAYROLL_CAMPUSES.filter((item) => item.value !== 'all');
@@ -192,6 +221,7 @@ const TAX_SLABS = [
   { value: 'none', label: 'Not applicable (no tax slabs)' }
 ];
 
+type StaffStructureRow = { id: string; category: string; structureId: string; autoAssign: boolean };
 type SettingsShape = {
   frequency: string;
   paymentDay: string;
@@ -204,7 +234,60 @@ type SettingsShape = {
   paymentMethod: string;
   payslipVisibility: string;
   publishToPortal: boolean;
+  defaultCompany: string;
+  dailyWageBasis: 'calendar' | 'working' | 'custom';
+  customWageFormula: string;
+  maxTimesheetHours: number;
+  includeHolidaysInWorkingDays: boolean;
+  employeeWiseAccounting: boolean;
+  costCenter: string;
+  encryptSalarySlips: boolean;
+  autoEmailSlip: boolean;
+  emailTemplate: string;
+  replyToEmail: string;
+  considerGrace: boolean;
+  graceMinutes: number;
+  lwpThreshold: number;
+  payrollBasedOn: 'attendance' | 'leave';
+  biometricConnected: boolean;
+  biometricDevice: string;
+  biometricLastSync: string;
+  staffStructureMap: StaffStructureRow[];
+  academicStart: string;
+  academicEnd: string;
+  autoLockEnabled: boolean;
+  autoLockDay: number;
+  overrideHr: boolean;
+  overridePayroll: boolean;
+  overrideSystem: boolean;
+  overrideReasonRequired: boolean;
 };
+const SAMPLE_STRUCTURES = [
+  { id: 'SS-TEACH-M', name: 'Teaching Regular', frequency: 'Monthly' },
+  { id: 'SS-ADMIN-M', name: 'Administration Monthly', frequency: 'Monthly' },
+  { id: 'SS-VISIT-H', name: 'Visiting Faculty Hourly', frequency: 'Hourly' }
+];
+export const PAYROLL_COMPANIES = [
+  { value: 'edumanager', label: 'EduManager School', status: 'Active' },
+  { value: 'city-trust', label: 'City Campus Trust', status: 'Active' },
+  { value: 'north-society', label: 'North Campus Society', status: 'Active' }
+];
+const PAYROLL_ACCOUNTS = [
+  { value: 'SAL-PAYABLE · Salary Payable', label: 'Salaries Payable', path: 'Liabilities > Current Liabilities > Salaries Payable' },
+  { value: 'BANK-SAL · Salary Bank Account', label: 'Salary Bank Account', path: 'Assets > Bank > Salary Bank' },
+  { value: 'SAL-ACCRUAL · Salary Accrual', label: 'Salary Accrual', path: 'Liabilities > Accruals > Salary Accrual' }
+];
+const COST_CENTERS = ['Teaching Dept', 'Administration', 'Sports', 'Library', 'Others'];
+const EMAIL_TEMPLATES = [
+  { value: 'slip-standard', label: 'Salary slip — standard (school letterhead)' },
+  { value: 'slip-compact', label: 'Salary slip — compact' }
+];
+const DEFAULT_STAFF_MAP: StaffStructureRow[] = [
+  { id: 'sc1', category: 'Teaching — Permanent', structureId: 'SS-TEACH-M', autoAssign: true },
+  { id: 'sc2', category: 'Teaching — Contractual', structureId: 'SS-TEACH-M', autoAssign: false },
+  { id: 'sc3', category: 'Visiting Faculty', structureId: 'SS-VISIT-H', autoAssign: true },
+  { id: 'sc4', category: 'Non-Teaching — Support', structureId: 'SS-ADMIN-M', autoAssign: false }
+];
 const DEFAULTS: SettingsShape = {
   frequency: 'Monthly',
   paymentDay: 'Last working day',
@@ -216,8 +299,40 @@ const DEFAULTS: SettingsShape = {
   payableAccount: 'SAL-PAYABLE · Salary Payable',
   paymentMethod: 'Bank transfer',
   payslipVisibility: 'Staff portal after publish',
-  publishToPortal: true
+  publishToPortal: true,
+  defaultCompany: 'edumanager',
+  dailyWageBasis: 'working',
+  customWageFormula: '',
+  maxTimesheetHours: 160,
+  includeHolidaysInWorkingDays: false,
+  employeeWiseAccounting: false,
+  costCenter: 'Teaching Dept',
+  encryptSalarySlips: true,
+  autoEmailSlip: false,
+  emailTemplate: '',
+  replyToEmail: 'hr@school.edu',
+  considerGrace: false,
+  graceMinutes: 10,
+  lwpThreshold: 3,
+  payrollBasedOn: 'attendance',
+  biometricConnected: true,
+  biometricDevice: 'ZKTeco-F18',
+  biometricLastSync: '2026-10-29, 06:45',
+  staffStructureMap: DEFAULT_STAFF_MAP,
+  academicStart: '2026-04-01',
+  academicEnd: '2027-03-31',
+  autoLockEnabled: true,
+  autoLockDay: 25,
+  overrideHr: true,
+  overridePayroll: false,
+  overrideSystem: false,
+  overrideReasonRequired: true
 };
+const mergeSettings = (row?: Partial<SettingsShape>): SettingsShape => ({
+  ...DEFAULTS,
+  ...row,
+  staffStructureMap: row?.staffStructureMap?.length ? row.staffStructureMap : DEFAULTS.staffStructureMap
+});
 type Period = { id: string; name: string; school: string; financialYear: string; startDate: string; endDate: string; taxSlabs: string[]; status: 'Draft' | 'Active' | 'Closed'; description: string };
 const SEED_PERIODS: Period[] = [{ id: 'PP-2026-27', name: 'FY 2026-27 Payroll / Tax Period', school: 'EduManager School', financialYear: '2026-27', startDate: '2026-04-01', endDate: '2027-03-31', taxSlabs: ['new-regime'], status: 'Active', description: 'Annual payroll and tax period. Not a monthly payroll run.' }];
 type HistoryRow = { at: string; branch: string; by: string; change: string };
@@ -243,20 +358,20 @@ export const samplePayrollPolicyConfig = (): PayrollPolicyConfig => ({
     ]
   }],
   attendanceRules: [
-    { id: 'AR001', name: 'Standard Teaching Staff Rule', academicYear: '2026-27', applicableStaffTypes: ['Teaching'], minHoursFullDay: 7, halfDayMinHours: 4, halfDayMaxHours: 6.5, lateComingGrace: 15, lateComingConversion: '3 late marks = 0.5 day LOP', earlyGoingGrace: 10, earlyGoingPenalty: '3 early goings = 0.5 day LOP', absentLogic: 'No punch or < 4 hours', absentCustomRule: '', overtimeEligible: false, overtimeThreshold: 0, overtimeRounding: 'Nearest 30 minutes', leaveDeductionPriority: ['CL', 'EL', 'LOP'], sandwichRule: true, lopBasis: 'Working Days', overtimePaid: false, status: 'Active', sample: true },
-    { id: 'AR002', name: 'Administrative Staff Rule', academicYear: '2026-27', applicableStaffTypes: ['Administrative'], minHoursFullDay: 8, halfDayMinHours: 4, halfDayMaxHours: 7.5, lateComingGrace: 10, lateComingConversion: '4 late marks = 0.5 day LOP', earlyGoingGrace: 10, earlyGoingPenalty: '4 early goings = 0.5 day LOP', absentLogic: 'No punch or < 4 hours', absentCustomRule: '', overtimeEligible: true, overtimeThreshold: 8, overtimeRounding: 'Nearest 1 hour', leaveDeductionPriority: ['CL', 'EL', 'LOP'], sandwichRule: false, lopBasis: 'Calendar Days', overtimePaid: true, status: 'Active', sample: true }
+    { id: 'AR001', name: 'Standard Teaching Staff Rule', academicYear: '2026-27', applicableStaffTypes: ['Teaching Staff'], minHoursFullDay: 7, halfDayMinHours: 4, halfDayMaxHours: 6.5, lateComingGrace: 15, lateComingConversion: '3 late marks = 0.5 day LOP', earlyGoingGrace: 10, earlyGoingPenalty: '3 early goings = 0.5 day LOP', absentLogic: 'No punch or < 4 hours', absentCustomRule: '', overtimeEligible: false, overtimeThreshold: 0, overtimeRounding: 'Nearest 30 minutes', leaveDeductionPriority: ['Casual Leave (CL)', 'Earned Leave (EL)', 'Leave Without Pay (LOP)'], sandwichRule: true, lopBasis: 'Working Days', overtimePaid: false, status: 'Active', sample: true },
+    { id: 'AR002', name: 'Administrative Staff Rule', academicYear: '2026-27', applicableStaffTypes: ['Administrative Staff'], minHoursFullDay: 8, halfDayMinHours: 4, halfDayMaxHours: 7.5, lateComingGrace: 10, lateComingConversion: '4 late marks = 0.5 day LOP', earlyGoingGrace: 10, earlyGoingPenalty: '4 early goings = 0.5 day LOP', absentLogic: 'No punch or < 4 hours', absentCustomRule: '', overtimeEligible: true, overtimeThreshold: 8, overtimeRounding: 'Nearest 1 hour', leaveDeductionPriority: ['Casual Leave (CL)', 'Earned Leave (EL)', 'Leave Without Pay (LOP)'], sandwichRule: false, lopBasis: 'Calendar Days', overtimePaid: true, status: 'Active', sample: true }
   ],
   workingCalendars: [{
-    id: 'WC-MAIN-TEACH', name: 'Main campus teaching calendar (sample)', campusId: 'main', staffTypes: ['Teaching'], effectiveFrom: '2026-04-01', effectiveTo: '2027-03-31', status: 'Active', weeklyOffDays: ['Sunday'], saturdayPattern: '2nd-4th', sample: true,
-    holidays: [{ id: 'H-DIWALI-26', date: '2026-11-08', name: 'Diwali', type: 'Festival', applicableTo: ['Teaching', 'Administrative', 'Support Staff'], treatAsWorking: false }],
-    specialDays: [{ id: 'SD-ANNUAL', date: '2026-12-12', description: 'Annual Day (Saturday working)', appliesTo: ['Teaching'], overrideType: 'Off-to-Working' }]
+    id: 'WC-MAIN-TEACH', name: 'Main campus teaching calendar (sample)', campusId: 'main', staffTypes: ['Teaching Staff'], effectiveFrom: '2026-04-01', effectiveTo: '2027-03-31', status: 'Active', weeklyOffDays: ['Sunday'], saturdayPattern: '2nd-4th', sample: true,
+    holidays: [{ id: 'H-DIWALI-26', date: '2026-11-08', name: 'Diwali', type: 'Festival', applicableTo: ['Teaching Staff', 'Administrative Staff', 'Support Staff'], treatAsWorking: false }],
+    specialDays: [{ id: 'SD-ANNUAL', date: '2026-12-12', description: 'Annual Day (Saturday working)', appliesTo: ['Teaching Staff'], overrideType: 'Off-to-Working' }]
   }],
   policies: [{
-    id: 'POL-TEACH-V1', policyFamilyId: 'POL-TEACH', version: 1, name: 'Teaching staff payroll policy (sample)', schoolScope: 'EduManager School', campusId: 'all', staffCategories: ['Teaching'], effectiveFrom: '2026-04-01', effectiveTo: '', status: 'Active', changeReason: 'Initial sample policy', currency: 'INR', paymentMethods: ['Bank transfer'], calendarId: 'PC-FY26-MONTHLY', workingCalendarId: 'WC-MAIN-TEACH', attendanceRuleId: 'AR001', dayBasis: 'attendance', unmarkedAttendance: 'absent', holidaysInDenominator: false, holidayAttendanceCounts: true, halfDayFraction: 0.5, partialLeaveFraction: 0.5, lopBasis: 'Working Days', roundingNet: 'Nearest rupee', roundingPayHead: 'No rounding', savedAt: '2026-04-01, 09:00', sample: true
+    id: 'POL-TEACH-V1', policyFamilyId: 'POL-TEACH', version: 1, name: 'Teaching Staff Payroll Policy', description: 'Default teaching-staff policy for the 2026–27 payroll year.', schoolScope: 'EduManager School', legalEmployer: 'Not configured', campusId: 'all', staffCategories: ['Teaching Staff'], employmentCategories: ['Regular', 'Contract'], academicYear: '2026-27', financialYear: 'FY 2026-27', effectiveFrom: '2026-04-01', effectiveTo: '', status: 'Active', changeReason: 'Initial sample policy', reviewComment: '', currency: 'INR', paymentMethods: ['Bank Transfer'], defaultPaymentMethod: 'Bank Transfer', costCentre: 'Not used', calendarId: 'PC-FY26-MONTHLY', workingCalendarId: 'WC-MAIN-TEACH', attendanceRuleId: 'AR001', leavePolicyName: 'Teaching Staff Leave Policy', dayBasis: 'attendance', unmarkedAttendance: 'absent', workingDayDenominator: 'scheduled', holidaysInDenominator: false, weeklyOffsInDenominator: false, holidayAttendanceCounts: true, holidaySource: 'staff-group', holidayListName: 'Main Campus Staff Holidays 2026–27', halfDayFraction: 0.5, partialLeaveFraction: 0.5, lopBasis: 'Basic Only', roundingNet: 'Nearest', roundingPayHead: 'No policy rounding', roundingUnit: '1.00', roundingTie: 'Ties away from zero', savedAt: '2026-04-01, 09:00', sample: true
   }],
   assignments: [
     { id: 'ASG-SCHOOL', policyFamilyId: 'POL-TEACH', kind: 'school' },
-    { id: 'ASG-TEACH', policyFamilyId: 'POL-TEACH', kind: 'category', staffCategory: 'Teaching' }
+    { id: 'ASG-TEACH', policyFamilyId: 'POL-TEACH', kind: 'category', staffCategory: 'Teaching Staff', employmentCategory: 'Regular' }
   ],
   snapshots: []
 });
@@ -333,7 +448,7 @@ export function datesInRange(start: string, end: string) {
   return out;
 }
 
-export function workingDayPreview(period: PayrollPeriodRecord | undefined, calendar: WorkingHolidayCalendarRecord | undefined, holidaysInDenominator: boolean) {
+export function workingDayPreview(period: PayrollPeriodRecord | undefined, calendar: WorkingHolidayCalendarRecord | undefined, holidaysInDenominator: boolean, weeklyOffsInDenominator = false) {
   if (!period) return null;
   const days = datesInRange(period.startDate, period.endDate);
   const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -347,8 +462,8 @@ export function workingDayPreview(period: PayrollPeriodRecord | undefined, calen
     const hol = holidaySet.has(key);
     if (specialWorking.has(key)) { specialOn += 1; working += 1; return; }
     if (specialOff.has(key)) { specialOffCount += 1; return; }
-    if (off && hol) { weeklyOffs += 1; holidays += 1; if (holidaysInDenominator) { countedHolidays += 1; working += 1; } return; }
-    if (off) { weeklyOffs += 1; return; }
+    if (off && hol) { weeklyOffs += 1; holidays += 1; if (holidaysInDenominator || weeklyOffsInDenominator) { countedHolidays += 1; working += 1; } return; }
+    if (off) { weeklyOffs += 1; if (weeklyOffsInDenominator) working += 1; return; }
     if (hol) { holidays += 1; if (holidaysInDenominator) { countedHolidays += 1; working += 1; } return; }
     working += 1;
   });
@@ -391,6 +506,18 @@ export function generateMissingPeriods(calendar: PayrollCalendarRecord): Payroll
   };
   const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   if (calendar.frequency === 'Custom') return [];
+  if (calendar.frequency === 'Twice Monthly') {
+    for (let i = 0; i < 12; i += 1) {
+      const monthIndex = (3 + i) % 12;
+      const year = i < 9 ? startYear : startYear + 1;
+      const mid = new Date(year, monthIndex, 15);
+      const end = new Date(year, monthIndex + 1, 0);
+      const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+      add(`${months[monthIndex].slice(0, 3).toUpperCase()}-${year}-A`, `${months[monthIndex]} ${year} (1–15)`, iso(new Date(year, monthIndex, 1)), iso(mid));
+      add(`${months[monthIndex].slice(0, 3).toUpperCase()}-${year}-B`, `${months[monthIndex]} ${year} (16–end)`, iso(new Date(year, monthIndex, 16)), iso(end));
+    }
+    return created;
+  }
   if (calendar.frequency === 'Monthly') {
     for (let i = 0; i < 12; i += 1) {
       const monthIndex = (3 + i) % 12;
@@ -403,7 +530,7 @@ export function generateMissingPeriods(calendar: PayrollCalendarRecord): Payroll
   } else {
     const start = new Date(`${calendar.fyStart || `${startYear}-04-01`}T00:00:00`);
     const end = new Date(`${calendar.fyEnd || `${startYear + 1}-03-31`}T00:00:00`);
-    const step = calendar.frequency === 'Weekly' ? 7 : 14;
+    const step = calendar.frequency === 'Weekly' ? 7 : 14; // Every Two Weeks / Bi-weekly kept as 14-day; confirm if an older Bi-weekly value meant something else.
     let n = 1;
     const cursor = new Date(start);
     while (cursor <= end) {
@@ -417,7 +544,14 @@ export function generateMissingPeriods(calendar: PayrollCalendarRecord): Payroll
 }
 
 const blankPolicy = (config: PayrollPolicyConfig): PayrollPolicyVersion => ({
-  id: newId('POLV'), policyFamilyId: newId('POL'), version: 1, name: '', schoolScope: 'EduManager School', campusId: 'all', staffCategories: ['Teaching'], effectiveFrom: '2026-04-01', effectiveTo: '', status: 'Draft', changeReason: '', currency: 'INR', paymentMethods: ['Bank transfer'], calendarId: config.calendars[0]?.id || '', workingCalendarId: config.workingCalendars[0]?.id || '', attendanceRuleId: config.attendanceRules.find((item) => item.status === 'Active')?.id || '', dayBasis: 'attendance', unmarkedAttendance: 'absent', holidaysInDenominator: false, holidayAttendanceCounts: true, halfDayFraction: 0.5, partialLeaveFraction: 0.5, lopBasis: 'Working Days', roundingNet: 'Nearest rupee', roundingPayHead: 'No rounding', savedAt: ''
+  id: newId('POLV'), policyFamilyId: newId('POL'), version: 1, name: '', description: '', schoolScope: 'EduManager School', legalEmployer: 'Not configured', campusId: 'all', staffCategories: ['Teaching Staff'], employmentCategories: ['Regular'], academicYear: '2026-27', financialYear: 'FY 2026-27', effectiveFrom: '2026-04-01', effectiveTo: '', status: 'Draft', changeReason: '', reviewComment: '', currency: 'INR', paymentMethods: ['Bank Transfer'], defaultPaymentMethod: 'Bank Transfer', costCentre: 'Not used', calendarId: config.calendars[0]?.id || '', workingCalendarId: config.workingCalendars[0]?.id || '', attendanceRuleId: config.attendanceRules.find((item) => item.status === 'Active')?.id || '', leavePolicyName: 'Teaching Staff Leave Policy', dayBasis: 'attendance', unmarkedAttendance: 'absent', workingDayDenominator: 'scheduled', holidaysInDenominator: false, weeklyOffsInDenominator: false, holidayAttendanceCounts: true, holidaySource: 'staff-group', holidayListName: '', halfDayFraction: 0.5, partialLeaveFraction: 0.5, lopBasis: 'Basic Only', roundingNet: 'No policy rounding', roundingPayHead: 'No policy rounding', roundingUnit: '1.00', roundingTie: 'Ties away from zero', savedAt: ''
+});
+const fillPolicy = (row: Partial<PayrollPolicyVersion>, config: PayrollPolicyConfig): PayrollPolicyVersion => ({
+  ...blankPolicy(config),
+  ...row,
+  staffCategories: row.staffCategories?.length ? row.staffCategories : ['Teaching Staff'],
+  employmentCategories: row.employmentCategories?.length ? row.employmentCategories : ['Regular'],
+  paymentMethods: row.paymentMethods?.length ? row.paymentMethods : ['Bank Transfer']
 });
 
 export function PayrollSetup() {
@@ -429,13 +563,19 @@ export function PayrollSetup() {
   const [tab, setTab] = useState<'general' | 'calendar' | 'working' | 'rounding' | 'staff' | 'history' | 'features' | 'period'>('general');
   const [draft, setDraft] = useState<PayrollPolicyVersion>(() => {
     const latest = loaded.config.policies.filter((item) => item.status === 'Draft').sort((a, b) => b.version - a.version)[0] || loaded.config.policies.find((item) => item.status === 'Active') || blankPolicy(loaded.config);
-    return { ...latest };
+    return fillPolicy(latest, loaded.config);
   });
   const [notice, setNotice] = useState('');
   const [errors, setErrors] = useState<string[]>([]);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [branch, setBranch] = useState('main');
-  const [byBranch, setByBranch] = useState<Record<string, SettingsShape>>(() => loadJson(STORE_SETTINGS, { main: { ...DEFAULTS } }));
+  const [byBranch, setByBranch] = useState<Record<string, SettingsShape>>(() => {
+    const stored = loadJson<Record<string, Partial<SettingsShape>>>(STORE_SETTINGS, { main: { ...DEFAULTS } });
+    const next: Record<string, SettingsShape> = {};
+    Object.keys(stored || { main: DEFAULTS }).forEach((key) => { next[key] = mergeSettings(stored[key]); });
+    if (!next.main) next.main = { ...DEFAULTS };
+    return next;
+  });
   const [periods, setPeriods] = useState<Period[]>(() => loadJson(STORE_PERIODS, SEED_PERIODS));
   const [history, setHistory] = useState<HistoryRow[]>(() => loadJson(STORE_HISTORY, [] as HistoryRow[]));
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -443,19 +583,72 @@ export function PayrollSetup() {
   const [creating, setCreating] = useState(false);
   const [linked, setLinked] = useState<Period | null>(null);
   const [assignKind, setAssignKind] = useState<AssignmentKind>('category');
-  const [assignCategory, setAssignCategory] = useState('Teaching');
+  const [assignCategory, setAssignCategory] = useState('Teaching Staff');
+  const [assignEmployment, setAssignEmployment] = useState('Regular');
+  const [periodSearch, setPeriodSearch] = useState('');
+  const [periodStatusFilter, setPeriodStatusFilter] = useState('All');
+  const [sampleAmount, setSampleAmount] = useState('1234.56');
+  const [compareIds, setCompareIds] = useState<string[]>([]);
+  const [unsavedWarn, setUnsavedWarn] = useState('');
   const [assignCampus, setAssignCampus] = useState('main');
   const [assignEmployee, setAssignEmployee] = useState('EMP001');
   const [previewEmployee, setPreviewEmployee] = useState('EMP001');
+  const [companyQuery, setCompanyQuery] = useState('');
+  const [pendingCompany, setPendingCompany] = useState<string | null>(null);
+  const [pendingFrequency, setPendingFrequency] = useState<string | null>(null);
+  const [emailPreviewOpen, setEmailPreviewOpen] = useState(false);
+  const [cancelConfirm, setCancelConfirm] = useState(false);
+  const [lockCursor, setLockCursor] = useState({ year: 2026, month: 9 });
+  const [lastSavedAt, setLastSavedAt] = useState('');
+  const [savedSnapshot, setSavedSnapshot] = useState(() => JSON.stringify({ main: DEFAULTS }));
+  const [settingsBanner, setSettingsBanner] = useState('');
 
   useEffect(() => subscribePayrollPolicyConfig(() => {
     const next = loadPayrollPolicyConfig();
     setConfig(next.config); setFromStore(next.fromStore); if (next.warning) setStoreWarning(next.warning);
   }), []);
+  useEffect(() => { setSavedSnapshot(JSON.stringify(byBranch)); }, []);
 
-  const settings = byBranch[branch] || { ...DEFAULTS };
+  const settings = mergeSettings(byBranch[branch]);
+  const settingsDirty = JSON.stringify(byBranch) !== savedSnapshot;
   const flash = (text: string) => { setNotice(text); window.setTimeout(() => setNotice(''), 4000); };
-  const patch = (partial: Partial<SettingsShape>) => setByBranch((prev) => ({ ...prev, [branch]: { ...(prev[branch] || DEFAULTS), ...partial } }));
+  const patch = (partial: Partial<SettingsShape>) => setByBranch((prev) => ({ ...prev, [branch]: { ...mergeSettings(prev[branch]), ...partial } }));
+  const filteredCompanies = PAYROLL_COMPANIES.filter((item) => !companyQuery || item.label.toLowerCase().includes(companyQuery.toLowerCase()));
+  const selectedCompany = PAYROLL_COMPANIES.find((item) => item.value === settings.defaultCompany);
+  const selectedAccount = PAYROLL_ACCOUNTS.find((item) => item.value === settings.payableAccount);
+  const academicMonths = (() => {
+    if (!settings.academicStart || !settings.academicEnd) return 0;
+    const a = new Date(`${settings.academicStart}T00:00:00`);
+    const b = new Date(`${settings.academicEnd}T00:00:00`);
+    if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime()) || b < a) return 0;
+    return (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth()) + 1;
+  })();
+  const academicNonStandard = settings.academicStart.slice(5, 10) !== '04-01' || settings.academicEnd.slice(5, 10) !== '03-31';
+  const timesheetWarn = settings.maxTimesheetHours < 40 || settings.maxTimesheetHours > 300;
+  const lockDays = new Date(lockCursor.year, lockCursor.month + 1, 0).getDate();
+  const requestFrequency = (next: string) => {
+    if (next === settings.frequency) return;
+    if (next !== 'Monthly' && SAMPLE_STRUCTURES.some((item) => item.frequency === 'Monthly')) {
+      setPendingFrequency(next);
+      return;
+    }
+    patch({ frequency: next });
+  };
+  const applyFrequency = (next: string) => { patch({ frequency: next }); setPendingFrequency(null); };
+  const requestCompany = (next: string) => {
+    if (next === settings.defaultCompany) return;
+    setPendingCompany(next);
+  };
+  const validateSettings = () => {
+    const next: string[] = [];
+    if (!settings.payableAccount) next.push('Payroll payable account is required. Payroll Entry cannot be submitted without this account.');
+    if (settings.dailyWageBasis === 'custom' && !settings.customWageFormula.trim()) next.push('Custom daily-wage formula is required when Custom is selected.');
+    if (settings.autoEmailSlip && !settings.emailTemplate) next.push('Select an email template before auto-emailing salary slips.');
+    if (settings.autoLockEnabled && (settings.autoLockDay < 1 || settings.autoLockDay > 31)) next.push('Auto-lock day must be between 1 and 31.');
+    setErrors(next);
+    setSettingsBanner(next.length ? `Please fix ${next.length} error${next.length > 1 ? 's' : ''} before saving.` : '');
+    return next;
+  };
   const patchDraft = (partial: Partial<PayrollPolicyVersion>) => setDraft((current) => ({ ...current, ...partial }));
   const persistConfig = (next: PayrollPolicyConfig, success: string) => {
     const result = savePayrollPolicyConfig(next);
@@ -467,7 +660,14 @@ export function PayrollSetup() {
   const workingCal = config.workingCalendars.find((item) => item.id === draft.workingCalendarId);
   const attendanceRule = config.attendanceRules.find((item) => item.id === draft.attendanceRuleId);
   const examplePeriod = calendar?.periods.find((item) => item.periodCode.includes('OCT')) || calendar?.periods[calendar.periods.length - 1];
-  const preview = workingDayPreview(examplePeriod, workingCal, draft.holidaysInDenominator);
+  const preview = workingDayPreview(examplePeriod, workingCal, draft.holidaysInDenominator, draft.weeklyOffsInDenominator);
+  const displayStatus = draft.status === 'Active' && draft.effectiveFrom > '2026-10-29' ? 'Scheduled' : draft.status;
+  const familyPolicies = config.policies.filter((item) => item.policyFamilyId === draft.policyFamilyId).sort((a, b) => b.version - a.version);
+  const missingSetup = [
+    !draft.name.trim() ? 'Policy name' : '',
+    !draft.calendarId ? 'Payroll calendar' : '',
+    !draft.effectiveFrom ? 'Effective from' : ''
+  ].filter(Boolean);
 
   const validateDraft = (forActivate: boolean) => {
     const next: string[] = [];
@@ -508,18 +708,46 @@ export function PayrollSetup() {
   const activate = () => {
     if (validateDraft(true).length) { flash('Policy cannot be activated until the issues are resolved.'); return; }
     const family = draft.policyFamilyId;
-    const version = { ...draft, status: 'Active' as const, savedAt: stamp(), sample: false, newValues: snapshotValues(draft) };
+    const future = draft.effectiveFrom > '2026-10-29';
+    const version = { ...draft, status: (future ? 'Scheduled' : 'Active') as PolicyStatus, savedAt: stamp(), sample: false, newValues: snapshotValues(draft) };
     const nextPolicies = config.policies.map((item) => {
       if (item.id === version.id) return version;
-      if (item.policyFamilyId === family && item.status === 'Active') return { ...item, status: 'Superseded' as const };
+      if (item.policyFamilyId === family && item.status === 'Active' && version.status === 'Active') return { ...item, status: 'Superseded' as const };
       return item;
     });
     if (!nextPolicies.some((item) => item.id === version.id)) nextPolicies.push(version);
-    if (persistConfig({ ...config, policies: nextPolicies }, `Policy v${version.version} activated. Earlier versions remain viewable.`)) setDraft(version);
+    if (persistConfig({ ...config, policies: nextPolicies }, future ? `Version scheduled from ${version.effectiveFrom}. It is not Active yet.` : `Policy v${version.version} activated. Earlier versions remain viewable.`)) setDraft(version);
   };
+  const newPolicy = () => { setDraft(blankPolicy(config)); setTab('general'); flash('Blank draft opened. The earlier policy is unchanged.'); };
+  const duplicatePolicy = () => { setDraft({ ...draft, id: newId('POLV'), policyFamilyId: newId('POL'), version: 1, status: 'Draft', name: draft.name ? `${draft.name} (copy)` : '', savedAt: '', sample: false }); flash('Values copied into a new draft. The original policy is unchanged.'); };
+  const submitReview = () => {
+    if (validateDraft(false).length) { flash('Fix missing items before review.'); return; }
+    const next = { ...draft, status: 'In Review' as const, savedAt: stamp() };
+    const policies = config.policies.some((item) => item.id === next.id) ? config.policies.map((item) => item.id === next.id ? next : item) : [...config.policies, next];
+    if (persistConfig({ ...config, policies }, 'Submitted for review (frontend demonstration — no reviewer identity is verified).')) setDraft(next);
+  };
+  const discardDraft = () => {
+    if (!window.confirm('Discard this draft? The earlier version stays unchanged.')) return;
+    const earlier = config.policies.find((item) => item.policyFamilyId === draft.policyFamilyId && item.status === 'Active') || config.policies.find((item) => item.policyFamilyId === draft.policyFamilyId && item.id !== draft.id);
+    persistConfig({ ...config, policies: config.policies.filter((item) => !(item.id === draft.id && item.status === 'Draft')) }, 'Draft discarded. Earlier version unchanged.');
+    setDraft(earlier ? fillPolicy(earlier, config) : blankPolicy(config));
+  };
+  const roundSample = (amount: number, method: string, unit: number) => {
+    if (method === 'No policy rounding' || !unit) return amount;
+    const scaled = amount / unit;
+    const stepped = method === 'Up' ? Math.ceil(scaled) : method === 'Down' ? Math.floor(scaled) : Math.round(scaled);
+    return stepped * unit;
+  };
+  const sampleNum = Number(String(sampleAmount).replace(/,/g, '')) || 0;
+  const unitNum = Number(draft.roundingUnit) || 1;
+  const filteredPeriods = (calendar?.periods || []).filter((p) => {
+    if (periodStatusFilter !== 'All' && p.status !== periodStatusFilter) return false;
+    if (periodSearch && !(`${p.periodName} ${p.periodCode}`.toLowerCase().includes(periodSearch.toLowerCase()))) return false;
+    return true;
+  });
 
   const addAssignment = () => {
-    const row: PolicyAssignment = { id: newId('ASG'), policyFamilyId: draft.policyFamilyId, kind: assignKind, campusId: assignKind === 'campus-category' || assignKind === 'school' ? assignCampus : undefined, staffCategory: assignKind === 'category' || assignKind === 'campus-category' ? assignCategory : undefined, employeeId: assignKind === 'employee' ? assignEmployee : undefined };
+    const row: PolicyAssignment = { id: newId('ASG'), policyFamilyId: draft.policyFamilyId, kind: assignKind, campusId: assignKind === 'campus-category' || assignKind === 'school' ? assignCampus : undefined, staffCategory: assignKind === 'category' || assignKind === 'campus-category' ? assignCategory : undefined, employmentCategory: assignKind === 'category' || assignKind === 'campus-category' ? assignEmployment : undefined, employeeId: assignKind === 'employee' ? assignEmployee : undefined };
     const same = config.assignments.filter((item) => item.kind === row.kind && item.campusId === row.campusId && item.staffCategory === row.staffCategory && item.employeeId === row.employeeId);
     if (same.length) { flash('An assignment already exists at this precedence. Resolve the overlap instead of saving another.'); return; }
     persistConfig({ ...config, assignments: [...config.assignments, row] }, 'Assignment saved.');
@@ -538,8 +766,41 @@ export function PayrollSetup() {
   const resolved = staffPreview ? resolvePolicyForStaff(config, staffPreview, draft.effectiveFrom || '2026-10-01') : { missing: true as const };
 
   const log = (change: string) => { const row: HistoryRow = { at: stamp(), branch: BRANCHES.find((b) => b.value === branch)?.label || branch, by: 'Frontend preview (no verified user context)', change }; const next = [row, ...history].slice(0, 40); setHistory(next); localStorage.setItem(STORE_HISTORY, JSON.stringify(next)); };
-  const saveSettings = () => { try { localStorage.setItem(STORE_SETTINGS, JSON.stringify(byBranch)); log('Saved payroll settings for this branch only.'); flash(`Settings saved for ${BRANCHES.find((b) => b.value === branch)?.label}. Other branches are unchanged.`); } catch { flash('Settings could not be saved. Edits remain on screen.'); } };
-  const restore = () => { const next = { ...byBranch, [branch]: { ...DEFAULTS } }; setByBranch(next); try { localStorage.setItem(STORE_SETTINGS, JSON.stringify(next)); log('Restored default payroll settings for this branch.'); flash('Defaults restored for the selected branch only.'); } catch { flash('Restore could not be saved.'); } };
+  const persistSettings = (next: Record<string, SettingsShape>, message: string) => {
+    try {
+      localStorage.setItem(STORE_SETTINGS, JSON.stringify(next));
+      setByBranch(next);
+      setSavedSnapshot(JSON.stringify(next));
+      setLastSavedAt(stamp());
+      setSettingsBanner('');
+      log(message);
+      flash(`Payroll settings saved successfully for ${BRANCHES.find((b) => b.value === branch)?.label}. Other branches are unchanged.`);
+      return true;
+    } catch {
+      flash('Settings could not be saved. Edits remain on screen.');
+      return false;
+    }
+  };
+  const saveSettings = () => {
+    if (validateSettings().length) { flash('Please fix the highlighted issues before saving.'); return false; }
+    return persistSettings(byBranch, 'Saved payroll settings for this branch only.');
+  };
+  const saveAndProceed = () => {
+    if (!saveSettings()) return;
+    setTab('period');
+  };
+  const restore = () => { const next = { ...byBranch, [branch]: { ...DEFAULTS } }; persistSettings(next, 'Restored default payroll settings for this branch.'); };
+  const cancelSettings = () => {
+    if (!settingsDirty) return;
+    try {
+      const parsed = JSON.parse(savedSnapshot) as Record<string, SettingsShape>;
+      setByBranch(parsed);
+      setCancelConfirm(false);
+      flash('Unsaved settings changes were discarded.');
+    } catch {
+      setCancelConfirm(false);
+    }
+  };
   const persistPeriods = (next: Period[]) => { setPeriods(next); localStorage.setItem(STORE_PERIODS, JSON.stringify(next)); };
   const blankPeriod = (): Period => ({ id: `PP-${Date.now()}`, name: '', school: 'EduManager School', financialYear: '2026-27', startDate: '2026-04-01', endDate: '2027-03-31', taxSlabs: [], status: 'Draft', description: '' });
   const savePeriod = () => { if (!editing) return; if (!editing.name || !editing.startDate || !editing.endDate) { flash('Period name, start date and end date are required.'); return; } const exists = periods.some((p) => p.id === editing.id); persistPeriods(exists ? periods.map((p) => (p.id === editing.id ? editing : p)) : [editing, ...periods]); setEditing(null); setCreating(false); flash(exists ? 'Payroll period updated.' : 'Payroll period created.'); };
@@ -547,25 +808,50 @@ export function PayrollSetup() {
   const linkedRuns = useMemo(() => ([{ id: 'PE-2026-10', month: 'October 2026', branch: 'Main Branch', status: 'Draft' }, { id: 'PE-2026-09', month: 'September 2026', branch: 'Main Branch', status: 'Submitted' }]), []);
 
   const tabs: { id: typeof tab; label: string }[] = [
-    { id: 'general', label: 'General' }, { id: 'calendar', label: 'Calendar' }, { id: 'working', label: 'Working Days & Leave' }, { id: 'rounding', label: 'Rounding' }, { id: 'staff', label: 'Staff Applicability' }, { id: 'history', label: 'History' }, { id: 'features', label: 'Features' }, { id: 'period', label: 'Payroll Period' }
+    { id: 'general', label: 'General' }, { id: 'calendar', label: 'Calendar' }, { id: 'working', label: 'Working Days & Leave' }, { id: 'rounding', label: 'Rounding' }, { id: 'staff', label: 'Staff Applicability' }, { id: 'history', label: 'History' }, { id: 'features', label: 'Advanced' }, { id: 'period', label: 'Payroll Period' }
   ];
 
   return (
     <div className="space-y-6 p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Payroll Settings</h1>
-          <p className="text-sm text-gray-500">Payroll policy and school calendar configuration. Saved values stay in this browser only.</p>
+          <h1 className="text-2xl font-bold text-gray-900">Payroll Setup</h1>
+          <p className="text-sm text-gray-500">Manage payroll policies, calendars and staff applicability. Saving a policy does not process payroll.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {tab === 'features' && <><Button variant="outline" onClick={() => setHistoryOpen(true)}><History className="w-4 h-4 mr-2" />View Change History</Button><Button variant="outline" onClick={restore}><RotateCcw className="w-4 h-4 mr-2" />Restore Defaults</Button><Button onClick={saveSettings}><Save className="w-4 h-4 mr-2" />Save Settings</Button></>}
-          {['general', 'calendar', 'working', 'rounding', 'staff'].includes(tab) && <>
+          {tab === 'features' && <><Button variant="outline" onClick={() => setHistoryOpen(true)}><History className="w-4 h-4 mr-2" />View Change History</Button><Button variant="outline" onClick={restore}><RotateCcw className="w-4 h-4 mr-2" />Restore Defaults</Button><Button variant="outline" onClick={() => settingsDirty ? setCancelConfirm(true) : undefined}>Cancel</Button><Button variant="outline" onClick={saveSettings}><Save className="w-4 h-4 mr-2" />Save & Stay</Button><Button onClick={saveAndProceed}>Save & Proceed to Payroll Period</Button></>}
+          {['general', 'calendar', 'working', 'rounding', 'staff', 'history'].includes(tab) && <>
             <Button variant="outline" onClick={saveDraft}>Save Draft</Button>
             <Button variant="outline" onClick={() => { validateDraft(false); setReviewOpen(true); }}>Review Changes</Button>
-            <Button onClick={activate}>Activate</Button>
+            <Button variant="outline" onClick={submitReview}>Submit for Review</Button>
+            <Button onClick={activate}>{draft.effectiveFrom > '2026-10-29' ? 'Schedule' : 'Activate'}</Button>
+            <Button variant="outline" onClick={discardDraft}>Discard Draft</Button>
           </>}
         </div>
       </div>
+      <div className="flex flex-wrap items-end gap-3 rounded-xl border border-gray-200 bg-white p-4">
+        <label className="min-w-[260px] flex-1 text-xs font-medium text-gray-600">Policy
+          <select className="mt-1 h-10 w-full rounded-lg border border-gray-300 px-3 text-sm" value={draft.id} onChange={(event) => {
+            const next = config.policies.find((item) => item.id === event.target.value);
+            if (!next) return;
+            setDraft(fillPolicy(next, config));
+            setUnsavedWarn('');
+          }}>
+            {config.policies.length === 0 && <option value="">No payroll policies have been created.</option>}
+            {config.policies.map((item) => <option key={item.id} value={item.id}>{item.name || 'Untitled'} — {item.status === 'Active' && item.effectiveFrom > '2026-10-29' ? 'Scheduled' : item.status}{item.sample ? ' (sample)' : ''} · v{item.version}</option>)}
+          </select>
+        </label>
+        <Button onClick={newPolicy}>New Policy</Button>
+        <Button variant="outline" onClick={duplicatePolicy}>Duplicate Policy</Button>
+        <Button variant="outline" onClick={() => setTab('history')}>View History</Button>
+        <Badge variant={displayStatus === 'Active' ? 'success' : displayStatus === 'Draft' || displayStatus === 'In Review' ? 'warning' : 'secondary'}>{displayStatus}</Badge>
+        <p className="text-sm text-gray-600">Effective from: {draft.effectiveFrom || 'Not selected'}</p>
+        <p className="text-sm text-gray-600">Scope: {PAYROLL_CAMPUSES.find((item) => item.value === draft.campusId)?.label || draft.campusId} · {draft.staffCategories.join(', ') || '—'}</p>
+      </div>
+      {missingSetup.length > 0 && <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">Missing setup: {missingSetup.join(', ')}.</div>}
+      {unsavedWarn && <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">{unsavedWarn}</div>}
+      {tab === 'features' && settingsDirty && <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">Unsaved changes. Last saved: {lastSavedAt || 'not yet in this session'}.</div>}
+      {tab === 'features' && settingsBanner && <button type="button" className="w-full rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-left text-sm text-red-800" onClick={() => document.getElementById('payroll-payable-account')?.scrollIntoView({ behavior: 'smooth' })}>{settingsBanner}</button>}
 
       {(storeWarning || notice) && <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800">{notice || storeWarning}{!fromStore && ' Sample records are labelled.'}</div>}
       {errors.length > 0 && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-800">{errors.map((item) => <p key={item}>{item}</p>)}</div>}
@@ -575,87 +861,121 @@ export function PayrollSetup() {
       </div>
 
       {tab === 'general' && <Card title="General"><div className="grid gap-4 p-4 md:grid-cols-2">
-        <Input label="Policy name" value={draft.name} onChange={(e) => patchDraft({ name: e.target.value })} />
-        <Input label="School / employer scope" value={draft.schoolScope} onChange={(e) => patchDraft({ schoolScope: e.target.value })} />
+        <Input label="Policy name *" value={draft.name} onChange={(e) => patchDraft({ name: e.target.value })} />
+        <Select label="School entity / legal employer" options={[{ value: 'Not configured', label: 'Not configured' }, { value: 'EduManager School', label: 'EduManager School' }]} value={draft.legalEmployer} onChange={(e) => patchDraft({ legalEmployer: typeof e === 'string' ? e : e.target.value })} />
+        <div className="md:col-span-2"><Textarea label="Description" rows={2} value={draft.description} onChange={(e) => patchDraft({ description: e.target.value })} /></div>
         <Select label="Campus / branch" options={PAYROLL_CAMPUSES} value={draft.campusId} onChange={(e) => patchDraft({ campusId: typeof e === 'string' ? e : e.target.value })} />
-        <div className="md:col-span-2"><MultiSelect label="Staff category" options={PAYROLL_STAFF_CATEGORIES.map((item) => ({ value: item, label: item }))} value={draft.staffCategories} onChange={(value) => patchDraft({ staffCategories: value })} /></div>
-        <Input label="Effective from" type="date" value={draft.effectiveFrom} onChange={(e) => patchDraft({ effectiveFrom: e.target.value })} />
+        <div><p className="mb-1 text-xs font-medium text-gray-600">Staff scope</p><p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm">{draft.staffCategories.join(', ') || 'Not selected'} <button type="button" className="ml-2 text-blue-700 underline" onClick={() => setTab('staff')}>Manage Staff Applicability</button></p></div>
+        <Select label="Financial / payroll year" options={[{ value: 'FY 2025-26', label: 'FY 2025-26 — 01 Apr 2025 to 31 Mar 2026' }, { value: 'FY 2026-27', label: 'FY 2026-27 — 01 Apr 2026 to 31 Mar 2027' }]} value={draft.financialYear} onChange={(e) => patchDraft({ financialYear: typeof e === 'string' ? e : e.target.value })} />
+        <Select label="Academic year (optional school context)" options={[{ value: '', label: 'Not selected' }, { value: '2025-26', label: '2025-26' }, { value: '2026-27', label: '2026-27' }]} value={draft.academicYear} onChange={(e) => patchDraft({ academicYear: typeof e === 'string' ? e : e.target.value })} />
+        <Select label="Currency" options={[{ value: 'INR', label: 'INR — Indian Rupee' }]} value={draft.currency} onChange={(e) => patchDraft({ currency: typeof e === 'string' ? e : e.target.value })} />
+        <Select label="Cost centre" options={[{ value: 'Not used', label: 'Not used' }]} value={draft.costCentre} onChange={(e) => patchDraft({ costCentre: typeof e === 'string' ? e : e.target.value })} />
+        <div className="md:col-span-2"><MultiSelect label="Intended payment methods" options={PAYROLL_PAYMENT_METHODS.map((item) => ({ value: item, label: item }))} value={draft.paymentMethods} onChange={(value) => patchDraft({ paymentMethods: value, defaultPaymentMethod: value.includes(draft.defaultPaymentMethod) ? draft.defaultPaymentMethod : value[0] || '' })} /></div>
+        <Select label="Default payment method" options={(draft.paymentMethods.length ? draft.paymentMethods : PAYROLL_PAYMENT_METHODS).map((item) => ({ value: item, label: item }))} value={draft.defaultPaymentMethod} onChange={(e) => patchDraft({ defaultPaymentMethod: typeof e === 'string' ? e : e.target.value })} />
+        <Input label="Effective from *" type="date" value={draft.effectiveFrom} onChange={(e) => patchDraft({ effectiveFrom: e.target.value })} />
         <Input label="Effective to (optional)" type="date" value={draft.effectiveTo} onChange={(e) => patchDraft({ effectiveTo: e.target.value })} />
-        <Input label="Status" value={draft.status} readOnly />
+        <Input label="Status" value={displayStatus} readOnly />
         <Input label="Version" value={String(draft.version)} readOnly />
-        <Select label="Currency" options={[{ value: 'INR', label: 'INR' }]} value={draft.currency} onChange={(e) => patchDraft({ currency: typeof e === 'string' ? e : e.target.value })} />
-        <div><MultiSelect label="Intended payment methods" options={['Bank transfer', 'Cheque', 'Cash', 'UPI'].map((item) => ({ value: item, label: item }))} value={draft.paymentMethods} onChange={(value) => patchDraft({ paymentMethods: value })} /></div>
-        <div className="md:col-span-2"><Textarea label="Change reason / notes" rows={3} value={draft.changeReason} onChange={(e) => patchDraft({ changeReason: e.target.value })} /></div>
-        <p className="md:col-span-2 text-xs text-gray-500">One school entity is used. Multi-employer setup is not required. Workflow actions are a frontend preview; no reviewer identity is verified.</p>
+        <div className="md:col-span-2"><Textarea label="Change reason" rows={3} value={draft.changeReason} onChange={(e) => patchDraft({ changeReason: e.target.value })} /></div>
+        <p className="md:col-span-2 text-xs text-gray-500">Academic year is school context only and does not change the payroll year. Workflow actions are a frontend preview; no reviewer identity is verified. Selecting a payment method does not pay an employee.</p>
       </div></Card>}
 
       {tab === 'calendar' && <Card title="Payroll calendar"><div className="space-y-4 p-4">
-        <Select label="Payroll calendar" options={[{ value: '', label: 'Select calendar' }, ...config.calendars.map((item) => ({ value: item.id, label: `${item.calendarName}${item.sample ? ' (sample)' : ''}` }))]} value={draft.calendarId} onChange={(e) => patchDraft({ calendarId: typeof e === 'string' ? e : e.target.value })} />
-        {calendar ? <div className="grid gap-3 rounded-lg border border-gray-100 p-3 text-sm md:grid-cols-2">
-          <p><b>Name:</b> {calendar.calendarName}</p>
+        {config.calendars.length === 0 ? <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">No eligible payroll calendar is available. Create a payroll calendar before selecting it here. <Button size="sm" className="ml-2" onClick={() => navigate('/hr/master/payroll-calendar-period-master')}>Create Calendar</Button></div> : (
+          <Select label="Payroll calendar" options={[{ value: '', label: 'Select a payroll calendar' }, ...config.calendars.map((item) => ({ value: item.id, label: `${item.calendarName} — ${item.frequency} — ${item.status}${item.sample ? ' (sample)' : ''}` }))]} value={draft.calendarId} onChange={(e) => patchDraft({ calendarId: typeof e === 'string' ? e : e.target.value })} />
+        )}
+        {calendar && <div className="grid gap-3 rounded-lg border border-gray-100 p-3 text-sm md:grid-cols-2">
+          <p><b>Calendar name:</b> {calendar.calendarName}</p>
           <p><b>Frequency:</b> {calendar.frequency}</p>
-          <p><b>Financial / payroll year:</b> {calendar.financialYear}</p>
-          <p><b>Academic year:</b> kept separate — not stored on this calendar</p>
-          {examplePeriod && <>
-            <p><b>Period:</b> {examplePeriod.periodName} ({examplePeriod.periodCode})</p>
-            <p><b>Start–end:</b> {examplePeriod.startDate} → {examplePeriod.endDate}</p>
-            <p><b>Attendance/input cutoff:</b> {examplePeriod.inputCutoffDate || '—'}</p>
-            <p><b>Planned review / approval:</b> {examplePeriod.plannedReviewDate || '—'} / {examplePeriod.plannedApprovalDate || '—'}</p>
-            <p><b>Intended payment date:</b> {examplePeriod.intendedPaymentDate || '—'}</p>
-            <p><b>Period status:</b> {examplePeriod.status}</p>
-          </>}
-        </div> : <p className="text-sm text-amber-700">No calendar selected.</p>}
+          <p><b>Year context:</b> {calendar.financialYear}</p>
+          <p><b>Status:</b> {calendar.status}</p>
+        </div>}
+        {calendar && <div className="flex flex-wrap gap-2">
+          <input value={periodSearch} onChange={(e) => setPeriodSearch(e.target.value)} placeholder="Search periods by name or code" className="h-10 min-w-[200px] flex-1 rounded-lg border border-gray-300 px-3 text-sm" />
+          <select value={periodStatusFilter} onChange={(e) => setPeriodStatusFilter(e.target.value)} className="h-10 rounded-lg border border-gray-300 px-3 text-sm">
+            {['All', 'Draft', 'Open', 'Reviewed', 'Processed', 'Locked', 'Closed'].map((item) => <option key={item}>{item}</option>)}
+          </select>
+        </div>}
+        {calendar && <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-sm"><thead className="bg-gray-50 text-xs uppercase text-gray-500"><tr><th className="px-3 py-2 text-left">Period</th><th>Start</th><th>End</th><th>Cutoff</th><th>Review / approval</th><th>Payment</th><th>Status</th></tr></thead><tbody>{filteredPeriods.map((p) => <tr key={p.id} className="border-t"><td className="px-3 py-2">{p.periodName}<p className="text-xs text-gray-400">{p.periodCode}</p></td><td>{p.startDate}</td><td>{p.endDate}</td><td>{p.inputCutoffDate || '—'}</td><td>{p.plannedReviewDate || '—'} / {p.plannedApprovalDate || '—'}</td><td>{p.intendedPaymentDate || '—'}</td><td>{p.status}</td></tr>)}{filteredPeriods.length === 0 && <tr><td colSpan={7} className="px-3 py-4 text-center text-gray-500">No periods match the search.</td></tr>}</tbody></table></div>}
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => navigate('/hr/master/payroll-calendar-period-master')}>Open Payroll Calendar / Period Master</Button>
-          <Button variant="outline" onClick={() => navigate('/hr/master/hr-holiday-working-day-calendar')}>Open Holiday & Working Day Calendar</Button>
+          <Button variant="outline" onClick={() => navigate('/hr/master/payroll-calendar-period-master')}>Create Calendar</Button>
+          <Button variant="outline" onClick={() => navigate('/hr/master/payroll-calendar-period-master')}>Manage Periods</Button>
         </div>
+        <p className="text-xs text-gray-500">This tab selects a calendar. Individual periods are created on Payroll Calendar / Period Master.</p>
       </div></Card>}
 
       {tab === 'working' && <div className="space-y-4">
         <Card title="Working days & leave"><div className="grid gap-4 p-4 md:grid-cols-2">
-          <Select label="Payroll days basis" options={[{ value: 'attendance', label: 'Attendance-based' }, { value: 'leave-application', label: 'Leave-application-based' }]} value={draft.dayBasis} onChange={(e) => patchDraft({ dayBasis: (typeof e === 'string' ? e : e.target.value) as PayrollPolicyVersion['dayBasis'] })} />
-          {draft.dayBasis === 'attendance' && <Select label="Unmarked attendance" options={[{ value: 'absent', label: 'Treat as absent' }, { value: 'present', label: 'Treat as present' }, { value: 'ignore', label: 'Ignore' }]} value={draft.unmarkedAttendance} onChange={(e) => patchDraft({ unmarkedAttendance: (typeof e === 'string' ? e : e.target.value) as PayrollPolicyVersion['unmarkedAttendance'] })} />}
-          <Select label="Include holidays in working-day denominator" options={[{ value: 'no', label: 'No' }, { value: 'yes', label: 'Yes' }]} value={draft.holidaysInDenominator ? 'yes' : 'no'} onChange={(e) => patchDraft({ holidaysInDenominator: (typeof e === 'string' ? e : e.target.value) === 'yes' })} />
-          <Select label="Count marked attendance on a holiday" options={[{ value: 'yes', label: 'Yes' }, { value: 'no', label: 'No' }]} value={draft.holidayAttendanceCounts ? 'yes' : 'no'} onChange={(e) => patchDraft({ holidayAttendanceCounts: (typeof e === 'string' ? e : e.target.value) === 'yes' })} />
-          <Input label="Half-day pay fraction (0–1)" type="number" min={0} max={1} step="0.1" value={draft.halfDayFraction} onChange={(e) => patchDraft({ halfDayFraction: Number(e.target.value) })} />
-          <Input label="Partially paid leave fraction (0–1)" type="number" min={0} max={1} step="0.1" value={draft.partialLeaveFraction} onChange={(e) => patchDraft({ partialLeaveFraction: Number(e.target.value) })} />
+          <Select label="Calculate payment days from" options={[{ value: 'attendance', label: 'Attendance' }, { value: 'leave-application', label: 'Approved Leave Applications' }]} value={draft.dayBasis} onChange={(e) => patchDraft({ dayBasis: (typeof e === 'string' ? e : e.target.value) as PayrollPolicyVersion['dayBasis'] })} />
+          {draft.dayBasis === 'attendance' ? <>
+            <div>
+              <Select label="Attendance rule set" options={[{ value: '', label: 'Select' }, ...config.attendanceRules.map((item) => ({ value: item.id, label: `${item.name} · ${(item.applicableStaffTypes || []).join(', ')} · ${item.status}${item.sample ? ' (sample)' : ''}` }))]} value={draft.attendanceRuleId} onChange={(e) => patchDraft({ attendanceRuleId: typeof e === 'string' ? e : e.target.value })} />
+              {draft.attendanceRuleId && (!attendanceRule || attendanceRule.status !== 'Active') && <p className="mt-1 text-xs text-amber-700">The selected attendance rule is unavailable or inactive. Another rule was not substituted.</p>}
+            </div>
+            <Select label="Unmarked attendance" options={[{ value: 'present', label: 'Treat as Present' }, { value: 'absent', label: 'Treat as Absent' }, { value: 'review', label: 'Needs Review' }]} value={draft.unmarkedAttendance} onChange={(e) => patchDraft({ unmarkedAttendance: (typeof e === 'string' ? e : e.target.value) as PayrollPolicyVersion['unmarkedAttendance'] })} />
+          </> : <>
+            <Select label="Leave policy" options={[{ value: 'Teaching Staff Leave Policy', label: 'Teaching Staff Policy — 2026-27' }, { value: 'Non-Teaching Staff Leave Policy', label: 'Non-Teaching Staff Policy — 2026-27' }]} value={draft.leavePolicyName} onChange={(e) => patchDraft({ leavePolicyName: typeof e === 'string' ? e : e.target.value })} />
+            <p className="text-sm text-gray-500">Unmarked attendance is not applicable when payment days come from approved leave applications.</p>
+          </>}
+          <Select label="Working-day denominator" options={[{ value: 'calendar', label: 'Calendar Days' }, { value: 'scheduled', label: 'Scheduled Working Days' }, { value: 'fixed-30', label: 'Fixed 30 Days' }]} value={draft.workingDayDenominator} onChange={(e) => patchDraft({ workingDayDenominator: (typeof e === 'string' ? e : e.target.value) as PayrollPolicyVersion['workingDayDenominator'] })} />
+          {draft.workingDayDenominator === 'scheduled' && <>
+            <Select label="Include holidays in denominator" options={[{ value: 'no', label: 'No' }, { value: 'yes', label: 'Yes' }]} value={draft.holidaysInDenominator ? 'yes' : 'no'} onChange={(e) => patchDraft({ holidaysInDenominator: (typeof e === 'string' ? e : e.target.value) === 'yes' })} />
+            <Select label="Include weekly offs in denominator" options={[{ value: 'no', label: 'No' }, { value: 'yes', label: 'Yes' }]} value={draft.weeklyOffsInDenominator ? 'yes' : 'no'} onChange={(e) => patchDraft({ weeklyOffsInDenominator: (typeof e === 'string' ? e : e.target.value) === 'yes' })} />
+          </>}
+          {draft.workingDayDenominator === 'calendar' && <p className="text-sm text-gray-500">All period dates are already in the denominator.</p>}
+          {draft.workingDayDenominator === 'fixed-30' && <p className="text-sm text-amber-700">Fixed 30 is an example denominator. Partial-period handling must be specified separately.</p>}
+          <Select label="Consider marked attendance on holidays" options={[{ value: 'yes', label: 'Yes' }, { value: 'no', label: 'No' }]} value={draft.holidayAttendanceCounts ? 'yes' : 'no'} onChange={(e) => patchDraft({ holidayAttendanceCounts: (typeof e === 'string' ? e : e.target.value) === 'yes' })} />
+          <Select label="Holiday source" options={[{ value: 'employee', label: 'Employee-specific list' }, { value: 'shift', label: 'Shift-specific list' }, { value: 'staff-group', label: 'Staff-group / default list' }, { value: 'precedence', label: 'Configured precedence' }, { value: 'review', label: 'Needs review' }]} value={draft.holidaySource} onChange={(e) => patchDraft({ holidaySource: (typeof e === 'string' ? e : e.target.value) as PayrollPolicyVersion['holidaySource'] })} />
+          {draft.holidaySource === 'review' && <p className="md:col-span-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">Holiday list needs review. Employee list and shift list both exist. Choose which source applies. One was not chosen silently.</p>}
           <Select label="Working / holiday calendar" options={[{ value: '', label: 'Select' }, ...config.workingCalendars.map((item) => ({ value: item.id, label: `${item.name}${item.sample ? ' (sample)' : ''}` }))]} value={draft.workingCalendarId} onChange={(e) => patchDraft({ workingCalendarId: typeof e === 'string' ? e : e.target.value })} />
+          <div className="flex items-end"><Button variant="outline" onClick={() => navigate('/hr/master/hr-holiday-working-day-calendar')}>View Working Calendar</Button></div>
           <div>
-            <Select label="Attendance rule" options={[{ value: '', label: 'Select' }, ...config.attendanceRules.map((item) => ({ value: item.id, label: `${item.name}${item.status !== 'Active' ? ' (inactive)' : ''}${item.sample ? ' (sample)' : ''}` }))]} value={draft.attendanceRuleId} onChange={(e) => patchDraft({ attendanceRuleId: typeof e === 'string' ? e : e.target.value })} />
-            {draft.attendanceRuleId && (!attendanceRule || attendanceRule.status !== 'Active') && <p className="mt-1 text-xs text-amber-700">The selected attendance rule is unavailable or inactive. Another rule was not substituted.</p>}
+            <p className="mb-1 text-xs font-medium text-gray-600">Half-day pay fraction</p>
+            <div className="mb-2 flex gap-2">{[0.5, 0.75].map((n) => <button key={n} type="button" className={`rounded-lg border px-3 py-1 text-sm ${draft.halfDayFraction === n ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-300'}`} onClick={() => patchDraft({ halfDayFraction: n })}>{n}</button>)}<button type="button" className="rounded-lg border border-gray-300 px-3 py-1 text-sm" onClick={() => patchDraft({ halfDayFraction: 0.6 })}>Custom</button></div>
+            <Input type="number" min={0} max={1} step="0.05" value={draft.halfDayFraction} onChange={(e) => patchDraft({ halfDayFraction: Number(e.target.value) })} />
+            <p className="mt-1 text-xs text-gray-500">For this example, a half-day attendance receives {Math.round(draft.halfDayFraction * 100)}% of one full day’s pay.</p>
           </div>
-          <Select label="LOP calculation basis" options={['Working Days', 'Calendar Days', 'Fixed 30'].map((item) => ({ value: item, label: item }))} value={draft.lopBasis} onChange={(e) => patchDraft({ lopBasis: typeof e === 'string' ? e : e.target.value })} />
+          <Input label="Partially paid leave fraction (separate from half-day)" type="number" min={0} max={1} step="0.1" value={draft.partialLeaveFraction} onChange={(e) => patchDraft({ partialLeaveFraction: Number(e.target.value) })} />
+          <Select label="LOP amount basis" options={['Basic Only', 'Basic + DA', 'Gross Salary'].map((item) => ({ value: item, label: item }))} value={draft.lopBasis} onChange={(e) => patchDraft({ lopBasis: typeof e === 'string' ? e : e.target.value })} />
         </div></Card>
         <Card title="Illustrative working-day preview"><div className="p-4 text-sm text-gray-700">
           {!preview || !examplePeriod ? <p>Select a calendar and working calendar to preview.</p> : <>
-            <p className="mb-2 text-xs font-semibold uppercase text-amber-700">Illustrative only — not applied to salary amounts</p>
+            <p className="mb-2 text-xs font-semibold uppercase text-amber-700">Illustration only. Actual results depend on the selected policy, calendar, attendance, leave and applicable salary components.</p>
             <p>Example period: {examplePeriod.periodName} ({examplePeriod.startDate} to {examplePeriod.endDate})</p>
-            <p>Total dates: {preview.total}</p>
-            <p>Weekly offs (from selected calendar, including 2nd/4th Saturday if set): {preview.weeklyOffs}</p>
-            <p>Holidays: {preview.holidays} · counted in denominator: {draft.holidaysInDenominator ? preview.countedHolidays : 0}</p>
-            <p>Special working days: {preview.specialOn} · special offs: {preview.specialOffCount}</p>
-            <p>Half-day fraction: {draft.halfDayFraction}</p>
-            <p className="font-semibold">Example working-day basis: {preview.working} days</p>
-            <p className="mt-2 text-xs text-gray-500">The same date is not counted as both a holiday and a weekly off. Saturdays follow the selected pattern; they are not assumed off.</p>
+            <p>Period days: {preview.total}</p>
+            <p>Weekly offs: {preview.weeklyOffs} · Other holidays: {preview.holidays}</p>
+            <p>Denominator example: {draft.workingDayDenominator === 'fixed-30' ? 30 : draft.workingDayDenominator === 'calendar' ? preview.total : preview.working}</p>
+            <p>Half-day fraction: {draft.halfDayFraction} · LOP amount basis: {draft.lopBasis}</p>
+            <p className="mt-2 text-xs text-gray-500">The same date is counted once if it is both a holiday and a weekly off. Saturdays follow the selected pattern; they are not assumed off. Selecting Treat as Absent does not claim that an actual deduction was made.</p>
           </>}
         </div></Card>
       </div>}
 
       {tab === 'rounding' && <Card title="Rounding"><div className="grid gap-4 p-4 md:grid-cols-2">
-        <Select label="Net-pay rounding" options={['No rounding', 'Nearest rupee', 'Round up', 'Round down'].map((item) => ({ value: item, label: item }))} value={draft.roundingNet} onChange={(e) => patchDraft({ roundingNet: typeof e === 'string' ? e : e.target.value })} />
-        <Select label="Individual pay-head rounding" options={['No rounding', 'Nearest rupee', 'Round up', 'Round down'].map((item) => ({ value: item, label: item }))} value={draft.roundingPayHead} onChange={(e) => patchDraft({ roundingPayHead: typeof e === 'string' ? e : e.target.value })} />
-        <p className="md:col-span-2 text-sm text-gray-600">Example: net 24,250.40 with “Nearest rupee” becomes 24,250. Pay-head rounding applies to each earning or deduction line before net pay. Existing Features rounding remains on that tab.</p>
+        <Select label="Net pay rounding" options={['No policy rounding', 'Nearest', 'Up', 'Down'].map((item) => ({ value: item, label: item }))} value={draft.roundingNet} onChange={(e) => patchDraft({ roundingNet: typeof e === 'string' ? e : e.target.value })} />
+        <Select label="Individual pay head rounding" options={['No policy rounding', 'Nearest', 'Up', 'Down'].map((item) => ({ value: item, label: item }))} value={draft.roundingPayHead} onChange={(e) => patchDraft({ roundingPayHead: typeof e === 'string' ? e : e.target.value })} />
+        <Select label="Rounding unit" options={[{ value: '0.01', label: '0.01' }, { value: '0.10', label: '0.10' }, { value: '0.50', label: '0.50' }, { value: '1.00', label: '1.00' }]} value={draft.roundingUnit} onChange={(e) => patchDraft({ roundingUnit: typeof e === 'string' ? e : e.target.value })} />
+        {draft.roundingNet === 'Nearest' && <Select label="Tie rule" options={[{ value: 'Ties away from zero', label: 'Ties away from zero' }, { value: 'Half to Even', label: 'Half to Even' }]} value={draft.roundingTie} onChange={(e) => patchDraft({ roundingTie: typeof e === 'string' ? e : e.target.value })} />}
+        <Input label="Sample amount" value={sampleAmount} onChange={(e) => setSampleAmount(e.target.value)} />
+        <div className="rounded-lg border border-gray-100 p-3 text-sm md:col-span-2">
+          <p>Sample: ₹{sampleNum.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · Unit: ₹{unitNum.toFixed(2)}</p>
+          <p>Nearest → ₹{roundSample(sampleNum, 'Nearest', unitNum).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
+          <p>Up → ₹{roundSample(sampleNum, 'Up', unitNum).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
+          <p>Down → ₹{roundSample(sampleNum, 'Down', unitNum).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
+          <p className="mt-2 text-xs text-gray-500">If Up means toward positive infinity, −₹1,234.56 becomes −₹1,234. Formatting to two decimal places is not a separate payroll rounding decision. Existing Advanced rounding remains on that tab.</p>
+        </div>
       </div></Card>}
 
       {tab === 'staff' && <div className="space-y-4">
         <Card title="Assignments"><div className="grid gap-3 p-4 md:grid-cols-2">
           <Select label="Apply to" options={[{ value: 'school', label: 'All staff (school-wide default)' }, { value: 'category', label: 'Selected staff category' }, { value: 'campus-category', label: 'Campus and staff category' }, { value: 'employee', label: 'Individual employee' }]} value={assignKind} onChange={(e) => setAssignKind((typeof e === 'string' ? e : e.target.value) as AssignmentKind)} />
-          {(assignKind === 'category' || assignKind === 'campus-category') && <Select label="Staff category" options={PAYROLL_STAFF_CATEGORIES.map((item) => ({ value: item, label: item }))} value={assignCategory} onChange={(e) => setAssignCategory(typeof e === 'string' ? e : e.target.value)} />}
+          {(assignKind === 'category' || assignKind === 'campus-category') && <Select label="Staff type" options={PAYROLL_STAFF_CATEGORIES.map((item) => ({ value: item, label: item }))} value={assignCategory} onChange={(e) => setAssignCategory(typeof e === 'string' ? e : e.target.value)} />}
+          {(assignKind === 'category' || assignKind === 'campus-category') && <Select label="Employment category" options={PAYROLL_EMPLOYMENT_CATEGORIES.map((item) => ({ value: item, label: item }))} value={assignEmployment} onChange={(e) => setAssignEmployment(typeof e === 'string' ? e : e.target.value)} />}
           {assignKind === 'campus-category' && <Select label="Campus" options={BRANCHES} value={assignCampus} onChange={(e) => setAssignCampus(typeof e === 'string' ? e : e.target.value)} />}
           {assignKind === 'employee' && <Select label="Employee identity" options={PAYROLL_POLICY_STAFF_PREVIEW.map((item) => ({ value: item.employeeId, label: `${item.employeeId} · ${item.name}` }))} value={assignEmployee} onChange={(e) => setAssignEmployee(typeof e === 'string' ? e : e.target.value)} />}
           <div className="md:col-span-2"><Button onClick={addAssignment}>Save assignment for this policy family</Button></div>
         </div>
-        <div className="overflow-x-auto p-4 pt-0"><table className="min-w-full text-sm"><thead className="text-left text-xs uppercase text-gray-500"><tr><th className="py-2">Kind</th><th>Match</th><th>Policy family</th></tr></thead><tbody>{config.assignments.map((item) => <tr key={item.id} className="border-t"><td className="py-2">{item.kind}</td><td>{item.employeeId || [item.campusId, item.staffCategory].filter(Boolean).join(' / ') || 'School-wide'}</td><td>{item.policyFamilyId}</td></tr>)}</tbody></table></div></Card>
+        <div className="overflow-x-auto p-4 pt-0"><table className="min-w-full text-sm"><thead className="text-left text-xs uppercase text-gray-500"><tr><th className="py-2">Kind</th><th>Campus</th><th>Staff type</th><th>Employment</th><th>Employee</th><th>Policy family</th></tr></thead><tbody>{config.assignments.map((item) => <tr key={item.id} className="border-t"><td className="py-2">{item.kind}</td><td>{item.campusId || 'All campuses'}</td><td>{item.staffCategory || '—'}</td><td>{item.employmentCategory || 'All applicable'}</td><td>{item.employeeId || '—'}</td><td>{item.policyFamilyId}</td></tr>)}</tbody></table></div></Card>
         {assignmentConflicts.length > 0 && <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900"><AlertTriangle className="mr-1 inline h-4 w-4" />Overlapping assignments at the same precedence: {assignmentConflicts.map((list) => list.map((item) => item.id).join(' & ')).join('; ')}. No policy was chosen silently.</div>}
         <Card title="Which assignment wins?"><div className="space-y-3 p-4 text-sm">
           <Select label="Preview employee (identity only)" options={PAYROLL_POLICY_STAFF_PREVIEW.map((item) => ({ value: item.employeeId, label: `${item.employeeId} · ${item.name} · ${item.staffCategory}` }))} value={previewEmployee} onChange={(e) => setPreviewEmployee(typeof e === 'string' ? e : e.target.value)} />
@@ -668,7 +988,7 @@ export function PayrollSetup() {
       </div>}
 
       {tab === 'history' && <Card title="Policy history"><div className="overflow-x-auto p-4">
-        {config.policies.length === 0 ? <p className="text-sm text-gray-500">No policy versions yet.</p> : <table className="min-w-full text-sm"><thead className="text-left text-xs uppercase text-gray-500"><tr><th className="py-2">Name</th><th>Ver</th><th>Dates</th><th>Status</th><th>Reason</th><th>Saved</th><th></th></tr></thead><tbody>{[...config.policies].sort((a, b) => b.version - a.version).map((item) => <tr key={item.id} className="border-t"><td className="py-2">{item.name}{item.sample ? ' (sample)' : ''}</td><td>v{item.version}</td><td>{item.effectiveFrom} → {item.effectiveTo || 'open'}</td><td><Badge variant={item.status === 'Active' ? 'success' : item.status === 'Draft' ? 'warning' : 'secondary'}>{item.status}</Badge></td><td>{item.changeReason || '—'}</td><td className="text-xs">{item.savedAt || '—'}</td><td><Button size="xs" variant="outline" onClick={() => setDraft({ ...item })}>View</Button></td></tr>)}</tbody></table>}
+        {config.policies.length === 0 ? <p className="text-sm text-gray-500">No policy versions yet.</p> : <table className="min-w-full text-sm"><thead className="text-left text-xs uppercase text-gray-500"><tr><th className="py-2">Name</th><th>Ver</th><th>Dates</th><th>Status</th><th>Reason</th><th>Saved</th><th></th></tr></thead><tbody>{[...config.policies].sort((a, b) => b.version - a.version).map((item) => <tr key={item.id} className="border-t"><td className="py-2">{item.name}{item.sample ? ' (sample)' : ''}</td><td>v{item.version}</td><td>{item.effectiveFrom} → {item.effectiveTo || 'open'}</td><td><Badge variant={item.status === 'Active' ? 'success' : item.status === 'Draft' ? 'warning' : 'secondary'}>{item.status}</Badge></td><td>{item.changeReason || '—'}</td><td className="text-xs">{item.savedAt || '—'}</td><td><Button size="xs" variant="outline" onClick={() => setDraft(fillPolicy(item, config))}>View</Button></td></tr>)}</tbody></table>}
         <p className="mt-3 text-xs text-gray-500">Superseded versions stay viewable for their effective dates. Editing an active policy creates a new draft instead of rewriting it.</p>
       </div></Card>}
 
@@ -680,19 +1000,224 @@ export function PayrollSetup() {
               <p className="mt-2 text-xs text-amber-700">Changing settings for this branch does not silently update City Campus or North Campus.</p>
             </div>
           </Card>
+          <Card title="Grade mapping (existing)">
+            <div className="grid gap-4 p-4 md:grid-cols-2">
+              {['Grade A – Senior', 'Grade B – Regular', 'Grade C – Junior', 'Grade D – Support'].map((grade) => (
+                <Input key={grade} label={grade} value={grade} readOnly />
+              ))}
+              <p className="md:col-span-2 text-xs text-gray-500">These existing mapping labels are preserved. Matching names on Salary Grade / Pay Scale Master are not assumed to be the same records until deliberately linked.</p>
+            </div>
+          </Card>
+          <Card title="Features & modules (existing)">
+            <div className="grid gap-3 p-4 md:grid-cols-2 text-sm">
+              {['Loans & Advances', 'Arrears Processing', 'Bonus / Ex-gratia', 'Finance Integration'].map((item) => (
+                <label key={item} className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2"><input type="checkbox" defaultChecked={item !== 'Finance Integration'} /> {item}</label>
+              ))}
+              <p className="md:col-span-2 text-xs text-gray-500">These existing toggles are kept separate from the policy workflow. Their presence does not prove that modules are hidden or that the labelled actions run.</p>
+            </div>
+          </Card>
           <Card title="Default payroll rules">
             <div className="grid gap-4 p-4 md:grid-cols-2">
-              <Select label="Default payroll frequency" options={['Monthly', 'Fortnightly', 'Weekly'].map((v) => ({ value: v, label: v }))} value={settings.frequency} onChange={(e) => patch({ frequency: typeof e === 'string' ? e : e.target.value })} />
               <Select label="Salary payment day" options={['Last working day', 'Last calendar day', '5th of next month', '7th of next month'].map((v) => ({ value: v, label: v }))} value={settings.paymentDay} onChange={(e) => patch({ paymentDay: typeof e === 'string' ? e : e.target.value })} />
               <Select label="Working-day calculation" options={['School working days (calendar minus weekly offs)', 'Calendar days in month', 'Fixed 30 days', 'Present days only'].map((v) => ({ value: v, label: v }))} value={settings.workingDayCalc} onChange={(e) => patch({ workingDayCalc: typeof e === 'string' ? e : e.target.value })} />
               <Select label="Attendance-based deduction" options={['Yes — deduct for unpaid absence after grace', 'Yes — deduct from day 1', 'No — attendance does not affect salary'].map((v) => ({ value: v, label: v }))} value={settings.attendanceDeduction} onChange={(e) => patch({ attendanceDeduction: typeof e === 'string' ? e : e.target.value })} />
               <Select label="Leave-without-pay handling" options={['Prorate basic + DA on unpaid days', 'Prorate gross pay', 'Fixed daily rate from basic', 'Do not deduct (manual only)'].map((v) => ({ value: v, label: v }))} value={settings.lwpHandling} onChange={(e) => patch({ lwpHandling: typeof e === 'string' ? e : e.target.value })} />
               <Select label="Holiday treatment" options={['Do not deduct for school holidays unless contract requires', 'Treat holidays as unpaid for daily-wage staff', 'Follow staff-type contract (teaching vs non-teaching)'].map((v) => ({ value: v, label: v }))} value={settings.holidayTreatment} onChange={(e) => patch({ holidayTreatment: typeof e === 'string' ? e : e.target.value })} />
               <Select label="Rounding" options={['No rounding', 'Nearest rupee', 'Round up', 'Round down'].map((v) => ({ value: v, label: v }))} value={settings.rounding} onChange={(e) => patch({ rounding: typeof e === 'string' ? e : e.target.value })} />
-              <Select label="Payroll payable account" options={['SAL-PAYABLE · Salary Payable', 'BANK-SAL · Salary Bank Account', 'SAL-ACCRUAL · Salary Accrual'].map((v) => ({ value: v, label: v }))} value={settings.payableAccount} onChange={(e) => patch({ payableAccount: typeof e === 'string' ? e : e.target.value })} />
               <Select label="Default payment method" options={['Bank transfer', 'Cheque', 'Cash', 'UPI'].map((v) => ({ value: v, label: v }))} value={settings.paymentMethod} onChange={(e) => patch({ paymentMethod: typeof e === 'string' ? e : e.target.value })} />
               <Select label="Payslip visibility" options={['Staff portal after publish', 'Visible to HR only until publish', 'Email on generate', 'Hidden until lock'].map((v) => ({ value: v, label: v }))} value={settings.payslipVisibility} onChange={(e) => patch({ payslipVisibility: typeof e === 'string' ? e : e.target.value })} />
               <div className="md:col-span-2"><Toggle label="Publish payslips to staff portal after payroll submit" checked={settings.publishToPortal} onChange={(checked) => patch({ publishToPortal: checked })} /></div>
+            </div>
+          </Card>
+          <Card title="Quick navigation">
+            <div className="flex flex-wrap gap-2 p-4">
+              <Button variant="outline" onClick={() => navigate('/hr/master/payroll-calendar-period-master')}>Go to Payroll Period</Button>
+              <Button variant="outline" onClick={() => navigate('/hr/income-tax/tax-slab-surcharge-master')}>View Tax Slabs</Button>
+              <Button variant="outline" onClick={() => navigate('/hr/master/pay-head-master')}>Manage Components</Button>
+              <Button variant="outline" onClick={() => navigate('/hr/master/salary-structure-master')}>Build Structures</Button>
+              <Button variant="outline" onClick={() => navigate('/hr/payroll/payroll-entry')}>Payroll Entry</Button>
+              <Button variant="outline" onClick={() => navigate('/hr/payroll/employee-payslip-list')}>Salary Slips</Button>
+            </div>
+            <div className="grid gap-1 px-4 pb-4 text-sm text-gray-600">
+              <p>Company: {selectedCompany ? 'Set' : 'Not configured'}</p>
+              <p>Payroll period: {periods.some((p) => p.status === 'Active') ? 'Active' : 'Not configured'}</p>
+              <p>Tax slab: {periods.some((p) => p.taxSlabs.length) ? 'Configured' : 'Not configured'}</p>
+              <p>Salary components: {SAMPLE_STRUCTURES.length} sample structures linked from Salary Structure Master</p>
+              <p className="text-xs text-gray-400">Last saved: {lastSavedAt || 'Not saved in this session'}</p>
+            </div>
+          </Card>
+          <Card title="General payroll settings">
+            <div className="grid gap-4 p-4 md:grid-cols-2">
+              <div className="md:col-span-2">
+                <p className="mb-1 text-xs font-medium text-gray-600">Default company</p>
+                <p className="mb-2 text-xs italic text-gray-400">All payroll documents filter to this company</p>
+                <input value={companyQuery} onChange={(e) => setCompanyQuery(e.target.value)} placeholder="Search and select company..." className="mb-2 h-10 w-full rounded-lg border border-gray-300 px-3 text-sm" />
+                <select className="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm" value={settings.defaultCompany} onChange={(e) => requestCompany(e.target.value)}>
+                  {filteredCompanies.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                </select>
+                {selectedCompany && <p className="mt-1 text-sm">{selectedCompany.label} <Badge variant="success">{selectedCompany.status}</Badge></p>}
+              </div>
+              <div className="md:col-span-2">
+                <p className="mb-1 text-xs font-medium text-gray-600">Payroll frequency</p>
+                <p className="mb-2 text-xs italic text-gray-400">Default for all new Salary Structures. Existing structures are not auto-updated.</p>
+                <div className="flex flex-wrap gap-2">{['Monthly', 'Bi-Monthly', 'Fortnightly', 'Weekly'].map((item) => <button key={item} type="button" className={`rounded-lg border px-3 py-2 text-sm ${settings.frequency === item ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-300'}`} onClick={() => requestFrequency(item)}>{item}</button>)}</div>
+              </div>
+              <div className="md:col-span-2">
+                <p className="mb-1 text-xs font-medium text-gray-600">Daily wages calculation</p>
+                <p className="mb-2 text-xs italic text-gray-400">Determines how per-day salary is computed for LOP deductions</p>
+                <div className="flex flex-wrap gap-2">
+                  {[{ id: 'calendar', label: 'Calendar Days' }, { id: 'working', label: 'Working Days (recommended)' }, { id: 'custom', label: 'Custom' }].map((item) => (
+                    <button key={item.id} type="button" className={`rounded-lg border px-3 py-2 text-sm ${settings.dailyWageBasis === item.id ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-300'}`} onClick={() => patch({ dailyWageBasis: item.id as SettingsShape['dailyWageBasis'] })}>{item.label}</button>
+                  ))}
+                </div>
+                {settings.dailyWageBasis === 'custom' && <Textarea className="mt-2 font-mono" rows={4} label="Custom formula" value={settings.customWageFormula} onChange={(e) => patch({ customWageFormula: e.target.value })} />}
+              </div>
+              <div>
+                <Input label="Max timesheet hours / month" type="number" value={String(settings.maxTimesheetHours)} onChange={(e) => patch({ maxTimesheetHours: Number(e.target.value) || 0 })} />
+                <p className="mt-1 text-xs text-gray-500">Applies to visiting/hourly faculty only. Salary Slip will error if exceeded. Only active for Salary Structures with Based on Timesheet enabled.</p>
+                {timesheetWarn && <p className="mt-1 text-xs text-red-600">Typical range: 80–200 hrs/month</p>}
+              </div>
+              <div>
+                <Toggle label="Include holidays in working days" checked={settings.includeHolidaysInWorkingDays} onChange={(checked) => patch({ includeHolidaysInWorkingDays: checked })} />
+                <p className="mt-1 text-xs text-gray-500">Prevents LOP deductions on school holidays.</p>
+                {settings.includeHolidaysInWorkingDays && <p className="mt-2 text-sm text-emerald-800">School holidays from the Holiday List will be counted as Present days. <button type="button" className="underline" onClick={() => navigate('/hr/master/hr-holiday-working-day-calendar')}>Configure Holiday List</button></p>}
+              </div>
+            </div>
+          </Card>
+          <Card title="Accounting integration">
+            <div className="grid gap-4 p-4 md:grid-cols-2">
+              <div className="md:col-span-2">
+                <Toggle label="Employee-wise accounting" checked={settings.employeeWiseAccounting} onChange={(checked) => patch({ employeeWiseAccounting: checked })} />
+                <p className="mt-1 text-xs text-gray-500">Creates individual ledger entries per employee. Turn off for schools with 100+ staff.</p>
+                {settings.employeeWiseAccounting && <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">Enabling this may slow down payroll processing for large schools. Recommended only for schools with under 50 employees.</p>}
+              </div>
+              <div id="payroll-payable-account" className="md:col-span-2">
+                <Select label="Payroll payable account *" options={[{ value: '', label: 'Search accounts (type to filter)...' }, ...PAYROLL_ACCOUNTS.map((item) => ({ value: item.value, label: item.label }))]} value={settings.payableAccount} onChange={(e) => patch({ payableAccount: typeof e === 'string' ? e : e.target.value })} />
+                {selectedAccount && <p className="mt-1 text-xs text-gray-400">{selectedAccount.path}</p>}
+                {!settings.payableAccount && <p className="mt-1 text-xs text-red-600">Required: Payroll Entry cannot be submitted without this account.</p>}
+                <button type="button" className="mt-1 text-xs text-blue-700 underline" onClick={() => navigate('/hr/payroll/payroll-entry')}>Used in Journal Entry / Payroll Entry</button>
+              </div>
+              <div className="md:col-span-2">
+                <Select label="Default cost center" options={COST_CENTERS.map((item) => ({ value: item, label: item }))} value={settings.costCenter} onChange={(e) => patch({ costCenter: typeof e === 'string' ? e : e.target.value })} />
+                <p className="mt-1 text-xs text-gray-500">Payroll expenses are booked here. Can be overridden per employee.</p>
+                <div className="mt-2 flex flex-wrap gap-2">{COST_CENTERS.map((item) => <button key={item} type="button" className={`rounded-full border px-3 py-1 text-xs ${settings.costCenter === item ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'}`} onClick={() => patch({ costCenter: item })}>{item}</button>)}</div>
+              </div>
+              <div>
+                <Toggle label="Encrypt salary slips in emails" checked={settings.encryptSalarySlips} onChange={(checked) => patch({ encryptSalarySlips: checked })} />
+                <p className="mt-1 text-xs text-gray-500">Password-protected PDF. Password = employee date of birth (DDMMYYYY). Example: 15-Aug-1985 → 15081985.</p>
+                {settings.encryptSalarySlips && <Badge variant="success">Recommended</Badge>}
+              </div>
+              <div>
+                <Toggle label="Auto-email salary slip on submission" checked={settings.autoEmailSlip} onChange={(checked) => patch({ autoEmailSlip: checked })} />
+                <p className="mt-1 text-xs text-gray-500">Sends the PDF to the employee’s registered email when the slip is submitted.</p>
+                {settings.autoEmailSlip && (
+                  <div className="mt-3 space-y-2 border-l-2 border-blue-200 pl-3">
+                    <Select label="Email template" options={[{ value: '', label: 'Select email template...' }, ...EMAIL_TEMPLATES]} value={settings.emailTemplate} onChange={(e) => patch({ emailTemplate: typeof e === 'string' ? e : e.target.value })} />
+                    <button type="button" className="text-xs text-blue-700 underline" onClick={() => navigate('/hr/payroll/employee-payslip-list')}>Create new template (Salary Slips)</button>
+                    <Input label="Reply-to email" value={settings.replyToEmail} onChange={(e) => patch({ replyToEmail: e.target.value })} />
+                    <Button variant="outline" size="sm" onClick={() => setEmailPreviewOpen(true)}>Preview email</Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </Card>
+          <Card title="Leave & attendance integration">
+            <div className="grid gap-4 p-4 md:grid-cols-2">
+              <div>
+                <Toggle label="Consider grace period in attendance" checked={settings.considerGrace} onChange={(checked) => patch({ considerGrace: checked })} />
+                <p className="mt-1 text-xs text-gray-500">Staff arriving within the grace window are not marked late or absent.</p>
+                {settings.considerGrace && <Input label="Grace period duration (minutes)" type="number" value={String(settings.graceMinutes)} onChange={(e) => patch({ graceMinutes: Number(e.target.value) || 0 })} />}
+              </div>
+              <div>
+                <Input label="LWP alert threshold (days/month)" type="number" value={String(settings.lwpThreshold)} onChange={(e) => patch({ lwpThreshold: Number(e.target.value) || 0 })} />
+                <p className="mt-1 text-xs text-gray-500">Triggers a warning banner on the employee’s Salary Slip. School recommended: 3 days.</p>
+                <p className="mt-1 text-xs">{settings.lwpThreshold <= 2 ? 'Green band (0–2)' : settings.lwpThreshold <= 5 ? 'Amber band (3–5)' : 'Red band (6+)'}</p>
+              </div>
+              <div className="md:col-span-2">
+                <p className="mb-1 text-xs font-medium text-gray-600">Payroll calculation based on</p>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" className={`rounded-lg border px-3 py-2 text-sm ${settings.payrollBasedOn === 'attendance' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-300'}`} onClick={() => patch({ payrollBasedOn: 'attendance' })}>Attendance (recommended for schools)</button>
+                  <button type="button" className={`rounded-lg border px-3 py-2 text-sm ${settings.payrollBasedOn === 'leave' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-300'}`} onClick={() => patch({ payrollBasedOn: 'leave' })}>Leave application only</button>
+                </div>
+                {settings.payrollBasedOn === 'attendance' && (
+                  <div className="mt-3 rounded-lg border border-gray-100 p-3 text-sm">
+                    <p className="font-medium">Biometric integration status</p>
+                    {settings.biometricConnected ? <p>Connected — Device: {settings.biometricDevice}. Last sync: {settings.biometricLastSync}</p> : <p className="text-red-700">No biometric device linked. Attendance must be entered manually. <button type="button" className="underline" onClick={() => patch({ biometricConnected: true, biometricDevice: 'ZKTeco-F18', biometricLastSync: stamp() })}>Connect device</button></p>}
+                    {settings.biometricConnected && <Button size="sm" variant="outline" className="mt-2" onClick={() => patch({ biometricLastSync: stamp() })}>Sync now</Button>}
+                    {settings.biometricConnected && <button type="button" className="ml-2 text-xs text-gray-500 underline" onClick={() => patch({ biometricConnected: false })}>Mark as disconnected</button>}
+                  </div>
+                )}
+              </div>
+            </div>
+          </Card>
+          <Card title="School-specific configuration">
+            <div className="space-y-4 p-4">
+              <div>
+                <p className="text-xs font-medium text-gray-600">Staff category → default salary structure</p>
+                <p className="mb-2 text-xs italic text-gray-400">When a new employee is created, the staff category auto-suggests the linked structure in Salary Structure Assignment.</p>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead className="text-left text-xs uppercase text-gray-500"><tr><th className="py-2">Staff category</th><th>Default salary structure</th><th>Auto-assign?</th><th></th></tr></thead>
+                    <tbody>
+                      {settings.staffStructureMap.map((row) => (
+                        <tr key={row.id} className="border-t">
+                          <td className="py-2"><input className="h-9 w-full rounded border border-gray-300 px-2" value={row.category} onChange={(e) => patch({ staffStructureMap: settings.staffStructureMap.map((item) => item.id === row.id ? { ...item, category: e.target.value } : item) })} /></td>
+                          <td>
+                            {SAMPLE_STRUCTURES.length === 0 ? <p className="text-amber-700">No structures created yet. <button type="button" className="underline" onClick={() => navigate('/hr/master/salary-structure-master')}>Create one</button></p> : (
+                              <select className="h-9 rounded border border-gray-300 px-2" value={row.structureId} onChange={(e) => patch({ staffStructureMap: settings.staffStructureMap.map((item) => item.id === row.id ? { ...item, structureId: e.target.value } : item) })}>
+                                <option value="">Select structure</option>
+                                {SAMPLE_STRUCTURES.map((item) => <option key={item.id} value={item.id}>{item.name} ({item.frequency})</option>)}
+                              </select>
+                            )}
+                          </td>
+                          <td><Toggle checked={row.autoAssign} onChange={(checked) => patch({ staffStructureMap: settings.staffStructureMap.map((item) => item.id === row.id ? { ...item, autoAssign: checked } : item) })} /></td>
+                          <td><Button size="sm" variant="outline" onClick={() => patch({ staffStructureMap: settings.staffStructureMap.filter((item) => item.id !== row.id) })}>Remove</Button></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <Button variant="outline" className="mt-2" onClick={() => patch({ staffStructureMap: [...settings.staffStructureMap, { id: newId('SC'), category: '', structureId: '', autoAssign: false }] })}>Add staff category row</Button>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <Input label="Academic year start" type="date" value={settings.academicStart} onChange={(e) => patch({ academicStart: e.target.value })} />
+                <Input label="Academic year end" type="date" value={settings.academicEnd} onChange={(e) => patch({ academicEnd: e.target.value })} />
+                <p className="md:col-span-2 text-sm text-gray-600">Duration: {academicMonths || '—'} months{settings.academicStart && settings.academicEnd ? ` (${settings.academicStart} to ${settings.academicEnd})` : ''}. Payroll reports auto-filter by this window for year-end tax documents.</p>
+                {academicNonStandard && <p className="md:col-span-2 text-sm text-amber-800">Non-standard academic year. Ensure your Payroll Period matches.</p>}
+              </div>
+              <div>
+                <Toggle label="Auto-lock payroll after day of month" checked={settings.autoLockEnabled} onChange={(checked) => patch({ autoLockEnabled: checked })} />
+                <p className="mt-1 text-xs text-gray-500">Prevents new payroll entries after this day. HR Managers can override with a reason.</p>
+                {settings.autoLockEnabled && (
+                  <div className="mt-3 space-y-3">
+                    <Input label="Lock after day" type="number" value={String(settings.autoLockDay)} onChange={(e) => patch({ autoLockDay: Math.min(31, Math.max(1, Number(e.target.value) || 1)) })} />
+                    <p className="text-xs font-medium text-gray-600">Override permission</p>
+                    <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={settings.overrideHr} onChange={(e) => patch({ overrideHr: e.target.checked })} /> HR Manager</label>
+                    <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={settings.overridePayroll} onChange={(e) => patch({ overridePayroll: e.target.checked })} /> Payroll Manager</label>
+                    <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={settings.overrideSystem} onChange={(e) => patch({ overrideSystem: e.target.checked })} /> System Manager</label>
+                    <Toggle label="Override reason required" checked={settings.overrideReasonRequired} onChange={(checked) => patch({ overrideReasonRequired: checked })} />
+                    {settings.overrideReasonRequired && <p className="text-xs text-gray-500">Override reason will be logged in the Activity Log.</p>}
+                    <div>
+                      <div className="mb-2 flex items-center gap-2 text-sm">
+                        <button type="button" className="underline" onClick={() => setLockCursor((c) => ({ year: c.month === 0 ? c.year - 1 : c.year, month: c.month === 0 ? 11 : c.month - 1 }))}>Previous</button>
+                        <span className="font-medium">{new Date(lockCursor.year, lockCursor.month, 1).toLocaleString('en-IN', { month: 'long', year: 'numeric' })}</span>
+                        <button type="button" className="underline" onClick={() => setLockCursor((c) => ({ year: c.month === 11 ? c.year + 1 : c.year, month: c.month === 11 ? 0 : c.month + 1 }))}>Next</button>
+                      </div>
+                      <div className="grid grid-cols-7 gap-1 text-center text-xs">
+                        {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, idx) => <span key={`${d}-${idx}`} className="text-gray-400">{d}</span>)}
+                        {Array.from({ length: new Date(lockCursor.year, lockCursor.month, 1).getDay() }).map((_, i) => <span key={`e-${i}`} />)}
+                        {Array.from({ length: lockDays }).map((_, i) => {
+                          const day = i + 1;
+                          const locked = day > settings.autoLockDay;
+                          const marker = day === settings.autoLockDay;
+                          return <span key={day} className={`rounded px-1 py-1 ${marker ? 'bg-blue-600 text-white' : locked ? 'bg-red-50 text-gray-400' : ''}`}>{day}{locked ? ' 🔒' : ''}</span>;
+                        })}
+                      </div>
+                      <p className="mt-1 text-xs text-gray-400">Days after the lock day are closed for new payroll entries.</p>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </Card>
         </div>
@@ -750,6 +1275,25 @@ export function PayrollSetup() {
             <div className="md:col-span-2"><Textarea label="Description" rows={3} value={editing.description} onChange={(e) => setEditing({ ...editing, description: e.target.value })} /></div>
           </div>
         )}
+      </Modal>
+      <Modal isOpen={Boolean(pendingCompany)} onClose={() => setPendingCompany(null)} title="Change default company" footer={<div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setPendingCompany(null)}>Cancel</Button><Button onClick={() => { if (pendingCompany) patch({ defaultCompany: pendingCompany }); setPendingCompany(null); }}>Confirm</Button></div>}>
+        <p className="text-sm text-amber-900">Changing company will reset all department and branch filters on Payroll Entry.</p>
+      </Modal>
+      <Modal isOpen={Boolean(pendingFrequency)} onClose={() => setPendingFrequency(null)} title="Payroll frequency change" footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="outline" onClick={() => setPendingFrequency(null)}>Cancel</Button><Button variant="outline" onClick={() => pendingFrequency && applyFrequency(pendingFrequency)}>Proceed anyway</Button><Button onClick={() => { setPendingFrequency(null); navigate('/hr/master/salary-structure-master'); }}>Reassign structures</Button></div>}>
+        <p className="text-sm">{SAMPLE_STRUCTURES.filter((item) => item.frequency === 'Monthly').length} existing salary structures use a different frequency. Changing this will not auto-update them.</p>
+      </Modal>
+      <Modal isOpen={emailPreviewOpen} onClose={() => setEmailPreviewOpen(false)} title="Email preview" size="lg" footer={<Button onClick={() => setEmailPreviewOpen(false)}>Close</Button>}>
+        <div className="space-y-2 text-sm">
+          <p className="font-semibold">EduManager School — salary slip</p>
+          <p>To: employee@school.edu</p>
+          <p>Reply-To: {settings.replyToEmail || 'hr@school.edu'}</p>
+          <p>Template: {EMAIL_TEMPLATES.find((item) => item.value === settings.emailTemplate)?.label || 'Not selected'}</p>
+          <p>Attachment: SalarySlip-EMP001-OCT-2026.pdf {settings.encryptSalarySlips ? '(password-protected, DOB DDMMYYYY)' : ''}</p>
+          <p className="text-xs text-gray-500">Placeholder figures only. This preview does not send mail and does not recalculate salary.</p>
+        </div>
+      </Modal>
+      <Modal isOpen={cancelConfirm} onClose={() => setCancelConfirm(false)} title="Discard unsaved settings?" footer={<div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setCancelConfirm(false)}>Keep editing</Button><Button onClick={cancelSettings}>Discard</Button></div>}>
+        <p className="text-sm">Unsaved payroll settings for this branch will be restored to the last save.</p>
       </Modal>
       <Modal isOpen={historyOpen} onClose={() => setHistoryOpen(false)} title="Settings change history" size="lg">
         {history.length === 0 ? <p className="text-sm text-gray-500">No changes recorded yet.</p> : (

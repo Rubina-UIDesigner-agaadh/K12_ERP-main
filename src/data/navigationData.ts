@@ -165,7 +165,6 @@ const attendanceSidebar: SidebarSection[] = [
   {
     title: 'Registers & Views',
     items: [
-      { label: 'Division Register', id: 'division-register' },
       { label: 'Attendance Summary', id: 'attendance-summary' },
       {
         label: 'Attendance Defaulter Overview',
@@ -178,7 +177,6 @@ const attendanceSidebar: SidebarSection[] = [
     items: [
       { label: 'Quick Present Entry', id: 'quick-present-entry' },
       { label: 'Attendance Register', id: 'attendance-register-combined' },
-      { label: 'Monthly Register Generate', id: 'monthly-register-generate' },
       { label: 'Student Attendance', id: 'student-attendance' },
       { label: 'Subjectwise Attendance', id: 'subjectwise-attendance' },
       {
@@ -287,7 +285,7 @@ const employeeSidebar: SidebarSection[] = [
 ];
 
 const hrAttendanceSidebar: SidebarSection[] = [
-  { title: 'List Screen', items: [{ label: 'Employee Attendance Summary', id: 'employee-attendance-summary' }, { label: 'Daily Attendance Log', id: 'daily-attendance-log' }, { label: 'Late / Early Arrival Register', id: 'late-early-arrival-register' }, { label: 'Overtime Register', id: 'overtime-register' }] },
+  { title: 'List Screen', items: [{ label: 'Employee Attendance Summary', id: 'employee-attendance-summary' }, { label: 'Late / Early Arrival Register', id: 'late-early-arrival-register' }, { label: 'Overtime Register', id: 'overtime-register' }] },
   { title: 'Transaction', items: [{ label: 'Employee Attendance', id: 'employee-attendance-admin' }, { label: 'Apply Leave', id: 'apply-leave' }, { label: 'Leave Balance Adjust', id: 'leave-balance-adjust-bulk' }, { label: 'Leave Balance Listing', id: 'leave-balance-listing' }, { label: 'Attendance Registry', id: 'monthly-attendance-register-hr' }, { label: 'Leave Entry (Bulk)', id: 'leave-entry-bulk' }] },
   { title: 'Report Criteria', items: [{ label: 'Attendance Report', id: 'hr-attendance-report' }] }
 ];
@@ -300,9 +298,9 @@ const payrollSidebar: SidebarSection[] = [
 
 const hrMasterSidebar: SidebarSection[] = [
   { title: 'Employee Masters', items: [{ label: 'Designation Master', id: 'designation-master' }, { label: 'Employee Classification Master', id: 'employee-classification-master' }, { label: 'Employee Document Type Master', id: 'employee-document-type-master' }, { label: 'Vacancy / Requisition Master', id: 'vacancy-requisition-master' }, { label: 'Employee ID Creation Rules', id: 'employee-id-creation' }] },
-  { title: 'Employee Attendance Master', items: [{ label: 'Leave Policy', id: 'leave-type-master' }, { label: 'Attendance Rule Master', id: 'attendance-rule-master' }, { label: 'Holiday & Working Day Calendar', id: 'hr-holiday-working-day-calendar' }] },
+  { title: 'Employee Attendance Master', items: [{ label: 'Leave Policy', id: 'leave-type-master' }, { label: 'Attendance Rule Master', id: 'attendance-rule-master' }, { label: 'Holiday & Working Day Calendar', id: 'hr-holiday-working-day-calendar' }, { label: 'Shift Master', id: 'shift-master' }] },
   { title: 'Recruitment Master', items: [{ label: 'Evaluation Scorecard Master', id: 'evaluation-criteria-competency-master' }] },
-  { title: 'Payroll Master', items: [{ label: 'Salary Component Master', id: 'pay-head-master' }, { label: 'Salary Structure Master', id: 'salary-structure-master' }, { label: 'Salary Grade / Pay Scale Master', id: 'salary-grade-pay-scale-master' }, { label: 'Payroll Calendar / Period Master', id: 'payroll-calendar-period-master' }, { label: 'Payroll Settings', id: 'payroll-setup' }, { label: 'Disbursement Mode / Bank Setup', id: 'disbursement-mode-bank-setup' }] },
+  { title: 'Payroll Master', items: [{ label: 'Salary Component Master', id: 'pay-head-master' }, { label: 'Salary Structure Master', id: 'salary-structure-master' }, { label: 'Salary Grade / Pay Scale Master', id: 'salary-grade-pay-scale-master' }, { label: 'Payroll Calendar / Period Master', id: 'payroll-calendar-period-master' }, { label: 'Income Tax Slab', id: 'income-tax-slab' }, { label: 'Payroll Settings', id: 'payroll-setup' }, { label: 'Disbursement Mode / Bank Setup', id: 'disbursement-mode-bank-setup' }] },
   { title: 'Appraisal Master', items: [{ label: 'Appraisal Cycle Master', id: 'appraisal-cycle-master' }, { label: 'Appraisal Template Master', id: 'appraisal-template-master' }, { label: 'Competency & KPI Master', id: 'competency-kpi-master' }, { label: 'Rating Scale Master', id: 'rating-scale-master' }, { label: 'Appraisal Role & Workflow Master', id: 'appraisal-role-workflow-master' }] },
   { title: 'Income Tax Master', items: [{ label: 'Financial Year & Tax Configuration Master', id: 'financial-year-tax-config-master' }, { label: 'Tax Regime Master', id: 'tax-regime-master' }, { label: 'Tax Slab & Surcharge Master', id: 'tax-slab-surcharge-master' }, { label: 'Exemption & Deduction Section Master', id: 'exemption-deduction-section-master' }, { label: 'Income Head Mapping Master', id: 'income-head-mapping-master' }, { label: 'HRA & Special Exemption Rule Master', id: 'hra-special-exemption-rule-master' }] }
 ];

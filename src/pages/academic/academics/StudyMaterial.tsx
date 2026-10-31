@@ -92,12 +92,15 @@ const TEACHERS = [
 ];
 
 const STUDENTS = [
-  { id: 's1', name: 'Aarav Sharma', className: 'Class 10' },
-  { id: 's2', name: 'Diya Patel', className: 'Class 10' },
-  { id: 's3', name: 'Ishaan Mehta', className: 'Class 9' },
-  { id: 's4', name: 'Ananya Iyer', className: 'Class 9' },
-  { id: 's5', name: 'Rohan Gupta', className: 'Class 10' }
+  { id: 's1', name: 'Aarav Sharma', className: 'Class 10', division: 'A' },
+  { id: 's2', name: 'Diya Patel', className: 'Class 10', division: 'B' },
+  { id: 's3', name: 'Ishaan Mehta', className: 'Class 9', division: 'A' },
+  { id: 's4', name: 'Ananya Iyer', className: 'Class 9', division: 'B' },
+  { id: 's5', name: 'Rohan Gupta', className: 'Class 10', division: 'A' },
+  { id: 's6', name: 'Meera Shah', className: 'Class 10', division: 'C' },
+  { id: 's7', name: 'Kabir Singh', className: 'Class 9', division: 'A' }
 ];
+const STUDENT_CLASSES = Array.from(new Set(STUDENTS.map((item) => item.className)));
 
 const CURRICULUM: Record<string, Record<string, { name: string; topics: string[] }[]>> = {
   'Class 9': {
@@ -258,6 +261,9 @@ export function StudyMaterial() {
   const [shareTarget, setShareTarget] = useState<ShareTarget>('teachers');
   const [shareQuery, setShareQuery] = useState('');
   const [sharePicked, setSharePicked] = useState<string[]>([]);
+  const [shareClass, setShareClass] = useState('');
+  const [shareDivision, setShareDivision] = useState('');
+  const [shareStudentId, setShareStudentId] = useState('');
   const [shareMessage, setShareMessage] = useState('');
   const [shareExpiryOn, setShareExpiryOn] = useState(false);
   const [shareExpiry, setShareExpiry] = useState('');
@@ -341,6 +347,15 @@ export function StudyMaterial() {
   const pageSize = view === 'list' ? PAGE_SIZE_LIST : PAGE_SIZE_CARD;
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
+  const groupedBySubject = useMemo(() => {
+    const map = new Map<string, StudyMaterialRecord[]>();
+    filtered.forEach((row) => {
+      const list = map.get(row.subject) || [];
+      list.push(row);
+      map.set(row.subject, list);
+    });
+    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [filtered]);
 
   const runFilter = (next = { className: draftClass, subject: draftSubject, chapter: draftChapter, type: draftType, search: draftSearch }) => {
     setLoading(true);
@@ -386,6 +401,17 @@ export function StudyMaterial() {
     return rows;
   }, [shares, sharedFilter, sharedSort]);
 
+  const sharedBySubject = useMemo(() => {
+    const map = new Map<string, SharedItem[]>();
+    sharedRows.forEach((item) => {
+      const subject = materialById(item.materialId)?.subject || 'Other';
+      const list = map.get(subject) || [];
+      list.push(item);
+      map.set(subject, list);
+    });
+    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [sharedRows, materials]);
+
   const openPreview = (row: StudyMaterialRecord) => {
     setPreview(row);
     setPreviewPage(1);
@@ -403,6 +429,9 @@ export function StudyMaterial() {
     setShareTarget('teachers');
     setShareQuery('');
     setSharePicked([]);
+    setShareClass('');
+    setShareDivision('');
+    setShareStudentId('');
     setShareMessage('');
     setShareExpiryOn(false);
     setShareExpiry('');
@@ -413,7 +442,13 @@ export function StudyMaterial() {
 
   const sharePeople = () => {
     if (shareTarget === 'students') {
-      return STUDENTS.filter((item) => !shareQuery || item.name.toLowerCase().includes(shareQuery.toLowerCase()));
+      return STUDENTS.filter((item) => {
+        if (shareClass && item.className !== shareClass) return false;
+        if (shareDivision && item.division !== shareDivision) return false;
+        if (shareStudentId && item.id !== shareStudentId) return false;
+        if (shareQuery && !item.name.toLowerCase().includes(shareQuery.toLowerCase())) return false;
+        return true;
+      });
     }
     let list = TEACHERS;
     if (shareTarget === 'subject' && shareRow) list = TEACHERS.filter((item) => item.subject === shareRow.subject);
@@ -665,8 +700,15 @@ export function StudyMaterial() {
           </div>
 
           {loading ? skeleton : filtered.length === 0 ? emptyMine : view === 'card' ? (
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-              {paged.map((row) => (
+            <div className="space-y-6">
+              {groupedBySubject.map(([subject, rows]) => (
+                <section key={subject}>
+                  <div className="mb-3 flex items-center justify-between">
+                    <h3 className="text-base font-bold text-gray-900">{subject}</h3>
+                    <span className="text-xs text-gray-500">{rows.length} material{rows.length === 1 ? '' : 's'}</span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+              {rows.map((row) => (
                 <div key={row.id} className="group overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
                   <div className="relative h-32 overflow-hidden bg-gray-100">
                     <div className="flex h-full items-center justify-center transition duration-300 group-hover:scale-110">
@@ -695,6 +737,9 @@ export function StudyMaterial() {
                   </div>
                 </div>
               ))}
+                  </div>
+                </section>
+              ))}
             </div>
           ) : view === 'list' ? (
             <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
@@ -721,7 +766,12 @@ export function StudyMaterial() {
                     </tr>
                   </thead>
                   <tbody>
-                    {paged.map((row) => (
+                    {groupedBySubject.map(([subject, rows]) => (
+                      <React.Fragment key={subject}>
+                        <tr className="border-t border-gray-200 bg-slate-50">
+                          <td colSpan={9} className="px-3 py-2 text-sm font-bold text-gray-800">{subject} <span className="font-normal text-gray-500">· {rows.length} material{rows.length === 1 ? '' : 's'}</span></td>
+                        </tr>
+                    {rows.map((row) => (
                       <tr key={row.id} className="group border-t border-gray-100 hover:bg-blue-50">
                         <td className="px-3 py-2"><input type="checkbox" checked={selected.includes(row.id)} onChange={(event) => setSelected(event.target.checked ? [...selected, row.id] : selected.filter((id) => id !== row.id))} /></td>
                         <td className="px-3 py-2">
@@ -745,6 +795,8 @@ export function StudyMaterial() {
                           </div>
                         </td>
                       </tr>
+                    ))}
+                      </React.Fragment>
                     ))}
                   </tbody>
                 </table>
@@ -798,16 +850,7 @@ export function StudyMaterial() {
           )}
 
           {view !== 'chapter' && !loading && filtered.length > 0 && (
-            <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-gray-600">
-              <span>Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, filtered.length)} of {filtered.length} results</span>
-              <div className="flex items-center gap-1">
-                <button type="button" disabled={page === 1} onClick={() => setPage((value) => value - 1)} className="rounded border border-gray-300 px-2 py-1 disabled:opacity-40"><ChevronLeft className="h-4 w-4" /></button>
-                {Array.from({ length: pageCount }, (_, index) => index + 1).map((num) => (
-                  <button key={num} type="button" onClick={() => setPage(num)} className={`h-8 w-8 rounded ${page === num ? 'bg-blue-600 text-white' : 'border border-gray-300'}`}>{num}</button>
-                ))}
-                <button type="button" disabled={page === pageCount} onClick={() => setPage((value) => value + 1)} className="rounded border border-gray-300 px-2 py-1 disabled:opacity-40"><ChevronRight className="h-4 w-4" /></button>
-              </div>
-            </div>
+            <p className="text-sm text-gray-600">{filtered.length} material{filtered.length === 1 ? '' : 's'} across {groupedBySubject.length} subject{groupedBySubject.length === 1 ? '' : 's'}</p>
           )}
         </>
       )}
@@ -839,8 +882,14 @@ export function StudyMaterial() {
               <p className="mt-1 text-sm text-gray-500">When someone shares a study material with you, it will appear here.</p>
             </div>
           ) : (
-            <div className="space-y-3">
-              {sharedRows.map((item) => {
+            <div className="space-y-6">
+              {sharedBySubject.map(([subject, items]) => (
+                <section key={subject} className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-base font-bold text-gray-900">{subject}</h3>
+                    <span className="text-xs text-gray-500">{items.length} material{items.length === 1 ? '' : 's'}</span>
+                  </div>
+              {items.map((item) => {
                 const row = materialById(item.materialId);
                 if (!row) return null;
                 return (
@@ -865,6 +914,8 @@ export function StudyMaterial() {
                   </div>
                 );
               })}
+                </section>
+              ))}
             </div>
           )}
         </div>
@@ -933,6 +984,31 @@ export function StudyMaterial() {
               </div>
               {(shareTarget === 'teachers' || shareTarget === 'students') && (
                 <div>
+                  {shareTarget === 'students' && (
+                    <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                      <label className="text-xs font-medium text-gray-600">
+                        Class
+                        <select value={shareClass} onChange={(event) => { setShareClass(event.target.value); setShareDivision(''); setShareStudentId(''); setSharePicked([]); }} className="mt-1 h-10 w-full rounded-lg border border-gray-300 px-3 text-sm">
+                          <option value="">All classes</option>
+                          {STUDENT_CLASSES.map((item) => <option key={item}>{item}</option>)}
+                        </select>
+                      </label>
+                      <label className="text-xs font-medium text-gray-600">
+                        Division
+                        <select value={shareDivision} onChange={(event) => { setShareDivision(event.target.value); setShareStudentId(''); setSharePicked([]); }} className="mt-1 h-10 w-full rounded-lg border border-gray-300 px-3 text-sm">
+                          <option value="">All divisions</option>
+                          {Array.from(new Set(STUDENTS.filter((item) => !shareClass || item.className === shareClass).map((item) => item.division))).map((item) => <option key={item}>{item}</option>)}
+                        </select>
+                      </label>
+                      <label className="text-xs font-medium text-gray-600">
+                        Student name
+                        <select value={shareStudentId} onChange={(event) => { setShareStudentId(event.target.value); setSharePicked(event.target.value ? [event.target.value] : []); }} className="mt-1 h-10 w-full rounded-lg border border-gray-300 px-3 text-sm">
+                          <option value="">All students</option>
+                          {STUDENTS.filter((item) => (!shareClass || item.className === shareClass) && (!shareDivision || item.division === shareDivision)).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                        </select>
+                      </label>
+                    </div>
+                  )}
                   <input value={shareQuery} onChange={(event) => setShareQuery(event.target.value)} placeholder={shareTarget === 'students' ? 'Search students by name...' : 'Search teachers by name...'} className="mb-2 h-10 w-full rounded-lg border border-gray-300 px-3 text-sm" />
                   <div className="max-h-44 overflow-auto rounded-lg border border-gray-200">
                     {sharePeople().map((person) => (
@@ -940,10 +1016,11 @@ export function StudyMaterial() {
                         <input type="checkbox" checked={sharePicked.includes(person.id)} onChange={(event) => setSharePicked(event.target.checked ? [...sharePicked, person.id] : sharePicked.filter((id) => id !== person.id))} />
                         <span>
                           <span className="font-medium">{person.name}</span>
-                          <span className="ml-2 text-xs text-gray-500">{person.className}{'subject' in person ? ` · ${person.subject}` : ''}</span>
+                          <span className="ml-2 text-xs text-gray-500">{person.className}{'division' in person ? ` · ${person.division}` : ''}{'subject' in person ? ` · ${person.subject}` : ''}</span>
                         </span>
                       </label>
                     ))}
+                    {sharePeople().length === 0 && <p className="px-3 py-3 text-sm text-gray-500">No students match class, division and name.</p>}
                   </div>
                 </div>
               )}

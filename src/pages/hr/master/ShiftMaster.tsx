@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Select } from '../../../components/ui/Select';
 import { Badge } from '../../../components/ui/Badge';
+import { MultiSelect } from '../../../components/ui/MultiSelect';
+import { PAYROLL_CAMPUSES, PAYROLL_STAFF_CATEGORIES } from '../payroll/PayrollSetup';
 import {
   Plus,
   Edit,
@@ -12,7 +14,8 @@ import {
   Search,
   Clock,
   Copy,
-  Moon } from
+  Moon,
+  Eye } from
 'lucide-react';
 interface Shift {
   id: string;
@@ -28,6 +31,9 @@ interface Shift {
   halfDayCriteria: string;
   isNightShift: boolean;
   applicableStaffTypes: string[];
+  campusId: string;
+  holidayListName: string;
+  graceSource: 'Attendance Rule' | 'Shift' | 'Needs review';
   effectiveFrom: string;
   effectiveTo: string;
   status: 'Active' | 'Inactive';
@@ -46,9 +52,12 @@ const mockShifts: Shift[] = [
   graceEarlyGoing: 10,
   halfDayCriteria: '4-6 hours',
   isNightShift: false,
-  applicableStaffTypes: ['Teaching', 'Administrative'],
-  effectiveFrom: '2024-01-01',
-  effectiveTo: '2025-12-31',
+  applicableStaffTypes: ['Teaching Staff', 'Administrative Staff'],
+  campusId: 'main',
+  holidayListName: '',
+  graceSource: 'Needs review',
+  effectiveFrom: '2026-04-01',
+  effectiveTo: '2027-03-31',
   status: 'Active'
 },
 {
@@ -65,8 +74,11 @@ const mockShifts: Shift[] = [
   halfDayCriteria: '4-6 hours',
   isNightShift: false,
   applicableStaffTypes: ['Support Staff'],
-  effectiveFrom: '2024-01-01',
-  effectiveTo: '2025-12-31',
+  campusId: 'main',
+  holidayListName: '',
+  graceSource: 'Shift',
+  effectiveFrom: '2026-04-01',
+  effectiveTo: '2027-03-31',
   status: 'Active'
 },
 {
@@ -83,8 +95,11 @@ const mockShifts: Shift[] = [
   halfDayCriteria: '4-6 hours',
   isNightShift: false,
   applicableStaffTypes: ['Support Staff'],
-  effectiveFrom: '2024-01-01',
-  effectiveTo: '2025-12-31',
+  campusId: 'city',
+  holidayListName: '',
+  graceSource: 'Shift',
+  effectiveFrom: '2026-04-01',
+  effectiveTo: '2027-03-31',
   status: 'Active'
 },
 {
@@ -100,9 +115,12 @@ const mockShifts: Shift[] = [
   graceEarlyGoing: 15,
   halfDayCriteria: '4-6 hours',
   isNightShift: true,
-  applicableStaffTypes: ['Security', 'Support Staff'],
-  effectiveFrom: '2024-01-01',
-  effectiveTo: '2025-12-31',
+  applicableStaffTypes: ['Support Staff'],
+  campusId: 'main',
+  holidayListName: '',
+  graceSource: 'Attendance Rule',
+  effectiveFrom: '2026-04-01',
+  effectiveTo: '2027-03-31',
   status: 'Active'
 }];
 
@@ -123,9 +141,24 @@ export function ShiftMaster() {
     halfDayCriteria: '',
     isNightShift: false,
     applicableStaffTypes: [] as string[],
+    campusId: 'main',
+    holidayListName: '',
+    graceSource: 'Needs review' as 'Attendance Rule' | 'Shift' | 'Needs review',
     effectiveFrom: '',
     effectiveTo: ''
   });
+  const [staffFilter, setStaffFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [viewId, setViewId] = useState<string | null>(null);
+  const holidayLists = useMemo(() => {
+    try {
+      const raw = localStorage.getItem('k12-institute-holiday-lists-v1');
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed.map((item: { name?: string }) => item.name || '').filter(Boolean) : [];
+    } catch {
+      return [] as string[];
+    }
+  }, []);
   const calculateTotalHours = (
   start: string,
   end: string,
@@ -145,11 +178,13 @@ export function ShiftMaster() {
     }
     return Math.round(totalMinutes / 60 * 10) / 10;
   };
-  const filtered = shifts.filter(
-    (s) =>
-    s.name.toLowerCase().includes(search.toLowerCase()) ||
-    s.code.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = shifts.filter((s) => {
+    const matchesSearch = s.name.toLowerCase().includes(search.toLowerCase()) || s.code.toLowerCase().includes(search.toLowerCase());
+    const matchesStaff = !staffFilter || s.applicableStaffTypes.includes(staffFilter);
+    const matchesStatus = statusFilter === 'All' || s.status === statusFilter;
+    const eligible = !s.effectiveTo || s.effectiveTo >= '2026-10-29';
+    return matchesSearch && matchesStaff && matchesStatus && (statusFilter !== 'Active' || eligible || s.status !== 'Active');
+  });
   const resetForm = () => {
     setForm({
       code: '',
@@ -163,6 +198,9 @@ export function ShiftMaster() {
       halfDayCriteria: '',
       isNightShift: false,
       applicableStaffTypes: [],
+      campusId: 'main',
+      holidayListName: '',
+      graceSource: 'Needs review',
       effectiveFrom: '',
       effectiveTo: ''
     });
@@ -214,6 +252,9 @@ export function ShiftMaster() {
       halfDayCriteria: shift.halfDayCriteria,
       isNightShift: shift.isNightShift,
       applicableStaffTypes: shift.applicableStaffTypes,
+      campusId: shift.campusId,
+      holidayListName: shift.holidayListName,
+      graceSource: shift.graceSource,
       effectiveFrom: shift.effectiveFrom,
       effectiveTo: shift.effectiveTo
     });
@@ -233,13 +274,23 @@ export function ShiftMaster() {
       halfDayCriteria: shift.halfDayCriteria,
       isNightShift: shift.isNightShift,
       applicableStaffTypes: shift.applicableStaffTypes,
+      campusId: shift.campusId,
+      holidayListName: shift.holidayListName,
+      graceSource: shift.graceSource,
       effectiveFrom: '',
       effectiveTo: ''
     });
     setShowForm(true);
   };
-  const handleDelete = (id: string) =>
-  setShifts((prev) => prev.filter((s) => s.id !== id));
+  const handleDelete = (shift: Shift) => {
+    if (shift.status !== 'Inactive' && !shift.code.includes('_COPY')) {
+      window.alert('Delete is available only for unused drafts or inactive copies.');
+      return;
+    }
+    setShifts((prev) => prev.filter((s) => s.id !== shift.id));
+  };
+  const handleDeactivate = (id: string) =>
+    setShifts((prev) => prev.map((s) => s.id === id ? { ...s, status: s.status === 'Active' ? 'Inactive' : 'Active' } : s));
   const currentTotalHours = calculateTotalHours(
     form.startTime,
     form.endTime,
@@ -385,11 +436,14 @@ export function ShiftMaster() {
 
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
               <p className="text-xs text-blue-600 font-medium mb-1">
-                Total Working Hours
+                Scheduled hours
               </p>
               <p className="text-2xl font-bold text-blue-700">
                 {currentTotalHours} hrs
               </p>
+              {(form.isNightShift || (form.startTime && form.endTime && form.endTime < form.startTime)) && (
+                <p className="mt-1 text-xs text-blue-800">End {form.endTime || '—'} is the next day after start {form.startTime || '—'}.</p>
+              )}
             </div>
             <div />
             <Input
@@ -438,9 +492,16 @@ export function ShiftMaster() {
                 }
                 className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500" />
 
-                <span className="text-sm text-gray-700">Night Shift</span>
+                <span className="text-sm text-gray-700">Overnight Shift (end may be the next day)</span>
               </label>
             </div>
+            <div className="md:col-span-2">
+              <MultiSelect label="Applicable staff types" options={PAYROLL_STAFF_CATEGORIES.map((item) => ({ value: item, label: item }))} value={form.applicableStaffTypes} onChange={(value) => setForm({ ...form, applicableStaffTypes: value })} />
+            </div>
+            <Select label="Campus" options={PAYROLL_CAMPUSES.filter((item) => item.value !== 'all')} value={form.campusId} onChange={(e) => setForm({ ...form, campusId: typeof e === 'string' ? e : e.target.value })} />
+            <Select label="Holiday list (optional)" options={[{ value: '', label: holidayLists.length ? 'Not selected' : 'No named list yet' }, ...holidayLists.map((name) => ({ value: name, label: name }))]} value={form.holidayListName} onChange={(e) => setForm({ ...form, holidayListName: typeof e === 'string' ? e : e.target.value })} />
+            <Select label="Late/early grace source" options={[{ value: 'Attendance Rule', label: 'Attendance Rule' }, { value: 'Shift', label: 'Shift' }, { value: 'Needs review', label: 'Needs review' }]} value={form.graceSource} onChange={(e) => setForm({ ...form, graceSource: (typeof e === 'string' ? e : e.target.value) as Shift['graceSource'] })} />
+            <p className="text-xs text-gray-500 md:col-span-2">Late grace: {form.graceLateComing} minutes · Source: {form.graceSource}. If precedence is not established, keep Needs review.</p>
             <Input
             label="Effective From"
             type="date"
@@ -477,7 +538,8 @@ export function ShiftMaster() {
       }
 
       <Card>
-        <div className="relative mb-4">
+        <div className="mb-4 flex flex-wrap gap-2">
+          <div className="relative min-w-[180px] flex-1">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
@@ -485,7 +547,14 @@ export function ShiftMaster() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-
+          </div>
+          <select value={staffFilter} onChange={(e) => setStaffFilter(e.target.value)} className="h-10 rounded-lg border border-gray-300 px-3 text-sm">
+            <option value="">All staff types</option>
+            {PAYROLL_STAFF_CATEGORIES.map((item) => <option key={item}>{item}</option>)}
+          </select>
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-10 rounded-lg border border-gray-300 px-3 text-sm">
+            {['All', 'Active', 'Inactive'].map((item) => <option key={item}>{item}</option>)}
+          </select>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -535,7 +604,8 @@ export function ShiftMaster() {
                     </div>
                   </td>
                   <td className="py-3 px-4 text-center text-sm text-gray-600">
-                    {s.startTime} - {s.endTime}
+                    {s.startTime} - {s.endTime}{s.isNightShift || s.endTime < s.startTime ? ' (end next day)' : ''}
+                    <p className="text-[10px] text-gray-400">{s.effectiveFrom} → {s.effectiveTo || 'open'}</p>
                   </td>
                   <td className="py-3 px-4 text-center text-sm text-gray-600">
                     {s.breakStart && s.breakEnd ?
@@ -554,11 +624,12 @@ export function ShiftMaster() {
                     {s.isNightShift ?
                   <Badge variant="secondary">
                         <Moon className="w-3 h-3 mr-1" />
-                        Night
+                        Overnight
                       </Badge> :
 
                   <Badge variant="info">Day</Badge>
                   }
+                    <p className="mt-1 text-[10px] text-gray-500">{s.graceSource}</p>
                   </td>
                   <td className="py-3 px-4 text-center">
                     <Badge
@@ -569,6 +640,12 @@ export function ShiftMaster() {
                   </td>
                   <td className="py-3 px-4 text-center">
                     <div className="flex items-center justify-center gap-1">
+                      <button
+                      onClick={() => setViewId(s.id)}
+                      className="p-1.5 hover:bg-gray-100 rounded-lg"
+                      title="View">
+                        <Eye className="w-4 h-4 text-gray-600" />
+                      </button>
                       <button
                       onClick={() => handleEdit(s)}
                       className="p-1.5 hover:bg-blue-100 rounded-lg"
@@ -584,9 +661,15 @@ export function ShiftMaster() {
                         <Copy className="w-4 h-4 text-gray-500" />
                       </button>
                       <button
-                      onClick={() => handleDelete(s.id)}
+                      onClick={() => handleDeactivate(s.id)}
+                      className="px-1.5 py-1 text-[10px] font-medium text-amber-700 hover:bg-amber-50 rounded-lg"
+                      title={s.status === 'Active' ? 'Deactivate' : 'Activate'}>
+                        {s.status === 'Active' ? 'Deactivate' : 'Activate'}
+                      </button>
+                      <button
+                      onClick={() => handleDelete(s)}
                       className="p-1.5 hover:bg-red-100 rounded-lg"
-                      title="Delete">
+                      title="Delete unused draft">
 
                         <Trash2 className="w-4 h-4 text-red-500" />
                       </button>
@@ -597,6 +680,24 @@ export function ShiftMaster() {
             </tbody>
           </table>
         </div>
+        {viewId && (() => {
+          const s = shifts.find((item) => item.id === viewId);
+          if (!s) return null;
+          return (
+            <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="font-semibold text-gray-900">View: {s.name} ({s.code})</p>
+                <button type="button" className="text-xs text-gray-500" onClick={() => setViewId(null)}>Close</button>
+              </div>
+              <p>Timing: {s.startTime} – {s.endTime}{s.isNightShift || s.endTime < s.startTime ? ' (end next day)' : ''}</p>
+              <p>Scheduled hours: {s.totalHours}h · Campus: {PAYROLL_CAMPUSES.find((c) => c.value === s.campusId)?.label || s.campusId}</p>
+              <p>Staff types: {s.applicableStaffTypes.join(', ') || '—'}</p>
+              <p>Holiday list: {s.holidayListName || 'Not selected'}</p>
+              <p>Grace source: {s.graceSource} · Late {s.graceLateComing} min · Early {s.graceEarlyGoing} min</p>
+              <p>Effective: {s.effectiveFrom} → {s.effectiveTo || 'open'} · {s.status}</p>
+            </div>
+          );
+        })()}
       </Card>
     </div>);
 

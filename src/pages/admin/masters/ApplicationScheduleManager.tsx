@@ -1,10 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Badge } from '../../../components/ui/Badge';
 import { Button } from '../../../components/ui/Button';
 import { Modal } from '../../../components/ui/Modal';
 import { Textarea } from '../../../components/ui/Textarea';
 import { Toggle } from '../../../components/ui/Toggle';
-import { Bell, Clock3, Download, Pencil, Plus, Save, Timer } from 'lucide-react';
+import { Bell, Clock3, Pencil, Plus, Save, Timer } from 'lucide-react';
 
 const YEARS = ['2025-26', '2026-27', '2027-28'];
 const STORE = 'k12-application-schedule-v3';
@@ -89,17 +89,18 @@ const toMs = (date: string, time: string) => {
 const cycleStart = (c: Cycle) => toMs(c.startDate, c.startTime || '00:00');
 const cycleEnd = (c: Cycle) => toMs(c.endDate || c.startDate, c.endTime || '23:59');
 
-const formatClock = (ms: number) => {
-  if (ms <= 0) return '0s';
-  const total = Math.floor(ms / 1000);
-  const d = Math.floor(total / 86400);
-  const h = Math.floor((total % 86400) / 3600);
-  const m = Math.floor((total % 3600) / 60);
-  const s = total % 60;
-  if (d > 0) return `${d}d ${h}h ${m}m ${s}s`;
-  if (h > 0) return `${h}h ${m}m ${s}s`;
-  if (m > 0) return `${m}m ${s}s`;
-  return `${s}s`;
+const formatSpan = (ms: number) => {
+  if (ms <= 0) return '0 days';
+  const totalDays = Math.max(0, Math.floor(ms / 86400000));
+  const months = Math.floor(totalDays / 30);
+  const rem = totalDays % 30;
+  const weeks = Math.floor(rem / 7);
+  const days = rem % 7;
+  const parts: string[] = [];
+  if (months) parts.push(months === 1 ? '1 month' : `${months} months`);
+  if (weeks) parts.push(weeks === 1 ? '1 week' : `${weeks} weeks`);
+  if (days || parts.length === 0) parts.push(days === 1 ? '1 day' : `${days} days`);
+  return parts.join(' ');
 };
 
 const formatShort = (date: string, time: string) => {
@@ -113,10 +114,7 @@ const durationLabel = (c: Cycle) => {
   const start = cycleStart(c);
   const end = cycleEnd(c);
   if (!start || !end || end < start) return '—';
-  const hours = Math.max(1, Math.round((end - start) / 3600000));
-  if (hours < 24) return hours === 1 ? '1 hour' : `${hours} hours`;
-  const days = Math.round(hours / 24);
-  return days === 1 ? '1 day' : `${days} days`;
+  return formatSpan(end - start);
 };
 
 const cycleStatus = (c: Cycle, now: number): CycleStatus => {
@@ -159,12 +157,8 @@ export function ApplicationScheduleManager() {
   const [notifyOpen, setNotifyOpen] = useState(false);
   const [notifyMessage, setNotifyMessage] = useState('');
   const [hoverId, setHoverId] = useState<string | null>(null);
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, []);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [now] = useState(() => Date.now());
 
   const schedule = all[year] || { status: 'Draft' as ScheduleStatus, cycles: [] as Cycle[] };
   const cycles = sortedCycles(schedule.cycles);
@@ -217,13 +211,16 @@ export function ApplicationScheduleManager() {
 
   const saveEdit = () => {
     if (!editing) return;
-    const next = cycles.map((c) => c.id === editing.id ? editing : c);
+    const next = cycles.map((c) => {
+      if (c.id === editing.id) return editing;
+      return editing.forceActive ? { ...c, forceActive: false } : c;
+    });
     const e = validate(next);
     setErrors(e);
     if (e.length) return;
     setCycles(next);
     setEditing(null);
-    flash(`${editing.name} updated.`);
+    flash(editing.forceActive ? `${editing.name} is now the current allotment cycle.` : `${editing.name} updated.`);
   };
 
   const openCreate = () => {
@@ -245,7 +242,9 @@ export function ApplicationScheduleManager() {
 
   const saveCreate = () => {
     if (!creating) return;
-    const next = [...cycles, creating];
+    const next = creating.forceActive
+      ? [...cycles.map((c) => ({ ...c, forceActive: false })), creating]
+      : [...cycles, creating];
     const e = validate(next);
     setErrors(e);
     if (e.length) return;
@@ -260,7 +259,7 @@ export function ApplicationScheduleManager() {
 
   const activateCycle = (id: string) => {
     setCycles(cycles.map((c) => ({ ...c, forceActive: c.id === id })));
-    flash(`${cycles.find((c) => c.id === id)?.name || 'Cycle'} activated now.`);
+    flash(`${cycles.find((c) => c.id === id)?.name || 'Cycle'} is now the current allotment cycle.`);
   };
 
   const deactivateCycle = (id: string) => {
@@ -324,10 +323,10 @@ export function ApplicationScheduleManager() {
 
   const cycleProgress = (c: Cycle) => {
     const status = cycleStatus(c, now);
-    if (status === 'Upcoming') return { label: `Starts in ${formatClock(cycleStart(c) - now)}`, pct: 0 };
+    if (status === 'Upcoming') return { label: `Starts in ${formatSpan(cycleStart(c) - now)}`, pct: 0 };
     if (status === 'Active') {
       const total = Math.max(1, cycleEnd(c) - cycleStart(c));
-      return { label: `Ends in ${formatClock(cycleEnd(c) - now)}`, pct: Math.min(100, Math.max(0, ((now - cycleStart(c)) / total) * 100)) };
+      return { label: `Ends in ${formatSpan(cycleEnd(c) - now)}`, pct: Math.min(100, Math.max(0, ((now - cycleStart(c)) / total) * 100)) };
     }
     return { label: 'Ended', pct: 100 };
   };
@@ -376,7 +375,7 @@ export function ApplicationScheduleManager() {
             <Badge variant="info">{year}</Badge>
             <Badge variant={STATUS_BADGE[derivedStatus] || 'secondary'}>{derivedStatus}</Badge>
           </div>
-          <p className="text-sm text-gray-500">Create allotment cycle rounds and watch time left in the current cycle and until the next one starts.</p>
+          <p className="text-sm text-gray-500">Create allotment cycle rounds. Remaining time is shown in months, weeks and days.</p>
         </div>
         <label className="text-sm text-gray-700">
           <span className="mb-1 block text-xs font-medium text-gray-500">Academic Year</span>
@@ -397,13 +396,13 @@ export function ApplicationScheduleManager() {
         <div className="rounded-xl border border-blue-200 bg-white p-4">
           <div className="flex items-center gap-2 text-blue-700">
             <Timer className="h-4 w-4" />
-            <p className="text-xs font-semibold uppercase tracking-wide">Current cycle — time left to end</p>
+            <p className="text-xs font-semibold uppercase tracking-wide">Current cycle — time left</p>
           </div>
           {currentCycle ? (
             <>
               <p className="mt-2 text-lg font-bold text-gray-900">{currentCycle.name}</p>
               <p className="text-sm text-gray-500">{formatShort(currentCycle.startDate, currentCycle.startTime)} → {formatShort(currentCycle.endDate, currentCycle.endTime)}</p>
-              <p className="mt-3 font-mono text-2xl font-bold text-blue-700">{formatClock(currentRemaining)}</p>
+              <p className="mt-3 text-2xl font-bold text-blue-700">{formatSpan(currentRemaining)}</p>
               <div className="mt-3 h-2 overflow-hidden rounded-full bg-blue-100">
                 <div className="h-full rounded-full bg-blue-600" style={{ width: `${currentElapsedPct}%` }} />
               </div>
@@ -422,7 +421,7 @@ export function ApplicationScheduleManager() {
             <>
               <p className="mt-2 text-lg font-bold text-gray-900">{nextCycle.name}</p>
               <p className="text-sm text-gray-500">Starts {formatShort(nextCycle.startDate, nextCycle.startTime)}</p>
-              <p className="mt-3 font-mono text-2xl font-bold text-indigo-700">{formatClock(nextStartsIn)}</p>
+              <p className="mt-3 text-2xl font-bold text-indigo-700">{formatSpan(nextStartsIn)}</p>
               <p className="mt-3 text-xs text-gray-500">Ends {formatShort(nextCycle.endDate, nextCycle.endTime)} · {durationLabel(nextCycle)}</p>
             </>
           ) : (
@@ -433,11 +432,18 @@ export function ApplicationScheduleManager() {
 
       <div className="flex flex-wrap gap-2 print:hidden">
         <Button onClick={openCreate}><Plus className="h-4 w-4" />Create Allotment Cycle</Button>
-        <Button variant="outline" onClick={saveFull}><Save className="h-4 w-4" />Save Cycles</Button>
-        <Button variant="outline" onClick={() => currentCycle ? activateCycle(currentCycle.id) : editing ? activateCycle(editing.id) : flash('Open a cycle to activate it.')}>Activate Cycle</Button>
-        <Button variant="outline" onClick={() => currentCycle ? deactivateCycle(currentCycle.id) : editing ? deactivateCycle(editing.id) : flash('No active cycle to deactivate.')}>Deactivate Cycle</Button>
-        <Button variant="outline" onClick={notifyNow}><Bell className="h-4 w-4" />Notify All Students Now</Button>
-        <Button variant="outline" onClick={() => window.print()}><Download className="h-4 w-4" />Export Schedule as PDF</Button>
+        <Button variant="outline" onClick={saveFull}><Save className="h-4 w-4" />Save Cycle</Button>
+        <Button variant="outline" onClick={() => {
+          const id = selectedId || editing?.id || cycles.find((c) => cycleStatus(c, now) === 'Upcoming')?.id || cycles[0]?.id;
+          if (!id) { flash('Create an allotment cycle first.'); return; }
+          activateCycle(id);
+        }}>Activate Cycle</Button>
+        <Button variant="outline" onClick={notifyNow}><Bell className="h-4 w-4" />Notify All Students</Button>
+        <Button variant="outline" onClick={() => {
+          const id = selectedId || currentCycle?.id || editing?.id;
+          if (!id) { flash('No active cycle to deactivate.'); return; }
+          deactivateCycle(id);
+        }}>Deactivate Cycle</Button>
       </div>
 
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
@@ -472,7 +478,7 @@ export function ApplicationScheduleManager() {
                 const following = cycles[index + 1];
                 const untilNext = following ? Math.max(0, cycleStart(following) - now) : 0;
                 return (
-                  <tr key={c.id} className={status === 'Active' ? 'bg-blue-50/40' : ''}>
+                  <tr key={c.id} className={`${status === 'Active' ? 'bg-blue-50/40' : ''} ${selectedId === c.id ? 'ring-2 ring-inset ring-blue-400' : ''} cursor-pointer`} onClick={() => setSelectedId(c.id)}>
                     <td className="px-3 py-3">
                       <p className="font-semibold text-gray-900">{c.name}</p>
                       <p className="text-xs text-gray-500">{c.notes || 'Allotment cycle'}</p>
@@ -491,7 +497,7 @@ export function ApplicationScheduleManager() {
                       {following ? (
                         <>
                           <p className="font-medium text-gray-800">{following.name}</p>
-                          <p className="font-mono">{now >= cycleStart(following) ? 'Started' : `Starts in ${formatClock(untilNext)}`}</p>
+                          <p>{now >= cycleStart(following) ? 'Started' : `Starts in ${formatSpan(untilNext)}`}</p>
                         </>
                       ) : '—'}
                     </td>
@@ -589,8 +595,8 @@ export function ApplicationScheduleManager() {
         size="lg"
         footer={<div className="flex flex-wrap justify-end gap-2">
           <Button variant="outline" onClick={() => setEditing(null)}>Cancel</Button>
-          {editing && <Button variant="outline" onClick={() => activateCycle(editing.id)}>Activate Cycle</Button>}
-          {editing && <Button variant="outline" onClick={() => deactivateCycle(editing.id)}>Deactivate Cycle</Button>}
+          {editing && <Button variant="outline" onClick={() => { activateCycle(editing.id); setEditing((current) => current ? { ...current, forceActive: true } : current); }}>Activate Cycle</Button>}
+          {editing && <Button variant="outline" onClick={() => { deactivateCycle(editing.id); setEditing((current) => current ? { ...current, forceActive: false } : current); }}>Deactivate Cycle</Button>}
           <Button onClick={saveEdit}>Save Cycle</Button>
         </div>}
       >

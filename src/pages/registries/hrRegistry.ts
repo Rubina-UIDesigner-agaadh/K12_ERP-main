@@ -284,6 +284,10 @@ export const hrRegistry: Record<string, () => any> = {
     () => import('../hr/payroll/PayrollCalendarPeriodMaster'),
     'PayrollCalendarPeriodMaster'
   ),
+  'income-tax-slab': rp(
+    () => import('../hr/income-tax/IncomeTaxSlab'),
+    'IncomeTaxSlab'
+  ),
   'payroll-setup': rp(
     () => import('../hr/payroll/PayrollSetup'),
     'PayrollSetup'

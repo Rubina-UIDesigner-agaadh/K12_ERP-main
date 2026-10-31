@@ -40,7 +40,9 @@ export function WorkingCalendarMaster() {
   const boot = loadPayrollPolicyConfig();
   const [calendars, setCalendars] = useState<WorkingHolidayCalendarRecord[]>(boot.config.workingCalendars);
   const [selectedId, setSelectedId] = useState(boot.config.workingCalendars[0]?.id || '');
-  const [activeTab, setActiveTab] = useState<'weekly-off' | 'holidays' | 'special-days'>('weekly-off');
+  const [activeTab, setActiveTab] = useState<'holiday-lists' | 'weekly-off' | 'special-days'>('holiday-lists');
+  const [instituteLists, setInstituteLists] = useState<{ id: string; name: string; academicYear?: string; campus?: string; status?: string; items?: { kind: string; startDate: string; endDate: string; name: string }[] }[]>([]);
+  const [selectedListId, setSelectedListId] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -60,6 +62,16 @@ export function WorkingCalendarMaster() {
     const next = loadPayrollPolicyConfig();
     setCalendars(next.config.workingCalendars);
   }), []);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('k12-institute-holiday-lists-v1');
+      const parsed = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(parsed)) {
+        setInstituteLists(parsed);
+        if (parsed[0]?.id) setSelectedListId(parsed[0].id);
+      }
+    } catch { /* ignore */ }
+  }, []);
 
   const selected = calendars.find((item) => item.id === selectedId);
   const referenced = (id: string) => {
@@ -163,7 +175,7 @@ export function WorkingCalendarMaster() {
 
       {selected && <>
         <div className="flex flex-wrap gap-1 border-b border-gray-200 bg-white">
-          {([{ id: 'weekly-off', label: 'Weekly Off Patterns' }, { id: 'holidays', label: 'Holiday Calendar' }, { id: 'special-days', label: 'Special Working Days' }] as const).map((item) => (
+          {([{ id: 'holiday-lists', label: 'Holiday Lists' }, { id: 'weekly-off', label: 'Weekly Off Patterns' }, { id: 'special-days', label: 'Special Working / Off Days' }] as const).map((item) => (
             <button key={item.id} type="button" onClick={() => setActiveTab(item.id)} className={`px-4 py-2.5 text-sm font-medium border-b-2 ${activeTab === item.id ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500'}`}>{item.label}</button>
           ))}
         </div>
@@ -173,16 +185,19 @@ export function WorkingCalendarMaster() {
           <p>Staff types: {selected.staffTypes.join(', ') || '—'}</p>
           <p className="mt-2 text-xs text-gray-500">Edit the calendar to change weekly-off days. Working Saturdays are allowed.</p>
         </div></Card>}
-        {activeTab === 'holidays' && <Card title="Holidays">
-          <div className="grid gap-3 p-4 md:grid-cols-2">
-            <Input label="Date *" type="date" value={holidayForm.date} onChange={(e) => setHolidayForm({ ...holidayForm, date: e.target.value })} />
-            <Input label="Holiday name *" value={holidayForm.name} onChange={(e) => setHolidayForm({ ...holidayForm, name: e.target.value })} />
-            <Select label="Type" options={['National', 'Festival', 'Institutional', 'Exam', 'Other'].map((v) => ({ value: v, label: v }))} value={holidayForm.type} onChange={(e) => setHolidayForm({ ...holidayForm, type: typeof e === 'string' ? e : e.target.value })} />
-            <MultiSelect label="Holiday applicability" options={staffOpts} value={holidayForm.applicableTo} onChange={(value) => setHolidayForm({ ...holidayForm, applicableTo: value })} />
-            <Select label="Treat as working day" options={[{ value: 'no', label: 'No' }, { value: 'yes', label: 'Yes' }]} value={holidayForm.treatAsWorking ? 'yes' : 'no'} onChange={(e) => setHolidayForm({ ...holidayForm, treatAsWorking: (typeof e === 'string' ? e : e.target.value) === 'yes' })} />
-            <div className="flex items-end"><Button onClick={addHoliday}>Add holiday</Button></div>
+        {activeTab === 'holiday-lists' && <Card title="Named school holiday lists">
+          <div className="space-y-3 p-4">
+            {instituteLists.length === 0 ? <p className="text-sm text-amber-800">No named holiday list is available. Create one on Institute Calendar & Working Days. This tab does not keep a second copy of holiday dates.</p> : (
+              <Select label="Holiday list" options={instituteLists.map((item) => ({ value: item.id, label: `${item.name}${item.status ? ` — ${item.status}` : ''}` }))} value={selectedListId} onChange={(e) => setSelectedListId(typeof e === 'string' ? e : e.target.value)} />
+            )}
+            {instituteLists.find((item) => item.id === selectedListId) && <div className="rounded-lg border border-gray-100 p-3 text-sm">
+              <p><b>Name:</b> {instituteLists.find((item) => item.id === selectedListId)?.name}</p>
+              <p><b>Year:</b> {instituteLists.find((item) => item.id === selectedListId)?.academicYear || '—'}</p>
+              <p><b>Campus:</b> {instituteLists.find((item) => item.id === selectedListId)?.campus || '—'}</p>
+              <p className="mt-2 text-xs text-gray-500">Leave-block entries from the institute list are not counted as holidays here.</p>
+              <ul className="mt-2 text-xs">{(instituteLists.find((item) => item.id === selectedListId)?.items || []).filter((row) => row.kind !== 'block').map((row) => <li key={`${row.name}-${row.startDate}`}>{row.startDate}{row.endDate && row.endDate !== row.startDate ? ` → ${row.endDate}` : ''} · {row.name}</li>)}</ul>
+            </div>}
           </div>
-          <div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-gray-50 text-xs uppercase text-gray-500"><tr><th className="px-3 py-2 text-left">Date</th><th>Name</th><th>Applies to</th><th></th></tr></thead><tbody>{selected.holidays.map((h) => <tr key={h.id} className="border-t"><td className="px-3 py-2">{h.date}</td><td>{h.name}</td><td>{h.applicableTo.join(', ') || '—'}</td><td><button type="button" onClick={() => persist(calendars.map((item) => item.id === selected.id ? { ...item, holidays: item.holidays.filter((row) => row.id !== h.id) } : item))}><Trash2 className="h-4 w-4 text-red-500" /></button></td></tr>)}</tbody></table></div>
         </Card>}
         {activeTab === 'special-days' && <Card title="Special days">
           <div className="grid gap-3 p-4 md:grid-cols-2">

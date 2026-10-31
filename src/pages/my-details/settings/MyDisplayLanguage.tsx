@@ -341,6 +341,14 @@ const LANDING_PAGES = buildLandingPages()
 const ALL_SHORTCUTS = buildNavShortcuts()
 const DEFAULT_LANDING = LANDING_PAGES[0]?.value || 'user-dashboard'
 
+export function shortcutLabelForPage(moduleId: string, subModuleId: string, pageId: string): string {
+  const id = `page-${moduleId}-${subModuleId}-${pageId}`
+  const def = ALL_SHORTCUTS.find((item) => item.id === id)
+  const bindings = loadBindings()
+  const keys = bindings[id] || def?.keys || []
+  return keys.length ? keys.join(' + ') : ''
+}
+
 const INITIAL_PREFERENCES: DisplayPreferences = {
   language: 'en',
   landingPage: DEFAULT_LANDING,

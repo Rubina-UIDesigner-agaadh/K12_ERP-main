@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { loadPayrollPolicyConfig, savePayrollPolicyConfig, subscribePayrollPolicyConfig, type AttendanceRuleRecord } from '../payroll/PayrollSetup';
+import { loadPayrollPolicyConfig, savePayrollPolicyConfig, subscribePayrollPolicyConfig, PAYROLL_STAFF_CATEGORIES, type AttendanceRuleRecord } from '../payroll/PayrollSetup';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
@@ -117,14 +117,7 @@ const mockRules: AttendanceRule[] = [
   status: 'Active'
 }];
 
-const STAFF_TYPE_OPTIONS = [
-'Teaching',
-'Non-Teaching',
-'Administrative',
-'Support Staff',
-'Transport Staff',
-'Hostel Staff',
-'Contractual'];
+const STAFF_TYPE_OPTIONS = PAYROLL_STAFF_CATEGORIES;
 
 const ABSENT_LOGIC_OPTIONS = [
 'No punch recorded',
@@ -537,15 +530,10 @@ export function AttendanceRuleMaster() {
                   <Select
                 label="Academic / Financial Year *"
                 options={[
-                {
-                  value: '2024-25',
-                  label: '2024-25'
-                },
-                {
-                  value: '2023-24',
-                  label: '2023-24'
-                }]
-                }
+                { value: '2026-27', label: '2026-27' },
+                { value: '2025-26', label: '2025-26' },
+                { value: '2024-25', label: '2024-25' }
+                ]}
                 value={form.academicYear}
                 onChange={(e) =>
                 setForm({
@@ -1250,7 +1238,7 @@ export function AttendanceRuleMaster() {
         {testRule &&
         <div className="space-y-5">
             <p className="text-xs text-gray-500">
-              Rule: full day ≥ {testRule.minHoursFullDay} h · half day {testRule.halfDayMinHours}–{testRule.halfDayMaxHours} h · late grace {testRule.lateComingGrace} min
+              Rule: full day ≥ {testRule.minHoursFullDay} h · half day {testRule.halfDayMinHours}–{testRule.halfDayMaxHours} h · late grace {testRule.lateComingGrace} min. Overnight punch-out earlier than punch-in is not supported in this simulator. Custom absent text is description only and is not included in the simulation.
             </p>
             <div className="grid grid-cols-3 gap-4">
               <Input

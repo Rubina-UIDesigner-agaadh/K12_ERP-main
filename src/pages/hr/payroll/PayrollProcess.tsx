@@ -33,6 +33,7 @@ import {
   Search,
   MoreVertical } from
 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import {
   loadPayrollPolicyConfig,
   savePayrollPolicyConfig,
@@ -340,11 +341,14 @@ const getCurrentTimestamp = (): string => {
 // ==================== MAIN COMPONENT ====================
 
 export function PayrollProcess() {
+  const navigate = useNavigate();
   // ==================== STATE ====================
 
   // Payroll Selection State
-  const [selectedMonth, setSelectedMonth] = useState('May');
-  const [selectedYear, setSelectedYear] = useState('2025');
+  const [selectedMonth, setSelectedMonth] = useState('October');
+  const [selectedYear, setSelectedYear] = useState('2026');
+  const [selectedCalendarId, setSelectedCalendarId] = useState('');
+  const [selectedPeriodId, setSelectedPeriodId] = useState('');
   const [payrollType, setPayrollType] = useState<'regular' | 'supplementary' | 'arrear'>('regular');
   const [departmentFilter, setDepartmentFilter] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -423,10 +427,22 @@ export function PayrollProcess() {
   const activePolicies = policyConfig.policies.filter((item) => item.status === 'Active' && item.effectiveFrom <= (matchedPeriod?.period.endDate || onDate) && (!item.effectiveTo || item.effectiveTo >= (matchedPeriod?.period.startDate || onDate)));
   const policyShift = activePolicies.length > 1;
   const livePolicy = activePolicies[0];
-  const liveCalendar = policyConfig.calendars.find((item) => item.id === (matchedPeriod?.cal.id || livePolicy?.calendarId));
+  const liveCalendar = policyConfig.calendars.find((item) => item.id === (selectedCalendarId || matchedPeriod?.cal.id || livePolicy?.calendarId));
   const liveWorking = policyConfig.workingCalendars.find((item) => item.id === livePolicy?.workingCalendarId);
-  const runSnapshots = policyConfig.snapshots.filter((item) => item.periodName.includes(selectedMonth) && item.periodName.includes(selectedYear));
+  const processCalendar = policyConfig.calendars.find((item) => item.id === selectedCalendarId) || liveCalendar || policyConfig.calendars[0];
+  const processPeriod = processCalendar?.periods.find((item) => item.id === selectedPeriodId) || matchedPeriod?.period || processCalendar?.periods.find((item) => item.startDate <= '2026-10-29' && item.endDate >= '2026-10-29') || processCalendar?.periods[0];
+  const runSnapshots = policyConfig.snapshots.filter((item) => (processPeriod?.periodName || `${selectedMonth} ${selectedYear}`).includes(item.periodName) || item.periodName.includes(selectedMonth) && item.periodName.includes(selectedYear));
   const viewedSnapshot: PolicyPreviewSnapshot | undefined = policyConfig.snapshots.find((item) => item.id === viewedSnapshotId) || runSnapshots[0];
+  const snapshotEstablished = Boolean(viewedSnapshot);
+  const processExceptions = [
+    !processCalendar ? { id: 'calendar', text: 'Payroll calendar is not selected from Calendar Master.', path: '/hr/master/payroll-calendar-period-master', label: 'Open Calendar Master' } : null,
+    processCalendar && !processPeriod ? { id: 'period', text: 'No period from Calendar Master matches this run.', path: '/hr/master/payroll-calendar-period-master', label: 'Open Calendar Master' } : null,
+    !livePolicy ? { id: 'policy', text: 'No applicable payroll policy for this period.', path: '/hr/master/payroll-setup', label: 'Open Payroll Settings' } : null,
+    policyShift ? { id: 'overlap', text: 'More than one active policy overlaps this period. Review is required.', path: '/hr/master/payroll-setup', label: 'Open Payroll Settings' } : null,
+    !liveWorking ? { id: 'holiday', text: 'Working / holiday calendar is not assigned.', path: '/hr/master/hr-holiday-working-day-calendar', label: 'Open Holiday Calendar' } : null,
+    !policyConfig.assignments.length ? { id: 'assign', text: 'Policy assignment is missing — needs review.', path: '/hr/master/payroll-setup', label: 'Open Payroll Settings' } : null,
+    !snapshotEstablished ? { id: 'snap', text: 'No saved run snapshot. Historical used-policy values are not established.', path: '/hr/master/payroll-setup', label: 'Open Payroll Settings' } : null
+  ].filter(Boolean) as { id: string; text: string; path: string; label: string }[];
   const progressPercentage = useMemo(() => {
     return (currentStepIndex + 1) / steps.length * 100;
   }, [currentStepIndex, steps.length]);
@@ -859,43 +875,118 @@ export function PayrollProcess() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
-        <p className="font-semibold">Frontend policy preview — sample salary figures on this screen have not been recalculated from the policy.</p>
-        {policyShift && <p className="mt-1 text-red-700">More than one active policy version overlaps this period. Review is required; one version was not applied silently.</p>}
-        {!matchedPeriod && <p className="mt-1">No payroll calendar period matches {selectedMonth} {selectedYear} by period code.</p>}
-        {viewedSnapshot ? (
-          <div className="mt-2 grid gap-1 md:grid-cols-2">
-            <p>Saved preview run: {viewedSnapshot.runId}</p>
-            <p>Captured: {viewedSnapshot.savedAt}</p>
-            <p>Calendar / period: {viewedSnapshot.calendarName || '—'} · {viewedSnapshot.periodName}</p>
-            <p>Policy: {viewedSnapshot.policyName || '—'} v{viewedSnapshot.policyVersion || '—'}</p>
-            <p>Working/holiday calendar: {viewedSnapshot.workingCalendarName || '—'}</p>
-            <p>Attendance basis: {viewedSnapshot.attendanceBasis || '—'}</p>
-            <p>Effective dates: {viewedSnapshot.effectiveFrom || '—'} → {viewedSnapshot.effectiveTo || 'open'}</p>
-            <p>{viewedSnapshot.assignmentNote}</p>
-          </div>
-        ) : (
-          <div className="mt-2 grid gap-1 md:grid-cols-2">
-            <p>Calendar / period: {liveCalendar?.calendarName || '—'} · {matchedPeriod?.period.periodName || '—'}</p>
-            <p>Applicable policy: {livePolicy ? `${livePolicy.name} v${livePolicy.version}` : 'No saved policy preview available'}</p>
-            <p>Working/holiday calendar: {liveWorking?.name || '—'}</p>
-            <p>Attendance basis: {livePolicy?.dayBasis || '—'}</p>
-            <p>Effective dates: {livePolicy?.effectiveFrom || '—'} → {livePolicy?.effectiveTo || 'open'}</p>
-            <p>Assignments: {policyConfig.assignments.length ? `${policyConfig.assignments.length} saved` : 'Missing — needs review'}</p>
+      <div className="grid gap-4 md:grid-cols-3">
+        <div className="rounded-xl border border-teal-200 bg-teal-50 p-4 text-sm text-teal-950">
+          <p className="font-semibold">Calendar / period</p>
+          <p className="mt-1">{processCalendar?.calendarName || 'Not established'}</p>
+          <p>{processPeriod ? `${processPeriod.periodName} (${processPeriod.periodCode})` : 'Not established'}</p>
+          <p className="text-xs text-teal-800">{processPeriod ? `${processPeriod.startDate} → ${processPeriod.endDate}` : 'Select a period from Calendar Master.'}</p>
+        </div>
+        <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 text-sm text-indigo-950">
+          <p className="font-semibold">Selected policy (not used in the illustrative amounts below)</p>
+          <p className="mt-1">{livePolicy ? `${livePolicy.name} v${livePolicy.version}` : 'Not established'}</p>
+          <p>Attendance basis: {livePolicy?.dayBasis || 'Not established'}</p>
+          <p className="text-xs">Effective {livePolicy?.effectiveFrom || '—'} → {livePolicy?.effectiveTo || 'open'}</p>
+        </div>
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+          <p className="font-semibold">Used policy (historical snapshot)</p>
+          {snapshotEstablished ? (
+            <>
+              <p className="mt-1">{viewedSnapshot?.policyName || '—'} v{viewedSnapshot?.policyVersion || '—'}</p>
+              <p>Run {viewedSnapshot?.runId} · {viewedSnapshot?.savedAt}</p>
+              <p className="text-xs">{viewedSnapshot?.workingCalendarName || '—'} · {viewedSnapshot?.attendanceBasis || '—'}</p>
+            </>
+          ) : (
+            <p className="mt-1">Not established — no saved run snapshot for this period. Sample salary figures have not been recalculated from the selected policy.</p>
+          )}
+        </div>
+      </div>
+      <div className="rounded-xl border border-gray-200 bg-white p-4 text-sm">
+        <p className="font-semibold text-gray-900">Holiday / attendance context</p>
+        <div className="mt-2 grid gap-1 md:grid-cols-2 text-gray-700">
+          <p>Working / holiday calendar: {liveWorking?.name || 'Not established'}</p>
+          <p>Attendance rule: {livePolicy?.attendanceRuleId || 'Not established'}</p>
+          <p>Assignments: {policyConfig.assignments.length ? `${policyConfig.assignments.length} saved` : 'Missing — needs review'}</p>
+          <p>Active policies in range: {activePolicies.length || 0}</p>
+        </div>
+        {policyConfig.policies.length > 0 && (
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full min-w-[520px] text-sm">
+              <thead className="bg-gray-50 text-xs uppercase text-gray-500"><tr><th className="px-2 py-1 text-left">Policy</th><th>Version</th><th>Status</th><th>From</th><th>To</th></tr></thead>
+              <tbody>
+                {policyConfig.policies.map((item) => (
+                  <tr key={item.id} className="border-t">
+                    <td className="px-2 py-1">{item.name}</td>
+                    <td className="text-center">{item.version}</td>
+                    <td className="text-center">{item.status}</td>
+                    <td className="text-center">{item.effectiveFrom}</td>
+                    <td className="text-center">{item.effectiveTo || 'open'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
         {runSnapshots.length > 1 && (
-          <label className="mt-2 block text-xs">View saved preview
+          <label className="mt-2 block text-xs">View saved snapshot
             <select className="ml-2 rounded border px-2 py-1" value={viewedSnapshotId} onChange={(event) => setViewedSnapshotId(event.target.value)}>
               {runSnapshots.map((item) => <option key={item.id} value={item.id}>{item.runId}</option>)}
             </select>
           </label>
         )}
       </div>
+      {processExceptions.length > 0 && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-950">
+          <p className="font-semibold">Exceptions — open the master to complete setup</p>
+          <ul className="mt-2 space-y-2">
+            {processExceptions.map((item) => (
+              <li key={item.id} className="flex flex-wrap items-center justify-between gap-2">
+                <span>{item.text}</span>
+                <button type="button" onClick={() => navigate(item.path)} className="rounded-md border border-red-300 px-2 py-1 text-xs font-medium hover:bg-white">{item.label}</button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Controls */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
         <div className="flex flex-wrap items-end gap-4">
+          <div className="min-w-[220px] flex-1">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Payroll calendar</label>
+            <select
+              value={processCalendar?.id || ''}
+              onChange={(e) => {
+                setSelectedCalendarId(e.target.value);
+                setSelectedPeriodId('');
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500">
+              {policyConfig.calendars.length === 0 && <option value="">No calendar in Calendar Master</option>}
+              {policyConfig.calendars.map((item) => (
+                <option key={item.id} value={item.id}>{item.calendarName}</option>
+              ))}
+            </select>
+          </div>
+          <div className="min-w-[200px] flex-1">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Period</label>
+            <select
+              value={processPeriod?.id || ''}
+              onChange={(e) => {
+                const next = processCalendar?.periods.find((item) => item.id === e.target.value);
+                setSelectedPeriodId(e.target.value);
+                if (next?.startDate) {
+                  const date = new Date(`${next.startDate}T00:00:00`);
+                  setSelectedMonth(MONTHS[date.getMonth()]);
+                  setSelectedYear(String(date.getFullYear()));
+                }
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500">
+              {(processCalendar?.periods || []).length === 0 && <option value="">No periods generated</option>}
+              {(processCalendar?.periods || []).map((item) => (
+                <option key={item.id} value={item.id}>{item.periodName} · {item.status}</option>
+              ))}
+            </select>
+          </div>
           <div className="w-32">
             <label className="block text-sm font-medium text-gray-700 mb-1">Month</label>
             <select
@@ -1037,7 +1128,7 @@ export function PayrollProcess() {
         {/* Payroll Summary */}
         <div className="lg:col-span-2 bg-white border border-gray-200 rounded-xl shadow-sm p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-gray-900">Payroll Summary Preview</h3>
+            <h3 className="font-semibold text-gray-900">Payroll Summary Preview <span className="ml-2 text-xs font-normal text-amber-700">(illustrative sample amounts — not calculated from the selected policy)</span></h3>
             <button
               onClick={handleRecalculateAll}
               disabled={isProcessing || payrollStatus === 'completed'}

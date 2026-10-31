@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
@@ -8,6 +8,8 @@ import { Calendar, ChevronLeft, ChevronRight, Plus, Save, Trash2, X } from 'luci
 
 type EntryKind = 'holiday' | 'block';
 
+export const INSTITUTE_HOLIDAY_STORE = 'k12-institute-holiday-lists-v1';
+
 interface CalendarItem {
   id: number;
   name: string;
@@ -15,12 +17,21 @@ interface CalendarItem {
   startDate: string;
   endDate: string;
   allowUsers: string[];
+  category?: string;
+  paid?: boolean;
+  recurrence?: 'One-time' | 'Annual';
 }
 
 interface HolidayList {
   id: string;
   name: string;
   academicYear: string;
+  campus?: string;
+  appliesTo?: string[];
+  status?: 'Draft' | 'Active' | 'Inactive';
+  effectiveFrom?: string;
+  effectiveTo?: string;
+  description?: string;
   items: CalendarItem[];
 }
 
@@ -43,21 +54,40 @@ const dayHeadings = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
 
 const INITIAL_LISTS: HolidayList[] = [
   {
-    id: 'HL-2025-MAIN',
-    name: 'Main Campus Holidays',
-    academicYear: '2025-26',
+    id: 'HL-2026-MAIN',
+    name: 'Main Campus Staff Holidays 2026–27',
+    academicYear: '2026-27',
+    campus: 'Main Campus',
+    appliesTo: ['All Staff'],
+    status: 'Active',
+    effectiveFrom: '2026-04-01',
+    effectiveTo: '2027-03-31',
     items: [
-      { id: 1, name: 'Gandhi Jayanti', kind: 'holiday', startDate: '2025-10-02', endDate: '2025-10-02', allowUsers: [] },
-      { id: 2, name: 'Diwali Break', kind: 'holiday', startDate: '2025-10-20', endDate: '2025-10-24', allowUsers: [] },
-      { id: 3, name: 'Staff training block', kind: 'block', startDate: '2025-09-12', endDate: '2025-09-13', allowUsers: ['EMP001', 'EMP002'] },
+      { id: 1, name: 'Gandhi Jayanti', kind: 'holiday', startDate: '2026-10-02', endDate: '2026-10-02', allowUsers: [], category: 'National', paid: true, recurrence: 'Annual' },
+      { id: 2, name: 'Diwali Break', kind: 'holiday', startDate: '2026-11-08', endDate: '2026-11-12', allowUsers: [], category: 'Festival', paid: true, recurrence: 'One-time' },
+      { id: 3, name: 'Staff training block', kind: 'block', startDate: '2026-09-12', endDate: '2026-09-13', allowUsers: ['EMP001', 'EMP002'] },
     ],
   },
 ];
 
 export function InstituteCalendarWorkingDays() {
-  const [lists, setLists] = useState<HolidayList[]>(INITIAL_LISTS);
+  const [lists, setLists] = useState<HolidayList[]>(() => {
+    try {
+      const raw = localStorage.getItem(INSTITUTE_HOLIDAY_STORE);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length) return parsed;
+      }
+    } catch { /* ignore */ }
+    return INITIAL_LISTS;
+  });
   const [listName, setListName] = useState('');
-  const [listYear, setListYear] = useState('2025-26');
+  const [listYear, setListYear] = useState('2026-27');
+  const [listCampus, setListCampus] = useState('Main Campus');
+  const [listStatus, setListStatus] = useState<'Draft' | 'Active' | 'Inactive'>('Draft');
+  const [itemCategory, setItemCategory] = useState('Festival');
+  const [itemPaid, setItemPaid] = useState('yes');
+  const [itemRecurrence, setItemRecurrence] = useState<'One-time' | 'Annual'>('One-time');
   const [showCreateList, setShowCreateList] = useState(false);
   const [openListId, setOpenListId] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState(8);
@@ -70,6 +100,10 @@ export function InstituteCalendarWorkingDays() {
   const [rangeMode, setRangeMode] = useState(false);
   const [allowUsers, setAllowUsers] = useState<string[]>([]);
   const [notice, setNotice] = useState('');
+
+  useEffect(() => {
+    try { localStorage.setItem(INSTITUTE_HOLIDAY_STORE, JSON.stringify(lists)); } catch { /* ignore */ }
+  }, [lists]);
 
   const openList = lists.find((list) => list.id === openListId) ?? null;
   const monthTitle = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(new Date(selectedYear, selectedMonth, 1));
@@ -100,7 +134,7 @@ export function InstituteCalendarWorkingDays() {
       return;
     }
     const id = `HL-${Date.now()}`;
-    setLists((prev) => [...prev, { id, name: listName.trim(), academicYear: listYear, items: [] }]);
+    setLists((prev) => [...prev, { id, name: listName.trim(), academicYear: listYear, campus: listCampus, appliesTo: ['All Staff'], status: listStatus, effectiveFrom: `${listYear.slice(0, 4)}-04-01`, effectiveTo: `${Number(listYear.slice(0, 4)) + 1}-03-31`, items: [] }]);
     setListName('');
     setShowCreateList(false);
     setOpenListId(id);
@@ -147,6 +181,9 @@ export function InstituteCalendarWorkingDays() {
       startDate,
       endDate: end,
       allowUsers: panelKind === 'block' ? allowUsers : [],
+      category: panelKind === 'holiday' ? itemCategory : undefined,
+      paid: panelKind === 'holiday' ? itemPaid === 'yes' : undefined,
+      recurrence: panelKind === 'holiday' ? itemRecurrence : undefined,
     };
     setLists((prev) => prev.map((list) => {
       if (list.id !== openList.id) return list;
@@ -181,8 +218,10 @@ export function InstituteCalendarWorkingDays() {
         {showCreateList && (
           <Card title="Create holiday list">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <Input label="List name" value={listName} onChange={(e) => setListName(e.target.value)} placeholder="e.g. Main Campus Staff Holidays 2026–27" />
               <Select label="Academic year" options={academicYearOptions} value={listYear} onChange={setListYear} />
-              <Input label="Holiday list name" value={listName} onChange={(e) => setListName(e.target.value)} placeholder="e.g. Main Campus Holidays" />
+              <Select label="Campus" options={[{ value: 'All campuses', label: 'All campuses' }, { value: 'Main Campus', label: 'Main Campus' }, { value: 'City Centre Branch', label: 'City Centre Branch' }, { value: 'North Zone Campus', label: 'North Zone Campus' }]} value={listCampus} onChange={setListCampus} />
+              <Select label="Status" options={[{ value: 'Draft', label: 'Draft' }, { value: 'Active', label: 'Active' }, { value: 'Inactive', label: 'Inactive' }]} value={listStatus} onChange={(value) => setListStatus(value as 'Draft' | 'Active' | 'Inactive')} />
             </div>
             {notice && <p className="mt-2 text-sm text-red-600">{notice}</p>}
             <div className="mt-4 flex gap-2">
@@ -201,9 +240,11 @@ export function InstituteCalendarWorkingDays() {
                 <thead>
                   <tr className="border-b bg-gray-50 text-left text-xs uppercase text-gray-500">
                     <th className="px-3 py-2">List</th>
-                    <th className="px-3 py-2">Academic year</th>
+                    <th className="px-3 py-2">Year</th>
+                    <th className="px-3 py-2">Campus</th>
+                    <th className="px-3 py-2">Status</th>
                     <th className="px-3 py-2">Holidays</th>
-                    <th className="px-3 py-2">Block leaves</th>
+                    <th className="px-3 py-2">Leave blocks</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -223,6 +264,8 @@ export function InstituteCalendarWorkingDays() {
                         </button>
                       </td>
                       <td className="px-3 py-2">{list.academicYear}</td>
+                      <td className="px-3 py-2">{list.campus || '—'}</td>
+                      <td className="px-3 py-2">{list.status || 'Draft'}</td>
                       <td className="px-3 py-2">{list.items.filter((item) => item.kind === 'holiday').length}</td>
                       <td className="px-3 py-2">{list.items.filter((item) => item.kind === 'block').length}</td>
                     </tr>
@@ -319,8 +362,18 @@ export function InstituteCalendarWorkingDays() {
                 <Input label={rangeMode ? 'From date' : 'Date'} type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); if (!rangeMode) setEndDate(e.target.value); }} />
                 {rangeMode && <Input label="To date" type="date" value={endDate} min={startDate} onChange={(e) => setEndDate(e.target.value)} />}
               </div>
+              {panelKind === 'holiday' && (
+                <>
+                  <Select label="Holiday category" options={['National', 'Festival', 'Institutional', 'Exam', 'Other'].map((item) => ({ value: item, label: item }))} value={itemCategory} onChange={setItemCategory} />
+                  <Select label="Paid holiday" options={[{ value: 'yes', label: 'Yes' }, { value: 'no', label: 'No' }]} value={itemPaid} onChange={setItemPaid} />
+                  <Select label="Recurrence" options={[{ value: 'One-time', label: 'One-time' }, { value: 'Annual', label: 'Annual (proposed for later review)' }]} value={itemRecurrence} onChange={(value) => setItemRecurrence(value as 'One-time' | 'Annual')} />
+                </>
+              )}
               {panelKind === 'block' && (
-                <MultiSelect label="Allow Users" options={staffOptions} value={allowUsers} onChange={setAllowUsers} placeholder="Select staff" />
+                <>
+                  <MultiSelect label="Allow Users" options={staffOptions} value={allowUsers} onChange={setAllowUsers} placeholder="Select staff" />
+                  <p className="text-xs text-gray-500">A leave-block is not automatically a holiday or non-working day. Payroll previews do not count it as a holiday unless it is also saved as one.</p>
+                </>
               )}
               {notice && <p className="text-sm text-red-600">{notice}</p>}
             </div>
