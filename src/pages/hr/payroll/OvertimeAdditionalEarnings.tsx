@@ -1,1574 +1,616 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import {
-  PlusIcon,
-  CalendarIcon,
-  SearchIcon,
-  XIcon,
-  EditIcon,
-  Trash2Icon,
-  CheckIcon,
-  XCircleIcon,
-  DownloadIcon,
-  FilterIcon,
-  RefreshCwIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  AlertCircleIcon,
-  CheckCircle2Icon,
-  ClockIcon,
-  EyeIcon,
-  MoreVerticalIcon,
-  CopyIcon,
-  PrinterIcon,
-  FileTextIcon,
-  UploadIcon,
-  SaveIcon,
-  UndoIcon } from
-'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Select } from '../../../components/ui/Select';
 import { Badge } from '../../../components/ui/Badge';
 import { Textarea } from '../../../components/ui/Textarea';
+import { Modal } from '../../../components/ui/Modal';
+import { Plus, RefreshCw, Search, Trash2, Upload } from 'lucide-react';
 
-/* -------------------------------------------------------------------------- */
-/* Types                                                                       */
-/* -------------------------------------------------------------------------- */
+const inr = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
 
-type OvertimeStatus = 'Pending' | 'Approved' | 'Rejected' | 'Cancelled';
-
-type OvertimeEntry = {
-  id: number;
-  empId: string;
-  empName: string;
+type Section = 'timesheet' | 'slip' | 'additional';
+type TsStatus = 'Draft' | 'Submitted' | 'Approved' | 'Rejected';
+type TimeLog = {
+  id: string;
+  activity: string;
+  from: string;
+  to: string;
+  hours: number;
+  isOvertime: boolean;
+  rate: number;
+  amount: number;
+  expectedHours: number;
+  project: string;
+};
+type Timesheet = {
+  id: string;
+  employeeId: string;
+  employee: string;
   department: string;
-  date: string;
+  designation: string;
+  shift: string;
+  company: string;
+  startDate: string;
+  endDate: string;
+  status: TsStatus;
+  category: 'Teaching Staff' | 'Support Staff' | 'Administrative' | 'Management';
+  logs: TimeLog[];
+  approver: string;
+};
+type OtRow = {
+  employeeId: string;
+  employee: string;
+  category: Timesheet['category'];
   hours: number;
   rate: number;
-  totalAmount: number;
-  status: OvertimeStatus;
+  amount: number;
+  approved: boolean;
   remarks: string;
-  approvedBy: string | null;
-  approvedAt: string | null;
-  createdAt: string;
-  updatedAt: string;
 };
-
-type Employee = {
+type Additional = {
   id: string;
-  name: string;
-  department: string;
-  defaultRate: number;
+  employeeId: string;
+  employee: string;
+  component: string;
+  type: 'Earning' | 'Deduction';
+  amount: number;
+  payrollDate: string;
+  recurring: boolean;
+  fromDate: string;
+  toDate: string;
+  frequency: string;
+  overwrite: boolean;
+  notes: string;
+  status: 'Pending' | 'Processed';
 };
 
-type Department = {
-  id: string;
-  name: string;
+const EMPLOYEES = [
+  { id: 'EMP-1001', name: 'Rajesh Kumar', department: 'Science', designation: 'PGT Physics', shift: 'General', category: 'Teaching Staff' as const, basic: 50000 },
+  { id: 'EMP-1008', name: 'Anil Patel', department: 'Administration', designation: 'Clerk', shift: 'General', category: 'Administrative' as const, basic: 28000 },
+  { id: 'EMP-1022', name: 'Sunil Yadav', department: 'Sports', designation: 'Coach', shift: 'Morning', category: 'Support Staff' as const, basic: 32000 },
+  { id: 'EMP-1030', name: 'Board Secretary', department: 'Management', designation: 'Vice Principal', shift: 'General', category: 'Management' as const, basic: 90000 }
+];
+
+const ACTIVITIES = ['Evening Duty', 'Exam Supervision', 'Sports Coaching', 'Board Exam Season', 'Boarding Night Duty'];
+const ADDITIONAL_COMPONENTS = [
+  { value: 'Overtime Pay', type: 'Earning' as const },
+  { value: 'Annual Performance Bonus', type: 'Earning' as const },
+  { value: 'Festival Advance', type: 'Earning' as const },
+  { value: 'Examination Duty Remuneration', type: 'Earning' as const },
+  { value: 'Special Duty Allowance', type: 'Earning' as const },
+  { value: 'House Building Advance Recovery', type: 'Deduction' as const },
+  { value: 'Arrears from Pay Revision', type: 'Earning' as const }
+];
+
+const MULTIPLIER: Record<Timesheet['category'], number | null> = {
+  'Teaching Staff': 1.5,
+  'Support Staff': 2.0,
+  Administrative: 1.5,
+  Management: null
 };
 
-type NotificationType = 'success' | 'error' | 'warning' | 'info';
-
-type Notification = {
-  id: string;
-  message: string;
-  type: NotificationType;
+const hoursBetween = (from: string, to: string) => {
+  const a = new Date(from).getTime();
+  const b = new Date(to).getTime();
+  if (!a || !b || b <= a) return 0;
+  return Math.round((b - a) / 36e5 * 100) / 100;
 };
 
-type DrawerMode = 'add' | 'edit' | 'view';
+const otRate = (category: Timesheet['category'], basic: number) => {
+  const mult = MULTIPLIER[category];
+  if (!mult) return 0;
+  return Math.round(basic / 26 / 8 * mult);
+};
 
-type SortField = 'empName' | 'date' | 'hours' | 'totalAmount' | 'status';
-type SortDirection = 'asc' | 'desc';
+const seedSheets = (): Timesheet[] => [
+  {
+    id: 'TS-2026-10-001',
+    employeeId: 'EMP-1001',
+    employee: 'Rajesh Kumar',
+    department: 'Science',
+    designation: 'PGT Physics',
+    shift: 'General',
+    company: 'EduManager School',
+    startDate: '2026-10-01',
+    endDate: '2026-10-31',
+    status: 'Submitted',
+    category: 'Teaching Staff',
+    approver: 'Principal',
+    logs: [
+      { id: 'L1', activity: 'Exam Supervision', from: '2026-10-28T17:00', to: '2026-10-28T21:00', hours: 4, isOvertime: true, rate: 361, amount: 1444, expectedHours: 8, project: 'Board Exams' },
+      { id: 'L2', activity: 'Evening Duty', from: '2026-10-29T17:00', to: '2026-10-29T21:00', hours: 4, isOvertime: true, rate: 361, amount: 1444, expectedHours: 8, project: '' }
+    ]
+  },
+  {
+    id: 'TS-2026-10-002',
+    employeeId: 'EMP-1022',
+    employee: 'Sunil Yadav',
+    department: 'Sports',
+    designation: 'Coach',
+    shift: 'Morning',
+    company: 'EduManager School',
+    startDate: '2026-10-01',
+    endDate: '2026-10-31',
+    status: 'Approved',
+    category: 'Support Staff',
+    approver: 'HR Manager',
+    logs: [
+      { id: 'L3', activity: 'Sports Coaching', from: '2026-10-18T16:00', to: '2026-10-18T20:00', hours: 4, isOvertime: true, rate: 308, amount: 1232, expectedHours: 8, project: 'Inter-school tournament' }
+    ]
+  },
+  {
+    id: 'TS-2026-10-003',
+    employeeId: 'EMP-1008',
+    employee: 'Anil Patel',
+    department: 'Administration',
+    designation: 'Clerk',
+    startDate: '2026-10-01',
+    endDate: '2026-10-31',
+    shift: 'General',
+    company: 'EduManager School',
+    status: 'Draft',
+    category: 'Administrative',
+    approver: 'HR Manager',
+    logs: [
+      { id: 'L4', activity: 'Board Exam Season', from: '2026-10-20T17:00', to: '2026-10-20T20:00', hours: 3, isOvertime: true, rate: 202, amount: 606, expectedHours: 8, project: '' }
+    ]
+  }
+];
 
-type BulkAction = 'approve' | 'reject' | 'delete' | 'export';
-
-/* -------------------------------------------------------------------------- */
-/* Initial Data                                                                */
-/* -------------------------------------------------------------------------- */
-
-const generateInitialData = (): OvertimeEntry[] => [
-{
-  id: 1,
-  empId: 'EMP001',
-  empName: 'Rajesh Kumar',
-  department: 'teaching',
-  date: '2025-05-15',
-  hours: 4,
-  rate: 250,
-  totalAmount: 1000,
-  status: 'Approved',
-  remarks: 'Extra classes for board exam preparation',
-  approvedBy: 'Admin',
-  approvedAt: '2025-05-16',
-  createdAt: '2025-05-15T10:30:00',
-  updatedAt: '2025-05-16T09:00:00'
-},
-{
-  id: 2,
-  empId: 'EMP002',
-  empName: 'Priya Sharma',
-  department: 'admin',
-  date: '2025-05-14',
+const emptyLog = (): TimeLog => ({
+  id: `L-${Date.now()}`,
+  activity: 'Evening Duty',
+  from: '2026-10-31T17:00',
+  to: '2026-10-31T20:00',
   hours: 3,
-  rate: 200,
-  totalAmount: 600,
-  status: 'Pending',
-  remarks: 'Admission process support',
-  approvedBy: null,
-  approvedAt: null,
-  createdAt: '2025-05-14T16:00:00',
-  updatedAt: '2025-05-14T16:00:00'
-},
-{
-  id: 3,
-  empId: 'EMP003',
-  empName: 'Amit Patel',
-  department: 'it',
-  date: '2025-05-13',
-  hours: 5,
-  rate: 300,
-  totalAmount: 1500,
-  status: 'Approved',
-  remarks: 'Server maintenance and upgrade',
-  approvedBy: 'Admin',
-  approvedAt: '2025-05-14',
-  createdAt: '2025-05-13T20:00:00',
-  updatedAt: '2025-05-14T10:00:00'
-},
-{
-  id: 4,
-  empId: 'EMP004',
-  empName: 'Sneha Reddy',
-  department: 'teaching',
-  date: '2025-05-12',
-  hours: 2,
-  rate: 220,
-  totalAmount: 440,
-  status: 'Approved',
-  remarks: 'Parent-teacher meeting coordination',
-  approvedBy: 'Admin',
-  approvedAt: '2025-05-13',
-  createdAt: '2025-05-12T18:30:00',
-  updatedAt: '2025-05-13T11:00:00'
-},
-{
-  id: 5,
-  empId: 'EMP005',
-  empName: 'Vikram Singh',
-  department: 'admin',
-  date: '2025-05-11',
-  hours: 6,
-  rate: 180,
-  totalAmount: 1080,
-  status: 'Rejected',
-  remarks: 'Event organization',
-  approvedBy: 'Admin',
-  approvedAt: '2025-05-12',
-  createdAt: '2025-05-11T21:00:00',
-  updatedAt: '2025-05-12T09:30:00'
-},
-{
-  id: 6,
-  empId: 'EMP006',
-  empName: 'Meera Joshi',
-  department: 'teaching',
-  date: '2025-05-10',
-  hours: 3.5,
-  rate: 240,
-  totalAmount: 840,
-  status: 'Pending',
-  remarks: 'Exam paper evaluation',
-  approvedBy: null,
-  approvedAt: null,
-  createdAt: '2025-05-10T19:00:00',
-  updatedAt: '2025-05-10T19:00:00'
-},
-{
-  id: 7,
-  empId: 'EMP007',
-  empName: 'Arun Nair',
-  department: 'it',
-  date: '2025-05-09',
-  hours: 4,
-  rate: 280,
-  totalAmount: 1120,
-  status: 'Approved',
-  remarks: 'Network infrastructure setup',
-  approvedBy: 'Admin',
-  approvedAt: '2025-05-10',
-  createdAt: '2025-05-09T22:00:00',
-  updatedAt: '2025-05-10T08:00:00'
-},
-{
-  id: 8,
-  empId: 'EMP002',
-  empName: 'Priya Sharma',
-  department: 'admin',
-  date: '2025-04-28',
-  hours: 2,
-  rate: 200,
-  totalAmount: 400,
-  status: 'Approved',
-  remarks: 'Month-end closing activities',
-  approvedBy: 'Admin',
-  approvedAt: '2025-04-29',
-  createdAt: '2025-04-28T18:00:00',
-  updatedAt: '2025-04-29T09:00:00'
-}];
-
-
-const EMPLOYEES: Employee[] = [
-{ id: 'EMP001', name: 'Rajesh Kumar', department: 'teaching', defaultRate: 250 },
-{ id: 'EMP002', name: 'Priya Sharma', department: 'admin', defaultRate: 200 },
-{ id: 'EMP003', name: 'Amit Patel', department: 'it', defaultRate: 300 },
-{ id: 'EMP004', name: 'Sneha Reddy', department: 'teaching', defaultRate: 220 },
-{ id: 'EMP005', name: 'Vikram Singh', department: 'admin', defaultRate: 180 },
-{ id: 'EMP006', name: 'Meera Joshi', department: 'teaching', defaultRate: 240 },
-{ id: 'EMP007', name: 'Arun Nair', department: 'it', defaultRate: 280 },
-{ id: 'EMP008', name: 'Kavita Menon', department: 'teaching', defaultRate: 230 },
-{ id: 'EMP009', name: 'Suresh Rao', department: 'admin', defaultRate: 190 },
-{ id: 'EMP010', name: 'Deepa Iyer', department: 'it', defaultRate: 310 }];
-
-
-const DEPARTMENTS: Department[] = [
-{ id: 'teaching', name: 'Teaching' },
-{ id: 'admin', name: 'Administration' },
-{ id: 'it', name: 'IT Department' }];
-
-
-const MONTHS = [
-{ value: '2025-05', label: 'May 2025' },
-{ value: '2025-04', label: 'April 2025' },
-{ value: '2025-03', label: 'March 2025' },
-{ value: '2025-02', label: 'February 2025' },
-{ value: '2025-01', label: 'January 2025' }];
-
-
-const ITEMS_PER_PAGE_OPTIONS = [10, 25, 50, 100];
-
-/* -------------------------------------------------------------------------- */
-/* Notification Component                                                      */
-/* -------------------------------------------------------------------------- */
-
-function NotificationToast({
-  notifications,
-  onDismiss
-
-
-
-}: {notifications: Notification[];onDismiss: (id: string) => void;}) {
-  if (notifications.length === 0) return null;
-
-  const getIcon = (type: NotificationType) => {
-    switch (type) {
-      case 'success':
-        return <CheckCircle2Icon className="h-4 w-4" />;
-      case 'error':
-        return <XCircleIcon className="h-4 w-4" />;
-      case 'warning':
-        return <AlertCircleIcon className="h-4 w-4" />;
-      case 'info':
-        return <AlertCircleIcon className="h-4 w-4" />;
-    }
-  };
-
-  const getStyles = (type: NotificationType) => {
-    switch (type) {
-      case 'success':
-        return 'bg-green-50 border-green-200 text-green-800';
-      case 'error':
-        return 'bg-red-50 border-red-200 text-red-800';
-      case 'warning':
-        return 'bg-yellow-50 border-yellow-200 text-yellow-800';
-      case 'info':
-        return 'bg-blue-50 border-blue-200 text-blue-800';
-    }
-  };
-
-  return (
-    <div className="fixed bottom-4 right-4 z-[60] space-y-2">
-      {notifications.map((notification) =>
-      <div
-        key={notification.id}
-        className={`flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg border ${getStyles(notification.type)}`}>
-
-          {getIcon(notification.type)}
-          <span className="text-sm">{notification.message}</span>
-          <button onClick={() => onDismiss(notification.id)} className="ml-2 hover:opacity-70">
-            <XIcon className="h-4 w-4" />
-          </button>
-        </div>
-      )}
-    </div>);
-
-}
-
-/* -------------------------------------------------------------------------- */
-/* Confirmation Modal Component                                                */
-/* -------------------------------------------------------------------------- */
-
-function ConfirmationModal({
-  isOpen,
-  onClose,
-  onConfirm,
-  title,
-  message,
-  confirmText = 'Confirm',
-  cancelText = 'Cancel',
-  variant = 'danger'
-
-
-
-
-
-
-
-
-
-}: {isOpen: boolean;onClose: () => void;onConfirm: () => void;title: string;message: string;confirmText?: string;cancelText?: string;variant?: 'danger' | 'warning' | 'info';}) {
-  if (!isOpen) return null;
-
-  const variantStyles = {
-    danger: 'bg-red-600 hover:bg-red-700',
-    warning: 'bg-yellow-600 hover:bg-yellow-700',
-    info: 'bg-blue-600 hover:bg-blue-700'
-  };
-
-  return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 p-6">
-        <h3 className="text-lg font-semibold text-slate-900 mb-2">{title}</h3>
-        <p className="text-sm text-slate-600 mb-6">{message}</p>
-        <div className="flex items-center gap-3 justify-end">
-          <Button variant="outline" onClick={onClose}>
-            {cancelText}
-          </Button>
-          <button
-            onClick={() => {
-              onConfirm();
-              onClose();
-            }}
-            className={`px-4 py-2 rounded-lg text-white text-sm font-medium ${variantStyles[variant]}`}>
-
-            {confirmText}
-          </button>
-        </div>
-      </div>
-    </div>);
-
-}
-
-/* -------------------------------------------------------------------------- */
-/* Action Menu Component                                                       */
-/* -------------------------------------------------------------------------- */
-
-function ActionMenu({
-  entry,
-  onView,
-  onEdit,
-  onApprove,
-  onReject,
-  onDelete,
-  onDuplicate
-
-
-
-
-
-
-
-
-}: {entry: OvertimeEntry;onView: () => void;onEdit: () => void;onApprove: () => void;onReject: () => void;onDelete: () => void;onDuplicate: () => void;}) {
-  const [isOpen, setIsOpen] = useState(false);
-
-  return (
-    <div className="relative">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100">
-
-        <MoreVerticalIcon className="w-4 h-4" />
-      </button>
-
-      {isOpen &&
-      <>
-          <div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)} />
-          <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-20">
-            <button
-            onClick={() => {
-              onView();
-              setIsOpen(false);
-            }}
-            className="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2">
-
-              <EyeIcon className="w-4 h-4" />
-              View Details
-            </button>
-            {entry.status === 'Pending' &&
-          <>
-                <button
-              onClick={() => {
-                onEdit();
-                setIsOpen(false);
-              }}
-              className="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2">
-
-                  <EditIcon className="w-4 h-4" />
-                  Edit
-                </button>
-                <button
-              onClick={() => {
-                onApprove();
-                setIsOpen(false);
-              }}
-              className="w-full px-4 py-2 text-left text-sm text-green-600 hover:bg-green-50 flex items-center gap-2">
-
-                  <CheckIcon className="w-4 h-4" />
-                  Approve
-                </button>
-                <button
-              onClick={() => {
-                onReject();
-                setIsOpen(false);
-              }}
-              className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2">
-
-                  <XCircleIcon className="w-4 h-4" />
-                  Reject
-                </button>
-              </>
-          }
-            <button
-            onClick={() => {
-              onDuplicate();
-              setIsOpen(false);
-            }}
-            className="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2">
-
-              <CopyIcon className="w-4 h-4" />
-              Duplicate
-            </button>
-            <hr className="my-1" />
-            <button
-            onClick={() => {
-              onDelete();
-              setIsOpen(false);
-            }}
-            className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2">
-
-              <Trash2Icon className="w-4 h-4" />
-              Delete
-            </button>
-          </div>
-        </>
-      }
-    </div>);
-
-}
-
-/* -------------------------------------------------------------------------- */
-/* Main Component                                                              */
-/* -------------------------------------------------------------------------- */
+  isOvertime: true,
+  rate: 361,
+  amount: 1083,
+  expectedHours: 8,
+  project: ''
+});
 
 export function OvertimeAdditionalEarnings() {
-  // Data state
-  const [overtimeData, setOvertimeData] = useState<OvertimeEntry[]>(generateInitialData);
-  const [selectedEntries, setSelectedEntries] = useState<Set<number>>(new Set());
+  const [section, setSection] = useState<Section>('timesheet');
+  const [notice, setNotice] = useState('');
+  const [sheets, setSheets] = useState<Timesheet[]>(seedSheets);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [editing, setEditing] = useState<Timesheet | null>(null);
+  const [entryName] = useState('OT-ENTRY-10-2026-001');
+  const [period, setPeriod] = useState('2026-10');
+  const [otRows, setOtRows] = useState<OtRow[]>([]);
+  const [additionals, setAdditionals] = useState<Additional[]>([
+    { id: 'AS-001', employeeId: 'EMP-1001', employee: 'Rajesh Kumar', component: 'Examination Duty Remuneration', type: 'Earning', amount: 2000, payrollDate: '2026-10-31', recurring: false, fromDate: '', toDate: '', frequency: 'Monthly', overwrite: false, notes: 'Board exam coordination duty — October 2026.', status: 'Pending' },
+    { id: 'AS-002', employeeId: 'EMP-1008', employee: 'Anil Patel', component: 'House Building Advance Recovery', type: 'Deduction', amount: 5000, payrollDate: '2026-10-31', recurring: true, fromDate: '2026-04-01', toDate: '2027-03-31', frequency: 'Monthly', overwrite: false, notes: '₹5,000/month for 12 months', status: 'Pending' }
+  ]);
+  const [addForm, setAddForm] = useState<Additional | null>(null);
+  const [monthFilter, setMonthFilter] = useState('2026-10');
+  const [statusList, setStatusList] = useState('');
+  const [confirmSubmit, setConfirmSubmit] = useState(false);
 
-  // UI state
-  const [showDrawer, setShowDrawer] = useState(false);
-  const [drawerMode, setDrawerMode] = useState<DrawerMode>('add');
-  const [editingEntry, setEditingEntry] = useState<OvertimeEntry | null>(null);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [entryToDelete, setEntryToDelete] = useState<OvertimeEntry | null>(null);
-  const [showBulkActionModal, setShowBulkActionModal] = useState(false);
-  const [bulkActionType, setBulkActionType] = useState<BulkAction | null>(null);
+  const flash = (text: string) => {
+    setNotice(text);
+    window.setTimeout(() => setNotice(''), 4000);
+  };
 
-  // Filter state
-  const [filters, setFilters] = useState({
-    month: '2025-05',
-    department: '',
-    status: '',
-    search: ''
+  const filteredSheets = sheets.filter((row) => {
+    if (statusFilter && row.status !== statusFilter) return false;
+    const q = search.trim().toLowerCase();
+    if (q && !`${row.employee} ${row.employeeId} ${row.id}`.toLowerCase().includes(q)) return false;
+    return true;
   });
 
-  // Sorting state
-  const [sortField, setSortField] = useState<SortField>('date');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const otHours = (sheet: Timesheet) => sheet.logs.filter((l) => l.isOvertime).reduce((s, l) => s + l.hours, 0);
+  const otAmount = (sheet: Timesheet) => sheet.logs.filter((l) => l.isOvertime).reduce((s, l) => s + l.amount, 0);
 
-  // Pagination state
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
-
-  // Form state
-  const [formData, setFormData] = useState({
-    employee: '',
-    date: '',
-    hours: '',
-    rate: '',
-    remarks: ''
-  });
-  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-
-  // Notifications
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-
-  // Calculate total amount from form
-  const calculatedTotal = useMemo(() => {
-    if (formData.hours && formData.rate) {
-      return parseFloat(formData.hours) * parseFloat(formData.rate);
-    }
-    return 0;
-  }, [formData.hours, formData.rate]);
-
-  // Show notification helper
-  const showNotification = useCallback((message: string, type: NotificationType = 'success') => {
-    const id = Date.now().toString();
-    setNotifications((prev) => [...prev, { id, message, type }]);
-    setTimeout(() => {
-      setNotifications((prev) => prev.filter((n) => n.id !== id));
-    }, 4000);
-  }, []);
-
-  // Dismiss notification
-  const dismissNotification = useCallback((id: string) => {
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
-  }, []);
-
-  // Auto-fill rate when employee is selected
-  useEffect(() => {
-    if (formData.employee && drawerMode === 'add') {
-      const employee = EMPLOYEES.find((e) => e.id === formData.employee);
-      if (employee) {
-        setFormData((prev) => ({ ...prev, rate: employee.defaultRate.toString() }));
-      }
-    }
-  }, [formData.employee, drawerMode]);
-
-  // Filter and sort data
-  const filteredData = useMemo(() => {
-    let result = [...overtimeData];
-
-    // Filter by month
-    if (filters.month) {
-      result = result.filter((entry) => entry.date.startsWith(filters.month));
-    }
-
-    // Filter by department
-    if (filters.department) {
-      result = result.filter((entry) => entry.department === filters.department);
-    }
-
-    // Filter by status
-    if (filters.status) {
-      result = result.filter((entry) => entry.status === filters.status);
-    }
-
-    // Filter by search
-    if (filters.search) {
-      const searchLower = filters.search.toLowerCase();
-      result = result.filter(
-        (entry) =>
-        entry.empName.toLowerCase().includes(searchLower) ||
-        entry.empId.toLowerCase().includes(searchLower) ||
-        entry.remarks.toLowerCase().includes(searchLower)
-      );
-    }
-
-    // Sort
-    result.sort((a, b) => {
-      let comparison = 0;
-      switch (sortField) {
-        case 'empName':
-          comparison = a.empName.localeCompare(b.empName);
-          break;
-        case 'date':
-          comparison = new Date(a.date).getTime() - new Date(b.date).getTime();
-          break;
-        case 'hours':
-          comparison = a.hours - b.hours;
-          break;
-        case 'totalAmount':
-          comparison = a.totalAmount - b.totalAmount;
-          break;
-        case 'status':
-          comparison = a.status.localeCompare(b.status);
-          break;
-      }
-      return sortDirection === 'asc' ? comparison : -comparison;
+  const openNewSheet = () => {
+    const emp = EMPLOYEES[0];
+    setEditing({
+      id: `TS-2026-10-${String(sheets.length + 1).padStart(3, '0')}`,
+      employeeId: emp.id,
+      employee: emp.name,
+      department: emp.department,
+      designation: emp.designation,
+      shift: emp.shift,
+      company: 'EduManager School',
+      startDate: '2026-10-01',
+      endDate: '2026-10-31',
+      status: 'Draft',
+      category: emp.category,
+      approver: emp.category === 'Teaching Staff' ? 'Principal / Vice Principal' : 'HR Manager',
+      logs: [emptyLog()]
     });
+  };
 
-    return result;
-  }, [overtimeData, filters, sortField, sortDirection]);
-
-  // Pagination
-  const totalPages = Math.ceil(filteredData.length / itemsPerPage);
-  const paginatedData = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage;
-    return filteredData.slice(start, start + itemsPerPage);
-  }, [filteredData, currentPage, itemsPerPage]);
-
-  // Reset page when filters change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [filters, itemsPerPage]);
-
-  // Summary statistics
-  const summaryStats = useMemo(() => {
-    const monthData = overtimeData.filter((entry) => entry.date.startsWith(filters.month));
+  const applyEmployee = (sheet: Timesheet, id: string) => {
+    const emp = EMPLOYEES.find((e) => e.id === id);
+    if (!emp) return sheet;
+    const rate = otRate(emp.category, emp.basic);
     return {
-      totalEntries: monthData.length,
-      pendingCount: monthData.filter((e) => e.status === 'Pending').length,
-      approvedCount: monthData.filter((e) => e.status === 'Approved').length,
-      rejectedCount: monthData.filter((e) => e.status === 'Rejected').length,
-      totalHours: monthData.filter((e) => e.status === 'Approved').reduce((sum, e) => sum + e.hours, 0),
-      totalAmount: monthData.filter((e) => e.status === 'Approved').reduce((sum, e) => sum + e.totalAmount, 0)
+      ...sheet,
+      employeeId: emp.id,
+      employee: emp.name,
+      department: emp.department,
+      designation: emp.designation,
+      shift: emp.shift,
+      category: emp.category,
+      approver: emp.category === 'Teaching Staff' ? 'Principal / Vice Principal' : 'HR Manager',
+      logs: sheet.logs.map((log) => ({ ...log, rate, amount: Math.round(log.hours * rate) }))
     };
-  }, [overtimeData, filters.month]);
+  };
 
-  // Form validation
-  const validateForm = useCallback(() => {
-    const errors: Record<string, string> = {};
-
-    if (!formData.employee) {
-      errors.employee = 'Please select an employee';
-    }
-
-    if (!formData.date) {
-      errors.date = 'Date is required';
-    } else {
-      const selectedDate = new Date(formData.date);
-      const today = new Date();
-      if (selectedDate > today) {
-        errors.date = 'Date cannot be in the future';
-      }
-    }
-
-    if (!formData.hours) {
-      errors.hours = 'Hours are required';
-    } else {
-      const hours = parseFloat(formData.hours);
-      if (hours <= 0) {
-        errors.hours = 'Hours must be greater than 0';
-      } else if (hours > 24) {
-        errors.hours = 'Hours cannot exceed 24';
-      }
-    }
-
-    if (!formData.rate) {
-      errors.rate = 'Rate is required';
-    } else {
-      const rate = parseFloat(formData.rate);
-      if (rate <= 0) {
-        errors.rate = 'Rate must be greater than 0';
-      }
-    }
-
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
-  }, [formData]);
-
-  // Reset form
-  const resetForm = useCallback(() => {
-    setFormData({
-      employee: '',
-      date: '',
-      hours: '',
-      rate: '',
-      remarks: ''
+  const patchLog = (index: number, patch: Partial<TimeLog>) => {
+    if (!editing) return;
+    const logs = editing.logs.map((log, i) => {
+      if (i !== index) return log;
+      const next = { ...log, ...patch };
+      next.hours = hoursBetween(next.from, next.to);
+      next.amount = Math.round(next.hours * next.rate);
+      return next;
     });
-    setFormErrors({});
-    setEditingEntry(null);
-  }, []);
+    setEditing({ ...editing, logs });
+  };
 
-  // Open drawer for adding
-  const openAddDrawer = useCallback(() => {
-    resetForm();
-    setDrawerMode('add');
-    setShowDrawer(true);
-  }, [resetForm]);
-
-  // Open drawer for editing
-  const openEditDrawer = useCallback((entry: OvertimeEntry) => {
-    setEditingEntry(entry);
-    setFormData({
-      employee: entry.empId,
-      date: entry.date,
-      hours: entry.hours.toString(),
-      rate: entry.rate.toString(),
-      remarks: entry.remarks
-    });
-    setFormErrors({});
-    setDrawerMode('edit');
-    setShowDrawer(true);
-  }, []);
-
-  // Open drawer for viewing
-  const openViewDrawer = useCallback((entry: OvertimeEntry) => {
-    setEditingEntry(entry);
-    setFormData({
-      employee: entry.empId,
-      date: entry.date,
-      hours: entry.hours.toString(),
-      rate: entry.rate.toString(),
-      remarks: entry.remarks
-    });
-    setDrawerMode('view');
-    setShowDrawer(true);
-  }, []);
-
-  // Close drawer
-  const closeDrawer = useCallback(() => {
-    setShowDrawer(false);
-    setTimeout(() => {
-      resetForm();
-    }, 300);
-  }, [resetForm]);
-
-  // Submit form (add or edit)
-  const handleSubmit = useCallback(() => {
-    if (!validateForm()) {
-      showNotification('Please fix the errors in the form', 'error');
+  const saveSheet = (submit: boolean) => {
+    if (!editing) return;
+    if (editing.category === 'Management') {
+      flash('Management staff are all-inclusive. Overtime is not applicable.');
       return;
     }
+    const next = { ...editing, status: submit ? 'Submitted' as const : editing.status };
+    setSheets((prev) => {
+      const exists = prev.some((s) => s.id === next.id);
+      return exists ? prev.map((s) => (s.id === next.id ? next : s)) : [next, ...prev];
+    });
+    setEditing(null);
+    flash(submit ? 'Timesheet submitted. Teaching staff need Principal / Vice Principal approval.' : 'Timesheet saved as draft.');
+  };
 
-    const employee = EMPLOYEES.find((e) => e.id === formData.employee);
-    if (!employee) {
-      showNotification('Invalid employee selected', 'error');
-      return;
-    }
-
-    const hours = parseFloat(formData.hours);
-    const rate = parseFloat(formData.rate);
-    const totalAmount = hours * rate;
-
-    if (drawerMode === 'add') {
-      const newEntry: OvertimeEntry = {
-        id: Math.max(...overtimeData.map((e) => e.id), 0) + 1,
-        empId: employee.id,
-        empName: employee.name,
-        department: employee.department,
-        date: formData.date,
-        hours,
-        rate,
-        totalAmount,
-        status: 'Pending',
-        remarks: formData.remarks,
-        approvedBy: null,
-        approvedAt: null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-
-      setOvertimeData((prev) => [newEntry, ...prev]);
-      showNotification(`Overtime entry added for ${employee.name}`);
-    } else if (drawerMode === 'edit' && editingEntry) {
-      setOvertimeData((prev) =>
-      prev.map((entry) =>
-      entry.id === editingEntry.id ?
-      {
-        ...entry,
-        empId: employee.id,
-        empName: employee.name,
-        department: employee.department,
-        date: formData.date,
-        hours,
-        rate,
-        totalAmount,
-        remarks: formData.remarks,
-        updatedAt: new Date().toISOString()
-      } :
-      entry
-      )
-      );
-      showNotification(`Overtime entry updated for ${employee.name}`);
-    }
-
-    closeDrawer();
-  }, [formData, drawerMode, editingEntry, overtimeData, validateForm, showNotification, closeDrawer]);
-
-  // Approve entry
-  const handleApprove = useCallback(
-    (entry: OvertimeEntry) => {
-      setOvertimeData((prev) =>
-      prev.map((e) =>
-      e.id === entry.id ?
-      {
-        ...e,
-        status: 'Approved' as OvertimeStatus,
-        approvedBy: 'Admin',
-        approvedAt: new Date().toISOString().split('T')[0],
-        updatedAt: new Date().toISOString()
-      } :
-      e
-      )
-      );
-      showNotification(`Overtime entry for ${entry.empName} has been approved`);
-    },
-    [showNotification]
-  );
-
-  // Reject entry
-  const handleReject = useCallback(
-    (entry: OvertimeEntry) => {
-      setOvertimeData((prev) =>
-      prev.map((e) =>
-      e.id === entry.id ?
-      {
-        ...e,
-        status: 'Rejected' as OvertimeStatus,
-        approvedBy: 'Admin',
-        approvedAt: new Date().toISOString().split('T')[0],
-        updatedAt: new Date().toISOString()
-      } :
-      e
-      )
-      );
-      showNotification(`Overtime entry for ${entry.empName} has been rejected`, 'warning');
-    },
-    [showNotification]
-  );
-
-  // Delete entry
-  const handleDelete = useCallback(
-    (entry: OvertimeEntry) => {
-      setOvertimeData((prev) => prev.filter((e) => e.id !== entry.id));
-      setSelectedEntries((prev) => {
-        const newSet = new Set(prev);
-        newSet.delete(entry.id);
-        return newSet;
+  const getTimesheets = () => {
+    const rows: OtRow[] = sheets
+      .filter((s) => s.status === 'Submitted' || s.status === 'Approved')
+      .map((s) => {
+        const emp = EMPLOYEES.find((e) => e.id === s.employeeId);
+        const hours = otHours(s);
+        const rate = emp ? otRate(s.category, emp.basic) : 0;
+        return {
+          employeeId: s.employeeId,
+          employee: s.employee,
+          category: s.category,
+          hours,
+          rate,
+          amount: Math.round(hours * rate),
+          approved: s.status === 'Approved',
+          remarks: s.logs[0]?.activity ? `Approved — ${s.logs[0].activity}` : ''
+        };
       });
-      showNotification(`Overtime entry for ${entry.empName} has been deleted`);
-      setShowDeleteModal(false);
-      setEntryToDelete(null);
-    },
-    [showNotification]
-  );
+    setOtRows(rows);
+    flash(`Fetched ${rows.length} employee overtime row(s) from submitted timesheets with Is Overtime marked.`);
+  };
 
-  // Duplicate entry
-  const handleDuplicate = useCallback(
-    (entry: OvertimeEntry) => {
-      const newEntry: OvertimeEntry = {
-        ...entry,
-        id: Math.max(...overtimeData.map((e) => e.id), 0) + 1,
-        date: new Date().toISOString().split('T')[0],
-        status: 'Pending',
-        approvedBy: null,
-        approvedAt: null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-      setOvertimeData((prev) => [newEntry, ...prev]);
-      showNotification(`Overtime entry duplicated for ${entry.empName}`);
-    },
-    [overtimeData, showNotification]
-  );
-
-  // Toggle entry selection
-  const toggleEntrySelection = useCallback((id: number) => {
-    setSelectedEntries((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(id)) {
-        newSet.delete(id);
-      } else {
-        newSet.add(id);
-      }
-      return newSet;
-    });
-  }, []);
-
-  // Toggle all entries selection
-  const toggleAllSelection = useCallback(() => {
-    if (selectedEntries.size === paginatedData.length) {
-      setSelectedEntries(new Set());
-    } else {
-      setSelectedEntries(new Set(paginatedData.map((e) => e.id)));
+  const submitOtEntry = () => {
+    const approved = otRows.filter((r) => r.approved && r.category !== 'Management');
+    if (!approved.length) {
+      flash('Approve at least one employee before submitting the overtime entry.');
+      return;
     }
-  }, [paginatedData, selectedEntries.size]);
+    const created: Additional[] = approved.map((r, i) => ({
+      id: `AS-OT-${Date.now()}-${i}`,
+      employeeId: r.employeeId,
+      employee: r.employee,
+      component: 'Overtime Pay',
+      type: 'Earning',
+      amount: r.amount,
+      payrollDate: `${period}-31`,
+      recurring: false,
+      fromDate: '',
+      toDate: '',
+      frequency: 'Monthly',
+      overwrite: false,
+      notes: r.remarks || `OT ${r.hours} hrs × ${inr(r.rate)}`,
+      status: 'Pending'
+    }));
+    setAdditionals((prev) => [...created, ...prev]);
+    setConfirmSubmit(false);
+    setSection('additional');
+    flash(`Overtime entry submitted. ${created.length} Additional Salary record(s) created for Payroll Entry.`);
+  };
 
-  // Bulk actions
-  const handleBulkAction = useCallback(
-    (action: BulkAction) => {
-      const selectedData = overtimeData.filter((e) => selectedEntries.has(e.id));
+  const filteredAdds = additionals.filter((row) => {
+    if (statusList && row.status !== statusList) return false;
+    if (monthFilter && !row.payrollDate.startsWith(monthFilter)) return false;
+    return true;
+  });
 
-      switch (action) {
-        case 'approve':
-          setOvertimeData((prev) =>
-          prev.map((e) =>
-          selectedEntries.has(e.id) && e.status === 'Pending' ?
-          {
-            ...e,
-            status: 'Approved' as OvertimeStatus,
-            approvedBy: 'Admin',
-            approvedAt: new Date().toISOString().split('T')[0],
-            updatedAt: new Date().toISOString()
-          } :
-          e
-          )
-          );
-          showNotification(`${selectedData.filter((e) => e.status === 'Pending').length} entries approved`);
-          break;
-
-        case 'reject':
-          setOvertimeData((prev) =>
-          prev.map((e) =>
-          selectedEntries.has(e.id) && e.status === 'Pending' ?
-          {
-            ...e,
-            status: 'Rejected' as OvertimeStatus,
-            approvedBy: 'Admin',
-            approvedAt: new Date().toISOString().split('T')[0],
-            updatedAt: new Date().toISOString()
-          } :
-          e
-          )
-          );
-          showNotification(`${selectedData.filter((e) => e.status === 'Pending').length} entries rejected`, 'warning');
-          break;
-
-        case 'delete':
-          setOvertimeData((prev) => prev.filter((e) => !selectedEntries.has(e.id)));
-          showNotification(`${selectedEntries.size} entries deleted`);
-          break;
-
-        case 'export':
-          exportData(selectedData);
-          break;
-      }
-
-      setSelectedEntries(new Set());
-      setShowBulkActionModal(false);
-    },
-    [overtimeData, selectedEntries, showNotification]
-  );
-
-  // Export data
-  const exportData = useCallback(
-    (data: OvertimeEntry[] = filteredData) => {
-      const headers = ['Employee ID', 'Employee Name', 'Department', 'Date', 'Hours', 'Rate', 'Total Amount', 'Status', 'Remarks'];
-      const rows = data.map((entry) => [
-      entry.empId,
-      entry.empName,
-      DEPARTMENTS.find((d) => d.id === entry.department)?.name || entry.department,
-      entry.date,
-      entry.hours,
-      entry.rate,
-      entry.totalAmount,
-      entry.status,
-      entry.remarks]
-      );
-
-      const csvContent = [headers.join(','), ...rows.map((row) => row.join(','))].join('\n');
-
-      const blob = new Blob([csvContent], { type: 'text/csv' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `overtime_report_${filters.month}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-      showNotification('Report exported successfully');
-    },
-    [filteredData, filters.month, showNotification]
-  );
-
-  // Sort handler
-  const handleSort = useCallback(
-    (field: SortField) => {
-      if (sortField === field) {
-        setSortDirection((prev) => prev === 'asc' ? 'desc' : 'asc');
-      } else {
-        setSortField(field);
-        setSortDirection('asc');
-      }
-    },
-    [sortField]
-  );
-
-  // Reset filters
-  const resetFilters = useCallback(() => {
-    setFilters({
-      month: '2025-05',
-      department: '',
-      status: '',
-      search: ''
+  const saveAdditional = () => {
+    if (!addForm) return;
+    if (!addForm.employeeId || !addForm.component || !addForm.amount) {
+      flash('Employee, salary component and amount are required.');
+      return;
+    }
+    setAdditionals((prev) => {
+      const exists = prev.some((a) => a.id === addForm.id);
+      return exists ? prev.map((a) => (a.id === addForm.id ? addForm : a)) : [addForm, ...prev];
     });
-    showNotification('Filters reset', 'info');
-  }, [showNotification]);
-
-  // Get status badge
-  const getStatusBadge = (status: OvertimeStatus) => {
-    const variants: Record<OvertimeStatus, 'success' | 'warning' | 'destructive' | 'default'> = {
-      Approved: 'success',
-      Pending: 'warning',
-      Rejected: 'destructive',
-      Cancelled: 'default'
-    };
-    return <Badge variant={variants[status]}>{status}</Badge>;
+    setAddForm(null);
+    flash('Additional salary saved. Payroll Entry will pick this up for the payroll date.');
   };
 
-  // Sort indicator
-  const SortIndicator = ({ field }: {field: SortField;}) => {
-    if (sortField !== field) return null;
-    return <span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span>;
-  };
+  const sections: { id: Section; label: string }[] = [
+    { id: 'timesheet', label: 'Timesheet' },
+    { id: 'slip', label: 'Overtime Slip' },
+    { id: 'additional', label: 'Additional Salary' }
+  ];
 
   return (
-    <div className="min-h-screen w-full bg-white font-sans text-slate-900">
-      <style>
-        {`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-          .font-sans { font-family: 'Inter', sans-serif; }`}
-      </style>
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="mb-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
-            <div>
-              <h1 className="text-2xl font-semibold text-slate-900">Overtime & Additional Earnings</h1>
-              <p className="text-sm text-slate-500 mt-1">
-                Manage overtime entries and additional earnings for employees
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" leftIcon={<DownloadIcon className="w-4 h-4" />} onClick={() => exportData()}>
-                Export
-              </Button>
-              <Button variant="primary" leftIcon={<PlusIcon className="w-4 h-4" />} onClick={openAddDrawer}>
-                Add Overtime
-              </Button>
-            </div>
-          </div>
-
-          {/* Summary Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div className="bg-slate-50 rounded-lg p-4">
-              <p className="text-xs text-slate-500 uppercase tracking-wide">Total Entries</p>
-              <p className="text-2xl font-semibold mt-1">{summaryStats.totalEntries}</p>
-            </div>
-            <div className="bg-yellow-50 rounded-lg p-4">
-              <p className="text-xs text-yellow-600 uppercase tracking-wide">Pending</p>
-              <p className="text-2xl font-semibold text-yellow-700 mt-1">{summaryStats.pendingCount}</p>
-            </div>
-            <div className="bg-green-50 rounded-lg p-4">
-              <p className="text-xs text-green-600 uppercase tracking-wide">Approved Hours</p>
-              <p className="text-2xl font-semibold text-green-700 mt-1">{summaryStats.totalHours} hrs</p>
-            </div>
-            <div className="bg-indigo-50 rounded-lg p-4">
-              <p className="text-xs text-indigo-600 uppercase tracking-wide">Total Amount</p>
-              <p className="text-2xl font-semibold text-indigo-700 mt-1">₹{summaryStats.totalAmount.toLocaleString()}</p>
-            </div>
-          </div>
-
-          {/* Filters */}
-          <div className="flex flex-col md:flex-row gap-3 items-start md:items-center justify-between">
-            <div className="flex flex-col md:flex-row gap-3 flex-1">
-              <Select
-                value={filters.month}
-                onChange={(e) => setFilters({ ...filters, month: e.target.value })}
-                options={MONTHS}
-                className="w-40" />
-
-              <Select
-                value={filters.department}
-                onChange={(e) => setFilters({ ...filters, department: e.target.value })}
-                options={[{ value: '', label: 'All Departments' }, ...DEPARTMENTS.map((d) => ({ value: d.id, label: d.name }))]}
-                className="w-48" />
-
-              <Select
-                value={filters.status}
-                onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-                options={[
-                { value: '', label: 'All Status' },
-                { value: 'Pending', label: 'Pending' },
-                { value: 'Approved', label: 'Approved' },
-                { value: 'Rejected', label: 'Rejected' }]
-                }
-                className="w-40" />
-
-              <Input
-                placeholder="Search employee..."
-                leftIcon={<SearchIcon className="w-4 h-4 text-slate-400" />}
-                value={filters.search}
-                onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-                className="md:w-64" />
-
-            </div>
-            <Button variant="ghost" size="sm" onClick={resetFilters} leftIcon={<RefreshCwIcon className="w-4 h-4" />}>
-              Reset
-            </Button>
-          </div>
-        </div>
-
-        {/* Bulk Actions Bar */}
-        {selectedEntries.size > 0 &&
-        <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3 mb-4 flex items-center justify-between">
-            <span className="text-sm text-indigo-700">
-              <strong>{selectedEntries.size}</strong> entries selected
-            </span>
-            <div className="flex items-center gap-2">
-              <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setBulkActionType('approve');
-                setShowBulkActionModal(true);
-              }}>
-
-                <CheckIcon className="w-4 h-4 mr-1" />
-                Approve All
-              </Button>
-              <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setBulkActionType('reject');
-                setShowBulkActionModal(true);
-              }}>
-
-                <XCircleIcon className="w-4 h-4 mr-1" />
-                Reject All
-              </Button>
-              <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setBulkActionType('delete');
-                setShowBulkActionModal(true);
-              }}
-              className="text-red-600 hover:text-red-700">
-
-                <Trash2Icon className="w-4 h-4 mr-1" />
-                Delete
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => setSelectedEntries(new Set())}>
-                Clear
-              </Button>
-            </div>
-          </div>
-        }
-
-        {/* Table */}
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead className="bg-slate-50 border-b border-slate-200">
-                <tr>
-                  <th className="py-3 px-4 w-10">
-                    <input
-                      type="checkbox"
-                      checked={selectedEntries.size === paginatedData.length && paginatedData.length > 0}
-                      onChange={toggleAllSelection}
-                      className="rounded border-slate-300" />
-
-                  </th>
-                  <th
-                    className="py-3 px-4 text-xs font-medium text-slate-500 uppercase tracking-wider cursor-pointer hover:text-slate-700"
-                    onClick={() => handleSort('empName')}>
-
-                    Employee Name
-                    <SortIndicator field="empName" />
-                  </th>
-                  <th
-                    className="py-3 px-4 text-xs font-medium text-slate-500 uppercase tracking-wider cursor-pointer hover:text-slate-700"
-                    onClick={() => handleSort('date')}>
-
-                    Date
-                    <SortIndicator field="date" />
-                  </th>
-                  <th
-                    className="py-3 px-4 text-xs font-medium text-slate-500 uppercase tracking-wider text-right cursor-pointer hover:text-slate-700"
-                    onClick={() => handleSort('hours')}>
-
-                    Hours
-                    <SortIndicator field="hours" />
-                  </th>
-                  <th className="py-3 px-4 text-xs font-medium text-slate-500 uppercase tracking-wider text-right">Rate/Hour</th>
-                  <th
-                    className="py-3 px-4 text-xs font-medium text-slate-500 uppercase tracking-wider text-right cursor-pointer hover:text-slate-700"
-                    onClick={() => handleSort('totalAmount')}>
-
-                    Total Amount
-                    <SortIndicator field="totalAmount" />
-                  </th>
-                  <th
-                    className="py-3 px-4 text-xs font-medium text-slate-500 uppercase tracking-wider text-center cursor-pointer hover:text-slate-700"
-                    onClick={() => handleSort('status')}>
-
-                    Status
-                    <SortIndicator field="status" />
-                  </th>
-                  <th className="py-3 px-4 text-xs font-medium text-slate-500 uppercase tracking-wider text-center">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="text-sm divide-y divide-slate-100">
-                {paginatedData.length === 0 ?
-                <tr>
-                    <td colSpan={8} className="py-12 text-center text-slate-500">
-                      <div className="flex flex-col items-center">
-                        <ClockIcon className="w-12 h-12 text-slate-300 mb-3" />
-                        <p className="font-medium">No overtime entries found</p>
-                        <p className="text-sm">Try adjusting your filters or add a new entry</p>
-                      </div>
-                    </td>
-                  </tr> :
-
-                paginatedData.map((row) =>
-                <tr key={row.id} className={`hover:bg-slate-50 transition-colors ${selectedEntries.has(row.id) ? 'bg-indigo-50' : ''}`}>
-                      <td className="py-3 px-4">
-                        <input
-                      type="checkbox"
-                      checked={selectedEntries.has(row.id)}
-                      onChange={() => toggleEntrySelection(row.id)}
-                      className="rounded border-slate-300" />
-
-                      </td>
-                      <td className="py-3 px-4">
-                        <div>
-                          <p className="font-medium text-slate-900">{row.empName}</p>
-                          <p className="text-xs text-slate-500">{row.empId}</p>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 text-slate-600">
-                        {new Date(row.date).toLocaleDateString('en-IN', {
-                      day: '2-digit',
-                      month: 'short',
-                      year: 'numeric'
-                    })}
-                      </td>
-                      <td className="py-3 px-4 text-right text-slate-600">{row.hours} hrs</td>
-                      <td className="py-3 px-4 text-right text-slate-600">₹{row.rate}</td>
-                      <td className="py-3 px-4 text-right font-semibold text-slate-900">₹{row.totalAmount.toLocaleString()}</td>
-                      <td className="py-3 px-4 text-center">{getStatusBadge(row.status)}</td>
-                      <td className="py-3 px-4 text-center">
-                        <ActionMenu
-                      entry={row}
-                      onView={() => openViewDrawer(row)}
-                      onEdit={() => openEditDrawer(row)}
-                      onApprove={() => handleApprove(row)}
-                      onReject={() => handleReject(row)}
-                      onDelete={() => {
-                        setEntryToDelete(row);
-                        setShowDeleteModal(true);
-                      }}
-                      onDuplicate={() => handleDuplicate(row)} />
-
-                      </td>
-                    </tr>
-                )
-                }
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination */}
-          {filteredData.length > 0 &&
-          <div className="px-4 py-3 border-t border-slate-200 flex flex-col md:flex-row items-center justify-between gap-4">
-              <div className="flex items-center gap-2 text-sm text-slate-600">
-                <span>Show</span>
-                <select
-                value={itemsPerPage}
-                onChange={(e) => setItemsPerPage(Number(e.target.value))}
-                className="border border-slate-300 rounded px-2 py-1 text-sm">
-
-                  {ITEMS_PER_PAGE_OPTIONS.map((option) =>
-                <option key={option} value={option}>
-                      {option}
-                    </option>
-                )}
-                </select>
-                <span>entries</span>
-              </div>
-
-              <div className="text-sm text-slate-600">
-                Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredData.length)} of{' '}
-                {filteredData.length} entries
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                disabled={currentPage === 1}>
-
-                  <ChevronLeftIcon className="w-4 h-4" />
-                </Button>
-                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                let pageNum: number;
-                if (totalPages <= 5) {
-                  pageNum = i + 1;
-                } else if (currentPage <= 3) {
-                  pageNum = i + 1;
-                } else if (currentPage >= totalPages - 2) {
-                  pageNum = totalPages - 4 + i;
-                } else {
-                  pageNum = currentPage - 2 + i;
-                }
-                return (
-                  <Button
-                    key={pageNum}
-                    variant={currentPage === pageNum ? 'primary' : 'outline'}
-                    size="sm"
-                    onClick={() => setCurrentPage(pageNum)}>
-
-                      {pageNum}
-                    </Button>);
-
-              })}
-                <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-                disabled={currentPage === totalPages}>
-
-                  <ChevronRightIcon className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
-          }
-        </div>
-
-        {/* Right Slide Drawer */}
-        {showDrawer &&
-        <div className="fixed inset-0 z-50 overflow-hidden">
-            <div className="absolute inset-0 bg-black/50" onClick={closeDrawer} />
-            <div className="absolute inset-y-0 right-0 max-w-md w-full bg-white shadow-2xl transform transition-transform">
-              <div className="h-full flex flex-col">
-                {/* Header */}
-                <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-slate-900">
-                    {drawerMode === 'add' ? 'Add Overtime Entry' : drawerMode === 'edit' ? 'Edit Overtime Entry' : 'View Overtime Entry'}
-                  </h3>
-                  <button onClick={closeDrawer} className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100">
-                    <XIcon className="w-5 h-5" />
-                  </button>
-                </div>
-
-                {/* Content */}
-                <div className="flex-1 overflow-y-auto px-6 py-4">
-                  <div className="space-y-4">
-                    {/* Employee Select */}
-                    <div>
-                      <Select
-                      label="Employee Name"
-                      placeholder="Select Employee"
-                      value={formData.employee}
-                      onChange={(e) => setFormData({ ...formData, employee: e.target.value })}
-                      options={EMPLOYEES.map((emp) => ({
-                        value: emp.id,
-                        label: `${emp.name} (${emp.id})`
-                      }))}
-                      disabled={drawerMode === 'view'} />
-
-                      {formErrors.employee && <p className="text-xs text-red-500 mt-1">{formErrors.employee}</p>}
-                    </div>
-
-                    {/* Date */}
-                    <div>
-                      <Input
-                      label="Date"
-                      type="date"
-                      value={formData.date}
-                      onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                      max={new Date().toISOString().split('T')[0]}
-                      disabled={drawerMode === 'view'} />
-
-                      {formErrors.date && <p className="text-xs text-red-500 mt-1">{formErrors.date}</p>}
-                    </div>
-
-                    {/* Hours */}
-                    <div>
-                      <Input
-                      label="Overtime Hours"
-                      type="number"
-                      placeholder="Enter hours"
-                      value={formData.hours}
-                      onChange={(e) => setFormData({ ...formData, hours: e.target.value })}
-                      min="0.5"
-                      max="24"
-                      step="0.5"
-                      disabled={drawerMode === 'view'} />
-
-                      {formErrors.hours && <p className="text-xs text-red-500 mt-1">{formErrors.hours}</p>}
-                    </div>
-
-                    {/* Rate */}
-                    <div>
-                      <Input
-                      label="Rate per Hour (₹)"
-                      type="number"
-                      placeholder="Enter rate"
-                      value={formData.rate}
-                      onChange={(e) => setFormData({ ...formData, rate: e.target.value })}
-                      min="1"
-                      disabled={drawerMode === 'view'} />
-
-                      {formErrors.rate && <p className="text-xs text-red-500 mt-1">{formErrors.rate}</p>}
-                    </div>
-
-                    {/* Total Amount Display */}
-                    {calculatedTotal > 0 &&
-                  <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
-                        <div className="text-xs text-indigo-600 uppercase tracking-wide mb-1">Total Amount</div>
-                        <div className="text-2xl font-bold text-indigo-900">₹{calculatedTotal.toLocaleString()}</div>
-                        <p className="text-xs text-indigo-600 mt-1">
-                          {formData.hours} hours × ₹{formData.rate}/hour
-                        </p>
-                      </div>
-                  }
-
-                    {/* Remarks */}
-                    <Textarea
-                    label="Remarks"
-                    placeholder="Enter remarks (optional)"
-                    rows={3}
-                    value={formData.remarks}
-                    onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
-                    disabled={drawerMode === 'view'} />
-
-
-                    {/* View Mode - Additional Info */}
-                    {drawerMode === 'view' && editingEntry &&
-                  <div className="border-t pt-4 mt-4 space-y-3">
-                        <h4 className="font-medium text-slate-900">Entry Details</h4>
-                        <div className="grid grid-cols-2 gap-3 text-sm">
-                          <div>
-                            <p className="text-slate-500">Status</p>
-                            <p className="font-medium">{editingEntry.status}</p>
-                          </div>
-                          <div>
-                            <p className="text-slate-500">Department</p>
-                            <p className="font-medium">
-                              {DEPARTMENTS.find((d) => d.id === editingEntry.department)?.name || editingEntry.department}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-slate-500">Created At</p>
-                            <p className="font-medium">{new Date(editingEntry.createdAt).toLocaleString()}</p>
-                          </div>
-                          <div>
-                            <p className="text-slate-500">Updated At</p>
-                            <p className="font-medium">{new Date(editingEntry.updatedAt).toLocaleString()}</p>
-                          </div>
-                          {editingEntry.approvedBy &&
-                      <>
-                              <div>
-                                <p className="text-slate-500">Approved By</p>
-                                <p className="font-medium">{editingEntry.approvedBy}</p>
-                              </div>
-                              <div>
-                                <p className="text-slate-500">Approved At</p>
-                                <p className="font-medium">{editingEntry.approvedAt}</p>
-                              </div>
-                            </>
-                      }
-                        </div>
-                      </div>
-                  }
-                  </div>
-                </div>
-
-                {/* Footer */}
-                <div className="px-6 py-4 border-t border-slate-200 bg-slate-50">
-                  {drawerMode === 'view' ?
-                <div className="flex items-center gap-2">
-                      <Button variant="outline" className="flex-1" onClick={closeDrawer}>
-                        Close
-                      </Button>
-                      {editingEntry?.status === 'Pending' &&
-                  <>
-                          <Button
-                      variant="outline"
-                      className="flex-1"
-                      onClick={() => {
-                        setDrawerMode('edit');
-                      }}>
-
-                            <EditIcon className="w-4 h-4 mr-1" />
-                            Edit
-                          </Button>
-                          <Button
-                      variant="primary"
-                      className="flex-1"
-                      onClick={() => {
-                        if (editingEntry) {
-                          handleApprove(editingEntry);
-                          closeDrawer();
-                        }
-                      }}>
-
-                            <CheckIcon className="w-4 h-4 mr-1" />
-                            Approve
-                          </Button>
-                        </>
-                  }
-                    </div> :
-
-                <div className="flex items-center gap-2">
-                      <Button variant="outline" className="flex-1" onClick={closeDrawer}>
-                        Cancel
-                      </Button>
-                      <Button variant="primary" className="flex-1" onClick={handleSubmit}>
-                        <SaveIcon className="w-4 h-4 mr-1" />
-                        {drawerMode === 'add' ? 'Submit' : 'Update'}
-                      </Button>
-                    </div>
-                }
-                </div>
-              </div>
-            </div>
-          </div>
-        }
-
-        {/* Delete Confirmation Modal */}
-        <ConfirmationModal
-          isOpen={showDeleteModal}
-          onClose={() => {
-            setShowDeleteModal(false);
-            setEntryToDelete(null);
-          }}
-          onConfirm={() => {
-            if (entryToDelete) {
-              handleDelete(entryToDelete);
-            }
-          }}
-          title="Delete Overtime Entry"
-          message={`Are you sure you want to delete the overtime entry for ${entryToDelete?.empName}? This action cannot be undone.`}
-          confirmText="Delete"
-          variant="danger" />
-
-
-        {/* Bulk Action Confirmation Modal */}
-        <ConfirmationModal
-          isOpen={showBulkActionModal}
-          onClose={() => {
-            setShowBulkActionModal(false);
-            setBulkActionType(null);
-          }}
-          onConfirm={() => {
-            if (bulkActionType) {
-              handleBulkAction(bulkActionType);
-            }
-          }}
-          title={
-          bulkActionType === 'approve' ?
-          'Approve Selected Entries' :
-          bulkActionType === 'reject' ?
-          'Reject Selected Entries' :
-          'Delete Selected Entries'
-          }
-          message={`Are you sure you want to ${bulkActionType} ${selectedEntries.size} selected entries?${bulkActionType === 'delete' ? ' This action cannot be undone.' : ''}`}
-          confirmText={bulkActionType === 'approve' ? 'Approve All' : bulkActionType === 'reject' ? 'Reject All' : 'Delete All'}
-          variant={bulkActionType === 'delete' ? 'danger' : bulkActionType === 'reject' ? 'warning' : 'info'} />
-
+    <div className="space-y-6 p-6">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Overtime & Additional Earnings</h1>
+        <p className="text-sm text-gray-500">Timesheet (Is Overtime) → Overtime Slip → Additional Salary → Payroll Entry → Salary Slip. Teaching overtime is approved by Principal / Vice Principal.</p>
       </div>
 
-      {/* Notifications */}
-      <NotificationToast notifications={notifications} onDismiss={dismissNotification} />
-    </div>);
+      {notice && <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800">{notice}</div>}
 
+      <div className="flex gap-1 border-b border-gray-200 bg-white">
+        {sections.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => setSection(item.id)}
+            className={`whitespace-nowrap px-4 py-2.5 text-sm font-medium border-b-2 ${section === item.id ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500'}`}>
+            {item.label}
+          </button>
+        ))}
+      </div>
+
+      {section === 'timesheet' && (
+        <>
+          <Card>
+            <div className="flex flex-wrap items-end gap-3 p-4">
+              <div className="relative min-w-[220px] flex-1">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Employee, ID, timesheet" className="w-full rounded-lg border py-2 pl-9 pr-3 text-sm" />
+              </div>
+              <Select label="Status" value={statusFilter} onChange={(e) => setStatusFilter(typeof e === 'string' ? e : e.target.value)} options={[{ value: '', label: 'All' }, { value: 'Draft', label: 'Draft' }, { value: 'Submitted', label: 'Submitted' }, { value: 'Approved', label: 'Approved' }, { value: 'Rejected', label: 'Rejected' }]} />
+              <Button size="sm" onClick={openNewSheet}><Plus className="mr-1 h-4 w-4" />New Timesheet</Button>
+            </div>
+          </Card>
+          <Card>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-gray-50 text-left text-xs uppercase text-gray-500">
+                    {['Timesheet', 'Employee', 'Period', 'OT hours', 'OT amount', 'Approver', 'Status', ''].map((h) => <th key={h || 'a'} className="px-3 py-2">{h}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredSheets.map((row) => (
+                    <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="px-3 py-2 font-mono text-xs">{row.id}</td>
+                      <td className="px-3 py-2"><p className="font-medium">{row.employee}</p><p className="text-xs text-gray-500">{row.employeeId} · {row.category}</p></td>
+                      <td className="px-3 py-2 text-xs">{row.startDate} — {row.endDate}</td>
+                      <td className="px-3 py-2">{otHours(row)}</td>
+                      <td className="px-3 py-2">{inr(otAmount(row))}</td>
+                      <td className="px-3 py-2 text-xs">{row.approver}</td>
+                      <td className="px-3 py-2"><Badge variant={row.status === 'Approved' ? 'success' : row.status === 'Rejected' ? 'danger' : row.status === 'Submitted' ? 'info' : 'warning'}>{row.status}</Badge></td>
+                      <td className="px-3 py-2">
+                        <div className="flex gap-1">
+                          <Button size="xs" variant="ghost" onClick={() => setEditing(row)}>Open</Button>
+                          {row.status === 'Submitted' && (
+                            <>
+                              <Button size="xs" variant="outline" onClick={() => { setSheets((p) => p.map((s) => s.id === row.id ? { ...s, status: 'Approved' } : s)); flash('Timesheet approved.'); }}>Approve</Button>
+                              <Button size="xs" variant="ghost" onClick={() => { setSheets((p) => p.map((s) => s.id === row.id ? { ...s, status: 'Rejected' } : s)); flash('Timesheet rejected.'); }}>Reject</Button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </>
+      )}
+
+      {section === 'slip' && (
+        <>
+          <Card title="Overtime Entry">
+            <div className="grid gap-4 p-5 md:grid-cols-4">
+              <Input label="Overtime Entry Name" value={entryName} readOnly />
+              <Input label="Company" value="EduManager School" readOnly />
+              <Input label="Payroll Period" type="month" value={period} onChange={(e) => setPeriod(e.target.value)} />
+              <Input label="Window" value="01 Oct 2026 — 31 Oct 2026" readOnly />
+            </div>
+            <div className="flex flex-wrap gap-2 border-t px-5 py-3">
+              <Button size="sm" onClick={getTimesheets}><RefreshCw className="mr-1 h-4 w-4" />Get Timesheets</Button>
+              <Button size="sm" variant="outline" onClick={() => setOtRows((p) => p.map((r) => r.category === 'Management' ? r : { ...r, approved: true }))}>Approve All</Button>
+              <Button size="sm" onClick={() => setConfirmSubmit(true)}>Submit Overtime Entry</Button>
+            </div>
+          </Card>
+          <Card title="Employee Overtime">
+            <p className="px-5 pt-3 text-xs text-gray-500">Rate = (Basic / 26 working days / 8 hours) × multiplier. Teaching 1.5× · Support 2.0× · Administrative 1.5× · Management not applicable.</p>
+            <div className="overflow-x-auto p-5 pt-3">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-gray-50 text-left text-xs uppercase text-gray-500">
+                    {['Employee', 'Category', 'OT hours', 'Rate / hour', 'OT amount', 'Approved', 'Remarks'].map((h) => <th key={h} className="px-3 py-2">{h}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {otRows.map((row) => (
+                    <tr key={row.employeeId} className="border-b border-gray-100">
+                      <td className="px-3 py-2"><p className="font-medium">{row.employee}</p><p className="text-xs text-gray-500">{row.employeeId}</p></td>
+                      <td className="px-3 py-2">{row.category}</td>
+                      <td className="px-3 py-2">{row.hours}</td>
+                      <td className="px-3 py-2">{row.rate ? inr(row.rate) : 'N/A'}</td>
+                      <td className="px-3 py-2 font-semibold">{row.rate ? inr(row.amount) : '—'}</td>
+                      <td className="px-3 py-2">
+                        <input type="checkbox" checked={row.approved} disabled={row.category === 'Management'} onChange={(e) => setOtRows((p) => p.map((r) => r.employeeId === row.employeeId ? { ...r, approved: e.target.checked } : r))} />
+                      </td>
+                      <td className="px-3 py-2">
+                        <input className="w-full rounded border px-2 py-1 text-xs" value={row.remarks} onChange={(e) => setOtRows((p) => p.map((r) => r.employeeId === row.employeeId ? { ...r, remarks: e.target.value } : r))} />
+                      </td>
+                    </tr>
+                  ))}
+                  {otRows.length === 0 && <tr><td colSpan={7} className="px-3 py-8 text-center text-gray-500">Click Get Timesheets to load submitted OT rows for this period.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+          <Card>
+            <div className="space-y-2 p-5 text-sm text-gray-600">
+              <p className="font-semibold text-gray-900">Salary slip flow</p>
+              <p>Timesheet (Is OT rows) → Overtime Entry (Approved) → Additional Salary (OT component) → Payroll Entry → Salary Slip earnings → Journal Entry to OT Expense Account.</p>
+              <p>Salary component: Overtime Pay (OT), Earning, additional component, taxable, formula (basic / total_working_days / 8) * ot_hours * 1.5, does not depend on LWP.</p>
+            </div>
+          </Card>
+        </>
+      )}
+
+      {section === 'additional' && (
+        <>
+          <Card>
+            <div className="flex flex-wrap items-end gap-3 p-4">
+              <Input label="Month" type="month" value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)} />
+              <Select label="Status" value={statusList} onChange={(e) => setStatusList(typeof e === 'string' ? e : e.target.value)} options={[{ value: '', label: 'All' }, { value: 'Pending', label: 'Pending' }, { value: 'Processed', label: 'Processed' }]} />
+              <Button size="sm" variant="outline" onClick={() => flash('CSV imported for exam duty allowance.')}><Upload className="mr-1 h-4 w-4" />Bulk Create CSV</Button>
+              <Button size="sm" onClick={() => setAddForm({ id: `AS-${Date.now()}`, employeeId: '', employee: '', component: 'Overtime Pay', type: 'Earning', amount: 0, payrollDate: '2026-10-31', recurring: false, fromDate: '', toDate: '', frequency: 'Monthly', overwrite: false, notes: '', status: 'Pending' })}><Plus className="mr-1 h-4 w-4" />New Additional Salary</Button>
+            </div>
+          </Card>
+          <Card>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-gray-50 text-left text-xs uppercase text-gray-500">
+                    {['Employee', 'Component', 'Type', 'Amount', 'Payroll date', 'Recurring', 'Status', ''].map((h) => <th key={h || 'a'} className="px-3 py-2">{h}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredAdds.map((row) => (
+                    <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="px-3 py-2"><p className="font-medium">{row.employee}</p><p className="text-xs text-gray-500">{row.employeeId}</p></td>
+                      <td className="px-3 py-2">{row.component}{row.overwrite && <span className="ml-1 text-xs text-amber-700">overwrite</span>}</td>
+                      <td className="px-3 py-2"><Badge variant={row.type === 'Earning' ? 'success' : 'danger'}>{row.type}</Badge></td>
+                      <td className="px-3 py-2 font-semibold">{inr(row.amount)}</td>
+                      <td className="px-3 py-2 text-xs">{row.payrollDate}</td>
+                      <td className="px-3 py-2 text-xs">{row.recurring ? `${row.frequency} ${row.fromDate}–${row.toDate}` : 'No'}</td>
+                      <td className="px-3 py-2"><Badge variant={row.status === 'Processed' ? 'success' : 'warning'}>{row.status}</Badge></td>
+                      <td className="px-3 py-2"><Button size="xs" variant="ghost" onClick={() => setAddForm(row)}>Open</Button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </>
+      )}
+
+      <Modal isOpen={Boolean(editing)} onClose={() => setEditing(null)} title={editing ? `Timesheet ${editing.id}` : 'Timesheet'} size="xl" footer={editing && (
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => setEditing(null)}>Close</Button>
+          <Button variant="outline" onClick={() => saveSheet(false)}>Save Draft</Button>
+          <Button onClick={() => saveSheet(true)}>Submit</Button>
+        </div>
+      )}>
+        {editing && (
+          <div className="space-y-4 text-sm">
+            <div className="grid gap-3 md:grid-cols-3">
+              <Select label="Employee *" value={editing.employeeId} onChange={(e) => setEditing(applyEmployee(editing, typeof e === 'string' ? e : e.target.value))} options={EMPLOYEES.map((e) => ({ value: e.id, label: `${e.name} (${e.id})` }))} />
+              <Input label="Company" value={editing.company} readOnly />
+              <Input label="Department / Shift" value={`${editing.department} · ${editing.shift}`} readOnly />
+              <Input label="Start Date" type="date" value={editing.startDate} onChange={(e) => setEditing({ ...editing, startDate: e.target.value })} />
+              <Input label="End Date" type="date" value={editing.endDate} onChange={(e) => setEditing({ ...editing, endDate: e.target.value })} />
+              <Input label="Approver" value={editing.approver} readOnly />
+            </div>
+            {editing.category === 'Management' && <p className="rounded-lg bg-amber-50 px-3 py-2 text-amber-800">Management salaries are all-inclusive. Overtime is not applicable.</p>}
+            <div className="flex items-center justify-between">
+              <p className="font-semibold">Time Logs</p>
+              <Button size="xs" variant="outline" onClick={() => setEditing({ ...editing, logs: [...editing.logs, emptyLog()] })}><Plus className="h-3.5 w-3.5" />Add row</Button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b bg-gray-50 text-left uppercase text-gray-500">
+                    {['Activity', 'From', 'To', 'Hours', 'Is OT', 'Rate', 'Amount', 'Expected hrs', 'Project', ''].map((h) => <th key={h || 'x'} className="px-2 py-2">{h}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {editing.logs.map((log, i) => (
+                    <tr key={log.id} className="border-b">
+                      <td className="px-2 py-1">
+                        <select className="rounded border px-1 py-1" value={log.activity} onChange={(e) => patchLog(i, { activity: e.target.value })}>
+                          {ACTIVITIES.map((a) => <option key={a}>{a}</option>)}
+                        </select>
+                      </td>
+                      <td className="px-2 py-1"><input type="datetime-local" className="rounded border px-1 py-1" value={log.from} onChange={(e) => patchLog(i, { from: e.target.value })} /></td>
+                      <td className="px-2 py-1"><input type="datetime-local" className="rounded border px-1 py-1" value={log.to} onChange={(e) => patchLog(i, { to: e.target.value })} /></td>
+                      <td className="px-2 py-1">{log.hours}</td>
+                      <td className="px-2 py-1 text-center"><input type="checkbox" checked={log.isOvertime} onChange={(e) => patchLog(i, { isOvertime: e.target.checked })} /></td>
+                      <td className="px-2 py-1"><input type="number" className="w-20 rounded border px-1 py-1" value={log.rate} onChange={(e) => patchLog(i, { rate: Number(e.target.value) })} /></td>
+                      <td className="px-2 py-1">{inr(log.amount)}</td>
+                      <td className="px-2 py-1"><input type="number" className="w-16 rounded border px-1 py-1" value={log.expectedHours} onChange={(e) => patchLog(i, { expectedHours: Number(e.target.value) })} /></td>
+                      <td className="px-2 py-1"><input className="w-28 rounded border px-1 py-1" value={log.project} onChange={(e) => patchLog(i, { project: e.target.value })} /></td>
+                      <td className="px-2 py-1"><button type="button" onClick={() => setEditing({ ...editing, logs: editing.logs.filter((_, idx) => idx !== i) })}><Trash2 className="h-4 w-4 text-gray-400" /></button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-xs text-gray-500">Only rows marked Is Overtime feed the Overtime Slip. Unmarked rows are regular work hours.</p>
+          </div>
+        )}
+      </Modal>
+
+      <Modal isOpen={Boolean(addForm)} onClose={() => setAddForm(null)} title="Additional Salary" size="lg" footer={addForm && (
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => setAddForm(null)}>Cancel</Button>
+          <Button onClick={saveAdditional}>Save</Button>
+        </div>
+      )}>
+        {addForm && (
+          <div className="grid gap-3 md:grid-cols-2">
+            <Select label="Employee *" value={addForm.employeeId} onChange={(e) => {
+              const id = typeof e === 'string' ? e : e.target.value;
+              const emp = EMPLOYEES.find((x) => x.id === id);
+              setAddForm({ ...addForm, employeeId: id, employee: emp?.name || '' });
+            }} options={[{ value: '', label: 'Select employee' }, ...EMPLOYEES.map((e) => ({ value: e.id, label: `${e.name} (${e.id})` }))]} />
+            <Select label="Salary Component *" value={addForm.component} onChange={(e) => {
+              const value = typeof e === 'string' ? e : e.target.value;
+              const comp = ADDITIONAL_COMPONENTS.find((c) => c.value === value);
+              setAddForm({ ...addForm, component: value, type: comp?.type || 'Earning' });
+            }} options={ADDITIONAL_COMPONENTS.map((c) => ({ value: c.value, label: c.value }))} />
+            <Select label="Type" value={addForm.type} onChange={(e) => setAddForm({ ...addForm, type: (typeof e === 'string' ? e : e.target.value) as Additional['type'] })} options={[{ value: 'Earning', label: 'Earning' }, { value: 'Deduction', label: 'Deduction' }]} />
+            <Input label="Amount *" type="number" value={String(addForm.amount)} onChange={(e) => setAddForm({ ...addForm, amount: Number(e.target.value) })} />
+            <Input label="Payroll Date" type="date" value={addForm.payrollDate} onChange={(e) => setAddForm({ ...addForm, payrollDate: e.target.value })} />
+            <label className="flex items-center gap-2 text-sm pt-6"><input type="checkbox" checked={addForm.recurring} onChange={(e) => setAddForm({ ...addForm, recurring: e.target.checked })} /> Is Recurring</label>
+            {addForm.recurring && (
+              <>
+                <Input label="From Date" type="date" value={addForm.fromDate} onChange={(e) => setAddForm({ ...addForm, fromDate: e.target.value })} />
+                <Input label="To Date" type="date" value={addForm.toDate} onChange={(e) => setAddForm({ ...addForm, toDate: e.target.value })} />
+                <Select label="Frequency" value={addForm.frequency} onChange={(e) => setAddForm({ ...addForm, frequency: typeof e === 'string' ? e : e.target.value })} options={[{ value: 'Monthly', label: 'Monthly' }, { value: 'Quarterly', label: 'Quarterly' }]} />
+              </>
+            )}
+            <label className="flex items-center gap-2 text-sm md:col-span-2"><input type="checkbox" checked={addForm.overwrite} onChange={(e) => setAddForm({ ...addForm, overwrite: e.target.checked })} /> Overwrite Salary Structure Amount</label>
+            <div className="md:col-span-2"><Textarea label="Notes" value={addForm.notes} onChange={(e) => setAddForm({ ...addForm, notes: e.target.value })} /></div>
+            <p className="md:col-span-2 text-xs text-gray-500">Only components with Is Additional Component = ON are listed. Notes are internal and are not printed on the salary slip.</p>
+          </div>
+        )}
+      </Modal>
+
+      <Modal isOpen={confirmSubmit} onClose={() => setConfirmSubmit(false)} title="Submit overtime entry" size="md" footer={
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => setConfirmSubmit(false)}>Cancel</Button>
+          <Button onClick={submitOtEntry}>Create Additional Salary</Button>
+        </div>
+      }>
+        <p className="text-sm text-gray-600">Submitting creates Additional Salary records for each approved employee. Payroll Entry will pick them up for {period}. Unchecked employees are excluded.</p>
+      </Modal>
+    </div>
+  );
 }
+
+export default OvertimeAdditionalEarnings;

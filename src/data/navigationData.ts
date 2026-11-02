@@ -176,14 +176,11 @@ const attendanceSidebar: SidebarSection[] = [
     title: 'Transactions',
     items: [
       { label: 'Quick Present Entry', id: 'quick-present-entry' },
-      { label: 'Attendance Register', id: 'attendance-register-combined' },
-      { label: 'Student Attendance', id: 'student-attendance' },
-      { label: 'Subjectwise Attendance', id: 'subjectwise-attendance' },
       {
         label: 'Manual Attendance Correction',
         id: 'manual-attendance-correction'
       },
-      { label: 'Device Sync / Biometric Import', id: 'device-sync-biometric' }]
+      { label: 'Digital Registration Attendance', id: 'digital-registration-attendance' }]
 
   },
   {
@@ -201,18 +198,9 @@ const attendanceSidebar: SidebarSection[] = [
 
   },
   {
-    title: 'Alerts & Communication',
-    items: [{ label: 'Alert (Attendance)', id: 'alert-attendance' }]
-  },
-  {
     title: 'Reports',
     items: [
-      { label: 'Attendance Reports', id: 'attendance-reports' },
-      { label: 'Attendance Defaulter List', id: 'attendance-defaulter-list' },
-      {
-        label: 'Late Arrival / Early Departure',
-        id: 'late-arrival-early-departure'
-      }]
+      { label: 'Attendance Reports', id: 'attendance-reports' }]
 
   }];
 
@@ -236,7 +224,8 @@ const certificateSidebar: SidebarSection[] = [
     title: 'Templates & Printing',
     items: [
       { label: 'Print Template Student', id: 'print-template-student' },
-      { label: 'Print Template', id: 'print-template' }]
+      { label: 'Print Template', id: 'print-template' },
+      { label: 'Signature Configuration', id: 'signature-registry' }]
 
   }];
 
@@ -254,8 +243,8 @@ const ledgersSidebar: SidebarSection[] = [
 
 const feesSidebar: SidebarSection[] = [
   { title: 'List Screens', items: [{ label: 'Fee Summary Dashboard', id: 'fee-summary-dashboard' }, { label: 'Fee Pending List', id: 'fee-pending-list' }, { label: 'Fee Collection Register', id: 'fee-collection-register' }] },
-  { title: 'Transactions', items: [{ label: 'Fee Collection', id: 'fee-receipt' }, { label: 'Student Fee Process', id: 'student-fee-process' }, { label: 'Fee Receipt – Bulk', id: 'fee-receipt-bulk' }, { label: 'Fee Refund', id: 'fee-refund' }, { label: 'Assign Exemption Type', id: 'assign-exemption-type' }, { label: 'Branch Transfer', id: 'branch-transfer' }, { label: 'Fee Structure', id: 'fee-structure' }, { label: 'Royalty Collection', id: 'royalty-collection' }, { label: 'Fee Receipt Template', id: 'fee-receipt-template' }] },
-  { title: 'Master & Rules', items: [{ label: 'Fee Category, Installment Pattern & Schedule Master', id: 'fee-category-installment-due-rules-master' }] },
+  { title: 'Transactions', items: [{ label: 'Fee Collection', id: 'fee-receipt' }, { label: 'Student Fee Process', id: 'student-fee-process' }, { label: 'Fee Receipt – Bulk', id: 'fee-receipt-bulk' }, { label: 'Fee Refund', id: 'fee-refund' }, { label: 'Assign Exemption Type', id: 'assign-exemption-type' }, { label: 'Branch Transfer', id: 'branch-transfer' }, { label: 'Fee Structure', id: 'fee-structure' }, { label: 'Student Fee Invoice', id: 'student-fee-invoice' }, { label: 'Royalty Collection', id: 'royalty-collection' }, { label: 'Fee Receipt Template', id: 'fee-receipt-template' }] },
+  { title: 'Master & Rules', items: [{ label: 'Fee Schedule', id: 'fee-category-installment-due-rules-master' }] },
   { title: 'Report Criteria', items: [{ label: 'Fee Reports', id: 'fee-collection-reports' }] }
 ];
 
@@ -286,7 +275,7 @@ const employeeSidebar: SidebarSection[] = [
 
 const hrAttendanceSidebar: SidebarSection[] = [
   { title: 'List Screen', items: [{ label: 'Employee Attendance Summary', id: 'employee-attendance-summary' }, { label: 'Late / Early Arrival Register', id: 'late-early-arrival-register' }, { label: 'Overtime Register', id: 'overtime-register' }] },
-  { title: 'Transaction', items: [{ label: 'Employee Attendance', id: 'employee-attendance-admin' }, { label: 'Apply Leave', id: 'apply-leave' }, { label: 'Leave Balance Adjust', id: 'leave-balance-adjust-bulk' }, { label: 'Leave Balance Listing', id: 'leave-balance-listing' }, { label: 'Attendance Registry', id: 'monthly-attendance-register-hr' }, { label: 'Leave Entry (Bulk)', id: 'leave-entry-bulk' }] },
+  { title: 'Transaction', items: [{ label: 'Employee Attendance', id: 'employee-attendance-admin' }, { label: 'Digital Registration Attendance', id: 'digital-registration-attendance-hr' }, { label: 'Apply Leave', id: 'apply-leave' }, { label: 'Leave Balance Adjust', id: 'leave-balance-adjust-bulk' }, { label: 'Leave Balance Listing', id: 'leave-balance-listing' }, { label: 'Attendance Registry', id: 'monthly-attendance-register-hr' }, { label: 'Leave Entry (Bulk)', id: 'leave-entry-bulk' }] },
   { title: 'Report Criteria', items: [{ label: 'Attendance Report', id: 'hr-attendance-report' }] }
 ];
 
@@ -326,7 +315,7 @@ const incomeTaxSidebar: SidebarSection[] = [
 const generalAssessmentSidebar: SidebarSection[] = [
   { title: 'Setup & Masters', items: [{ label: 'Exam Master', id: 'exam-master' }, { label: 'Grade Setup', id: 'mark-entry-single-subject' }, { label: 'Assessment Pattern Builder', id: 'mark-entry-all-subject' }, { label: 'Internal Marking Setup', id: 'mark-entry-status-verify' }, { label: 'Student Optional Subject', id: 'student-optional-subject' }, { label: 'Practical Marking Setup', id: 'student-result-remark' }, { label: 'Re-Exam Setup', id: 'result-sheet-report' }, { label: 'Generate Result', id: 'generate-result' }, { label: 'Report Card & Progress Report Templates', id: 'report-card-progress-templates' }, { label: 'Ranking & Merit List Rules', id: 'ranking-merit-list-rules' }] },
   { title: 'Result Processing', items: [{ label: 'Progress Card Report', id: 'progress-card-report' }, { label: 'Alert', id: 'assessment-alert' }] },
-  { title: 'Exam Management', items: [{ label: 'Exam Hall Management', id: 'exam-hall-management' }, { label: 'Invigilation Schedule', id: 'invigilation-schedule' }, { label: 'Report Card Designer', id: 'report-card-designer' }, { label: 'Grace Mark Management', id: 'grace-mark-management' }, { label: 'Hall Ticket Generator', id: 'hall-ticket-generator' }, { label: 'Re-Exam Student Management', id: 're-exam-student-management' }, { label: 'Exam Timetable Generation', id: 'exam-timetable-generation' }] }
+  { title: 'Exam Management', items: [{ label: 'Exam Hall Management', id: 'exam-hall-management' }, { label: 'Invigilation Schedule', id: 'invigilation-schedule' }, { label: 'Report Card Designer', id: 'report-card-designer' }, { label: 'Signature Configuration', id: 'signature-registry' }, { label: 'Grace Mark Management', id: 'grace-mark-management' }, { label: 'Hall Ticket Generator', id: 'hall-ticket-generator' }, { label: 'Re-Exam Student Management', id: 're-exam-student-management' }, { label: 'Exam Timetable Generation', id: 'exam-timetable-generation' }] }
 ];
 
 const preschoolAssessmentSidebar: SidebarSection[] = [
@@ -481,6 +470,9 @@ const administrationSidebar: SidebarSection[] = [
     { label: 'My Workflow Hub', id: 'my-workflow-hub' },
     { label: 'Workflow Setup Desk', id: 'workflow-setup-desk' }
   ] },
+  { title: 'Document & Certificate Settings', items: [
+    { label: 'Signature Management', id: 'signature-registry' }
+  ] },
   { title: 'Governance & Audit', items: [
     { label: 'Consent Log', id: 'consent-log' },
     { label: 'Data Governance & Lock Manager', id: 'data-governance-lock-manager' }
@@ -524,7 +516,7 @@ const myCommunicationSidebar: SidebarSection[] = [
   { title: 'Meetings', items: [{ label: 'Meeting & Appointment Requests', id: 'my-meeting-requests' }] },
   { title: 'History', items: [{ label: 'Communication History', id: 'my-communication-history' }] }
 ];
-const manageSettingsSidebar: SidebarSection[] = [{ title: 'System Updates', items: [{ label: 'Release Note Detail', id: 'my-release-note-detail' }] }, { title: 'Account', items: [{ label: 'My Account Settings', id: 'my-account-settings' }, { label: 'Password & Security', id: 'my-password-security' }] }, { title: 'Preferences', items: [{ label: 'General Settings', id: 'my-display-language' }] }, { title: 'Policies', items: [{ label: 'Policy Library', id: 'my-policy-library' }, { label: 'Policy Acknowledgement History', id: 'my-policy-acknowledgements' }] }, { title: 'Accounts & Devices', items: [{ label: 'Device & Session Management', id: 'my-device-sessions' }] }, { title: 'Audit', items: [{ label: 'My Data Access Log', id: 'my-data-access-log' }] }];
+const manageSettingsSidebar: SidebarSection[] = [{ title: 'System Updates', items: [{ label: 'Release Note Detail', id: 'my-release-note-detail' }] }, { title: 'Account', items: [{ label: 'My Account Settings', id: 'my-account-settings' }, { label: 'Password & Security', id: 'my-password-security' }] }, { title: 'Preferences', items: [{ label: 'General Settings', id: 'my-display-language' }] }, { title: 'Print & Document Settings', items: [{ label: 'Print Settings', id: 'global-print-settings' }] }, { title: 'Policies', items: [{ label: 'Policy Library', id: 'my-policy-library' }, { label: 'Policy Acknowledgement History', id: 'my-policy-acknowledgements' }] }, { title: 'Accounts & Devices', items: [{ label: 'Device & Session Management', id: 'my-device-sessions' }] }, { title: 'Audit', items: [{ label: 'My Data Access Log', id: 'my-data-access-log' }] }];
 const qrBarcodeSidebar: SidebarSection[] = [{ title: 'QR Code & Barcode', items: [{ label: 'QR / Barcode Master', id: 'qr-barcode-master' }, { label: 'Code Generator (Bulk & Dynamic)', id: 'code-generator' }, { label: 'Entity Mapping', id: 'entity-mapping' }, { label: 'Scan & Usage Management', id: 'scan-usage-management' }, { label: 'Attendance & Access Integration', id: 'attendance-access-integration' }, { label: 'Security & Expiry Controls', id: 'security-expiry-controls' }, { label: 'Reports & Scan Logs', id: 'reports-scan-logs' }] }];
 const gpsTrackingSidebar: SidebarSection[] = [{ title: 'GPS Tracking (Transport)', items: [{ label: 'Vehicle & Device Master', id: 'vehicle-device-master' }, { label: 'Route & Geo-Fence Setup', id: 'route-geofence-setup' }, { label: 'Live Tracking Dashboard', id: 'live-tracking-dashboard' }, { label: 'Student Boarding Tracking', id: 'student-boarding-tracking' }, { label: 'Alert Integration', id: 'gps-alert-integration' }, { label: 'Trip History & Logs', id: 'trip-history-logs' }, { label: 'Transport Analytics', id: 'transport-analytics' }] }];
 const mobileAppSidebar: SidebarSection[] = [{ title: 'Mobile App Integration', items: [{ label: 'App Configuration & Feature Control', id: 'app-configuration' }, { label: 'Role-Based Access Setup', id: 'role-based-access-setup' }, { label: 'Push Notification Management', id: 'push-notification-management' }, { label: 'Content & Announcement Control', id: 'content-announcement-control' }, { label: 'Authentication (OTP / SSO)', id: 'app-authentication' }, { label: 'App Usage Analytics', id: 'app-usage-analytics' }, { label: 'App Logs & Monitoring', id: 'app-logs-monitoring' }] }];

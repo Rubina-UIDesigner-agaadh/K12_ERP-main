@@ -138,6 +138,10 @@ export const hrRegistry: Record<string, () => any> = {
     () => import('../hr/attendance/ManualAttendanceEmployee'),
     'ManualAttendanceEmployee'
   ),
+  'digital-registration-attendance-hr': rp(
+    () => import('../hr/attendance/DigitalRegistrationAttendanceHr'),
+    'DigitalRegistrationAttendanceHr'
+  ),
   'manual-attendance-employee': rp(
     () => import('../hr/attendance/ManualAttendanceEmployee'),
     'ManualAttendanceEmployee'

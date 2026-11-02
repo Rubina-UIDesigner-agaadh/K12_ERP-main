@@ -19,6 +19,11 @@ export const adminRegistry: Record<string, () => any> = {
   'workflow-setup-desk': rp(() => import('../admin/administration/ApprovalWorkflowBuilder'), 'ApprovalWorkflowBuilder'),
   'data-governance-lock-manager': rp(() => import('../admin/administration/DataGovernanceLockManager'), 'DataGovernanceLockManager'),
   'data-scope-management': rp(() => import('../admin/security/DataScopeManagement'), 'DataScopeManagement'),
+  'signature-registry': rp(() => import('../admin/administration/SignatureRegistry'), 'SignatureRegistry'),
+  'signature-usage-permissions': rp(() => import('../admin/administration/SignatureRegistry'), 'SignatureRegistry'),
+  'document-signature-mapping': rp(() => import('../admin/administration/SignatureRegistry'), 'SignatureRegistry'),
+  'signature-approval-rules': rp(() => import('../admin/administration/SignatureRegistry'), 'SignatureRegistry'),
+  'signature-usage-audit-log': rp(() => import('../admin/administration/SignatureRegistry'), 'SignatureRegistry'),
 
   // Configuration
   'institute-policies-rule-overrides': rp(

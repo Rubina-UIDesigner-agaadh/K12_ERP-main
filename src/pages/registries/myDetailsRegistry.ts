@@ -76,6 +76,26 @@ export const myDetailsRegistry: Record<string, () => any> = {
     () => import('../my-details/settings/MyDataAccessLog'),
     'MyDataAccessLog'
   ),
+  'global-print-settings': rp(
+    () => import('../my-details/settings/GlobalPrintSettings'),
+    'GlobalPrintSettings'
+  ),
+  'module-print-configuration': rp(
+    () => import('../my-details/settings/GlobalPrintSettings'),
+    'GlobalPrintSettings'
+  ),
+  'document-print-configuration': rp(
+    () => import('../my-details/settings/GlobalPrintSettings'),
+    'GlobalPrintSettings'
+  ),
+  'print-access-permissions': rp(
+    () => import('../my-details/settings/GlobalPrintSettings'),
+    'GlobalPrintSettings'
+  ),
+  'print-history-audit': rp(
+    () => import('../my-details/settings/GlobalPrintSettings'),
+    'GlobalPrintSettings'
+  ),
 
   // Calendar (opened from the header calendar icon)
   'my-school-calendar': rp(

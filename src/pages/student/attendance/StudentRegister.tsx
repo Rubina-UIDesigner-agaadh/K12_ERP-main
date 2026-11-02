@@ -17,7 +17,11 @@ import {
   Calendar,
   ChevronDown,
   ChevronUp,
-  FileSpreadsheet } from
+  FileSpreadsheet,
+  Eye,
+  CheckCircle,
+  XCircle,
+  Clock } from
 'lucide-react';
 
 interface Student {
@@ -33,6 +37,223 @@ interface Student {
   attendance: string[];
 }
 
+function statusMeta(status: string) {
+  if (status === 'Present') return { icon: <CheckCircle className="w-5 h-5 text-green-600" />, bg: 'bg-green-100', badge: 'success' as const };
+  if (status === 'Absent') return { icon: <XCircle className="w-5 h-5 text-red-600" />, bg: 'bg-red-100', badge: 'danger' as const };
+  if (status === 'Late') return { icon: <Clock className="w-5 h-5 text-yellow-600" />, bg: 'bg-yellow-100', badge: 'warning' as const };
+  return { icon: <Calendar className="w-5 h-5 text-blue-600" />, bg: 'bg-blue-100', badge: 'info' as const };
+}
+
+function StudentAttendanceViewPanel({
+  student,
+  month,
+  year,
+  onMonthChange,
+  onYearChange,
+  onClose
+}: {
+  student: Student;
+  month: string;
+  year: string;
+  onMonthChange: (v: string) => void;
+  onYearChange: (v: string) => void;
+  onClose: () => void;
+}) {
+  const daysInMonth = new Date(Number(year), Number(month), 0).getDate();
+  const firstWeekday = new Date(Number(year), Number(month) - 1, 1).getDay();
+  const present = student.attendance.filter((s) => s === 'P').length;
+  const absent = student.attendance.filter((s) => s === 'A').length;
+  const leave = student.attendance.filter((s) => s === 'L').length;
+  const holiday = student.attendance.filter((s) => s === 'H').length;
+  const working = Math.max(daysInMonth - holiday, 1);
+  const percent = Math.round(present / working * 100);
+  const history = student.attendance.slice(0, daysInMonth).map((code, index) => {
+    const day = index + 1;
+    const date = new Date(Number(year), Number(month) - 1, day);
+    const map: Record<string, 'Present' | 'Absent' | 'Late' | 'Excused'> = { P: 'Present', A: 'Absent', L: 'Late', H: 'Excused' };
+    return {
+      date: `${year}-${month}-${String(day).padStart(2, '0')}`,
+      day: date.toLocaleDateString('en-US', { weekday: 'long' }),
+      status: map[code] || 'Present',
+      time: code === 'P' ? '08:10 AM' : code === 'L' ? '08:42 AM' : '-',
+      remarks: code === 'H' ? 'Holiday / Weekend' : 'All Classes'
+    };
+  }).filter((_, i) => {
+    const d = new Date(Number(year), Number(month) - 1, i + 1).getDay();
+    return d !== 0;
+  }).slice(-10).reverse();
+
+  const monthOptions = [
+    { value: '01', label: 'January' }, { value: '02', label: 'February' }, { value: '03', label: 'March' },
+    { value: '04', label: 'April' }, { value: '05', label: 'May' }, { value: '06', label: 'June' },
+    { value: '07', label: 'July' }, { value: '08', label: 'August' }, { value: '09', label: 'September' },
+    { value: '10', label: 'October' }, { value: '11', label: 'November' }, { value: '12', label: 'December' }
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-xl bg-gray-50 shadow-xl">
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-5 py-3">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Student Attendance</h2>
+            <p className="text-sm text-gray-500">{student.firstName} {student.lastName} · {student.grNo}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm"><Download className="w-4 h-4 mr-1" />Export Report</Button>
+            <Button variant="ghost" size="sm" onClick={onClose}><X className="w-4 h-4" /></Button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-5 p-5 lg:grid-cols-3">
+          <div className="space-y-5">
+            <Card className="overflow-hidden" noPadding>
+              <div className="bg-blue-600 p-6">
+                <div className="flex items-center gap-4">
+                  <div className="flex h-20 w-20 items-center justify-center rounded-full border-4 border-white/30 bg-white/20">
+                    <User className="h-10 w-10 text-white" />
+                  </div>
+                  <div className="text-white">
+                    <h3 className="text-xl font-bold">{student.firstName} {student.lastName}</h3>
+                    <p className="text-blue-100">Class {student.class}-{student.section}</p>
+                    <p className="text-sm text-blue-100">{student.department}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-4 p-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div><p className="text-xs uppercase tracking-wider text-gray-500">GR Number</p><p className="font-medium text-gray-900">{student.grNo}</p></div>
+                  <div><p className="text-xs uppercase tracking-wider text-gray-500">SU ID</p><p className="font-medium text-gray-900">{student.suId}</p></div>
+                  <div><p className="text-xs uppercase tracking-wider text-gray-500">Roll Number</p><p className="font-medium text-gray-900">{student.rollNo}</p></div>
+                  <div><p className="text-xs uppercase tracking-wider text-gray-500">Section</p><p className="font-medium text-gray-900">{student.section}</p></div>
+                </div>
+                <div className="border-t border-gray-100 pt-4">
+                  <p className="mb-2 text-xs uppercase tracking-wider text-gray-500">Contact Information</p>
+                  <p className="text-sm text-gray-600">{student.firstName.toLowerCase()}.{student.lastName.toLowerCase()}@school.edu</p>
+                  <p className="text-sm text-gray-600">+91 98765 43{String(student.id).padStart(3, '0')}</p>
+                </div>
+              </div>
+            </Card>
+
+            <Card title="Overall Attendance">
+              <div className="space-y-4">
+                <div className="flex items-center justify-center">
+                  <div className="relative h-32 w-32">
+                    <svg className="h-32 w-32 -rotate-90 transform">
+                      <circle cx="64" cy="64" r="56" stroke="#e5e7eb" strokeWidth="12" fill="none" />
+                      <circle
+                        cx="64"
+                        cy="64"
+                        r="56"
+                        stroke={percent >= 75 ? '#10b981' : percent >= 50 ? '#f59e0b' : '#ef4444'}
+                        strokeWidth="12"
+                        fill="none"
+                        strokeDasharray={`${percent / 100 * 352} 352`}
+                        strokeLinecap="round" />
+                    </svg>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-2xl font-bold text-gray-900">{percent}%</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-lg bg-green-50 p-3 text-center"><p className="text-xl font-bold text-green-600">{present}</p><p className="text-xs text-gray-500">Present</p></div>
+                  <div className="rounded-lg bg-red-50 p-3 text-center"><p className="text-xl font-bold text-red-600">{absent}</p><p className="text-xs text-gray-500">Absent</p></div>
+                  <div className="rounded-lg bg-yellow-50 p-3 text-center"><p className="text-xl font-bold text-yellow-600">{leave}</p><p className="text-xs text-gray-500">Late</p></div>
+                  <div className="rounded-lg bg-blue-50 p-3 text-center"><p className="text-xl font-bold text-blue-600">{holiday}</p><p className="text-xs text-gray-500">Excused</p></div>
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          <div className="space-y-5 lg:col-span-2">
+            <Card>
+              <div className="flex flex-col items-end gap-4 sm:flex-row">
+                <div className="flex-1">
+                  <Select label="Month" options={monthOptions} value={month} onChange={(e) => onMonthChange(typeof e === 'string' ? e : e.target.value)} />
+                </div>
+                <div className="flex-1">
+                  <Select
+                    label="Year"
+                    options={[{ value: '2026', label: '2026' }, { value: '2025', label: '2025' }, { value: '2024', label: '2024' }]}
+                    value={year}
+                    onChange={(e) => onYearChange(typeof e === 'string' ? e : e.target.value)} />
+                </div>
+                <Button variant="outline" leftIcon={<Search className="w-4 h-4" />}>Apply Filter</Button>
+              </div>
+            </Card>
+
+            <Card title={`Monthly Summary - ${monthOptions.find((m) => m.value === month)?.label} ${year}`}>
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
+                <div className="rounded-lg bg-gray-50 p-4 text-center"><p className="text-2xl font-bold text-gray-900">{working}</p><p className="text-sm text-gray-500">Working Days</p></div>
+                <div className="rounded-lg bg-green-50 p-4 text-center"><p className="text-2xl font-bold text-green-600">{present}</p><p className="text-sm text-gray-500">Present</p></div>
+                <div className="rounded-lg bg-red-50 p-4 text-center"><p className="text-2xl font-bold text-red-600">{absent}</p><p className="text-sm text-gray-500">Absent</p></div>
+                <div className="rounded-lg bg-yellow-50 p-4 text-center"><p className="text-2xl font-bold text-yellow-600">{leave}</p><p className="text-sm text-gray-500">Late</p></div>
+                <div className="rounded-lg bg-blue-50 p-4 text-center"><p className="text-2xl font-bold text-blue-600">{holiday}</p><p className="text-sm text-gray-500">Excused</p></div>
+              </div>
+            </Card>
+
+            <Card title="Attendance Calendar">
+              <div className="grid grid-cols-7 gap-1 text-center text-sm">
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) =>
+                <div key={d} className="p-2 font-medium text-gray-500">{d}</div>
+                )}
+                {Array.from({ length: firstWeekday }).map((_, i) => <div key={`e-${i}`} className="p-2" />)}
+                {Array.from({ length: daysInMonth }).map((_, i) => {
+                  const code = student.attendance[i] || 'P';
+                  const cls = code === 'H' ? 'bg-gray-100 text-gray-400' : code === 'P' ? 'bg-green-100 text-green-700' : code === 'A' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700';
+                  const title = code === 'H' ? 'Weekend/Holiday' : code === 'P' ? 'Present' : code === 'A' ? 'Absent' : 'Late';
+                  return <div key={i} className={`cursor-pointer rounded-lg p-2 ${cls}`} title={title}>{i + 1}</div>;
+                })}
+              </div>
+              <div className="mt-4 flex flex-wrap gap-4 border-t border-gray-100 pt-4 text-sm">
+                <div className="flex items-center gap-2"><div className="h-4 w-4 rounded bg-green-100" /><span className="text-gray-600">Present</span></div>
+                <div className="flex items-center gap-2"><div className="h-4 w-4 rounded bg-red-100" /><span className="text-gray-600">Absent</span></div>
+                <div className="flex items-center gap-2"><div className="h-4 w-4 rounded bg-yellow-100" /><span className="text-gray-600">Late</span></div>
+                <div className="flex items-center gap-2"><div className="h-4 w-4 rounded bg-blue-100" /><span className="text-gray-600">Excused</span></div>
+                <div className="flex items-center gap-2"><div className="h-4 w-4 rounded bg-gray-100" /><span className="text-gray-600">Weekend/Holiday</span></div>
+              </div>
+            </Card>
+
+            <Card title="Recent Attendance History">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      {['Date', 'Day', 'Status', 'Time', 'Remarks'].map((h) =>
+                      <th key={h} className="px-4 py-3 text-left text-sm font-medium text-gray-500">{h}</th>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {history.map((record) => {
+                      const meta = statusMeta(record.status);
+                      return (
+                        <tr key={record.date} className="border-b border-gray-50 hover:bg-gray-50">
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-3">
+                              <div className={`flex h-10 w-10 items-center justify-center rounded-full ${meta.bg}`}>{meta.icon}</div>
+                              <span className="font-medium text-gray-900">{record.date}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-gray-600">{record.day}</td>
+                          <td className="px-4 py-3"><Badge variant={meta.badge}>{record.status}</Badge></td>
+                          <td className="px-4 py-3 text-gray-600">{record.time}</td>
+                          <td className="px-4 py-3 text-sm text-gray-500">{record.remarks}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function StudentRegister() {
   // Filter States
   const [selectedClass, setSelectedClass] = useState('');
@@ -42,8 +263,25 @@ export function StudentRegister() {
   const [suId, setSuId] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [selectedMonth, setSelectedMonth] = useState('2024-03');
+  const [selectedMonth, setSelectedMonth] = useState('2026-10');
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [attendanceMode, setAttendanceMode] = useState<'whole-day' | 'subject-wise'>('whole-day');
+  const [selectedSubject, setSelectedSubject] = useState('');
+  const [viewingStudent, setViewingStudent] = useState<Student | null>(null);
+  const [viewMonth, setViewMonth] = useState('10');
+  const [viewYear, setViewYear] = useState('2026');
+
+  const subjectOptions = [
+    { value: '', label: 'All Subjects' },
+    { value: 'MATH', label: 'Mathematics' },
+    { value: 'PHY', label: 'Physics' },
+    { value: 'CHEM', label: 'Chemistry' },
+    { value: 'BIO', label: 'Biology' },
+    { value: 'ENG', label: 'English' },
+    { value: 'HIN', label: 'Hindi' },
+    { value: 'SST', label: 'Social Studies' },
+    { value: 'CS', label: 'Computer Science' }
+  ];
 
   // Get days in month
   const getDaysInMonth = (yearMonth: string) => {
@@ -246,6 +484,8 @@ export function StudentRegister() {
     setSuId('');
     setFirstName('');
     setLastName('');
+    setAttendanceMode('whole-day');
+    setSelectedSubject('');
   };
 
   // Check if any filter is active
@@ -323,7 +563,9 @@ export function StudentRegister() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Student Attendance Register</h1>
             <p className="text-sm text-gray-500">
-              Monthly attendance view with detailed filters
+              {attendanceMode === 'subject-wise'
+                ? `Subject-wise monthly register${selectedSubject ? ` · ${subjectOptions.find((s) => s.value === selectedSubject)?.label}` : ''}`
+                : 'Whole-day monthly attendance with detailed filters'}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -389,6 +631,38 @@ export function StudentRegister() {
                 <option value="D">Section D</option>
               </select>
             </div>
+
+            <div className="min-w-[220px]">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Attendance type</label>
+              <div className="flex rounded-lg border border-gray-300 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => { setAttendanceMode('whole-day'); setSelectedSubject(''); }}
+                  className={`flex-1 px-3 py-2 text-sm font-medium ${attendanceMode === 'whole-day' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+                  Whole Day
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAttendanceMode('subject-wise')}
+                  className={`flex-1 px-3 py-2 text-sm font-medium ${attendanceMode === 'subject-wise' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+                  Subject-wise
+                </button>
+              </div>
+            </div>
+
+            {attendanceMode === 'subject-wise' &&
+            <div className="flex-1 min-w-[160px]">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+                <select
+                  value={selectedSubject}
+                  onChange={(e) => setSelectedSubject(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                  {subjectOptions.map((opt) =>
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  )}
+                </select>
+              </div>
+            }
 
             <div className="flex items-center gap-2">
               <Button
@@ -672,6 +946,9 @@ export function StudentRegister() {
                   <th className="border border-gray-200 p-2 text-center bg-blue-50 min-w-[60px]">
                     %
                   </th>
+                  <th className="border border-gray-200 p-2 text-center bg-gray-50 min-w-[70px]">
+                    Action
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -727,6 +1004,20 @@ export function StudentRegister() {
                         }>
 
                         {stats.percent}%
+                      </td>
+                      <td className="border border-gray-200 p-2 text-center">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          title="View student attendance"
+                          onClick={() => {
+                            setViewingStudent(student);
+                            const [y, m] = selectedMonth.split('-');
+                            setViewYear(y);
+                            setViewMonth(m);
+                          }}>
+                          <Eye className="w-4 h-4" />
+                        </Button>
                       </td>
                     </tr>);
 
@@ -787,6 +1078,16 @@ export function StudentRegister() {
           </div>
         </Card>
       </div>
+
+      {viewingStudent &&
+      <StudentAttendanceViewPanel
+        student={viewingStudent}
+        month={viewMonth}
+        year={viewYear}
+        onMonthChange={setViewMonth}
+        onYearChange={setViewYear}
+        onClose={() => setViewingStudent(null)} />
+      }
     </div>);
 
 }
