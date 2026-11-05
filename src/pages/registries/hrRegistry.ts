@@ -236,6 +236,14 @@ export const hrRegistry: Record<string, () => any> = {
     () => import('../hr/payroll/OvertimeAdditionalEarnings'),
     'OvertimeAdditionalEarnings'
   ),
+  'overtime-management': rp(
+    () => import('../hr/payroll/OvertimeManagement'),
+    'OvertimeManagement'
+  ),
+  'staff-loan-management': rp(
+    () => import('../hr/payroll/StaffLoanManagement'),
+    'StaffLoanManagement'
+  ),
   'manual-deduction-adjustment': rp(
     () => import('../hr/payroll/ManualDeductionAdjustment'),
     'ManualDeductionAdjustment'
@@ -389,6 +397,22 @@ export const hrRegistry: Record<string, () => any> = {
     () => import('../hr/appraisal/SelfAppraisalEntry'),
     'SelfAppraisalEntry'
   ),
+  'goal-setting-tracking': rp(
+    () => import('../hr/appraisal/GoalSettingTracking'),
+    'GoalSettingTracking'
+  ),
+  'appraisal-individual-form': rp(
+    () => import('../hr/appraisal/AppraisalIndividualForm'),
+    'AppraisalIndividualForm'
+  ),
+  'employee-performance-feedback': rp(
+    () => import('../hr/appraisal/EmployeePerformanceFeedback'),
+    'EmployeePerformanceFeedback'
+  ),
+  'appraisal-outcome-increment': rp(
+    () => import('../hr/appraisal/AppraisalOutcomeIncrement'),
+    'AppraisalOutcomeIncrement'
+  ),
   'manager-hod-appraisal-entry': rp(
     () => import('../hr/appraisal/ManagerHodAppraisalEntry'),
     'ManagerHodAppraisalEntry'
@@ -396,6 +420,10 @@ export const hrRegistry: Record<string, () => any> = {
   'peer-student-feedback-capture': rp(
     () => import('../hr/appraisal/PeerStudentFeedbackCapture'),
     'PeerStudentFeedbackCapture'
+  ),
+  'student-feedback-entry': rp(
+    () => import('../hr/appraisal/StudentFeedbackEntry'),
+    'StudentFeedbackEntry'
   ),
   'appraisal-consolidation-final-rating': rp(
     () => import('../hr/appraisal/AppraisalConsolidationFinalRating'),
@@ -416,6 +444,10 @@ export const hrRegistry: Record<string, () => any> = {
   'training-needs-action-plan-report': rp(
     () => import('../hr/appraisal/AppraisalResultReport'),
     'AppraisalResultReport'
+  ),
+  'appraisal-settings': rp(
+    () => import('../hr/appraisal/AppraisalSettings'),
+    'AppraisalSettings'
   ),
   'appraisal-cycle-master': rp(
     () => import('../hr/appraisal/AppraisalCycleMaster'),

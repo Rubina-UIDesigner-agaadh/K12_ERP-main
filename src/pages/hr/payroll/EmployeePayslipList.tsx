@@ -366,6 +366,20 @@ export function EmployeePayslipList() {
             <p className="mt-2 text-right text-sm italic text-indigo-200">{words(open.net)}</p>
           </div>
 
+          <div className="grid gap-3 sm:grid-cols-4">
+            {[
+              { l: 'Casual Leave', v: '6', c: 'text-blue-500' },
+              { l: 'Earned Leave', v: '12', c: 'text-emerald-500' },
+              { l: 'Sick Leave', v: '4', c: 'text-amber-500' },
+              { l: 'Maternity / Other', v: '0', c: 'text-purple-500' }
+            ].map((x) => (
+              <div key={x.l} className="rounded-lg bg-gray-50 p-3">
+                <p className="text-[11px] font-semibold uppercase text-gray-400">{x.l}</p>
+                <p className={`text-lg font-bold ${x.c}`}>{x.v}</p>
+              </div>
+            ))}
+          </div>
+
           {open.deductions.some((d) => d.kind === 'loan') && (
             <Card title="Loans & Advances">
               <table className="w-full text-sm">

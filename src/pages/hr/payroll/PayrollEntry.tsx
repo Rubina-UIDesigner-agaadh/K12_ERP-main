@@ -223,13 +223,33 @@ export function PayrollEntry() {
           <div className="grid grid-cols-5 gap-2 rounded-xl border border-gray-200 bg-white p-4" role="navigation" aria-label="Payroll process steps">
             {STEPS.map((label, i) => (
               <div key={label} className="text-center">
-                <div className={`mx-auto flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold ${i < step ? 'bg-emerald-500 text-white' : i === step ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-500'}`}>
+                <div className={`mx-auto flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold ${i < step ? 'bg-emerald-500 text-white' : i === step ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-500'}`} aria-current={i === step ? 'step' : undefined}>
                   {i < step ? '✓' : i + 1}
                 </div>
                 <p className={`mt-1 text-xs ${i === step ? 'font-semibold text-indigo-700' : 'text-gray-500'}`}>{label}</p>
               </div>
             ))}
           </div>
+
+          <div className="grid gap-3 md:grid-cols-5">
+            {[
+              { l: 'Employees', v: String(totals.employees || (fetched ? included.length : 48)) },
+              { l: 'Total Gross', v: inr(totals.gross || 3845000) },
+              { l: 'Total Deductions', v: inr(totals.deduction || 626400) },
+              { l: 'Total Net Pay', v: inr(totals.net || 3218600) },
+              { l: 'Checklist', v: `${step + 1}/5` }
+            ].map((s) => (
+              <div key={s.l} className="rounded-xl border bg-gray-50 p-3">
+                <p className="text-[11px] font-semibold uppercase text-gray-400">{s.l}</p>
+                <p className="text-lg font-bold text-gray-800">{s.v}</p>
+              </div>
+            ))}
+          </div>
+          <ul className="flex flex-wrap gap-3 text-sm text-gray-600">
+            {['Payroll configured', 'Employees fetched', 'Salary slips created', 'Slips submitted', 'Bank entry created'].map((item, i) => (
+              <li key={item} className={i < step ? 'text-gray-400 line-through' : i === step ? 'font-semibold text-indigo-700' : ''}>{i < step ? '✓' : i + 1}. {item}</li>
+            ))}
+          </ul>
 
           <Card title="Payroll Configuration">
             <div className="grid gap-4 p-5 md:grid-cols-3">

@@ -175,11 +175,7 @@ const attendanceSidebar: SidebarSection[] = [
   {
     title: 'Transactions',
     items: [
-      { label: 'Quick Present Entry', id: 'quick-present-entry' },
-      {
-        label: 'Manual Attendance Correction',
-        id: 'manual-attendance-correction'
-      },
+      { label: 'Mark Attendance', id: 'quick-present-entry' },
       { label: 'Digital Registration Attendance', id: 'digital-registration-attendance' }]
 
   },
@@ -280,8 +276,8 @@ const hrAttendanceSidebar: SidebarSection[] = [
 ];
 
 const payrollSidebar: SidebarSection[] = [
-  { title: 'List Screens', items: [{ label: 'Payroll Summary Dashboard', id: 'payroll-summary-dashboard' }, { label: 'Salary Register View', id: 'salary-register-view' }, { label: 'Salary Slips', id: 'employee-payslip-list' }, { label: 'Payroll Exception List', id: 'payroll-exception-list' }] },
-  { title: 'Transactions', items: [{ label: 'Assign Salary Structure', id: 'employee-pay-structure' }, { label: 'Staff Advance Issue', id: 'staff-advance-issue' }, { label: 'Staff Advance Settlement', id: 'staff-advance-settlement' }, { label: 'Payroll Process', id: 'payroll-process' }, { label: 'Payroll Entry', id: 'payroll-entry' }, { label: 'Supplementary / Arrear Payroll', id: 'supplementary-arrear-payroll' }, { label: 'Overtime & Additional Earnings', id: 'overtime-additional-earnings' }, { label: 'Manual Deduction / Adjustment', id: 'manual-deduction-adjustment' }, { label: 'Bulk Increment / Pay Revision', id: 'bulk-increment-pay-revision' }, { label: 'Payslip Lock & Release', id: 'payslip-lock-release' }, { label: 'Salary Disbursement & Bank Advice', id: 'salary-disbursement-bank-advice' }, { label: 'Payroll Reversal / Re-process', id: 'payroll-reversal-reprocess' }] },
+  { title: 'List Screens', items: [{ label: 'Payroll Summary Dashboard', id: 'payroll-summary-dashboard' }, { label: 'Salary Slips', id: 'employee-payslip-list' }, { label: 'Payroll Exception List', id: 'payroll-exception-list' }] },
+  { title: 'Transactions', items: [{ label: 'Assign Salary Structure', id: 'employee-pay-structure' }, { label: 'Staff Loan Management', id: 'staff-loan-management' }, { label: 'Payroll Entry', id: 'payroll-entry' }, { label: 'Supplementary / Arrear Payroll', id: 'supplementary-arrear-payroll' }, { label: 'Overtime & Additional Earnings', id: 'overtime-additional-earnings' }, { label: 'Manual Deduction / Adjustment', id: 'manual-deduction-adjustment' }, { label: 'Bulk Increment / Pay Revision', id: 'bulk-increment-pay-revision' }, { label: 'Payslip Lock & Release', id: 'payslip-lock-release' }, { label: 'Salary Disbursement & Bank Advice', id: 'salary-disbursement-bank-advice' }, { label: 'Payroll Reversal / Re-process', id: 'payroll-reversal-reprocess' }] },
   { title: 'Report Criteria', items: [{ label: 'Payroll Reports', id: 'payroll-report' }] }
 ];
 
@@ -290,13 +286,13 @@ const hrMasterSidebar: SidebarSection[] = [
   { title: 'Employee Attendance Master', items: [{ label: 'Leave Policy', id: 'leave-type-master' }, { label: 'Attendance Rule Master', id: 'attendance-rule-master' }, { label: 'Holiday & Working Day Calendar', id: 'hr-holiday-working-day-calendar' }, { label: 'Shift Master', id: 'shift-master' }] },
   { title: 'Recruitment Master', items: [{ label: 'Evaluation Scorecard Master', id: 'evaluation-criteria-competency-master' }] },
   { title: 'Payroll Master', items: [{ label: 'Salary Component Master', id: 'pay-head-master' }, { label: 'Salary Structure Master', id: 'salary-structure-master' }, { label: 'Salary Grade / Pay Scale Master', id: 'salary-grade-pay-scale-master' }, { label: 'Payroll Calendar / Period Master', id: 'payroll-calendar-period-master' }, { label: 'Income Tax Slab', id: 'income-tax-slab' }, { label: 'Payroll Settings', id: 'payroll-setup' }, { label: 'Disbursement Mode / Bank Setup', id: 'disbursement-mode-bank-setup' }] },
-  { title: 'Appraisal Master', items: [{ label: 'Appraisal Cycle Master', id: 'appraisal-cycle-master' }, { label: 'Appraisal Template Master', id: 'appraisal-template-master' }, { label: 'Competency & KPI Master', id: 'competency-kpi-master' }, { label: 'Rating Scale Master', id: 'rating-scale-master' }, { label: 'Appraisal Role & Workflow Master', id: 'appraisal-role-workflow-master' }] },
+  { title: 'Appraisal Master', items: [{ label: 'Appraisal Settings', id: 'appraisal-settings' }, { label: 'Appraisal Cycle Master', id: 'appraisal-cycle-master' }, { label: 'Appraisal Template Master', id: 'appraisal-template-master' }, { label: 'Competency & KPI Master', id: 'competency-kpi-master' }, { label: 'Rating Scale Master', id: 'rating-scale-master' }, { label: 'Appraisal Role & Workflow Master', id: 'appraisal-role-workflow-master' }] },
   { title: 'Income Tax Master', items: [{ label: 'Financial Year & Tax Configuration Master', id: 'financial-year-tax-config-master' }, { label: 'Tax Regime Master', id: 'tax-regime-master' }, { label: 'Tax Slab & Surcharge Master', id: 'tax-slab-surcharge-master' }, { label: 'Exemption & Deduction Section Master', id: 'exemption-deduction-section-master' }, { label: 'Income Head Mapping Master', id: 'income-head-mapping-master' }, { label: 'HRA & Special Exemption Rule Master', id: 'hra-special-exemption-rule-master' }] }
 ];
 
 const appraisalSidebar: SidebarSection[] = [
   { title: 'List Screens', items: [{ label: 'Appraisal Dashboard', id: 'appraisal-dashboard' }, { label: 'Appraisal Cycle Status View', id: 'appraisal-cycle-status-view' }, { label: 'Employee Appraisal History', id: 'employee-appraisal-history' }] },
-  { title: 'Transactions', items: [{ label: 'Appraisal Cycle Assignment', id: 'appraisal-cycle-assignment' }, { label: 'Self Appraisal Entry', id: 'self-appraisal-entry' }, { label: 'Manager / HOD Appraisal Entry', id: 'manager-hod-appraisal-entry' }, { label: 'Peer / Student Feedback Capture', id: 'peer-student-feedback-capture' }, { label: 'Appraisal Consolidation & Final Rating', id: 'appraisal-consolidation-final-rating' }, { label: 'IDP / Training Needs Entry', id: 'idp-training-needs-entry' }] },
+  { title: 'Transactions', items: [{ label: 'Appraisal Cycle Assignment', id: 'appraisal-cycle-assignment' }, { label: 'Goal Setting & Tracking', id: 'goal-setting-tracking' }, { label: 'Self Appraisal Entry', id: 'self-appraisal-entry' }, { label: 'Appraisal (Individual)', id: 'appraisal-individual-form' }, { label: 'Employee Performance Feedback', id: 'employee-performance-feedback' }, { label: 'Manager / HOD Appraisal Entry', id: 'manager-hod-appraisal-entry' }, { label: 'Student Feedback Entry', id: 'student-feedback-entry' }, { label: 'Peer / Student Feedback Capture', id: 'peer-student-feedback-capture' }, { label: 'Appraisal Consolidation & Final Rating', id: 'appraisal-consolidation-final-rating' }, { label: 'Appraisal Outcome & Increment', id: 'appraisal-outcome-increment' }, { label: 'IDP / Training Needs Entry', id: 'idp-training-needs-entry' }] },
   { title: 'Report Criteria', items: [{ label: 'Appraisal Reports', id: 'appraisal-result-report' }] }
 ];
 
