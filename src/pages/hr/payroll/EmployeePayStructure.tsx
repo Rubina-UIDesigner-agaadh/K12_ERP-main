@@ -91,7 +91,10 @@ export function EmployeePayStructure() {
     taxRegime: 'New' as 'Old' | 'New',
     baseSalary: 0,
     variableAmount: 0,
-    payrollAccount: ''
+    payrollAccount: '',
+    previousTaxable: 0,
+    previousTds: 0,
+    form12b: ''
   });
 
   const [fDept, setFDept] = useState<string[]>([]);
@@ -318,7 +321,9 @@ export function EmployeePayStructure() {
                       const v = typeof e === 'string' ? e : e.target.value;
                       setForm({ ...form, taxSlab: v, taxRegime: v.startsWith('Old') ? 'Old' : 'New' });
                     }} options={[{ value: 'New Regime — FY 2026-27', label: 'New Regime — FY 2026-27' }, { value: 'Old Regime — FY 2026-27', label: 'Old Regime — FY 2026-27' }]} />
-                    <p className="mt-1 text-xs italic text-gray-400">Employee can declare preferred regime via self-service portal</p>
+                    <p className="mt-1 text-xs italic text-gray-400">Mandatory if the assigned structure contains a tax component.</p>
+                    <p className="mt-2 text-sm text-gray-700">Tax Regime: <span className="font-medium">{form.taxRegime} Regime</span> <span className="text-xs text-gray-400">(from selected slab)</span></p>
+                    <button type="button" className="mt-1 text-sm text-indigo-700 underline" onClick={() => flash('Tax regime comparator: Old vs New annual tax is estimated from this assignment. Choose the cheaper regime on the employee self-service portal; it writes back here.')}>Tax Regime Comparator</button>
                   </div>
                 </div>
               </div>
@@ -341,6 +346,24 @@ export function EmployeePayStructure() {
                 </div>
                 <Select label="Payroll Payable Account" value={form.payrollAccount} onChange={(e) => setForm({ ...form, payrollAccount: typeof e === 'string' ? e : e.target.value })} options={[{ value: '', label: 'Use global account' }, { value: 'SBI Salary Payable', label: 'SBI Salary Payable' }]} />
               </div>
+
+              {form.effectiveFrom && !form.effectiveFrom.endsWith('-04-01') && (
+                <div>
+                  <h2 className="mb-4 flex items-center gap-3 text-base font-semibold text-gray-800"><span className="h-5 w-1 rounded bg-indigo-600" />Opening Balances (mid-year joiner)</h2>
+                  <div className="grid gap-5 md:grid-cols-2">
+                    <Input label="Taxable Earnings from Previous Employer" type="number" value={form.previousTaxable || ''} onChange={(e) => setForm({ ...form, previousTaxable: Number(e.target.value) || 0 })} />
+                    <Input label="Tax Deducted by Previous Employer" type="number" value={form.previousTds || ''} onChange={(e) => setForm({ ...form, previousTds: Number(e.target.value) || 0 })} />
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-gray-600">Form 12B Reference</label>
+                      <input type="file" accept=".pdf,image/*" className="block w-full text-sm text-gray-600" onChange={(e) => setForm({ ...form, form12b: e.target.files?.[0]?.name || '' })} />
+                      {form.form12b && <p className="mt-1 text-xs text-gray-500">{form.form12b}</p>}
+                    </div>
+                  </div>
+                  {form.previousTaxable > 0 && (
+                    <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">Opening balance detected. Total annual taxable income will include ₹{form.previousTaxable.toLocaleString('en-IN')} from previous employer.</p>
+                  )}
+                </div>
+              )}
 
               {form.structure && (
                 <div>

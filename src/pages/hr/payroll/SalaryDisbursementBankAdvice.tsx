@@ -29,6 +29,11 @@ type Row = {
 const inr = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
 const words = (n: number) => `${n.toLocaleString('en-IN')} Only`;
 
+const WITHHELD = [
+  { id: 'EMP-2048', name: 'Sunita Rao', hold: 'SW-2026-001', net: 72660 },
+  { id: 'EMP-2055', name: 'Mahesh T', hold: 'SW-2026-002', net: 38000 }
+];
+
 const SEED: Row[] = [
   { sr: 1, id: 'EMP-1042', name: 'Meera Iyer', designation: 'PGT Physics', bank: 'SBI', account: '12345678901', ifsc: 'SBIN0001234', micr: '380002001', net: 72660, mode: 'NEFT', status: 'Initiated' },
   { sr: 2, id: 'EMP-1088', name: 'Rajesh Kumar', designation: 'TGT Maths', bank: 'HDFC', account: '98765432101', ifsc: 'HDFC0001234', micr: '380240002', net: 58900, mode: 'NEFT', status: 'Initiated' },
@@ -90,6 +95,11 @@ export function SalaryDisbursementBankAdvice() {
         <p className="text-sm text-gray-500">Bank mandate, NEFT file, advice letter and UTR reconciliation after payroll bank entry.</p>
       </div>
       {notice && <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800">{notice}</div>}
+      <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        Bank Mandate Report and NEFT file exclude withheld employees.
+        {WITHHELD.map((w) => ` ${w.name} (${w.id} · ${w.hold} · ${inr(w.net)})`).join(' ·')}
+        {' '}— excluded. Release them from Salary Withholding & Release or Payroll Entry.
+      </div>
 
       <div className="flex flex-wrap gap-2">
         {[{ id: 'mandate' as const, label: 'Bank Mandate Report' }, { id: 'neft' as const, label: 'NEFT / ECS File' }, { id: 'letter' as const, label: 'Bank Advice Letter' }, { id: 'recon' as const, label: 'Confirmation & Reconciliation' }].map((t) => (

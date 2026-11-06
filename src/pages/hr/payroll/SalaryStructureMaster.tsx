@@ -11,11 +11,14 @@ interface StructureRow {
   id: string;
   component: string;
   abbr: string;
+  alias: string;
   amount: number;
   condition: string;
   formula: string;
   dependsOnPaymentDays: boolean;
   isTaxApplicable: boolean;
+  deductFullTaxOnSelectedPayrollDate: boolean;
+  statisticalComponent: boolean;
   accrualComponent: boolean;
 }
 
@@ -36,6 +39,8 @@ interface SalaryStructure {
   maxBenefits: number;
   salarySlipBasedOnTimesheet: boolean;
   payrollFrequency: string;
+  currency: string;
+  letterHead: string;
   modeOfPayment: string;
   paymentAccount: string;
   isActive: boolean;
@@ -63,6 +68,8 @@ const COMPONENT_OPTIONS = [
   { value: 'ESIE', label: 'ESI Employee', abbr: 'ESIE', type: 'Deduction' },
   { value: 'PT', label: 'Professional Tax', abbr: 'PT', type: 'Deduction' },
   { value: 'TDS', label: 'Income Tax / TDS', abbr: 'TDS', type: 'Deduction' },
+  { value: 'EC', label: 'Education Cess', abbr: 'EC', type: 'Deduction' },
+  { value: 'SA', label: 'Special Allowance', abbr: 'SA', type: 'Earning' },
   { value: 'LOAN', label: 'Loan EMI Deduction', abbr: 'LOAN', type: 'Deduction' },
   { value: 'LWP', label: 'Leave Without Pay', abbr: 'LWP', type: 'Deduction' },
   { value: 'SAR', label: 'Salary Advance Recovery', abbr: 'SAR', type: 'Deduction' },
@@ -99,11 +106,14 @@ const emptyRow = (): StructureRow => ({
   id: `r-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
   component: '',
   abbr: '',
+  alias: '',
   amount: 0,
   condition: '',
   formula: '',
   dependsOnPaymentDays: false,
   isTaxApplicable: false,
+  deductFullTaxOnSelectedPayrollDate: false,
+  statisticalComponent: false,
   accrualComponent: false
 });
 
@@ -115,47 +125,47 @@ const emptyBenefit = (): BenefitRow => ({
 
 const row = (component: string, amount: number, extra: Partial<StructureRow> = {}): StructureRow => {
   const found = COMPONENT_OPTIONS.find((c) => c.value === component);
-  return { ...emptyRow(), component, abbr: found?.abbr || component, amount, isTaxApplicable: found?.type === 'Earning', ...extra };
+  return { ...emptyRow(), component, abbr: found?.abbr || component, alias: found?.label || '', amount, isTaxApplicable: found?.type === 'Earning', ...extra };
 };
 
 const INITIAL: SalaryStructure[] = [
   {
-    id: 'SS001', name: 'Teaching Staff - Permanent', code: 'TSP-2026', company: 'edumanager', leaveEncashmentAmountPerDay: 850, maxBenefits: 50000, salarySlipBasedOnTimesheet: false, payrollFrequency: 'Monthly', modeOfPayment: 'Bank Transfer (NEFT/RTGS)', paymentAccount: 'BANK-SAL', isActive: true, status: 'Submitted',
-    earnings: [row('BASIC', 25000, { dependsOnPaymentDays: true, isTaxApplicable: true }), row('DA', 0, { formula: 'basic * 0.45', isTaxApplicable: true }), row('HRA', 0, { formula: 'basic * 0.40', isTaxApplicable: true }), row('TA', 1600), row('TACH', 2000), row('MA', 1250)],
-    deductions: [row('EPF', 0, { formula: 'min(basic * 0.12, 1800)' }), row('PT', 200), row('TDS', 0, { formula: 'taxable_salary' })],
+    id: 'SS001', name: 'Teaching Staff - Permanent', code: 'TSP-2026', company: 'edumanager', leaveEncashmentAmountPerDay: 850, maxBenefits: 50000, salarySlipBasedOnTimesheet: false, payrollFrequency: 'Monthly', currency: 'INR', letterHead: 'School Letterhead', modeOfPayment: 'Bank Transfer (NEFT/RTGS)', paymentAccount: 'BANK-SAL', isActive: true, status: 'Submitted',
+    earnings: [row('BASIC', 25000, { dependsOnPaymentDays: true, isTaxApplicable: true }), row('DA', 0, { formula: 'basic * 0.45', isTaxApplicable: true }), row('HRA', 0, { formula: 'basic * 0.40', isTaxApplicable: true }), row('TA', 1600), row('TACH', 2000), row('MA', 1250), row('CEA', 200, { isTaxApplicable: true }), row('SA', 0, { formula: 'basic * 0.10', isTaxApplicable: true }), row('LTA', 0, { formula: 'base * 0.0833', isTaxApplicable: true })],
+    deductions: [row('EPF', 0, { formula: 'min(basic * 0.12, 1800)' }), row('PT', 200), row('TDS', 0), row('EC', 0, { formula: 'TDS * 0.04' })],
     employerContributions: [row('EPFER', 0, { formula: 'min(basic * 0.12, 1800)', accrualComponent: true })],
     flexibleBenefits: []
   },
   {
-    id: 'SS002', name: 'Teaching Staff - Contractual', code: 'TSC-2026', company: 'edumanager', leaveEncashmentAmountPerDay: 0, maxBenefits: 0, salarySlipBasedOnTimesheet: false, payrollFrequency: 'Monthly', modeOfPayment: 'Bank Transfer (NEFT/RTGS)', paymentAccount: 'BANK-SAL', isActive: true, status: 'Submitted',
+    id: 'SS002', name: 'Teaching Staff - Contractual', code: 'TSC-2026', company: 'edumanager', leaveEncashmentAmountPerDay: 0, maxBenefits: 0, salarySlipBasedOnTimesheet: false, payrollFrequency: 'Monthly', currency: 'INR', letterHead: 'School Letterhead', modeOfPayment: 'Bank Transfer (NEFT/RTGS)', paymentAccount: 'BANK-SAL', isActive: true, status: 'Submitted',
     earnings: [row('BASIC', 18000, { dependsOnPaymentDays: true }), row('HRA', 0, { formula: 'basic * 0.20' }), row('TA', 1600)],
     deductions: [row('EPF', 0, { formula: 'min(basic * 0.12, 1800)' }), row('PT', 200)],
     employerContributions: [],
     flexibleBenefits: []
   },
   {
-    id: 'SS003', name: 'Visiting Faculty - Hourly', code: 'VFH-2026', company: 'edumanager', leaveEncashmentAmountPerDay: 0, maxBenefits: 0, salarySlipBasedOnTimesheet: true, payrollFrequency: 'Monthly', modeOfPayment: 'Bank Transfer (NEFT/RTGS)', paymentAccount: 'BANK-SAL', isActive: true, status: 'Submitted',
+    id: 'SS003', name: 'Visiting Faculty - Hourly', code: 'VFH-2026', company: 'edumanager', leaveEncashmentAmountPerDay: 0, maxBenefits: 0, salarySlipBasedOnTimesheet: true, payrollFrequency: 'Monthly', currency: 'INR', letterHead: 'School Letterhead', modeOfPayment: 'Bank Transfer (NEFT/RTGS)', paymentAccount: 'BANK-SAL', isActive: true, status: 'Submitted',
     earnings: [row('BASIC', 0, { formula: 'hourly_rate * timesheet_hours' }), row('OT', 0, { formula: '(basic / total_working_days) * ot_hours' })],
     deductions: [row('TDS', 0, { formula: 'taxable_salary' })],
     employerContributions: [],
     flexibleBenefits: []
   },
   {
-    id: 'SS004', name: 'Non-Teaching Staff - Admin', code: 'NTA-2026', company: 'edumanager', leaveEncashmentAmountPerDay: 600, maxBenefits: 20000, salarySlipBasedOnTimesheet: false, payrollFrequency: 'Monthly', modeOfPayment: 'Bank Transfer (NEFT/RTGS)', paymentAccount: 'BANK-SAL', isActive: true, status: 'Submitted',
+    id: 'SS004', name: 'Non-Teaching Staff - Admin', code: 'NTA-2026', company: 'edumanager', leaveEncashmentAmountPerDay: 600, maxBenefits: 20000, salarySlipBasedOnTimesheet: false, payrollFrequency: 'Monthly', currency: 'INR', letterHead: 'School Letterhead', modeOfPayment: 'Bank Transfer (NEFT/RTGS)', paymentAccount: 'BANK-SAL', isActive: true, status: 'Submitted',
     earnings: [row('BASIC', 22000, { dependsOnPaymentDays: true }), row('DA', 0, { formula: 'basic * 0.45' }), row('HRA', 0, { formula: 'basic * 0.20' }), row('TA', 1600), row('MA', 1250)],
     deductions: [row('EPF', 0, { formula: 'min(basic * 0.12, 1800)' }), row('PT', 200)],
     employerContributions: [row('EPFER', 0, { formula: 'min(basic * 0.12, 1800)', accrualComponent: true })],
     flexibleBenefits: []
   },
   {
-    id: 'SS005', name: 'Non-Teaching Staff - Support', code: 'NTS-2026', company: 'edumanager', leaveEncashmentAmountPerDay: 400, maxBenefits: 0, salarySlipBasedOnTimesheet: false, payrollFrequency: 'Monthly', modeOfPayment: 'Bank Transfer (NEFT/RTGS)', paymentAccount: 'BANK-SAL', isActive: true, status: 'Submitted',
+    id: 'SS005', name: 'Non-Teaching Staff - Support', code: 'NTS-2026', company: 'edumanager', leaveEncashmentAmountPerDay: 400, maxBenefits: 0, salarySlipBasedOnTimesheet: false, payrollFrequency: 'Monthly', currency: 'INR', letterHead: 'School Letterhead', modeOfPayment: 'Bank Transfer (NEFT/RTGS)', paymentAccount: 'BANK-SAL', isActive: true, status: 'Submitted',
     earnings: [row('BASIC', 14000, { dependsOnPaymentDays: true }), row('TA', 1600)],
     deductions: [row('EPF', 0, { formula: 'min(basic * 0.12, 1800)' }), row('ESIE', 0, { formula: 'gross * 0.0075', condition: 'gross <= 21000' }), row('PT', 200)],
     employerContributions: [row('ESIER', 0, { formula: 'gross * 0.0325', condition: 'gross <= 21000' })],
     flexibleBenefits: []
   },
   {
-    id: 'SS006', name: 'Management Cadre', code: 'MGT-2026', company: 'edumanager', leaveEncashmentAmountPerDay: 1200, maxBenefits: 80000, salarySlipBasedOnTimesheet: false, payrollFrequency: 'Monthly', modeOfPayment: 'Bank Transfer (NEFT/RTGS)', paymentAccount: 'BANK-SAL', isActive: true, status: 'Submitted',
+    id: 'SS006', name: 'Management Cadre', code: 'MGT-2026', company: 'edumanager', leaveEncashmentAmountPerDay: 1200, maxBenefits: 80000, salarySlipBasedOnTimesheet: false, payrollFrequency: 'Monthly', currency: 'INR', letterHead: 'School Letterhead', modeOfPayment: 'Bank Transfer (NEFT/RTGS)', paymentAccount: 'BANK-SAL', isActive: true, status: 'Submitted',
     earnings: [row('BASIC', 45000, { dependsOnPaymentDays: true }), row('DA', 0, { formula: 'basic * 0.45' }), row('HRA', 0, { formula: 'basic * 0.40' }), row('SRA', 5000, { condition: 'designation in ["HOD","Coordinator","Incharge"]' }), row('MA', 1250), row('LTA', 3000)],
     deductions: [row('EPF', 0, { formula: 'min(basic * 0.12, 1800)' }), row('TDS', 0, { formula: 'taxable_salary' }), row('PT', 200)],
     employerContributions: [row('EPFER', 0, { formula: 'min(basic * 0.12, 1800)', accrualComponent: true })],
@@ -174,7 +184,7 @@ function optionsFor(type: string) {
 function applyComponent(rowItem: StructureRow, value: string, expectedType: string): { row: StructureRow; error: string } {
   const found = COMPONENT_OPTIONS.find((c) => c.value === value);
   if (found && found.type !== expectedType) return { row: rowItem, error: `Component type mismatch. ${found.label} is ${found.type}, not ${expectedType}.` };
-  return { row: { ...rowItem, component: value, abbr: found?.abbr || '' }, error: '' };
+  return { row: { ...rowItem, component: value, abbr: found?.abbr || '', alias: rowItem.alias || found?.label || '' }, error: '' };
 }
 
 function evalSimple(formula: string, basic: number, gross: number) {
@@ -214,6 +224,8 @@ export function SalaryStructureMaster() {
   const [maxBenefits, setMaxBenefits] = useState(0);
   const [timesheet, setTimesheet] = useState(false);
   const [frequency, setFrequency] = useState('Monthly');
+  const [currency, setCurrency] = useState('INR');
+  const [letterHead, setLetterHead] = useState('School Letterhead');
   const [modeOfPayment, setModeOfPayment] = useState('Bank Transfer (NEFT/RTGS)');
   const [paymentAccount, setPaymentAccount] = useState('BANK-SAL');
   const [isActive, setIsActive] = useState(true);
@@ -256,6 +268,8 @@ export function SalaryStructureMaster() {
     setMaxBenefits(0);
     setTimesheet(false);
     setFrequency('Monthly');
+    setCurrency('INR');
+    setLetterHead('School Letterhead');
     setModeOfPayment('Bank Transfer (NEFT/RTGS)');
     setPaymentAccount('BANK-SAL');
     setIsActive(true);
@@ -277,6 +291,8 @@ export function SalaryStructureMaster() {
     setMaxBenefits(s.maxBenefits);
     setTimesheet(s.salarySlipBasedOnTimesheet);
     setFrequency(s.payrollFrequency);
+    setCurrency(s.currency || 'INR');
+    setLetterHead(s.letterHead || 'School Letterhead');
     setModeOfPayment(s.modeOfPayment);
     setPaymentAccount(s.paymentAccount);
     setIsActive(s.isActive);
@@ -300,6 +316,8 @@ export function SalaryStructureMaster() {
       maxBenefits,
       salarySlipBasedOnTimesheet: timesheet,
       payrollFrequency: frequency,
+      currency,
+      letterHead,
       modeOfPayment,
       paymentAccount,
       isActive,
@@ -352,10 +370,14 @@ export function SalaryStructureMaster() {
               <th className="px-3 py-2">No.</th>
               <th className="px-3 py-2">Component</th>
               <th className="px-3 py-2">Abbr</th>
+              <th className="px-3 py-2">Alias</th>
               <th className="px-3 py-2">Condition</th>
               <th className="px-3 py-2">Formula</th>
               <th className="px-3 py-2">Amount (INR)</th>
+              <th className="px-3 py-2">Payment days</th>
               <th className="px-3 py-2">Tax</th>
+              <th className="px-3 py-2">Full tax on date</th>
+              <th className="px-3 py-2">Do not pay</th>
               <th className="px-3 py-2" />
             </tr>
           </thead>
@@ -367,10 +389,17 @@ export function SalaryStructureMaster() {
                   <Select options={optionsFor(type)} value={item.component} onChange={(v) => setComponent(setRows, item.id, v, type)} />
                 </td>
                 <td className="px-3 py-2 w-24"><Input value={item.abbr} onChange={(e) => setRows((prev) => prev.map((r) => (r.id === item.id ? { ...r, abbr: e.target.value } : r)))} /></td>
+                <td className="px-3 py-2 min-w-[140px]"><Input value={item.alias} onChange={(e) => setRows((prev) => prev.map((r) => (r.id === item.id ? { ...r, alias: e.target.value } : r)))} placeholder="slip name" /></td>
                 <td className="px-3 py-2 min-w-[160px]"><Input value={item.condition} onChange={(e) => setRows((prev) => prev.map((r) => (r.id === item.id ? { ...r, condition: e.target.value } : r)))} placeholder="optional override" /></td>
-                <td className="px-3 py-2 min-w-[180px]"><Input value={item.formula} onChange={(e) => setRows((prev) => prev.map((r) => (r.id === item.id ? { ...r, formula: e.target.value } : r)))} placeholder="optional override" /></td>
-                <td className="px-3 py-2 w-32"><Input type="number" value={item.amount} onChange={(e) => setRows((prev) => prev.map((r) => (r.id === item.id ? { ...r, amount: parseFloat(e.target.value) || 0 } : r)))} /></td>
+                <td className="px-3 py-2 min-w-[180px]"><Input value={item.formula} onChange={(e) => setRows((prev) => prev.map((r) => (r.id === item.id ? { ...r, formula: e.target.value } : r)))} placeholder={item.component === 'TDS' ? 'leave blank — auto' : 'optional override'} /></td>
+                <td className="px-3 py-2 w-32">
+                  <Input type="number" value={item.amount} onChange={(e) => setRows((prev) => prev.map((r) => (r.id === item.id ? { ...r, amount: parseFloat(e.target.value) || 0 } : r)))} />
+                  {item.component === 'TDS' && item.amount > 0 && <p className="mt-1 text-[11px] text-amber-700">Income Tax is Variable Based on Taxable Salary. The amount entered here will be ignored.</p>}
+                </td>
+                <td className="px-3 py-2 text-center"><input type="checkbox" className="h-4 w-4 rounded text-blue-600" checked={item.dependsOnPaymentDays} onChange={(e) => setRows((prev) => prev.map((r) => (r.id === item.id ? { ...r, dependsOnPaymentDays: e.target.checked } : r)))} /></td>
                 <td className="px-3 py-2 text-center"><input type="checkbox" className="h-4 w-4 rounded text-blue-600" checked={item.isTaxApplicable} onChange={(e) => setRows((prev) => prev.map((r) => (r.id === item.id ? { ...r, isTaxApplicable: e.target.checked } : r)))} /></td>
+                <td className="px-3 py-2 text-center"><input type="checkbox" className="h-4 w-4 rounded text-blue-600" checked={item.deductFullTaxOnSelectedPayrollDate} onChange={(e) => setRows((prev) => prev.map((r) => (r.id === item.id ? { ...r, deductFullTaxOnSelectedPayrollDate: e.target.checked } : r)))} /></td>
+                <td className="px-3 py-2 text-center"><input type="checkbox" className="h-4 w-4 rounded text-blue-600" checked={item.statisticalComponent} onChange={(e) => setRows((prev) => prev.map((r) => (r.id === item.id ? { ...r, statisticalComponent: e.target.checked } : r)))} /></td>
                 <td className="px-3 py-2">
                   {rows.length > 1 && (
                     <button type="button" className="rounded p-1 hover:bg-red-50" onClick={() => setRows((prev) => prev.filter((r) => r.id !== item.id))}><Trash2 className="h-4 w-4 text-red-500" /></button>
@@ -453,6 +482,8 @@ export function SalaryStructureMaster() {
                   <Input label="Salary Structure Name *" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Teaching Staff - Permanent" disabled={readOnly} />
                   <Input label="Code *" value={code} onChange={(e) => setCode(e.target.value)} placeholder="e.g. TSP-2026" disabled={readOnly} />
                   <Select label="Company" options={COMPANIES} value={company} onChange={setCompany} />
+                  <Select label="Currency" options={[{ value: 'INR', label: 'INR' }]} value={currency} onChange={setCurrency} />
+                  <Select label="Letter Head" options={[{ value: 'School Letterhead', label: 'School Letterhead' }, { value: 'Trust Letterhead', label: 'Trust Letterhead' }]} value={letterHead} onChange={setLetterHead} />
                   <Select label="Payroll Frequency" options={FREQUENCY} value={frequency} onChange={setFrequency} />
                   <label className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800">
                     <input type="checkbox" className="h-4 w-4 rounded text-blue-600" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
@@ -477,7 +508,9 @@ export function SalaryStructureMaster() {
 
                 <div className="flex flex-wrap gap-2">
                   <Button variant="outline" onClick={reset}><X className="h-4 w-4 mr-1" />Cancel</Button>
-                  <Button variant="outline" onClick={() => save('Draft')} disabled={readOnly}><Save className="h-4 w-4 mr-2" />Save Draft</Button>
+                  <Button variant="outline" onClick={() => save('Draft')} disabled={readOnly}><Save className="h-4 w-4 mr-2" />Save</Button>
+                  <Button variant="outline" onClick={() => navigate('/hr/payroll/employee-pay-structure')} disabled={status !== 'Submitted' && !editId}>Assign Salary Structure</Button>
+                  <Button variant="outline" onClick={() => setNotice(`Preview salary slip for base ${inr(basePreview)}: Gross ${inr(preview.gross)}, Deductions ${inr(preview.deduct)}, Net ${inr(preview.net)}.`)}>Preview Salary Slip</Button>
                   <Button variant="primary" onClick={() => save('Submitted')} disabled={readOnly}>Submit</Button>
                 </div>
                 {readOnly && <p className="text-xs text-gray-500">Submitted structures are read-only. Use Amend to create a new version.</p>}
@@ -489,10 +522,23 @@ export function SalaryStructureMaster() {
               <div className="space-y-3 p-4 text-sm">
                 <Input label="Hypothetical basic / base amount" type="number" value={basePreview} onChange={(e) => setBasePreview(parseFloat(e.target.value) || 0)} />
                 <div className="rounded-lg bg-indigo-50 p-3">
-                  <p>Gross earnings: {inr(preview.gross)}</p>
-                  <p>Total deductions: {inr(preview.deduct)}</p>
-                  <p className="font-semibold">Net pay: {inr(preview.net)}</p>
+                  <p>Total Earnings (Gross): {inr(preview.gross)}</p>
+                  <p>Total Deductions: {inr(preview.deduct)}</p>
+                  <p className="font-semibold">Net Pay: {inr(preview.net)}</p>
                   <p>Effective deduction rate: {preview.rate.toFixed(1)}%</p>
+                </div>
+                <div className="overflow-x-auto rounded-lg border border-gray-200">
+                  <table className="w-full text-xs">
+                    <thead className="bg-gray-50 text-left uppercase text-gray-500"><tr><th className="px-2 py-1">Component</th><th className="px-2 py-1 text-right">Amount</th></tr></thead>
+                    <tbody>
+                      {earnings.filter((r) => r.component).map((r) => (
+                        <tr key={r.id} className="border-t"><td className="px-2 py-1">{r.alias || r.component}</td><td className="px-2 py-1 text-right">{inr(r.amount || evalSimple(r.formula, basePreview, basePreview))}</td></tr>
+                      ))}
+                      {deductions.filter((r) => r.component).map((r) => (
+                        <tr key={r.id} className="border-t text-red-700"><td className="px-2 py-1">{r.alias || r.component}</td><td className="px-2 py-1 text-right">{r.component === 'TDS' && !r.amount && !r.formula ? 'Auto' : inr(r.amount || evalSimple(r.formula, basePreview, preview.gross))}</td></tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
                 <p className="text-xs text-gray-500">Illustration only. Actual slips use attendance, leave, tax slab and additional salary. This does not assign the structure.</p>
                 <Button variant="outline" className="w-full" onClick={() => navigate('/hr/payroll/employee-pay-structure')}>View assignments</Button>

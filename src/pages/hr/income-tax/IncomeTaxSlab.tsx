@@ -6,6 +6,7 @@ import { Input } from '../../../components/ui/Input';
 import { Select } from '../../../components/ui/Select';
 import { Badge } from '../../../components/ui/Badge';
 import { Toggle } from '../../../components/ui/Toggle';
+import { Modal } from '../../../components/ui/Modal';
 import { Plus, Edit, Trash2, Save } from 'lucide-react';
 import { PAYROLL_COMPANIES } from '../payroll/PayrollSetup';
 import { ANNUAL_PERIOD_STORE, INCOME_TAX_SLAB_STORE, type AnnualPeriod } from '../payroll/PayrollCalendarPeriodMaster';
@@ -13,6 +14,7 @@ import { ANNUAL_PERIOD_STORE, INCOME_TAX_SLAB_STORE, type AnnualPeriod } from '.
 type Regime = 'Old Regime' | 'New Regime' | 'Custom';
 type SlabRow = { id: string; from: number; to: number | null; rate: number; condition: string };
 type ExemptionRow = { id: string; category: string; sub: string; maxAmount: number; basedOn: 'Fixed' | 'Declared' | 'Formula'; appliesIf: string; oldOnly: boolean };
+type TaxCharge = { id: string; description: string; kind: 'Percentage of Tax' | 'Flat Amount'; rate: number; condition: string; minAmount: number | null; maxAmount: number | null };
 export type TaxSlabPack = {
   id: string;
   name: string;
@@ -22,17 +24,22 @@ export type TaxSlabPack = {
   effectiveFrom: string;
   currency: string;
   status: 'Active' | 'Inactive';
+  submitted: boolean;
+  allowExemption: boolean;
+  standardExemption: number;
+  taxReliefLimit: number;
   employees: number;
   rows: SlabRow[];
   surchargeRate: number;
   surchargeThreshold: number;
   cessPercent: number;
+  charges: TaxCharge[];
   exemptions: ExemptionRow[];
 };
 
 const inr = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
 const FALLBACK_PERIODS: AnnualPeriod[] = [
-  { id: 'AY-2026-27', name: 'AY 2026-27 Payroll Period', company: 'edumanager', financialYear: '2026-27', startDate: '2026-04-01', endDate: '2027-03-31', status: 'Active', declarationStart: '2026-04-15', declarationEnd: '2026-11-30', hasSalarySlips: true, description: '' }
+  { id: 'AY-2026-27', name: 'AY 2026-27 Payroll Period', company: 'edumanager', financialYear: '2026-27', academicYear: '2026-27', fiscalYear: 'FY 2026-27', startDate: '2026-04-01', endDate: '2027-03-31', status: 'Active', declarationStart: '2026-04-15', declarationEnd: '2026-11-30', hasSalarySlips: true, description: '', frequency: 'Monthly', paymentDay: 1, holidayList: '', currency: 'INR', costCenter: '', flexibleBenefits: false, benefitClaimDeadline: '', autoTaxUnclaimed: false }
 ];
 const loadPeriods = (): AnnualPeriod[] => {
   try {
@@ -43,6 +50,12 @@ const loadPeriods = (): AnnualPeriod[] => {
     return FALLBACK_PERIODS;
   }
 };
+const defaultCharges = (): TaxCharge[] => [
+  { id: 'c1', description: 'Health & Education Cess', kind: 'Percentage of Tax', rate: 4, condition: '', minAmount: 0, maxAmount: null },
+  { id: 'c2', description: 'Surcharge (10%)', kind: 'Percentage of Tax', rate: 10, condition: 'annual_taxable_earning > 5000000', minAmount: 5000001, maxAmount: 10000000 },
+  { id: 'c3', description: 'Surcharge (15%)', kind: 'Percentage of Tax', rate: 15, condition: 'annual_taxable_earning > 10000000', minAmount: 10000001, maxAmount: 20000000 },
+  { id: 'c4', description: 'Surcharge (25%)', kind: 'Percentage of Tax', rate: 25, condition: 'annual_taxable_earning > 20000000', minAmount: 20000001, maxAmount: null }
+];
 const defaultExemptions = (): ExemptionRow[] => [
   { id: 'e1', category: 'Standard Deduction', sub: '—', maxAmount: 75000, basedOn: 'Fixed', appliesIf: 'Old Regime only', oldOnly: true },
   { id: 'e2', category: 'HRA Exemption', sub: '80GG / Actual', maxAmount: 0, basedOn: 'Formula', appliesIf: 'Declared', oldOnly: true },
@@ -68,8 +81,8 @@ const newRows = (): SlabRow[] => [
   { id: 'n7', from: 2400001, to: null, rate: 30, condition: '' }
 ];
 const SEED: TaxSlabPack[] = [
-  { id: 'SLAB-OLD-2627', name: 'Old Regime FY 2026-27', periodId: 'AY-2026-27', company: 'edumanager', regime: 'Old Regime', effectiveFrom: '2026-04-01', currency: 'INR', status: 'Active', employees: 142, rows: oldRows(), surchargeRate: 10, surchargeThreshold: 5000000, cessPercent: 4, exemptions: defaultExemptions() },
-  { id: 'SLAB-NEW-2627', name: 'New Regime FY 2026-27', periodId: 'AY-2026-27', company: 'edumanager', regime: 'New Regime', effectiveFrom: '2026-04-01', currency: 'INR', status: 'Active', employees: 105, rows: newRows(), surchargeRate: 10, surchargeThreshold: 5000000, cessPercent: 4, exemptions: [{ id: 'e1n', category: 'Standard Deduction', sub: '—', maxAmount: 75000, basedOn: 'Fixed', appliesIf: 'New Regime', oldOnly: false }] }
+  { id: 'SLAB-OLD-2627', name: 'Old Regime FY 2026-27', periodId: 'AY-2026-27', company: 'edumanager', regime: 'Old Regime', effectiveFrom: '2026-04-01', currency: 'INR', status: 'Active', submitted: true, allowExemption: true, standardExemption: 50000, taxReliefLimit: 0, employees: 142, rows: oldRows(), surchargeRate: 10, surchargeThreshold: 5000000, cessPercent: 4, charges: defaultCharges(), exemptions: defaultExemptions() },
+  { id: 'SLAB-NEW-2627', name: 'New Regime FY 2026-27', periodId: 'AY-2026-27', company: 'edumanager', regime: 'New Regime', effectiveFrom: '2026-04-01', currency: 'INR', status: 'Active', submitted: true, allowExemption: false, standardExemption: 0, taxReliefLimit: 60000, employees: 105, rows: newRows(), surchargeRate: 10, surchargeThreshold: 5000000, cessPercent: 4, charges: defaultCharges(), exemptions: [{ id: 'e1n', category: 'Standard Deduction', sub: '—', maxAmount: 75000, basedOn: 'Fixed', appliesIf: 'New Regime', oldOnly: false }] }
 ];
 const loadPacks = (): TaxSlabPack[] => {
   try {
@@ -115,11 +128,16 @@ const blankPack = (periodId: string, regime: Regime): TaxSlabPack => ({
   effectiveFrom: '2026-04-01',
   currency: 'INR',
   status: 'Inactive',
+  submitted: false,
+  allowExemption: regime !== 'New Regime',
+  standardExemption: regime === 'New Regime' ? 0 : 50000,
+  taxReliefLimit: regime === 'New Regime' ? 60000 : 0,
   employees: 0,
   rows: regime === 'New Regime' ? newRows() : oldRows(),
   surchargeRate: 10,
   surchargeThreshold: 5000000,
   cessPercent: 4,
+  charges: defaultCharges(),
   exemptions: regime === 'New Regime' ? [{ id: 'e1n', category: 'Standard Deduction', sub: '—', maxAmount: 75000, basedOn: 'Fixed', appliesIf: 'New Regime', oldOnly: false }] : defaultExemptions()
 });
 
@@ -142,6 +160,9 @@ export function IncomeTaxSlab() {
   const [v80d, setV80d] = useState(25000);
   const [showCompare, setShowCompare] = useState(false);
   const [previewSalary, setPreviewSalary] = useState(1500000);
+  const [gapDelete, setGapDelete] = useState<{ id: string; from: number; to: number | null } | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewInput, setPreviewInput] = useState('1200000');
 
   useEffect(() => {
     const param = new URLSearchParams(window.location.search).get('payroll_period') || '';
@@ -172,13 +193,44 @@ export function IncomeTaxSlab() {
     setDraft(blankPack(periodId, 'Old Regime'));
     setMode('form');
   };
+  const overlapPair = (rows: SlabRow[]) => {
+    const sorted = [...rows].sort((a, b) => a.from - b.from);
+    for (let i = 1; i < sorted.length; i += 1) {
+      const prev = sorted[i - 1];
+      if (prev.to != null && sorted[i].from <= prev.to) return [i, i + 1] as const;
+    }
+    return null;
+  };
+  const bandTax = (row: SlabRow) => {
+    if (row.to == null) return null;
+    const lo = row.from <= 0 ? 0 : row.from - 1;
+    return Math.max(0, row.to - lo) * (row.rate / 100);
+  };
   const saveDraft = () => {
     if (!draft) return;
+    if (draft.submitted) { setNotice('Submitted slabs cannot be edited. Use Amend to create a copy.'); return; }
     if (!draft.name.trim()) { setNotice('Tax slab name is required.'); return; }
     if (!draft.periodId) { setNotice('Payroll period is required.'); return; }
+    const overlap = overlapPair(draft.rows);
+    if (overlap) { setNotice(`Tax slab ranges overlap between Row ${overlap[0]} and Row ${overlap[1]}. Please correct before saving.`); return; }
     const exists = packs.some((item) => item.id === draft.id);
-    persist(exists ? packs.map((item) => item.id === draft.id ? draft : item) : [...packs, { ...draft, status: 'Active' }], 'Tax slab saved.');
+    persist(exists ? packs.map((item) => item.id === draft.id ? draft : item) : [...packs, { ...draft, status: draft.status || 'Active' }], 'Tax slab saved.');
     setMode('list');
+  };
+  const submitDraft = () => {
+    if (!draft) return;
+    const overlap = overlapPair(draft.rows);
+    if (overlap) { setNotice(`Tax slab ranges overlap between Row ${overlap[0]} and Row ${overlap[1]}. Please correct before saving.`); return; }
+    const next = { ...draft, submitted: true, status: 'Active' as const };
+    const exists = packs.some((item) => item.id === draft.id);
+    persist(exists ? packs.map((item) => item.id === draft.id ? next : item) : [...packs, next], 'Tax slab submitted and locked.');
+    setDraft(next);
+  };
+  const amendDraft = () => {
+    if (!draft) return;
+    const copy = { ...draft, id: `SLAB-${Date.now()}`, name: `${draft.name} (amendment)`, submitted: false, status: 'Inactive' as const, charges: (draft.charges || defaultCharges()).map((c) => ({ ...c })), rows: draft.rows.map((r) => ({ ...r })), exemptions: draft.exemptions.map((e) => ({ ...e })) };
+    setDraft(copy);
+    setNotice('Editable amendment copy created. Save when ready.');
   };
   const calcPack = packs.find((item) => item.regime === calcRegime && (!periodFilter || item.periodId === periodFilter)) || (draft && draft.regime === calcRegime ? draft : packs.find((item) => item.regime === calcRegime));
   const result = compute(salary, calcPack, declOn, v80c, v80d);
@@ -278,18 +330,20 @@ export function IncomeTaxSlab() {
             <button type="button" className="text-sm text-indigo-600" onClick={() => setMode('list')}>← Back to Income Tax Slabs</button>
             <Card>
               <div className="grid gap-3 p-4 md:grid-cols-4">
-                <Input label="Tax slab name *" value={draft.name} onChange={(e) => patchDraft({ name: e.target.value })} />
+                <Input label="Slab Name *" value={draft.name} onChange={(e) => patchDraft({ name: e.target.value })} disabled={draft.submitted} />
+                <Select label="Company" options={PAYROLL_COMPANIES.map((item) => ({ value: item.value, label: item.label }))} value={draft.company} onChange={(e) => patchDraft({ company: typeof e === 'string' ? e : e.target.value })} />
                 <Select label="Payroll period *" options={[{ value: '', label: 'Select period' }, ...periods.map((item) => ({ value: item.id, label: item.name }))]} value={draft.periodId} onChange={(e) => {
                   const id = typeof e === 'string' ? e : e.target.value;
                   const p = periods.find((item) => item.id === id);
                   patchDraft({ periodId: id, effectiveFrom: p?.startDate || draft.effectiveFrom });
                 }} />
-                <Input label="Effective from *" type="date" value={draft.effectiveFrom} onChange={(e) => patchDraft({ effectiveFrom: e.target.value })} />
+                <Input label="Effective from *" type="date" value={draft.effectiveFrom} onChange={(e) => patchDraft({ effectiveFrom: e.target.value })} disabled={draft.submitted} />
                 <Select label="Currency" options={[{ value: 'INR', label: '₹ INR' }]} value={draft.currency} onChange={(e) => patchDraft({ currency: typeof e === 'string' ? e : e.target.value })} />
+                <Toggle label="Is Active" checked={draft.status === 'Active'} onChange={(checked) => patchDraft({ status: checked ? 'Active' : 'Inactive' })} />
                 {draft.periodId && <p className="md:col-span-4 text-xs text-gray-500">{periodRange(draft.periodId)}</p>}
                 <div className="md:col-span-4 flex flex-wrap gap-2">
                   {(['Old Regime', 'New Regime', 'Custom'] as Regime[]).map((item) => (
-                    <button key={item} type="button" className={`rounded-lg border px-3 py-2 text-sm ${draft.regime === item ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-300'}`} onClick={() => patchDraft({ regime: item, rows: item === 'New Regime' ? newRows() : item === 'Old Regime' ? oldRows() : draft.rows })}>
+                    <button key={item} type="button" className={`rounded-lg border px-3 py-2 text-sm ${draft.regime === item ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-300'}`} onClick={() => patchDraft({ regime: item, rows: item === 'New Regime' ? newRows() : item === 'Old Regime' ? oldRows() : draft.rows, allowExemption: item !== 'New Regime', standardExemption: item === 'New Regime' ? 0 : 50000, taxReliefLimit: item === 'New Regime' ? 60000 : 0 })}>
                       {item}{item === 'Old Regime' ? ' — with exemptions' : item === 'New Regime' ? ' — lower rates, no 80C/80D' : ''}
                     </button>
                   ))}
@@ -299,7 +353,7 @@ export function IncomeTaxSlab() {
             <Card title="Tax slab table">
               <div className="overflow-x-auto p-4">
                 <table className="w-full min-w-[720px] text-sm">
-                  <thead className="text-left text-xs uppercase text-gray-500"><tr><th>#</th><th>Income from (₹)</th><th>Income to (₹)</th><th>Tax rate (%)</th><th>Condition</th><th></th></tr></thead>
+                  <thead className="text-left text-xs uppercase text-gray-500"><tr><th>#</th><th>From Amount (₹)</th><th>To Amount (₹)</th><th>Tax Rate (%)</th><th>Condition</th><th>Annual Tax Amount</th><th></th></tr></thead>
                   <tbody>
                     {draft.rows.map((row, index) => {
                       const prev = draft.rows[index - 1];
@@ -320,8 +374,15 @@ export function IncomeTaxSlab() {
                             <input type="number" min={0} max={35} className="h-9 w-20 rounded border border-gray-300 px-2" value={row.rate} onChange={(e) => patchDraft({ rows: draft.rows.map((item) => item.id === row.id ? { ...item, rate: Number(e.target.value) || 0 } : item) })} />
                             {row.rate > 35 && <p className="text-[10px] text-amber-700">Unusual rate</p>}
                           </td>
-                          <td><input className="h-9 w-full rounded border border-gray-200 bg-gray-50 px-2 font-mono text-xs" placeholder="e.g. annual_taxable_earning > 500000" value={row.condition} onChange={(e) => patchDraft({ rows: draft.rows.map((item) => item.id === row.id ? { ...item, condition: e.target.value } : item) })} /></td>
-                          <td><button type="button" onClick={() => patchDraft({ rows: draft.rows.filter((item) => item.id !== row.id) })}><Trash2 className="h-4 w-4 text-red-500" /></button></td>
+                          <td><input className="h-9 w-full rounded border border-gray-200 bg-gray-50 px-2 font-mono text-xs" placeholder="e.g. date_of_birth < date(1965, 4, 1)" value={row.condition} onChange={(e) => patchDraft({ rows: draft.rows.map((item) => item.id === row.id ? { ...item, condition: e.target.value } : item) })} disabled={draft.submitted} /></td>
+                          <td className="text-xs text-gray-600">{bandTax(row) == null ? '—' : inr(bandTax(row) || 0)}</td>
+                          <td><button type="button" disabled={draft.submitted} onClick={() => {
+                            const idx = draft.rows.findIndex((item) => item.id === row.id);
+                            const prev = draft.rows[idx - 1];
+                            const next = draft.rows[idx + 1];
+                            if (prev && next) setGapDelete(row);
+                            else patchDraft({ rows: draft.rows.filter((item) => item.id !== row.id) });
+                          }}><Trash2 className="h-4 w-4 text-red-500" /></button></td>
                         </tr>
                       );
                     })}
@@ -332,10 +393,34 @@ export function IncomeTaxSlab() {
                   const from = last?.to != null ? last.to + 1 : 0;
                   patchDraft({ rows: [...draft.rows.map((item, i) => i === draft.rows.length - 1 && item.to == null ? { ...item, to: from + 99999 } : item), { id: `r-${Date.now()}`, from, to: null, rate: 0, condition: '' }] });
                 }}>+ Add slab row</Button>
+                {overlapPair(draft.rows) && <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">Tax slab ranges overlap between Row {overlapPair(draft.rows)?.[0]} and Row {overlapPair(draft.rows)?.[1]}. Please correct before saving.</div>}
                 <div className="mt-4 rounded-lg border border-violet-100 bg-violet-50 p-3 text-sm">
                   <p className="mb-2 text-xs uppercase text-violet-700">Surcharge & cess</p>
                   <p>Surcharge (&gt; {inr(draft.surchargeThreshold)}): {draft.surchargeRate}%</p>
                   <p>Health & education cess: {draft.cessPercent}% (always applies)</p>
+                </div>
+                <div className="mt-4">
+                  <p className="mb-2 text-sm font-medium">Taxes and charges on income tax</p>
+                  <table className="w-full min-w-[720px] text-sm">
+                    <thead className="text-left text-xs uppercase text-gray-500"><tr><th>Description</th><th>Type</th><th>Rate / Amount</th><th>Condition</th><th>Min</th><th>Max</th></tr></thead>
+                    <tbody>
+                      {(draft.charges || defaultCharges()).map((charge) => (
+                        <tr key={charge.id} className="border-t">
+                          <td className="py-2"><input className="h-8 w-full rounded border px-2" value={charge.description} disabled={draft.submitted} onChange={(e) => patchDraft({ charges: (draft.charges || defaultCharges()).map((item) => item.id === charge.id ? { ...item, description: e.target.value } : item) })} /></td>
+                          <td>
+                            <select className="h-8 rounded border px-1" value={charge.kind} disabled={draft.submitted} onChange={(e) => patchDraft({ charges: (draft.charges || defaultCharges()).map((item) => item.id === charge.id ? { ...item, kind: e.target.value as TaxCharge['kind'] } : item) })}>
+                              <option>Percentage of Tax</option>
+                              <option>Flat Amount</option>
+                            </select>
+                          </td>
+                          <td><input type="number" className="h-8 w-20 rounded border px-2" value={charge.rate} disabled={draft.submitted} onChange={(e) => patchDraft({ charges: (draft.charges || defaultCharges()).map((item) => item.id === charge.id ? { ...item, rate: Number(e.target.value) || 0 } : item) })} /></td>
+                          <td><input className="h-8 w-full rounded border px-2 font-mono text-xs" value={charge.condition} disabled={draft.submitted} onChange={(e) => patchDraft({ charges: (draft.charges || defaultCharges()).map((item) => item.id === charge.id ? { ...item, condition: e.target.value } : item) })} /></td>
+                          <td><input type="number" className="h-8 w-24 rounded border px-2" value={charge.minAmount ?? ''} disabled={draft.submitted} onChange={(e) => patchDraft({ charges: (draft.charges || defaultCharges()).map((item) => item.id === charge.id ? { ...item, minAmount: e.target.value === '' ? null : Number(e.target.value) } : item) })} /></td>
+                          <td><input type="number" className="h-8 w-24 rounded border px-2" value={charge.maxAmount ?? ''} disabled={draft.submitted} onChange={(e) => patchDraft({ charges: (draft.charges || defaultCharges()).map((item) => item.id === charge.id ? { ...item, maxAmount: e.target.value === '' ? null : Number(e.target.value) } : item) })} /></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
                 <div className="mt-4">
                   <p className="mb-2 text-xs uppercase text-gray-400">Tax curve preview</p>
@@ -357,8 +442,18 @@ export function IncomeTaxSlab() {
                 </div>
               </div>
             </Card>
+            <Card title="Tax exemption settings">
+              <div className="grid gap-3 p-4 md:grid-cols-2">
+                <label className="flex items-center gap-2 text-sm md:col-span-2">
+                  <input type="checkbox" checked={Boolean(draft.allowExemption)} disabled={draft.submitted || draft.regime === 'New Regime'} onChange={(e) => patchDraft({ allowExemption: e.target.checked })} />
+                  Allow Tax Exemption {draft.regime === 'New Regime' && <span className="text-xs text-amber-700">(must stay OFF for New Tax Regime)</span>}
+                </label>
+                <Input label="Standard Tax Exemption Amount" type="number" value={String(draft.standardExemption || 0)} disabled={!draft.allowExemption || draft.submitted} onChange={(e) => patchDraft({ standardExemption: Number(e.target.value) || 0 })} />
+                <Input label="Tax Relief Limit (e.g. 87A)" type="number" value={String(draft.taxReliefLimit || 0)} disabled={draft.submitted} onChange={(e) => patchDraft({ taxReliefLimit: Number(e.target.value) || 0 })} />
+              </div>
+            </Card>
             <Card title="Standard deductions & exemptions">
-              <div className="overflow-x-auto p-4">
+              <div className={`overflow-x-auto p-4 ${draft.allowExemption ? '' : 'pointer-events-none opacity-50'}`}>
                 <table className="w-full min-w-[720px] text-sm">
                   <thead className="text-left text-xs uppercase text-gray-500"><tr><th>Category</th><th>Sub-category</th><th>Max amount</th><th>Based on</th><th>Applies if</th></tr></thead>
                   <tbody>
@@ -379,8 +474,12 @@ export function IncomeTaxSlab() {
                 </table>
               </div>
             </Card>
-            <div className="flex gap-2">
-              <Button onClick={saveDraft}><Save className="w-4 h-4 mr-2" />Save slab</Button>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={saveDraft} disabled={draft.submitted}><Save className="w-4 h-4 mr-2" />Save</Button>
+              <Button variant="outline" onClick={submitDraft} disabled={draft.submitted}>Submit</Button>
+              {draft.submitted && <Button variant="outline" onClick={amendDraft}>Amend</Button>}
+              <Button variant="outline" onClick={() => setPreviewOpen(true)}>Preview Tax Calculation</Button>
+              <Button variant="outline" onClick={() => persist([...packs, { ...draft, id: `SLAB-${Date.now()}`, name: `${draft.name} (copy)`, status: 'Inactive', submitted: false }], 'Slab cloned.')}>Clone Slab</Button>
               <Button variant="outline" onClick={() => setMode('list')}>Cancel</Button>
             </div>
           </div>
@@ -426,6 +525,36 @@ export function IncomeTaxSlab() {
           </div>
         </div>
       )}
+
+      <Modal isOpen={Boolean(gapDelete)} onClose={() => setGapDelete(null)} title="Gap detected in slab range" footer={<div className="flex justify-end gap-2"><Button variant="outline" onClick={() => { if (!draft || !gapDelete) return; patchDraft({ rows: draft.rows.filter((item) => item.id !== gapDelete.id) }); setGapDelete(null); }}>Delete without fill</Button><Button onClick={() => {
+        if (!draft || !gapDelete) return;
+        const idx = draft.rows.findIndex((item) => item.id === gapDelete.id);
+        const prev = draft.rows[idx - 1];
+        const next = draft.rows[idx + 1];
+        const nextRows = draft.rows.filter((item) => item.id !== gapDelete.id).map((item) => item.id === next?.id && prev ? { ...item, from: prev.to != null ? prev.to + 1 : item.from } : item);
+        patchDraft({ rows: nextRows });
+        setGapDelete(null);
+      }}>Auto-fill gap</Button></div>}>
+        <p className="text-sm text-gray-600">Deleting a middle row leaves a gap. Auto-fill gap?</p>
+      </Modal>
+      <Modal isOpen={previewOpen} onClose={() => setPreviewOpen(false)} title="Preview tax calculation" footer={<Button onClick={() => setPreviewOpen(false)}>Close</Button>}>
+        {draft && (() => {
+          const r = compute(Number(previewInput.replace(/,/g, '')) || 0, draft, Boolean(draft.allowExemption), v80c, v80d);
+          return (
+            <div className="space-y-2 text-sm">
+              <Input label="Sample annual salary" value={previewInput} onChange={(e) => setPreviewInput(e.target.value)} />
+              <p>Gross {inr(r.gross)}</p>
+              <p>Standard deduction ({inr(draft.allowExemption ? r.std : 0)})</p>
+              <p>Taxable {inr(r.taxable)}</p>
+              <p>Tax {inr(r.tax)}</p>
+              <p>Surcharge {inr(r.surcharge)}</p>
+              <p>Cess {inr(r.cess)}</p>
+              <p>Relief limit {inr(draft.taxReliefLimit || 0)}</p>
+              <p className="font-semibold">Total {inr(Math.max(0, r.total - (r.taxable <= 1200000 ? draft.taxReliefLimit || 0 : 0)))}</p>
+            </div>
+          );
+        })()}
+      </Modal>
     </div>
   );
 }

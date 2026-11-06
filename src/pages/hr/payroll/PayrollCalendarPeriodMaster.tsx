@@ -28,6 +28,8 @@ export type AnnualPeriod = {
   name: string;
   company: string;
   financialYear: string;
+  academicYear: string;
+  fiscalYear: string;
   startDate: string;
   endDate: string;
   status: AnnualPeriodStatus;
@@ -35,23 +37,54 @@ export type AnnualPeriod = {
   declarationEnd: string;
   hasSalarySlips: boolean;
   description: string;
+  frequency: 'Monthly' | 'Bi-Monthly' | 'Weekly' | 'Fortnightly';
+  paymentDay: number;
+  holidayList: string;
+  currency: string;
+  costCenter: string;
+  flexibleBenefits: boolean;
+  benefitClaimDeadline: string;
+  autoTaxUnclaimed: boolean;
 };
 
 const TODAY = '2026-10-29';
 const YEARS = ['2024-25', '2025-26', '2026-27', '2027-28'];
 
 const SEED_ANNUAL: AnnualPeriod[] = [
-  { id: 'AY-2026-27', name: 'AY 2026-27 Payroll Period', company: 'edumanager', financialYear: '2026-27', startDate: '2026-04-01', endDate: '2027-03-31', status: 'Active', declarationStart: '2026-04-15', declarationEnd: '2026-11-30', hasSalarySlips: true, description: 'Current academic / tax year.' },
-  { id: 'AY-2025-26', name: 'AY 2025-26 Payroll Period', company: 'edumanager', financialYear: '2025-26', startDate: '2025-04-01', endDate: '2026-03-31', status: 'Closed', declarationStart: '2025-04-15', declarationEnd: '2025-11-30', hasSalarySlips: true, description: 'Closed prior year.' },
-  { id: 'AY-2027-28', name: 'AY 2027-28 Payroll Period', company: 'edumanager', financialYear: '2027-28', startDate: '2027-04-01', endDate: '2028-03-31', status: 'Upcoming', declarationStart: '', declarationEnd: '', hasSalarySlips: false, description: '' }
+  { id: 'AY-2026-27', name: 'AY 2026-27 Payroll Period', company: 'edumanager', financialYear: '2026-27', academicYear: '2026-27', fiscalYear: 'FY 2026-27', startDate: '2026-04-01', endDate: '2027-03-31', status: 'Active', declarationStart: '2026-04-15', declarationEnd: '2026-11-30', hasSalarySlips: true, description: 'Current academic / tax year.', frequency: 'Monthly', paymentDay: 1, holidayList: 'School Holiday Calendar 2026-27', currency: 'INR', costCenter: 'Academic', flexibleBenefits: false, benefitClaimDeadline: '', autoTaxUnclaimed: true },
+  { id: 'AY-2025-26', name: 'AY 2025-26 Payroll Period', company: 'edumanager', financialYear: '2025-26', academicYear: '2025-26', fiscalYear: 'FY 2025-26', startDate: '2025-04-01', endDate: '2026-03-31', status: 'Closed', declarationStart: '2025-04-15', declarationEnd: '2025-11-30', hasSalarySlips: true, description: 'Closed prior year.', frequency: 'Monthly', paymentDay: 1, holidayList: 'School Holiday Calendar 2025-26', currency: 'INR', costCenter: 'Academic', flexibleBenefits: false, benefitClaimDeadline: '', autoTaxUnclaimed: true },
+  { id: 'AY-2027-28', name: 'AY 2027-28 Payroll Period', company: 'edumanager', financialYear: '2027-28', academicYear: '2027-28', fiscalYear: 'FY 2027-28', startDate: '2027-04-01', endDate: '2028-03-31', status: 'Upcoming', declarationStart: '', declarationEnd: '', hasSalarySlips: false, description: '', frequency: 'Monthly', paymentDay: 1, holidayList: '', currency: 'INR', costCenter: '', flexibleBenefits: false, benefitClaimDeadline: '', autoTaxUnclaimed: false }
 ];
 
+const withPeriodDefaults = (row: Partial<AnnualPeriod> & Pick<AnnualPeriod, 'id' | 'name' | 'company' | 'financialYear' | 'startDate' | 'endDate' | 'status' | 'declarationStart' | 'declarationEnd' | 'hasSalarySlips' | 'description'>): AnnualPeriod => ({
+  academicYear: row.academicYear || row.financialYear,
+  fiscalYear: row.fiscalYear || `FY ${row.financialYear}`,
+  frequency: row.frequency || 'Monthly',
+  paymentDay: row.paymentDay || 1,
+  holidayList: row.holidayList || '',
+  currency: row.currency || 'INR',
+  costCenter: row.costCenter || '',
+  flexibleBenefits: Boolean(row.flexibleBenefits),
+  benefitClaimDeadline: row.benefitClaimDeadline || '',
+  autoTaxUnclaimed: Boolean(row.autoTaxUnclaimed),
+  ...row,
+  academicYear: row.academicYear || row.financialYear,
+  fiscalYear: row.fiscalYear || `FY ${row.financialYear}`,
+  frequency: row.frequency || 'Monthly',
+  paymentDay: row.paymentDay || 1,
+  holidayList: row.holidayList || '',
+  currency: row.currency || 'INR',
+  costCenter: row.costCenter || '',
+  flexibleBenefits: Boolean(row.flexibleBenefits),
+  benefitClaimDeadline: row.benefitClaimDeadline || '',
+  autoTaxUnclaimed: Boolean(row.autoTaxUnclaimed)
+});
 const loadAnnual = (): AnnualPeriod[] => {
   try {
     const raw = localStorage.getItem(ANNUAL_PERIOD_STORE);
     if (!raw) return SEED_ANNUAL;
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length ? parsed : SEED_ANNUAL;
+    return Array.isArray(parsed) && parsed.length ? parsed.map((item: AnnualPeriod) => withPeriodDefaults(item)) : SEED_ANNUAL;
   } catch {
     return SEED_ANNUAL;
   }
@@ -109,13 +142,23 @@ const blankAnnual = (): AnnualPeriod => ({
   name: '',
   company: 'edumanager',
   financialYear: '2026-27',
+  academicYear: '2026-27',
+  fiscalYear: 'FY 2026-27',
   startDate: '2026-04-01',
   endDate: '2027-03-31',
   status: 'Draft',
   declarationStart: '',
   declarationEnd: '',
   hasSalarySlips: false,
-  description: ''
+  description: '',
+  frequency: 'Monthly',
+  paymentDay: 1,
+  holidayList: 'School Holiday Calendar 2026-27',
+  currency: 'INR',
+  costCenter: 'Academic',
+  flexibleBenefits: false,
+  benefitClaimDeadline: '',
+  autoTaxUnclaimed: false
 });
 
 const emptyCalendarForm = { calendarName: '', calendarCode: '', frequency: 'Monthly' as PayrollCalendarRecord['frequency'], financialYear: 'FY 2026-27', fyStart: '2026-04-01', fyEnd: '2027-03-31', description: '', campusId: 'all', status: 'Active' as PayrollCalendarRecord['status'] };
@@ -140,6 +183,7 @@ export function PayrollCalendarPeriodMaster() {
   const [dupIncrement, setDupIncrement] = useState(true);
   const [dupDeclarations, setDupDeclarations] = useState(true);
   const [notice, setNotice] = useState('');
+  const [overlapConfirm, setOverlapConfirm] = useState(false);
 
   const persistAnnual = (next: AnnualPeriod[], message?: string) => {
     setRows(next);
@@ -169,14 +213,22 @@ export function PayrollCalendarPeriodMaster() {
 
   const openCreate = () => { setEditing(blankAnnual()); setMode('form'); };
   const openEdit = (row: AnnualPeriod) => { setEditing({ ...row }); setMode('form'); setMenuId(null); };
+  const overlapping = editing ? rows.find((item) => item.id !== editing.id && item.startDate <= editing.endDate && item.endDate >= editing.startDate) : undefined;
   const saveForm = () => {
     if (!editing) return;
     if (!editing.name.trim()) { setNotice('Period name is required.'); return; }
+    if (rows.some((item) => item.id !== editing.id && item.name.trim().toLowerCase() === editing.name.trim().toLowerCase())) { setNotice('Payroll Period Name must be unique.'); return; }
     if (!editing.company) { setNotice('Company is required.'); return; }
     if (!editing.startDate || !editing.endDate) { setNotice('Start and end dates are required.'); return; }
     if (editing.endDate < editing.startDate) { setNotice('End date must be after start date.'); return; }
+    if (overlapping && !overlapConfirm) {
+      setOverlapConfirm(true);
+      setNotice(`A payroll period already exists for this date range (${overlapping.name}). Creating another may cause duplicate tax calculations. Confirm?`);
+      return;
+    }
     const exists = rows.some((item) => item.id === editing.id);
     persistAnnual(exists ? rows.map((item) => item.id === editing.id ? editing : item) : [editing, ...rows], exists ? 'Payroll period updated.' : 'Payroll period created.');
+    setOverlapConfirm(false);
     setMode('list');
   };
   const closePeriod = (row: AnnualPeriod) => {
@@ -343,7 +395,13 @@ export function PayrollCalendarPeriodMaster() {
                   <Input value={editing.name} maxLength={80} onChange={(e) => setEditing({ ...editing, name: e.target.value })} placeholder="e.g., AY 2026-27 Payroll Period" />
                   <div className="mt-2 flex flex-wrap gap-2">{nameChips.map((chip) => <button key={chip} type="button" className="rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-700" onClick={() => setEditing({ ...editing, name: chip })}>{chip}</button>)}</div>
                 </div>
-                <Select label="Company *" options={PAYROLL_COMPANIES.map((item) => ({ value: item.value, label: item.label }))} value={editing.company} onChange={(e) => setEditing({ ...editing, company: typeof e === 'string' ? e : e.target.value })} />
+                <Select label="Company / School Name *" options={PAYROLL_COMPANIES.map((item) => ({ value: item.value, label: item.label }))} value={editing.company} onChange={(e) => setEditing({ ...editing, company: typeof e === 'string' ? e : e.target.value })} />
+                <Select label="Fiscal Year" options={YEARS.map((item) => ({ value: `FY ${item}`, label: `FY ${item}` }))} value={editing.fiscalYear || `FY ${editing.financialYear}`} onChange={(e) => {
+                  const v = typeof e === 'string' ? e : e.target.value;
+                  const fy = v.replace('FY ', '');
+                  setEditing({ ...editing, fiscalYear: v, financialYear: fy, academicYear: editing.academicYear || fy });
+                }} />
+                <Select label="Academic Year" options={YEARS.map((item) => ({ value: item, label: item }))} value={editing.academicYear || editing.financialYear} onChange={(e) => setEditing({ ...editing, academicYear: typeof e === 'string' ? e : e.target.value })} />
                 <Select label="Financial year" options={YEARS.map((item) => ({ value: item, label: item }))} value={editing.financialYear} onChange={(e) => setEditing({ ...editing, financialYear: typeof e === 'string' ? e : e.target.value })} />
                 <Input label="Start date *" type="date" value={editing.startDate} disabled={editing.hasSalarySlips} onChange={(e) => {
                   const start = e.target.value;
@@ -357,6 +415,31 @@ export function PayrollCalendarPeriodMaster() {
                   {dateError ? 'End date must be after start date.' : `Duration: ${durationMonths} months (${duration} days). Start: ${fmtLong(editing.startDate)}. End: ${fmtLong(editing.endDate)}.`}
                 </div>
               </div>
+            </Card>
+            <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">Configuring Payroll Period is optional if you do not intend to use Flexible Benefits or Tax Slabs. A Payroll Period and Income Tax Slab with valid tax slabs are required for payroll processing.</p>
+            <Card title="Payroll frequency configuration">
+              <div className="grid gap-4 p-4 md:grid-cols-2">
+                <Select label="Payroll Frequency" options={['Monthly', 'Bi-Monthly', 'Weekly', 'Fortnightly'].map((v) => ({ value: v, label: v }))} value={editing.frequency || 'Monthly'} onChange={(e) => setEditing({ ...editing, frequency: (typeof e === 'string' ? e : e.target.value) as AnnualPeriod['frequency'] })} />
+                <Input label="Payment Day (1–31)" type="number" min={1} max={31} value={String(editing.paymentDay || 1)} onChange={(e) => setEditing({ ...editing, paymentDay: Math.min(31, Math.max(1, Number(e.target.value) || 1)) })} />
+                <Select label="Holiday List" options={[{ value: '', label: 'None' }, { value: 'School Holiday Calendar 2026-27', label: 'School Holiday Calendar 2026-27' }, { value: 'School Holiday Calendar 2025-26', label: 'School Holiday Calendar 2025-26' }]} value={editing.holidayList || ''} onChange={(e) => setEditing({ ...editing, holidayList: typeof e === 'string' ? e : e.target.value })} />
+                <Input label="Payroll Currency" value={editing.currency || 'INR'} onChange={(e) => setEditing({ ...editing, currency: e.target.value })} />
+                <Select label="Cost Center" options={[{ value: '', label: 'Select' }, { value: 'Academic', label: 'Academic' }, { value: 'Admin', label: 'Admin' }, { value: 'Transport', label: 'Transport' }]} value={editing.costCenter || ''} onChange={(e) => setEditing({ ...editing, costCenter: typeof e === 'string' ? e : e.target.value })} />
+              </div>
+            </Card>
+            <Card title="Flexible benefits (school-specific)">
+              <div className="space-y-3 p-4">
+                <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={Boolean(editing.flexibleBenefits)} onChange={(e) => setEditing({ ...editing, flexibleBenefits: e.target.checked })} /> Enable Flexible Benefits</label>
+                {editing.flexibleBenefits && (
+                  <>
+                    <Input label="Benefit Claim Deadline" type="date" value={editing.benefitClaimDeadline || ''} onChange={(e) => setEditing({ ...editing, benefitClaimDeadline: e.target.value })} />
+                    <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={Boolean(editing.autoTaxUnclaimed)} onChange={(e) => setEditing({ ...editing, autoTaxUnclaimed: e.target.checked })} /> Auto-tax unclaimed benefits at year end</label>
+                    <p className="text-xs text-gray-500">To tax these components before the last payroll, use “Deduct Tax For Unclaimed Employee Benefits” on Payroll Entry / Salary Slip.</p>
+                  </>
+                )}
+              </div>
+            </Card>
+            <Card title="Associated income tax slabs">
+              <AssociatedSlabs periodId={editing.id} periodSaved={rows.some((item) => item.id === editing.id)} onCreateSlab={() => navigate(`/hr/master/income-tax-slab?payroll_period=${encodeURIComponent(editing.id)}`)} />
             </Card>
             <Card title="Tax exemption declaration window">
               <div className="space-y-3 p-4">
@@ -381,9 +464,11 @@ export function PayrollCalendarPeriodMaster() {
                 )}
               </div>
             </Card>
-            <div className="flex gap-2">
-              <Button onClick={saveForm}><Save className="w-4 h-4 mr-2" />Save Period</Button>
-              <Button variant="outline" onClick={() => setMode('list')}>Cancel</Button>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={saveForm}><Save className="w-4 h-4 mr-2" />{overlapConfirm ? 'Confirm & Save' : 'Save'}</Button>
+              {rows.some((item) => item.id === editing.id) && <Button variant="outline" onClick={() => navigate(`/hr/master/income-tax-slab?payroll_period=${encodeURIComponent(editing.id)}`)}>Create Income Tax Slab</Button>}
+              {rows.some((item) => item.id === editing.id) && <Button variant="outline" onClick={() => navigate('/hr/payroll/employee-payslip-list')}>View Linked Salary Slips</Button>}
+              <Button variant="outline" onClick={() => { setOverlapConfirm(false); setMode('list'); }}>Cancel</Button>
             </div>
           </div>
           <div className="space-y-3">
@@ -416,6 +501,47 @@ export function PayrollCalendarPeriodMaster() {
       )}
 
       {screen === 'monthly' && <MonthlyCalendarPanel notice={notice} setNotice={setNotice} bootCalendars={boot.config.calendars} bootWarning={boot.warning || ''} />}
+    </div>
+  );
+}
+
+function AssociatedSlabs({ periodId, periodSaved, onCreateSlab }: { periodId: string; periodSaved: boolean; onCreateSlab: () => void }) {
+  type Linked = { name: string; regime: string; effectiveFrom: string; allowExemption: boolean; employees: number };
+  const [rows, setRows] = useState<Linked[]>([]);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(INCOME_TAX_SLAB_STORE);
+      const parsed = raw ? JSON.parse(raw) : [];
+      const list = Array.isArray(parsed) ? parsed.filter((item: { periodId?: string }) => item.periodId === periodId).map((item: { name: string; regime?: string; effectiveFrom?: string; allowExemption?: boolean; employees?: number }) => ({
+        name: item.name,
+        regime: item.regime || '—',
+        effectiveFrom: item.effectiveFrom || '—',
+        allowExemption: Boolean(item.allowExemption),
+        employees: Number(item.employees) || 0
+      })) : [];
+      setRows(list);
+    } catch {
+      setRows([]);
+    }
+  }, [periodId]);
+  if (!periodSaved) return <p className="p-4 text-sm text-gray-500">Save the payroll period first. Linked tax slabs whose Effective From date falls in this period will appear here.</p>;
+  if (!rows.length) return <div className="p-4 text-sm text-gray-500">No income tax slabs linked yet. <button type="button" className="text-indigo-700 underline" onClick={onCreateSlab}>Create Income Tax Slab</button></div>;
+  return (
+    <div className="overflow-x-auto p-4">
+      <table className="w-full text-sm">
+        <thead className="text-left text-xs uppercase text-gray-500"><tr><th className="py-2">Tax Slab Name</th><th>Regime</th><th>Effective From</th><th>Allow Exemption</th><th>Employees Linked</th></tr></thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.name} className="border-t">
+              <td className="py-2"><button type="button" className="text-indigo-700 underline" onClick={onCreateSlab}>{row.name}</button></td>
+              <td>{row.regime}</td>
+              <td>{row.effectiveFrom}</td>
+              <td>{row.allowExemption ? '✅' : '❌'}</td>
+              <td><button type="button" className="text-indigo-700 underline" onClick={onCreateSlab}>{row.employees}</button></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

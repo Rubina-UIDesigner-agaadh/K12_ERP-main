@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
@@ -6,7 +7,7 @@ import { Select } from '../../../components/ui/Select';
 import { Badge } from '../../../components/ui/Badge';
 import { Modal } from '../../../components/ui/Modal';
 import { MultiSelect } from '../../../components/ui/MultiSelect';
-import { AlertTriangle, Lock, RefreshCw, Search, Upload, Users } from 'lucide-react';
+import { AlertTriangle, Lock, RefreshCw, Search, Unlock, Upload, Users } from 'lucide-react';
 
 const inr = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
 
@@ -38,6 +39,9 @@ type RunEmployee = {
   missingAttendance: boolean;
   staffType: 'Teaching' | 'Non-teaching';
   excluded?: string;
+  withheld?: boolean;
+  withholdId?: string;
+  slipStatus?: 'Draft' | 'Submitted' | 'Withheld' | 'Released';
 };
 
 const NAMES = ['Teacher A', 'Teacher B', 'Staff C', 'Meera Iyer', 'Rajesh Kumar', 'Kavita Shah', 'Anil Patel', 'Priya Nair', 'Rohit Desai', 'Sneha Joshi'];
@@ -45,16 +49,17 @@ const STEPS = ['Configure', 'Get Employees', 'Create Slips', 'Submit & Accrue', 
 
 function buildEmployees(): RunEmployee[] {
   return Array.from({ length: 48 }, (_, i) => {
-    const name = i < 3 ? NAMES[i] : `${NAMES[i % NAMES.length]} ${i + 1}`;
-    const gross = i === 0 ? 42000 : i === 1 ? 48000 : i === 2 ? 30000 : 28000 + (i % 18) * 800;
-    const deduction = i === 0 ? 3000 : i === 1 ? 4000 : i === 2 ? 2000 : 1800 + (i % 9) * 120;
+    const name = i === 3 ? 'Sunita Rao' : i === 4 ? 'Mahesh T' : i < 3 ? NAMES[i] : `${NAMES[i % NAMES.length]} ${i + 1}`;
+    const gross = i === 0 ? 42000 : i === 1 ? 48000 : i === 2 ? 30000 : i === 3 ? 95000 : i === 4 ? 42000 : 28000 + (i % 18) * 800;
+    const deduction = i === 0 ? 3000 : i === 1 ? 4000 : i === 2 ? 2000 : i === 3 ? 22340 : i === 4 ? 4000 : 1800 + (i % 9) * 120;
     const needReview = i === 11 || i === 27 || i === 44;
     const excluded = i === 5 ? 'No Assignment' : i === 17 ? 'Slip Exists' : i === 33 ? 'Inactive' : undefined;
+    const withheld = i === 3 || i === 4;
     return {
-      id: `EMP-${1001 + i}`,
+      id: i === 3 ? 'EMP-2048' : i === 4 ? 'EMP-2055' : `EMP-${1001 + i}`,
       name,
-      department: ['Science', 'Arts', 'Administration', 'Sports', 'Languages'][i % 5],
-      designation: i % 7 === 0 ? 'Clerk' : i % 3 === 0 ? 'PGT' : 'TGT',
+      department: i === 3 ? 'Science' : i === 4 ? 'Administration' : ['Science', 'Arts', 'Administration', 'Sports', 'Languages'][i % 5],
+      designation: i === 3 ? 'PGT' : i === 4 ? 'Clerk' : i % 7 === 0 ? 'Clerk' : i % 3 === 0 ? 'PGT' : 'TGT',
       structure: i % 7 === 0 ? 'Non-Teaching Grade C' : 'Teaching Grade A 2026',
       base: gross,
       gross,
@@ -73,12 +78,16 @@ function buildEmployees(): RunEmployee[] {
       lateDed: needReview ? 400 : 0,
       missingAttendance: needReview,
       staffType: i % 7 === 0 ? 'Non-teaching' : 'Teaching',
-      excluded
+      excluded,
+      withheld,
+      withholdId: i === 3 ? 'SW-2026-001' : i === 4 ? 'SW-2026-002' : undefined,
+      slipStatus: undefined
     };
   });
 }
 
 export function PayrollEntry() {
+  const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>('entry');
   const [notice, setNotice] = useState('');
   const [status, setStatus] = useState<RunStatus>('Draft');
@@ -87,8 +96,12 @@ export function PayrollEntry() {
   const [frequency, setFrequency] = useState('Monthly');
   const [startDate, setStartDate] = useState('2026-10-01');
   const [endDate, setEndDate] = useState('2026-10-31');
-  const [period, setPeriod] = useState('FY 2026-27 · Oct 2026');
+  const [postingDate, setPostingDate] = useState('2026-10-31');
+  const [period, setPeriod] = useState('AY 2026-27 Payroll Period (01-04-2026 to 31-03-2027)');
   const [account, setAccount] = useState('SBI — ****5678');
+  const [lastPayroll, setLastPayroll] = useState(false);
+  const [deductProof, setDeductProof] = useState(false);
+  const [deductBenefits, setDeductBenefits] = useState(false);
   const [costCenter, setCostCenter] = useState('');
   const [project, setProject] = useState('');
   const [branches, setBranches] = useState<string[]>([]);
@@ -112,6 +125,9 @@ export function PayrollEntry() {
   const [bulkDate, setBulkDate] = useState('2026-11-01');
   const [bulkBase, setBulkBase] = useState('42000');
   const [bulkPreview, setBulkPreview] = useState(false);
+  const [releaseOpen, setReleaseOpen] = useState(false);
+  const [releasePick, setReleasePick] = useState<string[]>([]);
+  const [bankSummary, setBankSummary] = useState('');
 
   const flash = (text: string) => {
     setNotice(text);
@@ -127,19 +143,42 @@ export function PayrollEntry() {
     return true;
   }), [included, search]);
 
-  const totals = useMemo(() => ({
-    employees: selected.length,
-    gross: selected.reduce((s, e) => s + e.gross, 0),
-    deduction: selected.reduce((s, e) => s + e.deduction, 0),
-    net: selected.reduce((s, e) => s + e.net, 0),
-    lwp: selected.reduce((s, e) => s + e.unpaidLeave, 0)
-  }), [selected]);
+  const totals = useMemo(() => {
+    const tds = selected.reduce((s, e) => s + Math.round(e.deduction * 0.55), 0);
+    const pt = selected.reduce((s, e) => s + 200, 0);
+    const pfEmp = selected.reduce((s, e) => s + 1800, 0);
+    return {
+      employees: selected.length,
+      gross: selected.reduce((s, e) => s + e.gross, 0),
+      deduction: selected.reduce((s, e) => s + e.deduction, 0),
+      net: selected.reduce((s, e) => s + e.net, 0),
+      lwp: selected.reduce((s, e) => s + e.unpaidLeave, 0),
+      tds,
+      pt,
+      pfEmp,
+      pfEr: pfEmp
+    };
+  }, [selected]);
 
   const fillCurrentMonth = () => {
     setStartDate('2026-10-01');
     setEndDate('2026-10-31');
-    setPeriod('FY 2026-27 · Oct 2026');
+    setPostingDate('2026-10-31');
+    setPeriod('AY 2026-27 Payroll Period (01-04-2026 to 31-03-2027)');
+    setLastPayroll(false);
     flash('Filled current month.');
+  };
+
+  const applyEndDate = (value: string) => {
+    setEndDate(value);
+    setPostingDate(value);
+    const month = Number((value || '').slice(5, 7));
+    const last = month === 3;
+    setLastPayroll(last);
+    if (last) {
+      setDeductProof(true);
+      setDeductBenefits(true);
+    }
   };
 
   const getEmployees = () => {
@@ -166,17 +205,19 @@ export function PayrollEntry() {
       setFailed(fail);
       setCreated(selected.length - fail.length);
       setCreating(false);
+      setEmployees((prev) => prev.map((e) => e.selected && !e.excluded ? { ...e, slipStatus: e.withheld ? 'Withheld' : 'Draft' } : e));
       setStatus('Salary Slips Created');
       setStep(2);
-      flash(`Salary Slips Created — ${selected.length - fail.length} slips in draft, ${fail.length} failed`);
+      flash(`Salary Slips Created — ${selected.length - fail.length} slips in draft. Withheld employees stay Withheld (accrual still posts). ${fail.length} failed`);
     }, 800);
   };
 
   const submit = () => {
+    setEmployees((prev) => prev.map((e) => e.selected && e.slipStatus === 'Draft' ? { ...e, slipStatus: 'Submitted' } : e));
     setStatus('Submitted');
     setStep(3);
     setConfirmOpen(false);
-    flash('Payroll Submitted — slips submitted. Accrual JE JV-2026-10-001 created.');
+    flash('Payroll Submitted — slips submitted. Accrual JE JV-2026-10-001 created. Withheld slips remain Withheld but the liability is booked.');
   };
 
   const bankEntry = () => {
@@ -184,9 +225,12 @@ export function PayrollEntry() {
       flash('Submit payroll before making a bank entry.');
       return;
     }
+    const withheldCount = selected.filter((e) => e.withheld).length;
+    const includedCount = selected.length - withheldCount;
     setStatus('Bank Entry Created');
     setStep(4);
-    flash('Bank Entry Created — Bank Entry BE-2026-10-001 ready for processing.');
+    setBankSummary(`${includedCount} slips included in bank entry. ${withheldCount} slips withheld — excluded.`);
+    flash(`Bank Entry BE-2026-10-001 created. ${includedCount} slips included. ${withheldCount} slips withheld — excluded.`);
   };
 
   const statusBadge = status === 'Submitted' || status === 'Bank Entry Created' ? 'success' : status === 'Salary Slips Created' ? 'warning' : 'secondary';
@@ -237,7 +281,12 @@ export function PayrollEntry() {
               { l: 'Total Gross', v: inr(totals.gross || 3845000) },
               { l: 'Total Deductions', v: inr(totals.deduction || 626400) },
               { l: 'Total Net Pay', v: inr(totals.net || 3218600) },
-              { l: 'Checklist', v: `${step + 1}/5` }
+              { l: 'Checklist', v: `${step + 1}/5` },
+              { l: 'Total TDS', v: inr(totals.tds || 0) },
+              { l: 'Professional Tax', v: inr(totals.pt || 0) },
+              { l: 'PF Employee', v: inr(totals.pfEmp || 0) },
+              { l: 'PF Employer', v: inr(totals.pfEr || 0) },
+              { l: 'Slips', v: status === 'Draft' ? 'Not created' : `${created} created` }
             ].map((s) => (
               <div key={s.l} className="rounded-xl border bg-gray-50 p-3">
                 <p className="text-[11px] font-semibold uppercase text-gray-400">{s.l}</p>
@@ -259,10 +308,15 @@ export function PayrollEntry() {
               <Input label="Start Date *" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
               <div>
                 <Button variant="outline" size="sm" className="mb-1" onClick={fillCurrentMonth}>Fill Current Month</Button>
-                <Input label="End Date *" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+                <Input label="End Date *" type="date" value={endDate} onChange={(e) => applyEndDate(e.target.value)} />
               </div>
+              <Input label="Posting Date" type="date" value={postingDate} onChange={(e) => setPostingDate(e.target.value)} />
               <Input label="Payroll Period" value={period} readOnly />
               <Select label="Payment Account (Bank) *" value={account} onChange={(e) => setAccount(typeof e === 'string' ? e : e.target.value)} options={[{ value: 'SBI — ****5678', label: 'SBI — ****5678' }, { value: 'HDFC — ****1234', label: 'HDFC — ****1234' }]} />
+              <label className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm">
+                <input type="checkbox" checked={lastPayroll} onChange={(e) => { setLastPayroll(e.target.checked); if (e.target.checked) { setDeductProof(true); setDeductBenefits(true); } }} />
+                Is Last Payroll of Period (March — special tax settlement)
+              </label>
               <Select label="Cost Center" value={costCenter} onChange={(e) => setCostCenter(typeof e === 'string' ? e : e.target.value)} options={[{ value: '', label: 'Optional' }, { value: 'Academic', label: 'Academic' }, { value: 'Admin', label: 'Admin' }]} />
               <Select label="Project" value={project} onChange={(e) => setProject(typeof e === 'string' ? e : e.target.value)} options={[{ value: '', label: 'Optional' }, { value: 'Board Exams', label: 'Board Exams' }]} />
             </div>
@@ -275,6 +329,20 @@ export function PayrollEntry() {
             <div className="flex items-center justify-between border-t bg-gray-50 px-5 py-2 text-xs text-gray-500">
               <span>Filters: Department = {departments.join(', ') || 'All'} · Designation = {designations.join(', ') || 'All'} · <b className="text-indigo-700">{fetched ? included.length : 48} employees estimated</b></span>
               <button type="button" className="text-red-500" onClick={() => { setBranches([]); setDepartments([]); setDesignations([]); setGrade(''); }}>Clear</button>
+            </div>
+          </Card>
+
+          <Card title="Tax adjustment options">
+            <div className="space-y-3 p-5 text-sm">
+              <label className="flex items-start gap-2">
+                <input type="checkbox" className="mt-1" checked={deductProof} onChange={(e) => setDeductProof(e.target.checked)} />
+                <span><b>Deduct Tax For Unsubmitted Tax Exemption Proof</b><br /><span className="text-xs text-gray-500">Tax earnings that were exempted on the declaration but have no sufficient proof. Enable in the last payroll (March).</span></span>
+              </label>
+              <label className="flex items-start gap-2">
+                <input type="checkbox" className="mt-1" checked={deductBenefits} onChange={(e) => setDeductBenefits(e.target.checked)} />
+                <span><b>Deduct Tax For Unclaimed Employee Benefits</b><br /><span className="text-xs text-gray-500">Tax flexible benefits applied for but not claimed with bills. Can be used before the last payroll.</span></span>
+              </label>
+              {lastPayroll && <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800">Last payroll of the period: unsubmitted exemption proofs and unclaimed benefits are treated as if they do not exist. March TDS can jump.</p>}
             </div>
           </Card>
 
@@ -309,7 +377,7 @@ export function PayrollEntry() {
                 <table className="w-full text-sm" role="grid">
                   <thead>
                     <tr className="border-b bg-gray-50 text-left text-[11px] uppercase text-gray-500">
-                      {['', 'Employee', 'Department', 'Designation', 'Salary Structure', 'Base', 'Working days', 'LWP days', 'Net pay'].map((h) => <th key={h || 'c'} className="px-3 py-2">{h}</th>)}
+                      {['', 'Employee', 'Withholding', 'Department', 'Designation', 'Salary Structure', 'Base', 'Working Days', 'Absent Days', 'LWP days', 'Net pay'].map((h) => <th key={h || 'c'} className="px-3 py-2">{h}</th>)}
                     </tr>
                   </thead>
                   <tbody>
@@ -317,11 +385,13 @@ export function PayrollEntry() {
                       <tr key={e.id} className={`border-b border-gray-100 hover:bg-indigo-50 ${e.selected ? '' : 'opacity-40'}`}>
                         <td className="px-3 py-2"><input type="checkbox" checked={e.selected} onChange={(ev) => setEmployees((p) => p.map((r) => r.id === e.id ? { ...r, selected: ev.target.checked } : r))} /></td>
                         <td className={`px-3 py-2 ${e.selected ? '' : 'line-through'}`}><p className="font-medium">{e.name}</p><p className="text-xs text-gray-500">{e.id}</p></td>
+                        <td className="px-3 py-2">{e.withheld ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800">Salary withheld</span> : '—'}</td>
                         <td className="px-3 py-2">{e.department}</td>
                         <td className="px-3 py-2"><Badge variant="secondary">{e.designation}</Badge></td>
                         <td className="px-3 py-2 text-xs">{e.structure}</td>
                         <td className="px-3 py-2 text-right">{inr(e.base)}</td>
-                        <td className="px-3 py-2 text-center">{e.payableDays}</td>
+                        <td className="px-3 py-2 text-center">{e.totalDays}</td>
+                        <td className="px-3 py-2 text-center text-red-600">{e.unpaidLeave}</td>
                         <td className="px-3 py-2 text-center">
                           <input type="number" min={0} className={`w-16 rounded border px-1 py-1 text-center ${e.unpaidLeave > 0 ? 'border-amber-300 bg-amber-50 font-semibold text-red-600' : 'border-transparent'}`} value={e.unpaidLeave} onChange={(ev) => patchLwp(e.id, Number(ev.target.value))} title="Auto-fetched from attendance. Override manually if needed." />
                         </td>
@@ -345,7 +415,12 @@ export function PayrollEntry() {
           <Card title="Create Salary Slips">
             <div className="space-y-3 p-5">
               <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={overwrite} onChange={(e) => setOverwrite(e.target.checked)} /> <span>Overwrite Salary Structure Amount<br /><span className="text-xs italic text-gray-400">If checked, base amounts from the Payroll Entry will override those in the Salary Structure Assignment</span></span></label>
-              <Button disabled={!selected.length || creating} onClick={createSlips}>Create Salary Slips</Button>
+              <div className="flex flex-wrap gap-2">
+                <Button disabled={!selected.length || creating} onClick={createSlips}>Create Salary Slips</Button>
+                <Button variant="outline" disabled={status === 'Draft'} onClick={() => navigate('/hr/payroll/employee-payslip-list')}>View Salary Slips</Button>
+                <Button variant="outline" disabled={status === 'Draft'} onClick={() => { setEmployees((p) => p.map((e) => e.selected && e.slipStatus === 'Draft' ? { ...e, slipStatus: 'Submitted' } : e)); flash('All draft salary slips submitted.'); }}>Submit All Salary Slips</Button>
+                <Button variant="outline" disabled={!selected.length} onClick={() => flash(`Income tax recalculated for ${selected.length} employees using the linked Income Tax Slab. ${deductProof ? 'Unsubmitted proofs taxed. ' : ''}${deductBenefits ? 'Unclaimed benefits taxed.' : ''}`)}>Calculate Income Tax</Button>
+              </div>
               {creating && <p className="text-sm text-gray-500">Creating slips…</p>}
               {status !== 'Draft' && (
                 <div className="flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
@@ -367,7 +442,7 @@ export function PayrollEntry() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b bg-gray-50 text-left text-xs uppercase text-gray-500">
-                      {['Employee', 'Gross', 'Deductions', 'Net', 'Status'].map((h) => <th key={h} className="px-3 py-2">{h}</th>)}
+                      {['Employee', 'Gross', 'Deductions', 'Net', 'Status', 'Withholding'].map((h) => <th key={h} className="px-3 py-2">{h}</th>)}
                     </tr>
                   </thead>
                   <tbody>
@@ -377,7 +452,8 @@ export function PayrollEntry() {
                         <td className="px-3 py-2 text-right">{inr(e.gross)}</td>
                         <td className="px-3 py-2 text-right text-red-600">{inr(e.deduction)}</td>
                         <td className="px-3 py-2 text-right font-semibold">{inr(e.net)}</td>
-                        <td className="px-3 py-2"><Badge variant={status === 'Submitted' || status === 'Bank Entry Created' ? 'success' : 'warning'}>{status === 'Draft' ? 'Draft' : status === 'Salary Slips Created' ? 'Draft' : 'Submitted'}</Badge></td>
+                        <td className="px-3 py-2"><Badge variant={e.withheld ? 'warning' : status === 'Submitted' || status === 'Bank Entry Created' ? 'success' : 'warning'}>{e.withheld ? 'Withheld' : e.slipStatus || (status === 'Salary Slips Created' ? 'Draft' : 'Submitted')}</Badge></td>
+                        <td className="px-3 py-2 text-xs">{e.withheld ? e.withholdId : '—'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -393,11 +469,28 @@ export function PayrollEntry() {
               {(status === 'Submitted' || status === 'Bank Entry Created') && (
                 <>
                   <div className="w-full rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">Salary slips submitted successfully. Accrual Journal Entry JV-2026-10-001 created.</div>
+                  <Button onClick={() => { submit(); flash('Payroll Entry submitted. Accounting entries posted. Bank payment file can be generated.'); }}>Submit Payroll Entry</Button>
                   <Button onClick={bankEntry}>Make Bank Entry</Button>
+                  <Button variant="outline" onClick={() => flash('Bank advice (NEFT/RTGS) downloaded for included slips. Withheld employees excluded.')}>Download Bank Advice</Button>
+                  <Button variant="outline" onClick={() => flash(`Salary slips emailed to ${selected.filter((e) => !e.withheld).length} employees.`)}>Email Salary Slips</Button>
                   <Button variant="outline">View Accrual Entry</Button>
+                  {status === 'Bank Entry Created' && selected.some((e) => e.withheld && e.slipStatus === 'Withheld') && (
+                    <Button variant="outline" onClick={() => { setReleasePick(selected.filter((e) => e.withheld && e.slipStatus === 'Withheld').map((e) => e.id)); setReleaseOpen(true); }}><Unlock className="mr-1 h-4 w-4" />Release Withheld Salaries</Button>
+                  )}
+                  {bankSummary && <div className="w-full rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">{bankSummary}</div>}
                 </>
               )}
             </div>
+          </Card>
+
+          <Card title="Bank Payment Summary">
+            <div className="grid gap-3 p-5 md:grid-cols-4 text-sm">
+              <div><p className="text-[11px] font-semibold uppercase text-gray-400">Payment Account</p><p className="font-semibold">{account}</p></div>
+              <div><p className="text-[11px] font-semibold uppercase text-gray-400">Employees to pay</p><p className="font-semibold">{selected.filter((e) => !e.withheld).length}</p></div>
+              <div><p className="text-[11px] font-semibold uppercase text-gray-400">Net payable</p><p className="font-semibold">{inr(selected.filter((e) => !e.withheld).reduce((s, e) => s + e.net, 0) || totals.net)}</p></div>
+              <div><p className="text-[11px] font-semibold uppercase text-gray-400">Withheld (excluded)</p><p className="font-semibold text-amber-700">{selected.filter((e) => e.withheld).length} · {inr(selected.filter((e) => e.withheld).reduce((s, e) => s + e.net, 0))}</p></div>
+            </div>
+            <p className="border-t px-5 py-3 text-xs text-gray-500">Download Bank Advice generates the NEFT/RTGS file for included slips only. Email Salary Slips sends PDF copies to employee emails. Withheld salaries stay out of this payment until released.</p>
           </Card>
         </>
       )}
@@ -490,6 +583,27 @@ export function PayrollEntry() {
 
       <Modal isOpen={bulkPreview} onClose={() => setBulkPreview(false)} title="Preview bulk changes" size="lg">
         <ul className="space-y-2 text-sm">{bulkSelected.map((id) => <li key={id} className="rounded border px-3 py-2">{id} → {bulkStructure} {inr(Number(bulkBase) || 0)}</li>)}</ul>
+      </Modal>
+
+      <Modal isOpen={releaseOpen} onClose={() => setReleaseOpen(false)} title="Release withheld salaries" size="lg" footer={<div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setReleaseOpen(false)}>Cancel</Button><Button onClick={() => {
+        const picked = selected.filter((e) => releasePick.includes(e.id));
+        const net = picked.reduce((s, e) => s + e.net, 0);
+        setEmployees((prev) => prev.map((e) => releasePick.includes(e.id) ? { ...e, slipStatus: 'Released', withheld: false } : e));
+        setReleaseOpen(false);
+        flash(`Release bank entry BE-REL-2026-10-002 created for ${picked.length} employee(s) · ${inr(net)}. Salaries Payable Dr / School Bank Cr.`);
+      }}>Create Release Bank Entry</Button></div>}>
+        <p className="mb-3 text-sm text-gray-600">Creates a separate Journal Entry covering only the released employees. Regular bank entry is not changed.</p>
+        <div className="space-y-2">
+          {selected.filter((e) => e.withheld).map((e) => (
+            <label key={e.id} className="flex items-center justify-between gap-2 rounded border px-3 py-2 text-sm">
+              <span className="flex items-center gap-2">
+                <input type="checkbox" checked={releasePick.includes(e.id)} onChange={(ev) => setReleasePick((p) => ev.target.checked ? [...p, e.id] : p.filter((id) => id !== e.id))} />
+                {e.name} · {e.department} · {e.withholdId}
+              </span>
+              <span className="font-semibold">{inr(e.net)}</span>
+            </label>
+          ))}
+        </div>
       </Modal>
     </div>
   );

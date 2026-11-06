@@ -1,5 +1,6 @@
 import { rp } from './registryHelper';
 
+/** Lazy page map for Student module routes. Keep this file .ts-only (no JSX). */
 export const studentRegistry: Record<string, () => any> = {
   // Management
   'student-list': rp(

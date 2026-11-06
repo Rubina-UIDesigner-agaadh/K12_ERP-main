@@ -29,7 +29,12 @@ interface SalaryComponent {
   dependsOnPaymentDays: boolean;
   dependsOnLwp: boolean;
   isTaxApplicable: boolean;
+  exemptedFromIncomeTax: boolean;
   variableBasedOnTaxableSalary: boolean;
+  isPayable: boolean;
+  payAgainstBenefitClaim: boolean;
+  onlyTaxImpact: boolean;
+  createSeparatePaymentEntry: boolean;
   isAdditionalComponent: boolean;
   isRecurringAdditional: boolean;
   deductFullTaxOnSelectedPayrollDate: boolean;
@@ -87,7 +92,12 @@ const emptyForm = {
   dependsOnPaymentDays: false,
   dependsOnLwp: false,
   isTaxApplicable: false,
+  exemptedFromIncomeTax: false,
   variableBasedOnTaxableSalary: false,
+  isPayable: false,
+  payAgainstBenefitClaim: false,
+  onlyTaxImpact: false,
+  createSeparatePaymentEntry: false,
   isAdditionalComponent: false,
   isRecurringAdditional: false,
   deductFullTaxOnSelectedPayrollDate: false,
@@ -112,7 +122,12 @@ const baseFlags = {
   dependsOnPaymentDays: false,
   dependsOnLwp: false,
   isTaxApplicable: false,
+  exemptedFromIncomeTax: false,
   variableBasedOnTaxableSalary: false,
+  isPayable: false,
+  payAgainstBenefitClaim: false,
+  onlyTaxImpact: false,
+  createSeparatePaymentEntry: false,
   isAdditionalComponent: false,
   isRecurringAdditional: false,
   deductFullTaxOnSelectedPayrollDate: false,
@@ -137,21 +152,23 @@ const mockComponents: SalaryComponent[] = [
   { id: 'SC004', name: 'Transport Allowance', code: 'TA', type: 'Earning', description: 'Fixed ₹1,600 / month', calculationType: 'Flat Amount', calculationValue: '1600', condition: '', ...baseFlags, accounts: ['SAL-CONV'], removeIfZeroValued: true },
   { id: 'SC005', name: 'Special Responsibility Allowance', code: 'SRA', type: 'Earning', description: 'For HODs and coordinators', calculationType: 'Flat Amount', calculationValue: '0', condition: 'designation == "Department Head"', ...baseFlags, accounts: ['SAL-PAYABLE'] },
   { id: 'SC006', name: 'Teaching Allowance', code: 'TACH', type: 'Earning', description: 'For teachers only', calculationType: 'Flat Amount', calculationValue: '0', condition: 'staff_category == "Teaching Staff"', ...baseFlags, accounts: ['SAL-PAYABLE'] },
-  { id: 'SC007', name: 'Medical Allowance', code: 'MA', type: 'Earning', description: 'Fixed ₹1,250 / month', calculationType: 'Flat Amount', calculationValue: '1250', condition: '', ...baseFlags, accounts: ['SAL-PAYABLE'] },
-  { id: 'SC008', name: 'Children Education Allowance', code: 'CEA', type: 'Earning', description: '₹100 / child / month, up to 2 children', calculationType: 'Flat Amount', calculationValue: '200', condition: '', ...baseFlags, accounts: ['SAL-PAYABLE'] },
+  { id: 'SC007', name: 'Medical Allowance', code: 'MA', type: 'Earning', description: 'Fixed ₹1,250 / month', calculationType: 'Flat Amount', calculationValue: '1250', condition: '', ...baseFlags, accounts: ['SAL-PAYABLE'], isTaxApplicable: true, isFlexibleBenefit: true },
+  { id: 'SC008', name: 'Children Education Allowance', code: 'CEA', type: 'Earning', description: '₹100 / child / month, up to 2 children', calculationType: 'Flat Amount', calculationValue: '200', condition: '', ...baseFlags, accounts: ['SAL-PAYABLE'], isTaxApplicable: true, exemptedFromIncomeTax: true },
   { id: 'SC009', name: 'Performance Bonus', code: 'PBON', type: 'Earning', description: 'Additional component only', calculationType: 'Flat Amount', calculationValue: '0', condition: '', ...baseFlags, isAdditionalComponent: true, accounts: ['SAL-PAYABLE'], usedIn: 0 },
-  { id: 'SC010', name: 'Leave Travel Allowance', code: 'LTA', type: 'Earning', description: 'Fixed / annual', calculationType: 'Flat Amount', calculationValue: '0', condition: '', ...baseFlags, accounts: ['SAL-PAYABLE'] },
+  { id: 'SC010', name: 'Leave Travel Allowance', code: 'LTA', type: 'Earning', description: 'Fixed / annual', calculationType: 'Flat Amount', calculationValue: '0', condition: '', ...baseFlags, accounts: ['SAL-PAYABLE'], isTaxApplicable: true, isFlexibleBenefit: true },
   { id: 'SC011', name: 'Arrears', code: 'ARR', type: 'Earning', description: 'From payroll correction', calculationType: 'Formula', calculationValue: 'arrear_amount', condition: '', ...baseFlags, arrearComponent: true, accounts: ['SAL-PAYABLE'] },
   { id: 'SC012', name: 'Overtime Pay', code: 'OT', type: 'Earning', description: '(basic / working_days) * ot_hours', calculationType: 'Formula', calculationValue: '(basic / total_working_days) * ot_hours', condition: '', ...baseFlags, accounts: ['SAL-PAYABLE'] },
-  { id: 'SC013', name: 'Employee PF', code: 'EPF', type: 'Deduction', description: 'min(basic * 0.12, 1800)', calculationType: 'Formula', calculationValue: 'min(basic * 0.12, 1800)', condition: '', ...baseFlags, formulaComponents: ['BASIC'], formulaMode: 'percent', formulaPercent: 12, accounts: ['PF-PAYABLE'], arrearComponent: true },
+  { id: 'SC013', name: 'Employee PF', code: 'EPF', type: 'Deduction', description: 'min(basic * 0.12, 1800)', calculationType: 'Formula', calculationValue: 'min(basic * 0.12, 1800)', condition: '', ...baseFlags, formulaComponents: ['BASIC'], formulaMode: 'percent', formulaPercent: 12, accounts: ['PF-PAYABLE'], arrearComponent: true, exemptedFromIncomeTax: true },
   { id: 'SC014', name: 'Employer PF Contribution', code: 'EPFER', type: 'Employer Contribution', description: 'Shown separately; not deducted from take-home', calculationType: 'Formula', calculationValue: 'min(basic * 0.12, 1800)', condition: '', ...baseFlags, formulaComponents: ['BASIC'], formulaMode: 'percent', formulaPercent: 12, accounts: ['PF-PAYABLE'], doNotIncludeInTotal: true, arrearComponent: true },
   { id: 'SC015', name: 'ESI Employee', code: 'ESIE', type: 'Deduction', description: 'gross * 0.0075 if gross <= 21000', calculationType: 'Formula', calculationValue: 'gross * 0.0075', condition: 'gross <= 21000', ...baseFlags, accounts: ['ESI-PAYABLE'], removeIfZeroValued: true },
   { id: 'SC016', name: 'ESI Employer', code: 'ESIER', type: 'Employer Contribution', description: 'gross * 0.0325 if gross <= 21000', calculationType: 'Formula', calculationValue: 'gross * 0.0325', condition: 'gross <= 21000', ...baseFlags, accounts: ['ESI-PAYABLE'], doNotIncludeInTotal: true },
-  { id: 'SC017', name: 'Professional Tax', code: 'PT', type: 'Deduction', description: 'Slab-based by state', calculationType: 'Flat Amount', calculationValue: '200', condition: '', ...baseFlags, accounts: ['PT-PAYABLE'], removeIfZeroValued: true },
-  { id: 'SC018', name: 'Income Tax / TDS', code: 'TDS', type: 'Deduction', description: 'Variable based on taxable salary', calculationType: 'Formula', calculationValue: 'taxable_salary', condition: '', ...baseFlags, accounts: ['TDS-PAYABLE'], variableBasedOnTaxableSalary: true, isTaxApplicable: true },
+  { id: 'SC017', name: 'Professional Tax', code: 'PT', type: 'Deduction', description: 'Slab-based by state', calculationType: 'Flat Amount', calculationValue: '200', condition: '', ...baseFlags, accounts: ['PT-PAYABLE'], removeIfZeroValued: true, exemptedFromIncomeTax: true },
+  { id: 'SC018', name: 'Income Tax / TDS', code: 'TDS', type: 'Deduction', description: 'Variable based on taxable salary', calculationType: 'Formula', calculationValue: 'taxable_salary', condition: '', ...baseFlags, accounts: ['TDS-PAYABLE'], variableBasedOnTaxableSalary: true, isPayable: false },
   { id: 'SC019', name: 'Loan EMI Deduction', code: 'LOAN', type: 'Deduction', description: 'Links to Employee Loan record', calculationType: 'Flat Amount', calculationValue: '0', condition: '', ...baseFlags, accounts: ['SAL-PAYABLE'] },
   { id: 'SC020', name: 'Leave Without Pay', code: 'LWP', type: 'Deduction', description: '(basic / working_days) * lwp_days', calculationType: 'Formula', calculationValue: '(basic / total_working_days) * lwp_days', condition: '', ...baseFlags, accounts: ['SAL-PAYABLE'] },
-  { id: 'SC021', name: 'Salary Advance Recovery', code: 'SAR', type: 'Deduction', description: 'Fixed monthly recovery', calculationType: 'Flat Amount', calculationValue: '0', condition: '', ...baseFlags, accounts: ['SAL-PAYABLE'] }
+  { id: 'SC021', name: 'Salary Advance Recovery', code: 'SAR', type: 'Deduction', description: 'Fixed monthly recovery', calculationType: 'Flat Amount', calculationValue: '0', condition: '', ...baseFlags, accounts: ['SAL-PAYABLE'] },
+  { id: 'SC022', name: 'Education Cess', code: 'EC', type: 'Deduction', description: '4% of Income Tax (TDS * 0.04)', calculationType: 'Formula', calculationValue: 'TDS * 0.04', condition: '', ...baseFlags, formulaComponents: ['TDS'], formulaMode: 'percent', formulaPercent: 4, accounts: ['TDS-PAYABLE'] },
+  { id: 'SC023', name: 'Special Allowance', code: 'SA', type: 'Earning', description: 'base * 0.10', calculationType: 'Formula', calculationValue: 'basic * 0.10', condition: '', ...baseFlags, formulaComponents: ['BASIC'], formulaMode: 'percent', formulaPercent: 10, accounts: ['SAL-PAYABLE'], isTaxApplicable: true }
 ];
 
 function typeColor(type: string): 'success' | 'danger' | 'info' | 'secondary' {
@@ -249,7 +266,12 @@ export function PayHeadMaster() {
       dependsOnPaymentDays: c.dependsOnPaymentDays,
       dependsOnLwp: c.dependsOnLwp,
       isTaxApplicable: c.isTaxApplicable,
+      exemptedFromIncomeTax: c.exemptedFromIncomeTax,
       variableBasedOnTaxableSalary: c.variableBasedOnTaxableSalary,
+      isPayable: c.isPayable,
+      payAgainstBenefitClaim: c.payAgainstBenefitClaim,
+      onlyTaxImpact: c.onlyTaxImpact,
+      createSeparatePaymentEntry: c.createSeparatePaymentEntry,
       isAdditionalComponent: c.isAdditionalComponent,
       isRecurringAdditional: c.isRecurringAdditional,
       deductFullTaxOnSelectedPayrollDate: c.deductFullTaxOnSelectedPayrollDate,
@@ -460,27 +482,38 @@ export function PayHeadMaster() {
                   </div>
                 )}
                 <div className="grid gap-3 md:grid-cols-2">
-                  <FlagCard on={form.isTaxApplicable} title="Taxable component" helper="Included in annual tax computation" onToggle={(v) => setForm({ ...form, isTaxApplicable: v })} />
+                  {form.type === 'Earning' && <FlagCard on={form.isTaxApplicable} title="Is Tax Applicable" helper="Amount is included in taxable income. Requires a Payroll Period and Income Tax Slab. Enable for Basic/DA; HRA uses its own exemption logic." onToggle={(v) => setForm({ ...form, isTaxApplicable: v })} />}
+                  <FlagCard on={form.exemptedFromIncomeTax} title="Exempted from Income Tax" helper="Full amount is deducted from taxable income without declaration or proof (e.g. Professional Tax, CEA up to limit)." onToggle={(v) => setForm({ ...form, exemptedFromIncomeTax: v })} />
+                  <FlagCard on={form.dependsOnPaymentDays} title="Depends on Payment Days" helper="Amount is prorated based on working / payment days." onToggle={(v) => setForm({ ...form, dependsOnPaymentDays: v })} />
                   <FlagCard on={form.dependsOnLwp} title="Pro-rate on leaves" helper="Deducted proportionally on LWP days" onToggle={(v) => setForm({ ...form, dependsOnLwp: v })}>
                     <p className="mt-2 font-mono text-[11px] text-gray-600">(Amount / total_working_days) × lwp_days</p>
                   </FlagCard>
                   <FlagCard on={form.doNotIncludeInTotal} title="Informational only" helper="Shown on slip but excluded from totals" onToggle={(v) => setForm({ ...form, doNotIncludeInTotal: v })} />
-                  <FlagCard on={form.variableBasedOnTaxableSalary} title="Auto-compute tax (TDS)" helper="Only for the Income Tax component." onToggle={(v) => setForm({ ...form, variableBasedOnTaxableSalary: v })}>
+                  {form.type === 'Deduction' && <FlagCard on={form.variableBasedOnTaxableSalary} title="Variable Based On Taxable Salary" helper="Master switch for automatic income tax. MUST be ON for the Income Tax (TDS) component." onToggle={(v) => setForm({ ...form, variableBasedOnTaxableSalary: v })}>
                     <p className="mt-2 text-xs text-amber-800">Enable this on only one component in each structure.</p>
-                  </FlagCard>
+                  </FlagCard>}
+                  {form.type === 'Deduction' && <FlagCard on={form.deductFullTaxOnSelectedPayrollDate} title="Deduct Full Tax on Selected Payroll Date" helper="When used in Additional Salary, tax on the extra amount is deducted in that payroll month (e.g. bonus)." onToggle={(v) => setForm({ ...form, deductFullTaxOnSelectedPayrollDate: v })} />}
+                  {form.type === 'Deduction' && <FlagCard on={form.isPayable} title="Is Payable" helper="ON if this component is payable to the employee. Keep OFF for Income Tax." onToggle={(v) => setForm({ ...form, isPayable: v })} />}
                   <FlagCard on={form.isAdditionalComponent} title="Additional salary only" helper="Cannot be added to salary structures." onToggle={(v) => setForm({ ...form, isAdditionalComponent: v, isRecurringAdditional: v ? form.isRecurringAdditional : false })} />
                   <FlagCard on={form.isRecurringAdditional} title="Can recur monthly" helper="When added as Additional Salary" onToggle={(v) => form.isAdditionalComponent && setForm({ ...form, isRecurringAdditional: v })} />
-                  <FlagCard on={form.isFlexibleBenefit} title="Is flexible benefit" helper="Shows payout method and max benefit" onToggle={(v) => setForm({ ...form, isFlexibleBenefit: v })} />
+                  {form.type === 'Earning' && <FlagCard on={form.isFlexibleBenefit} title="Is Flexible Benefit" helper="Employees can avail this from the flexible benefit package." onToggle={(v) => setForm({ ...form, isFlexibleBenefit: v, payAgainstBenefitClaim: v ? form.payAgainstBenefitClaim : false, onlyTaxImpact: v ? form.onlyTaxImpact : false, createSeparatePaymentEntry: v ? form.createSeparatePaymentEntry : false })} />}
                   <FlagCard on={form.disabled} title="Disabled" helper="Next slips show ₹0 for this component" onToggle={(v) => setForm({ ...form, disabled: v })} />
                 </div>
-                {form.isFlexibleBenefit && (
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <Select label="Payout method" options={PAYOUT_METHODS} value={form.payoutMethod} onChange={(v) => setForm({ ...form, payoutMethod: typeof v === 'string' ? v : v.target.value })} />
-                    <Input label="Max benefit amount (yearly)" type="number" value={form.maxBenefitAmount} onChange={(e) => setForm({ ...form, maxBenefitAmount: parseFloat(e.target.value) || 0 })} />
+                {form.type === 'Earning' && form.isFlexibleBenefit && (
+                  <div className="space-y-3">
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <FlagCard on={form.payAgainstBenefitClaim} title="Pay Against Benefit Claim" helper="Pay this benefit via Employee Benefit Claim." onToggle={(v) => setForm({ ...form, payAgainstBenefitClaim: v })} />
+                      <FlagCard on={form.onlyTaxImpact} title="Only Tax Impact" helper="Flexible benefit stays part of taxable income." onToggle={(v) => setForm({ ...form, onlyTaxImpact: v })} />
+                      <FlagCard on={form.createSeparatePaymentEntry} title="Create Separate Payment Entry" helper="Create a separate payment entry against the Benefit Claim." onToggle={(v) => setForm({ ...form, createSeparatePaymentEntry: v })} />
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <Select label="Payout method" options={PAYOUT_METHODS} value={form.payoutMethod} onChange={(v) => setForm({ ...form, payoutMethod: typeof v === 'string' ? v : v.target.value })} />
+                      <Input label="Max benefit amount (yearly)" type="number" value={form.maxBenefitAmount} onChange={(e) => setForm({ ...form, maxBenefitAmount: parseFloat(e.target.value) || 0 })} />
+                    </div>
                   </div>
                 )}
                 <MultiSelect label="Default account(s)" options={ACCOUNT_OPTIONS} value={form.accounts} onChange={(accounts) => setForm({ ...form, accounts })} placeholder="Select account(s)" />
-                <Select label="Company" options={COMPANIES} value={form.company} onChange={(v) => setForm({ ...form, company: typeof v === 'string' ? v : v.target.value })} />
+                <Select label="Company" options={[{ value: '', label: 'All companies' }, ...COMPANIES]} value={form.company} onChange={(v) => setForm({ ...form, company: typeof v === 'string' ? v : v.target.value })} />
                 <div className="flex flex-wrap gap-2">
                   <Button onClick={handleSave}><Save className="w-4 h-4 mr-2" />{editId ? 'Save' : 'Save component'}</Button>
                   <Button variant="outline" onClick={resetForm}>Cancel</Button>

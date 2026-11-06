@@ -597,9 +597,25 @@ export const hrRegistry: Record<string, () => any> = {
     () => import('../hr/income-tax/EmployeeIncomeInvestmentDeclaration'),
     'EmployeeIncomeInvestmentDeclaration'
   ),
+  'employee-tax-exemption-declaration': rp(
+    () => import('../hr/income-tax/EmployeeTaxExemptionDeclaration'),
+    'EmployeeTaxExemptionDeclaration'
+  ),
+  'employee-other-income-declaration': rp(
+    () => import('../hr/income-tax/EmployeeOtherIncomeDeclaration'),
+    'EmployeeOtherIncomeDeclaration'
+  ),
+  'employee-benefit-application': rp(
+    () => import('../hr/income-tax/EmployeeBenefitApplication'),
+    'EmployeeBenefitApplication'
+  ),
   'investment-deduction-proof-verification': rp(
     () => import('../hr/income-tax/InvestmentDeductionProofVerification'),
     'InvestmentDeductionProofVerification'
+  ),
+  'employee-tax-exemption-proof-submission': rp(
+    () => import('../hr/income-tax/EmployeeTaxExemptionProofSubmission'),
+    'EmployeeTaxExemptionProofSubmission'
   ),
   'annual-tax-projection-calculation': rp(
     () => import('../hr/income-tax/AnnualTaxProjectionCalculation'),

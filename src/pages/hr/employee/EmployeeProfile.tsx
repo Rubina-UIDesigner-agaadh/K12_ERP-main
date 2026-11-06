@@ -557,6 +557,24 @@ export function EmployeeProfile() {
           <Input label="TDS Applicable" placeholder="Yes/No" />
         </div>
       </FormSection>
+      <FormSection title="Salary Withholding">
+        <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+            <p className="text-xs uppercase text-amber-700">Active withholdings</p>
+            <p className="text-2xl font-bold text-amber-800">1</p>
+            <p className="text-xs text-amber-700">SW-2026-001 · Disciplinary Investigation</p>
+          </div>
+          <div className="rounded-lg border p-3">
+            <p className="text-xs uppercase text-gray-500">Amount currently withheld</p>
+            <p className="text-2xl font-bold text-red-700">₹1,45,320</p>
+          </div>
+          <div className="rounded-lg border p-3">
+            <p className="text-xs uppercase text-gray-500">History</p>
+            <p className="text-sm text-gray-700">SW-2026-001 Active since 01 Sep 2026 · 3 cycles</p>
+          </div>
+        </div>
+        <p className="text-xs text-gray-500">Linked from Payroll → Salary Withholding &amp; Release. ESS shows this as Administrative Hold when the reason is disciplinary.</p>
+      </FormSection>
       <FormSection title="Loan & Advances">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Input label="Loan Amount" type="number" placeholder="0" />
