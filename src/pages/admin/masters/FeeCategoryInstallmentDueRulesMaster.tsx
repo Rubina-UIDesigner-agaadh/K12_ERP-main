@@ -12,7 +12,9 @@ import { AlertTriangle, Eye, FileText, Plus, Save, Search, Send, Upload } from '
 export const FEE_SCHEDULE_STORE = 'k12-fee-schedules-v1';
 export const STUDENT_FEE_INVOICE_STORE = 'k12-student-fee-invoices-v1';
 
-type ScheduleStatus = 'Draft' | 'Submitted' | 'Invoices Generated';
+type ScheduleStatus = 'Draft' | 'Submitted' | 'Invoices Generated' | 'Scheduled';
+type InstallmentRow = { id: string; name: string; dueDate: string; percent: number };
+type ScopeMode = 'all' | 'selected';
 
 type FeeStructureOption = {
   id: string;
@@ -50,6 +52,11 @@ type FeeSchedule = {
   sendNotification: boolean;
   status: ScheduleStatus;
   students: ScheduleStudent[];
+  scope: ScopeMode;
+  installments: InstallmentRow[];
+  notifyDaysBefore: number;
+  notifyChannel: 'Email' | 'SMS' | 'Email and SMS';
+  parentScheduleAt: string;
 };
 
 export type StoredFeeInvoice = {
@@ -110,8 +117,14 @@ const loadJson = <T,>(key: string, fallback: T): T => {
 };
 const saveJson = (key: string, value: unknown) => localStorage.setItem(key, JSON.stringify(value));
 
+const defaultInstallments = (): InstallmentRow[] => [
+  { id: 'ins-1', name: '1st Installment', dueDate: '2026-11-15', percent: 40 },
+  { id: 'ins-2', name: '2nd Installment', dueDate: '2027-01-15', percent: 30 },
+  { id: 'ins-3', name: '3rd Installment', dueDate: '2027-03-15', percent: 30 }
+];
+
 const autoName = (structure?: FeeStructureOption) =>
-  structure ? `Fee Schedule — ${structure.name}` : 'Fee Schedule';
+  structure ? `Fee Installment Plan — ${structure.name}` : 'Fee Installment Plan';
 
 const studentsForStructure = (structureId: string): ScheduleStudent[] =>
   ENROLLED.filter((row) => row.feeStructureId === structureId).map((row) => ({ ...row, include: true }));
@@ -128,7 +141,12 @@ const seedSchedules = (): FeeSchedule[] => {
     dueDate: '2025-06-25',
     sendNotification: true,
     status: 'Draft',
-    students: studentsForStructure(g6.id)
+    students: studentsForStructure(g6.id),
+    scope: 'all',
+    installments: defaultInstallments(),
+    notifyDaysBefore: 3,
+    notifyChannel: 'Email and SMS',
+    parentScheduleAt: '2026-11-12T09:00'
   }];
 };
 
@@ -144,7 +162,12 @@ const blankSchedule = (): FeeSchedule => {
     dueDate: '2026-11-15',
     sendNotification: true,
     status: 'Draft',
-    students: studentsForStructure(structure.id)
+    students: studentsForStructure(structure.id),
+    scope: 'all',
+    installments: defaultInstallments(),
+    notifyDaysBefore: 3,
+    notifyChannel: 'Email and SMS',
+    parentScheduleAt: '2026-11-12T09:00'
   };
 };
 
@@ -180,11 +203,12 @@ function buildInvoice(schedule: FeeSchedule, student: ScheduleStudent, seq: numb
     paid: 0,
     lateFinePerDay: 50,
     includeLateFine: false,
-    installments: [
-      { name: '1st Installment', dueDate: schedule.dueDate, amount: Math.round(student.net / 3), status: 'Pending' },
-      { name: '2nd Installment', dueDate: '2026-07-15', amount: Math.round(student.net / 3), status: 'Pending' },
-      { name: '3rd Installment', dueDate: '2026-10-15', amount: student.net - 2 * Math.round(student.net / 3), status: 'Pending' }
-    ],
+    installments: (schedule.installments?.length ? schedule.installments : defaultInstallments()).map((row, i, arr) => {
+      const amount = i === arr.length - 1
+        ? student.net - arr.slice(0, -1).reduce((sum, item) => sum + Math.round(student.net * item.percent / 100), 0)
+        : Math.round(student.net * row.percent / 100);
+      return { name: row.name, dueDate: row.dueDate, amount, status: 'Pending' as const };
+    }),
     payments: [],
     scholarship: student.discount
   };
@@ -192,7 +216,15 @@ function buildInvoice(schedule: FeeSchedule, student: ScheduleStudent, seq: numb
 
 export function FeeCategoryInstallmentDueRulesMaster() {
   const navigate = useNavigate();
-  const [schedules, setSchedules] = useState<FeeSchedule[]>(() => loadJson(FEE_SCHEDULE_STORE, seedSchedules()));
+  const normalize = (row: FeeSchedule): FeeSchedule => ({
+    ...row,
+    scope: row.scope || 'all',
+    installments: row.installments?.length ? row.installments : defaultInstallments(),
+    notifyDaysBefore: row.notifyDaysBefore ?? 3,
+    notifyChannel: row.notifyChannel || 'Email and SMS',
+    parentScheduleAt: row.parentScheduleAt || '2026-11-12T09:00'
+  });
+  const [schedules, setSchedules] = useState<FeeSchedule[]>(() => loadJson(FEE_SCHEDULE_STORE, seedSchedules()).map(normalize));
   const [mode, setMode] = useState<'list' | 'form'>('list');
   const [draft, setDraft] = useState<FeeSchedule | null>(null);
   const [gradeFilter, setGradeFilter] = useState('');
@@ -212,14 +244,45 @@ export function FeeCategoryInstallmentDueRulesMaster() {
 
   const applyStructure = (schedule: FeeSchedule, structureId: string): FeeSchedule => {
     const structure = STRUCTURES.find((item) => item.id === structureId) || STRUCTURES[0];
+    const students = studentsForStructure(structure.id).map((row) => ({ ...row, include: schedule.scope !== 'selected' ? true : row.include }));
     return {
       ...schedule,
       feeStructureId: structure.id,
       academicYear: structure.academicYear,
       academicTerm: structure.academicTerm,
       name: autoName(structure),
-      students: studentsForStructure(structure.id)
+      students: schedule.scope === 'all' ? students.map((row) => ({ ...row, include: true })) : students
     };
+  };
+
+  const setScope = (scope: ScopeMode) => {
+    if (!draft) return;
+    setDraft({
+      ...draft,
+      scope,
+      students: draft.students.map((row) => ({ ...row, include: scope === 'all' ? true : row.include }))
+    });
+  };
+
+  const equalSplit = () => {
+    if (!draft || !draft.installments.length) return;
+    const n = draft.installments.length;
+    const each = Math.floor(100 / n);
+    setDraft({
+      ...draft,
+      installments: draft.installments.map((row, i) => ({ ...row, percent: i === n - 1 ? 100 - each * (n - 1) : each }))
+    });
+  };
+
+  const scheduleParents = () => {
+    if (!draft) return;
+    const pct = draft.installments.reduce((s, r) => s + Number(r.percent || 0), 0);
+    if (Math.abs(pct - 100) > 0.5) { setNotice('Installment percentages must total 100%.'); return; }
+    if (!included.length) { setNotice('Select all students or at least one student.'); return; }
+    const next = { ...draft, status: 'Scheduled' as const };
+    const exists = schedules.some((item) => item.id === next.id);
+    persist(exists ? schedules.map((item) => item.id === next.id ? next : item) : [next, ...schedules], `Parent payment scheduled for ${included.length} student(s). Reminders ${draft.notifyDaysBefore} day(s) before each due date via ${draft.notifyChannel}.`);
+    setDraft(next);
   };
 
   const openCreate = () => { setDraft(blankSchedule()); setMode('form'); setNotice(''); };
@@ -320,14 +383,13 @@ export function FeeCategoryInstallmentDueRulesMaster() {
         <div className="space-y-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-xs text-gray-400">Finance &gt; Fees &gt; Fee Schedule</p>
-              <h1 className="text-2xl font-bold text-gray-900">Fee Schedule</h1>
-              <p className="text-sm text-gray-500">Define fee structures by program, academic level, or installment schedule. Invoices generate from enrollment without rebuilding each cycle.</p>
+              <p className="text-xs text-gray-400">Finance &gt; Fees &gt; Fee Installment and Scheduler</p>
+              <h1 className="text-2xl font-bold text-gray-900">Fee Installment and Scheduler</h1>
+              <p className="text-sm text-gray-500">Set installments for all students or a selected list, then schedule parent payment reminders against each due date.</p>
             </div>
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" onClick={() => navigate('/finance/fees/fee-structure')}>Open Fee Structure</Button>
-              <Button variant="outline" onClick={() => navigate('/finance/fees/student-fee-invoice')}>Student Fee Invoices</Button>
-              <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2" />New Fee Schedule</Button>
+              <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2" />New Installment Plan</Button>
             </div>
           </div>
           <Card>
@@ -335,9 +397,9 @@ export function FeeCategoryInstallmentDueRulesMaster() {
               <table className="w-full min-w-[760px] text-sm">
                 <thead className="bg-gray-50 text-xs uppercase text-gray-500">
                   <tr>
-                    <th className="px-4 py-3 text-left">Schedule</th>
+                    <th className="px-4 py-3 text-left">Plan</th>
                     <th className="px-4 py-3">Fee Structure</th>
-                    <th className="px-4 py-3">Invoice / Due</th>
+                    <th className="px-4 py-3">Installments / Due</th>
                     <th className="px-4 py-3">Students</th>
                     <th className="px-4 py-3">Status</th>
                     <th className="px-4 py-3">Actions</th>
@@ -351,9 +413,9 @@ export function FeeCategoryInstallmentDueRulesMaster() {
                         <p className="text-xs text-gray-500">{row.academicYear} · {row.academicTerm}</p>
                       </td>
                       <td className="px-4 py-3 text-center">{STRUCTURES.find((item) => item.id === row.feeStructureId)?.name || row.feeStructureId}</td>
-                      <td className="px-4 py-3 text-center">{row.invoiceDate} / {row.dueDate}</td>
+                      <td className="px-4 py-3 text-center">{(row.installments?.length || 0)} dues · first {row.installments?.[0]?.dueDate || row.dueDate}</td>
                       <td className="px-4 py-3 text-center">{row.students.filter((item) => item.include).length}</td>
-                      <td className="px-4 py-3 text-center"><Badge variant={row.status === 'Draft' ? 'secondary' : row.status === 'Submitted' ? 'warning' : 'success'}>{row.status}</Badge></td>
+                      <td className="px-4 py-3 text-center"><Badge variant={row.status === 'Draft' ? 'secondary' : row.status === 'Submitted' || row.status === 'Scheduled' ? 'warning' : 'success'}>{row.status}</Badge></td>
                       <td className="px-4 py-3 text-center"><Button size="xs" variant="outline" onClick={() => openEdit(row)}>Open</Button></td>
                     </tr>
                   ))}
@@ -366,17 +428,17 @@ export function FeeCategoryInstallmentDueRulesMaster() {
 
       {mode === 'form' && draft && (
         <div className="space-y-4">
-          <button type="button" className="text-sm text-indigo-600" onClick={() => setMode('list')}>← Back to Fee Schedules</button>
+          <button type="button" className="text-sm text-indigo-600" onClick={() => setMode('list')}>← Back to installment plans</button>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-xs text-gray-400">Finance &gt; Fees &gt; Fee Schedule</p>
-              <h1 className="text-2xl font-bold text-gray-900">{draft.name || 'New Fee Schedule'}</h1>
-              <p className="text-sm text-gray-500">Once configured, invoices generate from enrollment records.</p>
+              <p className="text-xs text-gray-400">Finance &gt; Fees &gt; Fee Installment and Scheduler</p>
+              <h1 className="text-2xl font-bold text-gray-900">{draft.name || 'New installment plan'}</h1>
+              <p className="text-sm text-gray-500">Choose all students or a selected list, set installment dues, then schedule parent payments.</p>
             </div>
-            <Badge variant={draft.status === 'Draft' ? 'secondary' : draft.status === 'Submitted' ? 'warning' : 'success'}>{draft.status}</Badge>
+            <Badge variant={draft.status === 'Draft' ? 'secondary' : draft.status === 'Submitted' || draft.status === 'Scheduled' ? 'warning' : 'success'}>{draft.status}</Badge>
           </div>
 
-          <Card title="Schedule header">
+          <Card title="Plan header">
             <div className="grid gap-4 md:grid-cols-2">
               <Input label="Schedule name" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
               <Select
@@ -393,6 +455,50 @@ export function FeeCategoryInstallmentDueRulesMaster() {
                 <Toggle label="Send notification (email/SMS to parents on generation)" checked={draft.sendNotification} onChange={(checked) => setDraft({ ...draft, sendNotification: checked })} />
               </div>
             </div>
+          </Card>
+
+          <Card title="Who this plan applies to">
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => setScope('all')} className={`rounded-full px-4 py-2 text-sm font-semibold ${draft.scope === 'all' ? 'bg-indigo-600 text-white' : 'border border-gray-300 text-gray-700'}`}>All students on this structure</button>
+              <button type="button" onClick={() => setScope('selected')} className={`rounded-full px-4 py-2 text-sm font-semibold ${draft.scope === 'selected' ? 'bg-indigo-600 text-white' : 'border border-gray-300 text-gray-700'}`}>Selected students only</button>
+            </div>
+            <p className="mt-2 text-xs text-gray-500">{draft.scope === 'all' ? 'Every enrolled student on the fee structure is included. Individual checkboxes stay on.' : 'Use the table checkboxes, filters or CSV import to pick students.'}</p>
+          </Card>
+
+          <Card title="Installment setup">
+            <div className="mb-3 flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" onClick={() => setDraft({ ...draft, installments: [...draft.installments, { id: `ins-${Date.now()}`, name: `${draft.installments.length + 1}th Installment`, dueDate: draft.dueDate, percent: 0 }] })}>Add installment</Button>
+              <Button size="sm" variant="outline" onClick={equalSplit}>Split equally</Button>
+              <span className={`ml-auto text-sm font-medium ${Math.abs(draft.installments.reduce((s, r) => s + Number(r.percent || 0), 0) - 100) < 0.5 ? 'text-emerald-700' : 'text-red-600'}`}>Total {draft.installments.reduce((s, r) => s + Number(r.percent || 0), 0)}% (must be 100%)</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 text-xs uppercase text-gray-500">
+                  <tr>{['Installment', 'Due date', '% of net', 'Amount (sample first student)', ''].map((h) => <th key={h || 'i'} className="px-3 py-2 text-left">{h}</th>)}</tr>
+                </thead>
+                <tbody>
+                  {draft.installments.map((row, i) => (
+                    <tr key={row.id} className="border-t">
+                      <td className="px-3 py-2"><input className="w-full rounded border px-2 py-1" value={row.name} onChange={(e) => setDraft({ ...draft, installments: draft.installments.map((x, idx) => idx === i ? { ...x, name: e.target.value } : x) })} /></td>
+                      <td className="px-3 py-2"><input type="date" className="rounded border px-2 py-1" value={row.dueDate} onChange={(e) => setDraft({ ...draft, installments: draft.installments.map((x, idx) => idx === i ? { ...x, dueDate: e.target.value } : x) })} /></td>
+                      <td className="px-3 py-2"><input type="number" className="w-20 rounded border px-2 py-1" value={row.percent} onChange={(e) => setDraft({ ...draft, installments: draft.installments.map((x, idx) => idx === i ? { ...x, percent: Number(e.target.value) } : x) })} /></td>
+                      <td className="px-3 py-2">{inr(Math.round((included[0]?.net || 0) * row.percent / 100))}</td>
+                      <td className="px-3 py-2"><Button size="xs" variant="ghost" disabled={draft.installments.length <= 1} onClick={() => setDraft({ ...draft, installments: draft.installments.filter((_, idx) => idx !== i) })}>Remove</Button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+
+          <Card title="Parent payment scheduler">
+            <div className="grid gap-4 md:grid-cols-3">
+              <Input label="Remind parents (days before each due date)" type="number" value={String(draft.notifyDaysBefore)} onChange={(e) => setDraft({ ...draft, notifyDaysBefore: Number(e.target.value) })} />
+              <Select label="Channel" value={draft.notifyChannel} onChange={(e) => setDraft({ ...draft, notifyChannel: (typeof e === 'string' ? e : e.target.value) as FeeSchedule['notifyChannel'] })} options={['Email', 'SMS', 'Email and SMS'].map((v) => ({ value: v, label: v }))} />
+              <Input label="First reminder run" type="datetime-local" value={draft.parentScheduleAt} onChange={(e) => setDraft({ ...draft, parentScheduleAt: e.target.value })} />
+            </div>
+            <p className="mt-2 text-xs text-gray-500">Parents of included students receive a payment request for each installment (amount, due date, online pay link). Held/excluded students are skipped.</p>
+            <Button className="mt-3" onClick={scheduleParents}>Schedule parent payments</Button>
           </Card>
 
           <Card title="Student selection">
@@ -430,7 +536,7 @@ export function FeeCategoryInstallmentDueRulesMaster() {
                   {visibleStudents.map((row) => (
                     <tr key={row.studentId} className="border-t">
                       <td className="px-3 py-2 text-center">
-                        <input type="checkbox" className="h-4 w-4" checked={row.include} disabled={draft.status !== 'Draft'} onChange={(e) => patchStudents((item) => item.studentId === row.studentId ? { ...item, include: e.target.checked } : item)} />
+                        <input type="checkbox" className="h-4 w-4" checked={row.include} disabled={draft.scope === 'all' || draft.status === 'Invoices Generated'} onChange={(e) => patchStudents((item) => item.studentId === row.studentId ? { ...item, include: e.target.checked } : item)} />
                       </td>
                       <td className="px-3 py-2">{row.studentId}</td>
                       <td className="px-3 py-2">
@@ -473,7 +579,8 @@ export function FeeCategoryInstallmentDueRulesMaster() {
             <Button variant="outline" onClick={() => { setPreviewPage(0); setPreviewOpen(true); }} disabled={!included.length}><Eye className="h-4 w-4 mr-1" />Preview All Invoices</Button>
             <Button variant="warning" onClick={submitSchedule} disabled={draft.status !== 'Draft' || !!progress}>Submit Schedule</Button>
             <Button onClick={generateInvoices} disabled={draft.status === 'Draft' || !!progress}><FileText className="h-4 w-4 mr-1" />Generate Invoices</Button>
-            <Button variant="outline" onClick={notifyParents} disabled={!included.length}><Send className="h-4 w-4 mr-1" />Send Bulk Notification</Button>
+            <Button variant="outline" onClick={notifyParents} disabled={!included.length}><Send className="h-4 w-4 mr-1" />Notify parents now</Button>
+            <Button onClick={scheduleParents} disabled={!included.length}>Schedule parent payments</Button>
           </div>
         </div>
       )}

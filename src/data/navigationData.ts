@@ -251,10 +251,10 @@ const ledgersSidebar: SidebarSection[] = [
 const feesSidebar: SidebarSection[] = [
   { title: 'Collection Overview', items: [{ label: 'Fee Summary Dashboard', id: 'fee-summary-dashboard' }] },
   { title: 'Dues & Defaulters', items: [{ label: 'Fee Pending List', id: 'fee-pending-list' }] },
-  { title: 'Fee Collection & Receipts', items: [{ label: 'Fee Collection', id: 'fee-receipt' }, { label: 'Fee Receipt – Bulk', id: 'fee-receipt-bulk' }, { label: 'Fee Collection Register', id: 'fee-collection-register' }, { label: 'Student Fee Invoice', id: 'student-fee-invoice' }, { label: 'Royalty Collection', id: 'royalty-collection' }] },
+  { title: 'Fee Collection & Receipts', items: [{ label: 'Fee Collection', id: 'fee-receipt' }, { label: 'Fee Receipt – Bulk', id: 'fee-receipt-bulk' }, { label: 'Fee Collection Register', id: 'fee-collection-register' }, { label: 'Royalty Collection', id: 'royalty-collection' }] },
   { title: 'Refunds & Ledger Transfer', items: [{ label: 'Fee Refund', id: 'fee-refund' }, { label: 'Branch Transfer', id: 'branch-transfer' }] },
   { title: 'Student Fee Assignment', items: [{ label: 'Student Fee Process', id: 'student-fee-process' }, { label: 'Assign Exemption Type', id: 'assign-exemption-type' }] },
-  { title: 'Structure, Schedule & Templates', items: [{ label: 'Fee Structure', id: 'fee-structure' }, { label: 'Fee Schedule', id: 'fee-category-installment-due-rules-master' }, { label: 'Fee Receipt Template', id: 'fee-receipt-template' }] },
+  { title: 'Structure, Schedule & Templates', items: [{ label: 'Fee Structure', id: 'fee-structure' }, { label: 'Fee Installment and Scheduler', id: 'fee-category-installment-due-rules-master' }, { label: 'Fee Receipt Template', id: 'fee-receipt-template' }] },
   { title: 'Fee Reporting', items: [{ label: 'Fee Reports', id: 'fee-collection-reports' }] }
 ];
 
@@ -318,7 +318,7 @@ const hrMasterSidebar: SidebarSection[] = [
   { title: 'Leave & Shift Rules', items: [{ label: 'Leave Policy', id: 'leave-type-master' }, { label: 'Attendance Rule Master', id: 'attendance-rule-master' }, { label: 'Holiday & Working Day Calendar', id: 'hr-holiday-working-day-calendar' }, { label: 'Shift Master', id: 'shift-master' }] },
   { title: 'Pay Components & Grades', items: [{ label: 'Salary Component Master', id: 'pay-head-master' }, { label: 'Salary Structure Master', id: 'salary-structure-master' }, { label: 'Salary Grade / Pay Scale Master', id: 'salary-grade-pay-scale-master' }] },
   { title: 'Payroll Cycle & Payout Setup', items: [{ label: 'Payroll Calendar / Period Master', id: 'payroll-calendar-period-master' }, { label: 'Payroll Settings', id: 'payroll-setup' }, { label: 'Disbursement Mode / Bank Setup', id: 'disbursement-mode-bank-setup' }] },
-  { title: 'Appraisal Framework', items: [{ label: 'Appraisal Settings', id: 'appraisal-settings' }, { label: 'Appraisal Cycle Master', id: 'appraisal-cycle-master' }, { label: 'Appraisal Template Master', id: 'appraisal-template-master' }, { label: 'Competency & KPI Master', id: 'competency-kpi-master' }, { label: 'Rating Scale Master', id: 'rating-scale-master' }, { label: 'Appraisal Role & Workflow Master', id: 'appraisal-role-workflow-master' }] },
+  { title: 'Appraisal Framework', items: [{ label: 'Appraisal Settings', id: 'appraisal-settings' }, { label: 'Appraisal Cycle Master', id: 'appraisal-cycle-master' }, { label: 'Appraisal Template Master', id: 'appraisal-template-master' }, { label: 'Competency & KPI Master', id: 'competency-kpi-master' }, { label: 'Appraisal Role & Workflow Master', id: 'appraisal-role-workflow-master' }] },
   { title: 'Income Tax Framework', items: [{ label: 'Income Tax Slab', id: 'income-tax-slab' }, { label: 'Exemption & Deduction Section Master', id: 'exemption-deduction-section-master' }, { label: 'HRA & Special Exemption Rule Master', id: 'hra-special-exemption-rule-master' }] }
 ];
 
