@@ -720,6 +720,7 @@ export function TdsDeductionReport() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">TDS Deduction Report</h1>
           <p className="text-sm text-gray-500 mt-1">HR &gt; Payroll &gt; Income Tax &gt; Reports</p>
+          <p className="mt-2 text-xs text-gray-600">Challan Reconciliation Status — Oct: deducted ₹6.26L / deposited ₹6.26L / variance ₹0 / CHL-2026-10 / 07-Nov-2026 / On Time. Nov: Pending. Open Challan / Tax Payment Register to record missing months.</p>
         </div>
         <div className="flex gap-3">
           <Button variant="outline" onClick={handleRefresh} disabled={isGenerating}>

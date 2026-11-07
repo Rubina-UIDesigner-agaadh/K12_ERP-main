@@ -249,6 +249,13 @@ export function PayrollEntry() {
       </div>
 
       {notice && <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800">{notice}</div>}
+      {lastPayroll && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          Final month of the payroll period. Complete Annual Tax Reconciliation & Finalisation and sign it off before running this payroll.
+          {' '}<button type="button" className="underline" onClick={() => navigate('/hr/income-tax/annual-tax-reconciliation-finalisation')}>Open Annual Tax Reconciliation</button>
+          <p className="mt-1 text-xs">Deduct Tax For Unsubmitted Tax Exemption Proof and Deduct Tax For Unclaimed Employee Benefits apply Page 20 verified amounts and Page 14 claims. Deactivating either checkbox after reconciliation is logged as a deviation.</p>
+        </div>
+      )}
 
       <div className="flex gap-1 border-b border-gray-200 bg-white">
         {[
@@ -275,25 +282,6 @@ export function PayrollEntry() {
             ))}
           </div>
 
-          <div className="grid gap-3 md:grid-cols-5">
-            {[
-              { l: 'Employees', v: String(totals.employees || (fetched ? included.length : 48)) },
-              { l: 'Total Gross', v: inr(totals.gross || 3845000) },
-              { l: 'Total Deductions', v: inr(totals.deduction || 626400) },
-              { l: 'Total Net Pay', v: inr(totals.net || 3218600) },
-              { l: 'Checklist', v: `${step + 1}/5` },
-              { l: 'Total TDS', v: inr(totals.tds || 0) },
-              { l: 'Professional Tax', v: inr(totals.pt || 0) },
-              { l: 'PF Employee', v: inr(totals.pfEmp || 0) },
-              { l: 'PF Employer', v: inr(totals.pfEr || 0) },
-              { l: 'Slips', v: status === 'Draft' ? 'Not created' : `${created} created` }
-            ].map((s) => (
-              <div key={s.l} className="rounded-xl border bg-gray-50 p-3">
-                <p className="text-[11px] font-semibold uppercase text-gray-400">{s.l}</p>
-                <p className="text-lg font-bold text-gray-800">{s.v}</p>
-              </div>
-            ))}
-          </div>
           <ul className="flex flex-wrap gap-3 text-sm text-gray-600">
             {['Payroll configured', 'Employees fetched', 'Salary slips created', 'Slips submitted', 'Bank entry created'].map((item, i) => (
               <li key={item} className={i < step ? 'text-gray-400 line-through' : i === step ? 'font-semibold text-indigo-700' : ''}>{i < step ? '✓' : i + 1}. {item}</li>
@@ -473,6 +461,7 @@ export function PayrollEntry() {
                   <Button onClick={bankEntry}>Make Bank Entry</Button>
                   <Button variant="outline" onClick={() => flash('Bank advice (NEFT/RTGS) downloaded for included slips. Withheld employees excluded.')}>Download Bank Advice</Button>
                   <Button variant="outline" onClick={() => flash(`Salary slips emailed to ${selected.filter((e) => !e.withheld).length} employees.`)}>Email Salary Slips</Button>
+                  <Button onClick={() => navigate('/hr/payroll/payslip-lock-release')}>Manage Release</Button>
                   <Button variant="outline">View Accrual Entry</Button>
                   {status === 'Bank Entry Created' && selected.some((e) => e.withheld && e.slipStatus === 'Withheld') && (
                     <Button variant="outline" onClick={() => { setReleasePick(selected.filter((e) => e.withheld && e.slipStatus === 'Withheld').map((e) => e.id)); setReleaseOpen(true); }}><Unlock className="mr-1 h-4 w-4" />Release Withheld Salaries</Button>

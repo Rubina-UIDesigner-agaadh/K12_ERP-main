@@ -715,6 +715,9 @@ export function ExemptionDeductionSectionMaster() {
                           {s.sectionName}
                         </p>
                         <p className="text-xs text-gray-500">{s.sectionCode}</p>
+                        {s.sectionCode === '10(13A)' && (
+                          <p className="mt-1 text-[11px] text-amber-700">HRA computation — three-leg formula, Metro/Non-Metro classification and proof documents — is governed by HRA & Special Exemption Rule Master. Configure that page before activating HRA exemption in payroll.</p>
+                        )}
                       </div>
                     </div>
                   </td>

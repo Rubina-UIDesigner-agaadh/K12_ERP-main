@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
-import { Select } from '../../../components/ui/Select';
 import { Badge } from '../../../components/ui/Badge';
 import {
   Printer,
@@ -18,7 +17,10 @@ import {
   ChevronDown,
   ChevronUp,
   FileSpreadsheet,
-  Eye } from
+  Eye,
+  CheckCircle,
+  XCircle,
+  Clock } from
 'lucide-react';
 
 interface Student {
@@ -34,134 +36,316 @@ interface Student {
   attendance: string[];
 }
 
-const CODE_STYLE: Record<string, string> = {
-  P: 'bg-green-100 text-green-700 border-green-300',
-  A: 'bg-red-100 text-red-700 border-red-300',
-  L: 'bg-yellow-100 text-yellow-700 border-yellow-300',
-  H: 'bg-gray-100 text-gray-500 border-gray-300'
-};
-
-function codeCell(code: string) {
-  return (
-    <span className={`inline-flex h-7 w-7 items-center justify-center rounded border text-xs font-bold ${CODE_STYLE[code] || CODE_STYLE.P}`}>
-      {code}
-    </span>
-  );
+function statusLabel(code: string) {
+  if (code === 'A') return 'Absent';
+  if (code === 'L') return 'Excused';
+  if (code === 'H') return 'Holiday';
+  return 'Present';
 }
 
 function StudentAttendanceViewPanel({
   student,
-  month,
-  year,
-  onMonthChange,
-  onYearChange,
+  selectedMonth,
   onClose
 }: {
   student: Student;
-  month: string;
-  year: string;
-  onMonthChange: (v: string) => void;
-  onYearChange: (v: string) => void;
+  selectedMonth: string;
   onClose: () => void;
 }) {
   const [range, setRange] = useState<'daily' | 'weekly' | 'monthly'>('monthly');
-  const daysInMonth = new Date(Number(year), Number(month), 0).getDate();
-  const today = Math.min(2, daysInMonth);
-  const weekStart = Math.max(1, today - 6);
-  const present = student.attendance.slice(0, daysInMonth).filter((s) => s === 'P').length;
-  const absent = student.attendance.slice(0, daysInMonth).filter((s) => s === 'A').length;
-  const leave = student.attendance.slice(0, daysInMonth).filter((s) => s === 'L').length;
-  const holiday = student.attendance.slice(0, daysInMonth).filter((s) => s === 'H').length;
+  const [monthValue, setMonthValue] = useState(selectedMonth);
+  const [anchorDay, setAnchorDay] = useState(1);
+  const [year, month] = monthValue.split('-').map(Number);
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+  const safeAnchor = Math.min(Math.max(1, anchorDay), daysInMonth);
+  const weekStart = Math.max(1, Math.min(safeAnchor, daysInMonth - 6));
+  const visibleDays = range === 'daily'
+    ? [safeAnchor]
+    : range === 'weekly'
+      ? days.filter((day) => day >= weekStart && day < weekStart + 7)
+      : days;
+  const monthCodes = days.map((d) => student.attendance[d - 1] || 'P');
+  const present = monthCodes.filter((s) => s === 'P').length;
+  const absent = monthCodes.filter((s) => s === 'A').length;
+  const excused = monthCodes.filter((s) => s === 'L').length;
+  const holiday = monthCodes.filter((s) => s === 'H').length;
+  const late = 0;
   const working = Math.max(daysInMonth - holiday, 1);
   const percent = Math.round(present / working * 100);
-  const monthOptions = [
-    { value: '01', label: 'January' }, { value: '02', label: 'February' }, { value: '03', label: 'March' },
-    { value: '04', label: 'April' }, { value: '05', label: 'May' }, { value: '06', label: 'June' },
-    { value: '07', label: 'July' }, { value: '08', label: 'August' }, { value: '09', label: 'September' },
-    { value: '10', label: 'October' }, { value: '11', label: 'November' }, { value: '12', label: 'December' }
-  ];
-  const days = range === 'daily'
-    ? [today]
+  const periodLabel = range === 'daily'
+    ? new Date(year, month - 1, safeAnchor).toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' })
     : range === 'weekly'
-      ? Array.from({ length: today - weekStart + 1 }, (_, i) => weekStart + i)
-      : Array.from({ length: daysInMonth }, (_, i) => i + 1);
-  const dayName = (d: number) => new Date(Number(year), Number(month) - 1, d).toLocaleDateString('en-US', { weekday: 'short' });
+      ? `${new Date(year, month - 1, visibleDays[0]).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })} – ${new Date(year, month - 1, visibleDays[visibleDays.length - 1]).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}`
+      : new Date(year, month - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  const monthTitle = new Date(year, month - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  const firstWeekday = new Date(year, month - 1, 1).getDay();
+  const email = `${student.firstName.toLowerCase()}.${student.lastName.toLowerCase()}@school.edu`;
+  const phone = `+91 98765 432${String(10 + student.id).padStart(2, '0')}`;
+  const parentPhone = `+91 98765 432${String(11 + student.id).padStart(2, '0')}`;
+  const shift = (dir: number) => {
+    if (range === 'monthly') {
+      const next = new Date(year, month - 1 + dir, 1);
+      setMonthValue(`${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`);
+      return;
+    }
+    const base = range === 'daily' ? safeAnchor : weekStart;
+    const next = new Date(year, month - 1, base + dir * (range === 'daily' ? 1 : 7));
+    setMonthValue(`${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`);
+    setAnchorDay(next.getDate());
+  };
+  const getStatusIcon = (code: string) => {
+    if (code === 'A') return <XCircle className="w-5 h-5 text-red-600" />;
+    if (code === 'L') return <Calendar className="w-5 h-5 text-blue-600" />;
+    if (code === 'H') return <Clock className="w-5 h-5 text-gray-400" />;
+    return <CheckCircle className="w-5 h-5 text-green-600" />;
+  };
+  const getStatusBg = (code: string) => {
+    if (code === 'A') return 'bg-red-100';
+    if (code === 'L') return 'bg-blue-100';
+    if (code === 'H') return 'bg-gray-100';
+    return 'bg-green-100';
+  };
+  const getStatusBadge = (code: string) => {
+    if (code === 'A') return 'danger';
+    if (code === 'L') return 'info';
+    if (code === 'H') return 'secondary';
+    return 'success';
+  };
+  const history = [...visibleDays].reverse().map((d) => {
+    const date = new Date(year, month - 1, d);
+    const code = student.attendance[d - 1] || 'P';
+    return {
+      day: d,
+      date: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`,
+      weekday: date.toLocaleDateString('en-US', { weekday: 'long' }),
+      code,
+      time: code === 'P' ? '08:15 AM' : '-',
+      remarks: code === 'L' ? 'Medical Leave' : code === 'H' ? 'Holiday' : 'All Classes'
+    };
+  });
+  const dayCellClass = (code: string, isWeekend: boolean) => {
+    if (isWeekend || code === 'H') return 'bg-gray-100 text-gray-400';
+    if (code === 'A') return 'bg-red-100 text-red-700';
+    if (code === 'L') return 'bg-blue-100 text-blue-700';
+    return 'bg-green-100 text-green-700';
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-xl bg-white shadow-xl">
+      <div className="relative max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-xl bg-gray-50 shadow-xl">
         <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-5 py-3">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Attendance Register</h2>
+            <h2 className="text-lg font-semibold text-gray-900">Student Attendance</h2>
             <p className="text-sm text-gray-500">{student.firstName} {student.lastName} · {student.grNo} · Class {student.class}-{student.section}</p>
           </div>
-          <Button variant="ghost" size="sm" onClick={onClose}><X className="w-4 h-4" /></Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm"><Download className="w-4 h-4 mr-1" />Export Report</Button>
+            <Button variant="ghost" size="sm" onClick={onClose}><X className="w-4 h-4" /></Button>
+          </div>
         </div>
 
         <div className="space-y-4 p-5">
-          <div className="flex flex-wrap gap-2">
-            {([{ id: 'daily', label: 'Daily' }, { id: 'weekly', label: 'Weekly' }, { id: 'monthly', label: 'Monthly' }] as const).map((t) => (
-              <button key={t.id} type="button" onClick={() => setRange(t.id)} className={`rounded-lg border px-4 py-2 text-sm font-medium ${range === t.id ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-200 bg-white text-gray-600'}`}>{t.label}</button>
+          <div className="flex flex-wrap items-center gap-2">
+            {([{ id: 'daily', label: 'Daily' }, { id: 'weekly', label: 'Weekly' }, { id: 'monthly', label: 'Monthly' }] as const).map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setRange(item.id)}
+                className={`rounded-full border px-4 py-1.5 text-sm font-medium ${range === item.id ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}`}>
+                {item.label}
+              </button>
             ))}
           </div>
-
-          <div className="grid gap-3 md:grid-cols-4">
-            <Select label="Month" options={monthOptions} value={month} onChange={(e) => onMonthChange(typeof e === 'string' ? e : e.target.value)} />
-            <Select label="Year" options={[{ value: '2026', label: '2026' }, { value: '2025', label: '2025' }]} value={year} onChange={(e) => onYearChange(typeof e === 'string' ? e : e.target.value)} />
-            <div className="rounded-lg border bg-gray-50 p-3 text-center">
-              <p className="text-xs text-gray-500">Attendance %</p>
-              <p className={`text-xl font-bold ${percent >= 75 ? 'text-green-600' : percent >= 50 ? 'text-yellow-600' : 'text-red-600'}`}>{percent}%</p>
-            </div>
-            <div className="rounded-lg border bg-gray-50 p-3 text-center">
-              <p className="text-xs text-gray-500">Working days</p>
-              <p className="text-xl font-bold text-gray-900">{working}</p>
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="font-medium text-gray-700">Attendance for:</span>
+            <div className="flex items-center gap-2 bg-white rounded-lg p-1 border border-gray-200">
+              <Button variant="ghost" size="sm" onClick={() => shift(-1)}><ChevronLeft className="w-4 h-4" /></Button>
+              <span className="font-bold text-gray-900 min-w-[180px] text-center">{periodLabel}</span>
+              <Button variant="ghost" size="sm" onClick={() => shift(1)}><ChevronRight className="w-4 h-4" /></Button>
             </div>
           </div>
 
-          <div className="overflow-x-auto rounded-lg border border-gray-200">
-            <table className="min-w-full text-sm">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="sticky left-0 z-10 bg-gray-50 px-3 py-2 text-left text-xs font-semibold uppercase text-gray-500">Student</th>
-                  {days.map((d) => (
-                    <th key={d} className="min-w-[44px] px-1 py-2 text-center">
-                      <div className="flex flex-col items-center">
-                        <span className="text-[10px] text-gray-400">{dayName(d)}</span>
-                        <span className="font-bold">{d}</span>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="space-y-6">
+              <Card className="overflow-hidden" noPadding>
+                <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-6">
+                  <div className="flex items-center gap-4">
+                    <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center border-4 border-white/30">
+                      <User className="w-10 h-10 text-white" />
+                    </div>
+                    <div className="text-white">
+                      <h3 className="text-xl font-bold">{student.firstName} {student.lastName}</h3>
+                      <p className="text-blue-100">Class {student.class}-{student.section}</p>
+                      <p className="text-blue-100 text-sm">{student.department}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-4 space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <p className="text-xs text-gray-500 uppercase tracking-wider">GR Number</p>
+                      <p className="font-medium text-gray-900">{student.grNo}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs text-gray-500 uppercase tracking-wider">SU ID</p>
+                      <p className="font-medium text-gray-900">{student.suId}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs text-gray-500 uppercase tracking-wider">Roll Number</p>
+                      <p className="font-medium text-gray-900">{student.rollNo}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs text-gray-500 uppercase tracking-wider">Section</p>
+                      <p className="font-medium text-gray-900">{student.section}</p>
+                    </div>
+                  </div>
+                  <div className="pt-4 border-t border-gray-100">
+                    <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Contact Information</p>
+                    <div className="space-y-2 text-sm">
+                      <p className="text-gray-600">{email}</p>
+                      <p className="text-gray-600">{phone}</p>
+                      <p className="text-gray-600">Parent: {parentPhone}</p>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+
+              <Card title="Overall Attendance">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-center">
+                    <div className="relative w-32 h-32">
+                      <svg className="w-32 h-32 transform -rotate-90">
+                        <circle cx="64" cy="64" r="56" stroke="#e5e7eb" strokeWidth="12" fill="none" />
+                        <circle
+                          cx="64"
+                          cy="64"
+                          r="56"
+                          stroke={percent >= 75 ? '#10b981' : percent >= 50 ? '#f59e0b' : '#ef4444'}
+                          strokeWidth="12"
+                          fill="none"
+                          strokeDasharray={`${percent / 100 * 352} 352`}
+                          strokeLinecap="round" />
+                      </svg>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="text-2xl font-bold text-gray-900">{percent}%</span>
                       </div>
-                    </th>
-                  ))}
-                  <th className="px-2 py-2 text-center text-xs font-semibold text-green-700">P</th>
-                  <th className="px-2 py-2 text-center text-xs font-semibold text-red-700">A</th>
-                  <th className="px-2 py-2 text-center text-xs font-semibold text-yellow-700">L</th>
-                  <th className="px-2 py-2 text-center text-xs font-semibold text-gray-500">H</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="hover:bg-blue-50/50">
-                  <td className="sticky left-0 z-10 bg-white px-3 py-2">
-                    <p className="text-xs font-medium text-gray-900">{student.firstName} {student.lastName}</p>
-                    <p className="text-[10px] text-gray-500">{student.grNo} · Roll {student.rollNo}</p>
-                  </td>
-                  {days.map((d) => {
-                    const code = student.attendance[d - 1] || 'P';
-                    return <td key={d} className="px-1 py-1 text-center">{codeCell(code)}</td>;
-                  })}
-                  <td className="px-2 py-2 text-center font-bold text-green-700">{present}</td>
-                  <td className="px-2 py-2 text-center font-bold text-red-700">{absent}</td>
-                  <td className="px-2 py-2 text-center font-bold text-yellow-700">{leave}</td>
-                  <td className="px-2 py-2 text-center font-bold text-gray-500">{holiday}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-3 bg-green-50 rounded-lg text-center">
+                      <p className="text-xl font-bold text-green-600">{present}</p>
+                      <p className="text-xs text-gray-500">Present</p>
+                    </div>
+                    <div className="p-3 bg-red-50 rounded-lg text-center">
+                      <p className="text-xl font-bold text-red-600">{absent}</p>
+                      <p className="text-xs text-gray-500">Absent</p>
+                    </div>
+                    <div className="p-3 bg-yellow-50 rounded-lg text-center">
+                      <p className="text-xl font-bold text-yellow-600">{late}</p>
+                      <p className="text-xs text-gray-500">Late</p>
+                    </div>
+                    <div className="p-3 bg-blue-50 rounded-lg text-center">
+                      <p className="text-xl font-bold text-blue-600">{excused}</p>
+                      <p className="text-xs text-gray-500">Excused</p>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            </div>
 
-          <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
-            <span className="font-medium text-gray-700">Legend:</span>
-            {[['P', 'Present'], ['A', 'Absent'], ['L', 'Leave'], ['H', 'Holiday']].map(([c, l]) => (
-              <span key={c} className="flex items-center gap-2">{codeCell(c)} {l}</span>
-            ))}
+            <div className="lg:col-span-2 space-y-6">
+              <Card title={`Monthly Summary - ${monthTitle}`}>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                  <div className="text-center p-4 bg-gray-50 rounded-lg">
+                    <p className="text-2xl font-bold text-gray-900">{working}</p>
+                    <p className="text-sm text-gray-500">Working Days</p>
+                  </div>
+                  <div className="text-center p-4 bg-green-50 rounded-lg">
+                    <p className="text-2xl font-bold text-green-600">{present}</p>
+                    <p className="text-sm text-gray-500">Present</p>
+                  </div>
+                  <div className="text-center p-4 bg-red-50 rounded-lg">
+                    <p className="text-2xl font-bold text-red-600">{absent}</p>
+                    <p className="text-sm text-gray-500">Absent</p>
+                  </div>
+                  <div className="text-center p-4 bg-yellow-50 rounded-lg">
+                    <p className="text-2xl font-bold text-yellow-600">{late}</p>
+                    <p className="text-sm text-gray-500">Late</p>
+                  </div>
+                  <div className="text-center p-4 bg-blue-50 rounded-lg">
+                    <p className="text-2xl font-bold text-blue-600">{excused}</p>
+                    <p className="text-sm text-gray-500">Excused</p>
+                  </div>
+                </div>
+              </Card>
+
+              <Card title="Attendance Calendar">
+                <div className="grid grid-cols-7 gap-1 text-center text-sm">
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) =>
+                    <div key={day} className="p-2 font-medium text-gray-500">{day}</div>
+                  )}
+                  {[...Array(firstWeekday)].map((_, i) => <div key={`empty-${i}`} className="p-2" />)}
+                  {days.map((day) => {
+                    const code = student.attendance[day - 1] || 'P';
+                    const isWeekend = new Date(year, month - 1, day).getDay() === 0 || new Date(year, month - 1, day).getDay() === 6;
+                    const inRange = visibleDays.includes(day);
+                    return (
+                      <div
+                        key={day}
+                        title={statusLabel(code)}
+                        className={`p-2 rounded-lg ${dayCellClass(code, isWeekend)} ${inRange ? 'ring-2 ring-blue-400' : 'opacity-70'}`}>
+                        {day}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t border-gray-100 text-sm">
+                  <div className="flex items-center gap-2"><div className="w-4 h-4 rounded bg-green-100" /><span className="text-gray-600">Present</span></div>
+                  <div className="flex items-center gap-2"><div className="w-4 h-4 rounded bg-red-100" /><span className="text-gray-600">Absent</span></div>
+                  <div className="flex items-center gap-2"><div className="w-4 h-4 rounded bg-yellow-100" /><span className="text-gray-600">Late</span></div>
+                  <div className="flex items-center gap-2"><div className="w-4 h-4 rounded bg-blue-100" /><span className="text-gray-600">Excused</span></div>
+                  <div className="flex items-center gap-2"><div className="w-4 h-4 rounded bg-gray-100" /><span className="text-gray-600">Weekend/Holiday</span></div>
+                </div>
+              </Card>
+
+              <Card title="Recent Attendance History">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-gray-100">
+                        <th className="text-left py-3 px-4 font-medium text-gray-500 text-sm">Date</th>
+                        <th className="text-left py-3 px-4 font-medium text-gray-500 text-sm">Day</th>
+                        <th className="text-left py-3 px-4 font-medium text-gray-500 text-sm">Status</th>
+                        <th className="text-left py-3 px-4 font-medium text-gray-500 text-sm">Time</th>
+                        <th className="text-left py-3 px-4 font-medium text-gray-500 text-sm">Remarks</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {history.map((record) =>
+                        <tr key={record.day} className="border-b border-gray-50 hover:bg-gray-50">
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-3">
+                              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${getStatusBg(record.code)}`}>
+                                {getStatusIcon(record.code)}
+                              </div>
+                              <span className="font-medium text-gray-900">{record.date}</span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 text-gray-600">{record.weekday}</td>
+                          <td className="py-3 px-4">
+                            <Badge variant={getStatusBadge(record.code) as 'success' | 'danger' | 'info' | 'secondary'}>{statusLabel(record.code)}</Badge>
+                          </td>
+                          <td className="py-3 px-4 text-gray-600">{record.time}</td>
+                          <td className="py-3 px-4 text-gray-500 text-sm">{record.remarks}</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+            </div>
           </div>
         </div>
       </div>
@@ -179,12 +363,12 @@ export function StudentRegister() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [selectedMonth, setSelectedMonth] = useState('2026-10');
+  const [viewMode, setViewMode] = useState<'daily' | 'weekly' | 'monthly'>('monthly');
+  const [anchorDay, setAnchorDay] = useState(1);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [attendanceMode, setAttendanceMode] = useState<'whole-day' | 'subject-wise'>('whole-day');
   const [selectedSubject, setSelectedSubject] = useState('');
   const [viewingStudent, setViewingStudent] = useState<Student | null>(null);
-  const [viewMonth, setViewMonth] = useState('10');
-  const [viewYear, setViewYear] = useState('2026');
 
   const subjectOptions = [
     { value: '', label: 'All Subjects' },
@@ -206,6 +390,13 @@ export function StudentRegister() {
 
   const daysInMonth = getDaysInMonth(selectedMonth);
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+  const safeAnchor = Math.min(Math.max(1, anchorDay), daysInMonth);
+  const weekStart = Math.max(1, Math.min(safeAnchor, daysInMonth - 6));
+  const visibleDays = viewMode === 'daily'
+    ? [safeAnchor]
+    : viewMode === 'weekly'
+      ? days.filter((day) => day >= weekStart && day < weekStart + 7)
+      : days;
 
   // Get day name for header
   const getDayName = (day: number) => {
@@ -436,12 +627,32 @@ export function StudentRegister() {
     setSelectedMonth(`${newYear}-${String(newMonth).padStart(2, '0')}`);
   };
 
+  const navigatePeriod = (direction: 'prev' | 'next') => {
+    const delta = direction === 'next' ? 1 : -1;
+    const [year, month] = selectedMonth.split('-').map(Number);
+    if (viewMode === 'monthly') {
+      navigateMonth(direction);
+      return;
+    }
+    const base = viewMode === 'daily' ? safeAnchor : weekStart;
+    const next = new Date(year, month - 1, base + delta * (viewMode === 'daily' ? 1 : 7));
+    setSelectedMonth(`${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`);
+    setAnchorDay(next.getDate());
+  };
+
   // Format month display
   const formatMonth = (yearMonth: string) => {
     const [year, month] = yearMonth.split('-').map(Number);
     const date = new Date(year, month - 1);
     return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   };
+
+  const [periodYear, periodMonth] = selectedMonth.split('-').map(Number);
+  const periodLabel = viewMode === 'daily'
+    ? new Date(periodYear, periodMonth - 1, safeAnchor).toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' })
+    : viewMode === 'weekly'
+      ? `${new Date(periodYear, periodMonth - 1, visibleDays[0] ?? safeAnchor).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })} – ${new Date(periodYear, periodMonth - 1, visibleDays[visibleDays.length - 1] ?? safeAnchor).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}`
+      : formatMonth(selectedMonth);
 
   // Calculate statistics
   const calculateStats = (attendance: string[]) => {
@@ -501,6 +712,17 @@ export function StudentRegister() {
 
         {/* Filters Card */}
         <Card className="p-4">
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            {([{ id: 'daily', label: 'Daily' }, { id: 'weekly', label: 'Weekly' }, { id: 'monthly', label: 'Monthly' }] as const).map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setViewMode(item.id)}
+                className={`rounded-full border px-4 py-1.5 text-sm font-medium ${viewMode === item.id ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}`}>
+                {item.label}
+              </button>
+            ))}
+          </div>
           {/* Primary Filters Row */}
           <div className="flex flex-wrap items-end gap-4 mb-4">
             <div className="flex-1 min-w-[150px]">
@@ -788,21 +1010,23 @@ export function StudentRegister() {
                 <span className="font-medium text-gray-700">Attendance for:</span>
               </div>
               <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
-                <Button variant="ghost" size="sm" onClick={() => navigateMonth('prev')}>
+                <Button variant="ghost" size="sm" onClick={() => navigatePeriod('prev')}>
                   <ChevronLeft className="w-4 h-4" />
                 </Button>
-                <span className="font-bold text-gray-900 min-w-[150px] text-center">
-                  {formatMonth(selectedMonth)}
+                <span className="font-bold text-gray-900 min-w-[200px] text-center">
+                  {periodLabel}
                 </span>
-                <Button variant="ghost" size="sm" onClick={() => navigateMonth('next')}>
+                <Button variant="ghost" size="sm" onClick={() => navigatePeriod('next')}>
                   <ChevronRight className="w-4 h-4" />
                 </Button>
               </div>
+              {viewMode === 'monthly' &&
               <input
                 type="month"
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value)}
                 className="px-3 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+              }
 
             </div>
 
@@ -813,16 +1037,13 @@ export function StudentRegister() {
                 <p className="text-xs text-gray-500">Students</p>
               </div>
               <div className="text-center px-4 py-2 bg-gray-50 rounded-lg">
-                <p className="text-2xl font-bold text-gray-600">{daysInMonth}</p>
-                <p className="text-xs text-gray-500">Days</p>
+                <p className="text-2xl font-bold text-gray-600">{visibleDays.length}</p>
+                <p className="text-xs text-gray-500">{viewMode === 'daily' ? 'Day' : viewMode === 'weekly' ? 'Week days' : 'Days'}</p>
               </div>
             </div>
           </div>
-        </Card>
 
-        {/* Attendance Table */}
-        <Card className="overflow-hidden">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto mt-4">
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="bg-gray-50">
@@ -838,7 +1059,7 @@ export function StudentRegister() {
                   <th className="border border-gray-200 p-2 text-center min-w-[80px] bg-gray-50">
                     Class
                   </th>
-                  {days.map((d) =>
+                  {visibleDays.map((d) =>
                   <th
                     key={d}
                     className={`border border-gray-200 p-1 text-center w-8 ${
@@ -890,16 +1111,19 @@ export function StudentRegister() {
                           {student.class}-{student.section}
                         </Badge>
                       </td>
-                      {student.attendance.slice(0, daysInMonth).map((status, i) =>
+                      {visibleDays.map((d) => {
+                        const status = student.attendance[d - 1];
+                        return (
                       <td
-                        key={i}
+                        key={d}
                         className={`border border-gray-200 p-1 text-center text-xs ${getStatusClass(
                           status
-                        )} ${isSunday(i + 1) ? 'bg-red-50' : ''}`}>
+                        )} ${isSunday(d) ? 'bg-red-50' : ''}`}>
 
                           {status}
                         </td>
-                      )}
+                        );
+                      })}
                       <td className="border border-gray-200 p-2 text-center font-bold text-green-700 bg-green-50">
                         {stats.present}
                       </td>
@@ -925,12 +1149,7 @@ export function StudentRegister() {
                           variant="ghost"
                           size="sm"
                           title="View student attendance"
-                          onClick={() => {
-                            setViewingStudent(student);
-                            const [y, m] = selectedMonth.split('-');
-                            setViewYear(y);
-                            setViewMonth(m);
-                          }}>
+                          onClick={() => setViewingStudent(student)}>
                           <Eye className="w-4 h-4" />
                         </Button>
                       </td>
@@ -997,10 +1216,7 @@ export function StudentRegister() {
       {viewingStudent &&
       <StudentAttendanceViewPanel
         student={viewingStudent}
-        month={viewMonth}
-        year={viewYear}
-        onMonthChange={setViewMonth}
-        onYearChange={setViewYear}
+        selectedMonth={selectedMonth}
         onClose={() => setViewingStudent(null)} />
       }
     </div>);

@@ -82,15 +82,15 @@ const empty = (kind: Kind): Row => ({
 
 export function ManualDeductionAdjustment() {
   const [tab, setTab] = useState<Tab>('deduction');
-  const [rows, setRows] = useState<Row[]>([{
-    ...empty('Deduction'),
-    id: 'MD-001',
-    component: 'Uniform / ID Recovery',
-    amount: 800,
-    reason: 'New joiner ID card and diary — Oct 2026',
-    status: 'Approved',
-    approvedBy: 'HR Manager'
-  }]);
+  const [rows, setRows] = useState<Row[]>([
+    { ...empty('Deduction'), id: 'MD-001', component: 'Uniform / ID Recovery', amount: 800, reason: 'New joiner ID card and diary — Oct 2026', status: 'Approved', approvedBy: 'HR Manager', payrollDate: '2026-10-31' },
+    { ...empty('Deduction'), id: 'MD-002', employeeId: 'EMP-1088', employee: 'Rajesh Kumar', department: 'Mathematics', designation: 'TGT Maths', netPay: 58000, component: 'Canteen Recovery', amount: 1200, reason: 'Canteen advance recovery — October', status: 'Pending Approval', payrollDate: '2026-10-31' },
+    { ...empty('Deduction'), id: 'MD-003', employeeId: 'EMP-1101', employee: 'Kavita Shah', department: 'Administration', designation: 'Clerk', netPay: 42000, component: 'Co-op Society Subscription', amount: 500, reason: 'Monthly cooperative society subscription', status: 'Approved', approvedBy: 'HR Manager', recurring: true, from: '2026-04-01', to: '2027-03-31', monthly: 500, payrollDate: '2026-10-31' },
+    { ...empty('Deduction'), id: 'MD-004', employeeId: 'EMP-1088', employee: 'Rajesh Kumar', department: 'Mathematics', designation: 'TGT Maths', netPay: 58000, component: 'Property Damage Recovery', amount: 4500, reason: 'Laptop hinge repair after classroom use', status: 'Draft', payrollDate: '2026-11-30' },
+    { ...empty('Earning'), id: 'SA-001', employeeId: 'EMP-1042', employee: 'Meera Iyer', department: 'Science', designation: 'PGT Physics', netPay: 72660, component: 'Examination Duty Allowance', kind: 'Earning', amount: 2500, reason: 'Board exam invigilation — 5 days', status: 'Approved', approvedBy: 'Principal', payrollDate: '2026-10-31' },
+    { ...empty('Earning'), id: 'SA-002', employeeId: 'EMP-1101', employee: 'Kavita Shah', department: 'Administration', designation: 'Clerk', netPay: 42000, component: 'Underpayment Correction', kind: 'Earning', amount: 1800, reason: 'HRA formula shortfall for September', status: 'Pending Approval', payrollDate: '2026-10-31' },
+    { ...empty('Earning'), id: 'SA-003', employeeId: 'EMP-1088', employee: 'Rajesh Kumar', department: 'Mathematics', designation: 'TGT Maths', netPay: 58000, component: 'Sports Meet Duty Pay', kind: 'Earning', amount: 1500, reason: 'Annual sports meet Saturday duty', status: 'Approved', approvedBy: 'HR Manager', payrollDate: '2026-10-31' }
+  ]);
   const [form, setForm] = useState<Row>(empty('Deduction'));
   const [showForm, setShowForm] = useState(false);
   const [notice, setNotice] = useState('');

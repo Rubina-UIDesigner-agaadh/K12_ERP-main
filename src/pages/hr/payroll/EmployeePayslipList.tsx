@@ -8,6 +8,7 @@ import { Download, Eye, Printer, Search, Send, X } from 'lucide-react';
 const inr = (n: number) => `₹${n.toLocaleString('en-IN')}`;
 
 type SlipStatus = 'Draft' | 'Submitted' | 'Cancelled' | 'Withheld' | 'Released';
+type Visibility = 'Locked' | 'Released' | 'Revoked';
 type EarnRow = { name: string; abbr: string; formula: string; amount: number; ytd: number; additional?: boolean; disabled?: boolean };
 type DedRow = { name: string; abbr: string; formula: string; amount: number; ytd: number; kind?: 'tds' | 'loan' | 'lwp' | 'epf' | 'pt' };
 type Slip = {
@@ -37,6 +38,7 @@ type Slip = {
   bank: string;
   account: string;
   status: SlipStatus;
+  visibility: Visibility;
   email: string;
   withholdId?: string;
   withholdReason?: string;
@@ -81,6 +83,7 @@ const SLIPS: Slip[] = [
     bank: 'SBI',
     account: 'XXXX XXXX 1234',
     status: 'Draft',
+    visibility: 'Locked',
     email: 'rajesh.kumar@school.edu'
   },
   {
@@ -118,6 +121,7 @@ const SLIPS: Slip[] = [
     bank: 'HDFC Bank',
     account: 'XXXX XXXX 5678',
     status: 'Submitted',
+    visibility: 'Released',
     email: 'priya.nair@school.edu'
   },
   {
@@ -155,6 +159,7 @@ const SLIPS: Slip[] = [
     bank: 'Axis Bank',
     account: 'XXXX XXXX 9012',
     status: 'Submitted',
+    visibility: 'Locked',
     email: 'anil.patel@school.edu'
   },
   {
@@ -193,6 +198,7 @@ const SLIPS: Slip[] = [
     bank: 'SBI',
     account: 'XXXX XXXX 4411',
     status: 'Withheld',
+    visibility: 'Locked',
     email: 'sunita.rao@school.edu',
     withholdId: 'SW-2026-001',
     withholdReason: 'Disciplinary Investigation — pending inquiry.'
@@ -206,6 +212,7 @@ function words(n: number) {
 export function EmployeePayslipList() {
   const [slips, setSlips] = useState(SLIPS);
   const [search, setSearch] = useState('');
+  const [viewer, setViewer] = useState<'HR' | 'Employee'>('HR');
   const [open, setOpen] = useState<Slip | null>(null);
   const [notice, setNotice] = useState('');
   const [taxOpen, setTaxOpen] = useState(true);
@@ -222,8 +229,13 @@ export function EmployeePayslipList() {
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return slips.filter((s) => !q || `${s.name} ${s.employeeId} ${s.period} ${s.id}`.toLowerCase().includes(q));
-  }, [slips, search]);
+    return slips.filter((s) => {
+      if (viewer === 'Employee' && s.visibility !== 'Released') return false;
+      if (q && !`${s.name} ${s.employeeId} ${s.period} ${s.id}`.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [slips, search, viewer]);
+  const employeeCanPrint = viewer === 'HR' || (open?.visibility === 'Released');
 
   const patch = (id: string, status: SlipStatus) => {
     setSlips((prev) => prev.map((s) => (s.id === id ? { ...s, status } : s)));
@@ -238,7 +250,12 @@ export function EmployeePayslipList() {
     <div className="space-y-6 p-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Salary Slips</h1>
-        <p className="text-sm text-gray-500">Each slip shows the finalized payroll calculation. It does not recalculate salary with different rules.</p>
+        <p className="text-sm text-gray-500">Each slip shows the finalized payroll calculation. It does not recalculate salary with different rules. Employee Self-Service lists only visibility_status = Released.</p>
+      </div>
+      <div className="flex flex-wrap gap-1 rounded-full border border-gray-200 bg-gray-100 p-1 w-fit">
+        {(['HR', 'Employee'] as const).map((v) => (
+          <button key={v} type="button" onClick={() => { setViewer(v); setOpen(null); }} className={`rounded-full px-3 py-1.5 text-xs font-semibold ${viewer === v ? 'bg-indigo-600 text-white' : 'text-gray-600'}`}>{v === 'HR' ? 'HR view' : 'Employee Self-Service'}</button>
+        ))}
       </div>
 
       {notice && <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800">{notice}</div>}
@@ -254,7 +271,7 @@ export function EmployeePayslipList() {
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
-                <tr>{['Employee', 'Slip ID', 'Period', 'Structure', 'Gross', 'Net', 'Status', ''].map((h) => <th key={h || 'a'} className="px-3 py-2">{h}</th>)}</tr>
+                <tr>{['Employee', 'Slip ID', 'Period', 'Structure', 'Gross', 'Net', 'Status', 'Release', ''].map((h) => <th key={h || 'a'} className="px-3 py-2">{h}</th>)}</tr>
               </thead>
               <tbody className="divide-y">
                 {rows.map((s) => (
@@ -266,6 +283,7 @@ export function EmployeePayslipList() {
                     <td className="px-3 py-2">{inr(s.gross)}</td>
                     <td className="px-3 py-2 font-semibold">{inr(s.net)}</td>
                     <td className="px-3 py-2"><Badge variant={s.status === 'Submitted' || s.status === 'Released' ? 'success' : s.status === 'Cancelled' ? 'danger' : s.status === 'Withheld' ? 'warning' : 'warning'}>{s.status}</Badge></td>
+                    <td className="px-3 py-2"><Badge variant={s.visibility === 'Released' ? 'success' : s.visibility === 'Revoked' ? 'danger' : 'secondary'}>{s.visibility}</Badge></td>
                     <td className="px-3 py-2">
                       <Button size="xs" variant="ghost" onClick={() => { setOpen(s); setPopover(null); }}><Eye className="h-3.5 w-3.5" />View</Button>
                     </td>
@@ -285,6 +303,7 @@ export function EmployeePayslipList() {
                 <h2 className="text-2xl font-bold text-gray-900">Salary Slip</h2>
                 <span className="rounded-full bg-gray-100 px-3 py-1 font-mono text-[11px] font-semibold text-gray-500">{open.id}</span>
                 <Badge variant={open.status === 'Submitted' || open.status === 'Released' ? 'success' : open.status === 'Cancelled' ? 'danger' : 'warning'}>{open.status === 'Withheld' ? 'WITHHELD' : open.status}</Badge>
+                <Badge variant={open.visibility === 'Released' ? 'success' : open.visibility === 'Revoked' ? 'danger' : 'secondary'}>Release: {open.visibility}</Badge>
               </div>
               <p className="mt-1 text-sm text-gray-500">{open.period} · {open.frequency} · {open.structure}</p>
             </div>
@@ -476,6 +495,11 @@ export function EmployeePayslipList() {
             </button>
             {taxOpen && (
               <div className="space-y-4 p-5 text-sm">
+                <p className="rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs text-indigo-800">
+                  {/mar/i.test(open.period)
+                    ? 'Exemptions based on Verified Proof Amounts from HR verification. Declared amounts reduced by unverified shortfall as per proof verification records.'
+                    : 'Exemptions based on Employee Tax Exemption Declaration (submitted by employee).'}
+                </p>
                 <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Annual projection (this payroll period)</p>
                 {[
                   ['Gross Annual Salary (Projected)', inr(1020000)],
@@ -524,12 +548,13 @@ export function EmployeePayslipList() {
             <div className="flex flex-wrap gap-2">
               {open.status === 'Draft' && <Button variant="outline" size="sm" onClick={() => flash('Salary Slip Saved')}>Save</Button>}
               {open.status === 'Draft' && <Button size="sm" onClick={() => { patch(open.id, 'Submitted'); flash('Salary Slip Submitted — Email sent to employee'); }}>Submit</Button>}
-              <Button variant="outline" size="sm" onClick={() => setPrintOpen(true)}><Printer className="h-4 w-4" />Print</Button>
-              {open.status === 'Submitted' && <Button variant="outline" size="sm" onClick={() => flash(`Payslip emailed to ${open.email}`)}><Send className="h-4 w-4" />Email</Button>}
-              {open.status === 'Submitted' && <Button variant="warning" size="sm" onClick={() => setAmendOpen(true)}>Amend</Button>}
-              {open.status === 'Submitted' && <Button variant="outline" size="sm" onClick={() => setCancelOpen(true)}>Cancel</Button>}
-              <Button variant="outline" size="sm" onClick={() => flash(`PDF downloaded for ${open.name}.`)}><Download className="h-4 w-4" />PDF</Button>
+              <Button variant="outline" size="sm" disabled={!employeeCanPrint} onClick={() => setPrintOpen(true)}><Printer className="h-4 w-4" />Print</Button>
+              {open.status === 'Submitted' && <Button variant="outline" size="sm" disabled={!employeeCanPrint} onClick={() => flash(`Payslip emailed to ${open.email}`)}><Send className="h-4 w-4" />Email</Button>}
+              {open.status === 'Submitted' && viewer === 'HR' && <Button variant="warning" size="sm" onClick={() => setAmendOpen(true)}>Amend</Button>}
+              {open.status === 'Submitted' && viewer === 'HR' && <Button variant="outline" size="sm" onClick={() => setCancelOpen(true)}>Cancel</Button>}
+              <Button variant="outline" size="sm" disabled={!employeeCanPrint} onClick={() => flash(`PDF downloaded for ${open.name}.`)}><Download className="h-4 w-4" />PDF</Button>
             </div>
+            {!employeeCanPrint && <p className="w-full text-xs text-amber-700">Print, Email and Download are disabled for Employee Self-Service while visibility_status is {open.visibility}.</p>}
           </div>
         </div>
       )}

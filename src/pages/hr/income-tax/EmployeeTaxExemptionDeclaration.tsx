@@ -201,6 +201,12 @@ export function EmployeeTaxExemptionDeclaration() {
         </div>
       </div>
       {notice && <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800">{notice}</div>}
+      <div className="rounded-lg border border-indigo-100 bg-indigo-50 px-4 py-2 text-sm text-indigo-800">
+        Your declaration status is visible to the Payroll Manager on Investment Declaration Status. Incomplete or unsaved declarations result in TDS on full gross income.
+        {form.regime === 'New' && ' New Regime selected — Chapter VI-A exemptions on this form are not applicable.'}
+        {' '}<button type="button" className="underline" onClick={() => navigate('/hr/income-tax/investment-declaration-status')}>Open declaration dashboard</button>
+        {form.rented === false && <span className="block text-xs text-gray-600 mt-1">If the HRA sub-section is missing, ask Payroll to confirm HRA Settings on HRA & Special Exemption Rule Master.</span>}
+      </div>
 
       {mode === 'list' && (
         <Card>

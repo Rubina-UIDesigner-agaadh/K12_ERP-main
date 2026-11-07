@@ -5,7 +5,7 @@ import { Select } from '../../../components/ui/Select';
 import { Input } from '../../../components/ui/Input';
 import { Table } from '../../../components/ui/Table';
 import { Badge } from '../../../components/ui/Badge';
-import { AlertTriangle, Bell, Download, Mail, Phone, Search, RotateCcw, Filter, Building, Check, ChevronDown } from 'lucide-react';
+import { AlertTriangle, Bell, Download, Search, RotateCcw, Filter, Building, Check, ChevronDown } from 'lucide-react';
 
 // --- Constants ---
 const BRANCHES = [
@@ -138,7 +138,7 @@ export function AttendanceDefaulterOverview() {
   { key: 'present', header: 'Present', render: (row: Defaulter) => <span className="text-green-600 font-medium">{row.present}</span> },
   { key: 'absent', header: 'Absent', render: (row: Defaulter) => <span className="text-red-600 font-medium">{row.absent}</span> },
   { key: 'percentage', header: 'Attendance %', render: (row: Defaulter) => <Badge variant={row.percentage >= 70 ? 'warning' : 'danger'}>{row.percentage}%</Badge> },
-  { key: 'actions', header: 'Actions', render: (row: Defaulter) => <div className="flex gap-2"><Button variant="ghost" size="sm" title={`Call ${row.parentPhone}`} onClick={() => window.open(`tel:${row.parentPhone}`)}><Phone className="w-4 h-4" /></Button><Button variant="ghost" size="sm" title={`Email ${row.parentEmail}`} onClick={() => window.open(`mailto:${row.parentEmail}`)}><Mail className="w-4 h-4" /></Button></div> }];
+  { key: 'actions', header: 'Actions', render: (row: Defaulter) => <div className="flex gap-2"><Button variant="ghost" size="sm" title={`Send Reminder to ${row.parentPhone}`} onClick={() => window.alert(`Reminder sent to ${row.firstName} ${row.lastName}'s parent (${row.parentPhone})`)}><Bell className="w-4 h-4" /></Button></div> }];
 
 
   return (

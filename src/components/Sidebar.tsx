@@ -296,6 +296,7 @@ const PAGE_ICONS: Record<string, LucideIcon> = {
   'employee-tax-exemption-declaration': FileText,
   'employee-other-income-declaration': FileText,
   'employee-benefit-application': FileText,
+  'employee-benefit-claim': FileText,
   'employee-tax-exemption-proof-submission': FileText,
   'employee-tax-summary-list': List,
   'investment-declaration-status': FileText,
@@ -405,6 +406,42 @@ export function Sidebar({
     Record<string, boolean>>(
     {});
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [labelOverrides, setLabelOverrides] = useState<Record<string, string>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('k12-sidebar-page-labels') || '{}');
+    } catch {
+      return {};
+    }
+  });
+  const [renaming, setRenaming] = useState(false);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+
+  const pageLabel = (id: string, fallback: string) => labelOverrides[id] || fallback;
+
+  const startRenaming = () => {
+    const next: Record<string, string> = {};
+    sections.filter((section) => !section.hidden).forEach((section) => {
+      section.items.forEach((item) => {
+        next[item.id] = pageLabel(item.id, item.label);
+      });
+    });
+    setDrafts(next);
+    setRenaming(true);
+  };
+
+  const finishRenaming = () => {
+    const next = { ...labelOverrides };
+    sections.filter((section) => !section.hidden).forEach((section) => {
+      section.items.forEach((item) => {
+        const value = (drafts[item.id] ?? '').trim() || item.label;
+        if (value === item.label) delete next[item.id];
+        else next[item.id] = value;
+      });
+    });
+    setLabelOverrides(next);
+    localStorage.setItem('k12-sidebar-page-labels', JSON.stringify(next));
+    setRenaming(false);
+  };
 
   const toggleSection = (title: string) => {
     setCollapsedSections((prev) => ({
@@ -473,15 +510,27 @@ export function Sidebar({
                   : `${activeModuleLabel}${activeSubModule?.label ? ` › ${activeSubModule.label}` : ''}`}
               </p>
             </div>
-            <button
-              type="button"
-              title="Collapse sidebar"
-              aria-label="Collapse sidebar"
-              onClick={onToggleCollapsed}
-              className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-white/70 transition-colors hover:bg-white/10 hover:text-white"
-            >
-              <PanelLeftClose className="h-4 w-4" />
-            </button>
+            <div className="flex shrink-0 items-start gap-1">
+              {!showFavoritesView &&
+              <button
+                type="button"
+                title={renaming ? 'Done' : 'Edit page names'}
+                aria-label={renaming ? 'Done renaming' : 'Edit page names'}
+                onClick={() => renaming ? finishRenaming() : startRenaming()}
+                className={`mt-0.5 flex h-8 w-8 items-center justify-center rounded-md transition-colors ${renaming ? 'bg-white/20 text-cyan-200' : 'text-white/70 hover:bg-white/10 hover:text-white'}`}>
+                {renaming ? <Check className="h-4 w-4" /> : <Edit className="h-4 w-4" />}
+              </button>
+              }
+              <button
+                type="button"
+                title="Collapse sidebar"
+                aria-label="Collapse sidebar"
+                onClick={onToggleCollapsed}
+                className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-md text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+              >
+                <PanelLeftClose className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -518,7 +567,8 @@ export function Sidebar({
             )
           ) : (
             sections.filter((section) => !section.hidden).flatMap((section) => section.items).map((item) => {
-              const Icon = pageIcon(item.id, item.label);
+              const shown = pageLabel(item.id, item.label);
+              const Icon = pageIcon(item.id, shown);
               const isActive = activeSidebarItemId === item.id;
               const path = `/${activeModuleId}/${activeSubModule?.id || item.id}/${item.id}`;
               const shortcut = shortcutLabelForPage(activeModuleId, activeSubModule?.id || item.id, item.id);
@@ -526,15 +576,15 @@ export function Sidebar({
                 <button
                   key={item.id}
                   type="button"
-                  title={`${item.label}${shortcut ? ` · ${shortcut}` : ''}`}
-                  aria-label={item.label}
+                  title={`${shown}${shortcut ? ` · ${shortcut}` : ''}`}
+                  aria-label={shown}
                   aria-current={isActive ? 'page' : undefined}
                   onClick={() => onSidebarItemSelect(item.id)}
-                  onContextMenu={(e) => openContextMenu(e, path, item.label)}
+                  onContextMenu={(e) => openContextMenu(e, path, shown)}
                   className={`flex min-h-[3.35rem] w-full flex-col items-center justify-center gap-0.5 rounded-md px-0.5 py-1.5 transition-colors ${isActive ? 'bg-white/15 text-cyan-300 shadow-sm' : 'text-white/75 hover:bg-white/10 hover:text-white'}`}
                 >
                   <Icon className="h-5 w-5 shrink-0" />
-                  <span className={`w-full truncate text-center text-[9px] font-medium leading-tight ${isActive ? 'text-cyan-200' : 'text-white/70'}`}>{item.label}</span>
+                  <span className={`w-full truncate text-center text-[9px] font-medium leading-tight ${isActive ? 'text-cyan-200' : 'text-white/70'}`}>{shown}</span>
                 </button>
               );
             })
@@ -613,29 +663,43 @@ export function Sidebar({
                   {section.items.map((item) => {
                   const isActive = activeSidebarItemId === item.id;
                   const favorited = isFavorited(item.id);
+                  const shown = pageLabel(item.id, item.label);
                   const path = `/${activeModuleId}/${activeSubModule?.id || item.id}/${item.id}`;
                   return (
                     <div
                       key={item.id}
-                      onContextMenu={(e) => openContextMenu(e, path, item.label)}
+                      onContextMenu={(e) => openContextMenu(e, path, shown)}
                       className={`group flex w-full items-center justify-between rounded-md pr-2 transition-all duration-200
                           ${isActive ? 'bg-white/10 text-white shadow-sm' : 'text-white/70 hover:bg-white/5 hover:text-white'}`}>
 
-                        <button
+                        {renaming ?
+                      <input
+                        value={drafts[item.id] ?? shown}
+                        onChange={(e) => setDrafts((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') finishRenaming();
+                          if (e.key === 'Escape') setRenaming(false);
+                        }}
+                        className="mx-2 my-1 flex-1 rounded px-2 py-1 text-sm text-gray-900 outline-none ring-2 ring-cyan-300" /> :
+
+
+                      <button
                         onClick={() => onSidebarItemSelect(item.id)}
                         className="flex-1 py-2 pl-3 text-left text-sm font-medium truncate">
 
-                          {item.label}
+                          {shown}
                         </button>
+                      }
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1">
                           <button
                           onClick={(e) => {
                             e.stopPropagation();
                             if (activeSubModule) {
                               onToggleFavorite({
                                 sidebarItemId: item.id,
-                                sidebarItemLabel: item.label,
+                                sidebarItemLabel: shown,
                                 subModuleId: activeSubModule.id,
                                 subModuleLabel: activeSubModule.label,
                                 moduleId: activeModuleId,

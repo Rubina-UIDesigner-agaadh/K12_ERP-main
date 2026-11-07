@@ -22,6 +22,7 @@ type KraOpt = { id: string; name: string; method: string; cbse: boolean; designa
 type CritOpt = { id: string; name: string; applicableIn: string[]; description: string; archived: boolean };
 type KraRow = { kraId: string; name: string; weightage: number; method: string; minScore: number; cbse: boolean };
 type CritRow = { criteriaId: string; name: string; weightage: number; applicableIn: string; mandatory: boolean; description: string };
+type GradeKind = 'Numeric band' | 'Letter grade' | 'Percentage' | 'Descriptive';
 type GradeRow = { from: number; to: number; grade: string; increment: string; remarks: string };
 type DesigRow = { designation: string; department: string; customWeight: boolean };
 type Template = {
@@ -32,6 +33,7 @@ type Template = {
   frequency: string;
   scoreMethod: 'Average' | 'Formula-based';
   formula: string;
+  gradeKind: GradeKind;
   grades: GradeRow[];
   kras: KraRow[];
   criteria: CritRow[];
@@ -88,6 +90,30 @@ const DEFAULT_GRADES: GradeRow[] = [
   { from: 0, to: 2.49, grade: 'Needs Improvement', increment: 'No', remarks: 'Below threshold' }
 ];
 
+const GRADE_PRESETS: Record<GradeKind, GradeRow[]> = {
+  'Numeric band': DEFAULT_GRADES.map((g) => ({ ...g })),
+  'Letter grade': [
+    { from: 4.5, to: 5, grade: 'A+', increment: 'Yes — 5%', remarks: 'Outstanding' },
+    { from: 4, to: 4.49, grade: 'A', increment: 'Yes — 4%', remarks: 'Excellent' },
+    { from: 3.5, to: 3.99, grade: 'B+', increment: 'Yes — 3%', remarks: 'Very good' },
+    { from: 3, to: 3.49, grade: 'B', increment: 'Yes — 2%', remarks: 'Good' },
+    { from: 2, to: 2.99, grade: 'C', increment: 'Hold', remarks: 'Needs coaching' },
+    { from: 0, to: 1.99, grade: 'D', increment: 'No', remarks: 'Unsatisfactory' }
+  ],
+  'Percentage': [
+    { from: 90, to: 100, grade: 'Outstanding', increment: 'Yes — 5%', remarks: '90–100%' },
+    { from: 75, to: 89.99, grade: 'Very Good', increment: 'Yes — 3%', remarks: '75–89%' },
+    { from: 60, to: 74.99, grade: 'Good', increment: 'Hold', remarks: '60–74%' },
+    { from: 0, to: 59.99, grade: 'Needs Improvement', increment: 'No', remarks: 'Below 60%' }
+  ],
+  'Descriptive': [
+    { from: 4, to: 5, grade: 'Exceeds Expectations', increment: 'Yes — 5%', remarks: 'Stretch performance' },
+    { from: 3, to: 3.99, grade: 'Meets Expectations', increment: 'Yes — 2%', remarks: 'On target' },
+    { from: 2, to: 2.99, grade: 'Partially Meets', increment: 'Hold', remarks: 'Development plan' },
+    { from: 0, to: 1.99, grade: 'Does Not Meet', increment: 'No', remarks: 'PIP / probation review' }
+  ]
+};
+
 const SEED: Template[] = [
   {
     id: 'TPL-TEACH-ANN',
@@ -97,6 +123,7 @@ const SEED: Template[] = [
     frequency: 'Annual',
     scoreMethod: 'Average',
     formula: '(goal_score * 0.5) + (feedback_score * 0.3) + (self_score * 0.2)',
+    gradeKind: 'Numeric band',
     grades: DEFAULT_GRADES,
     kras: TEACHING_KRAS,
     criteria: TEACHING_CRITERIA,
@@ -115,6 +142,7 @@ const SEED: Template[] = [
     frequency: 'Quarterly',
     scoreMethod: 'Average',
     formula: '',
+    gradeKind: 'Numeric band',
     grades: DEFAULT_GRADES,
     kras: [
       { kraId: 'KRA-008', name: 'Administrative Task Completion', weightage: 50, method: 'Quantitative (Score-based)', minScore: 3, cbse: false },
@@ -139,6 +167,7 @@ const emptyTemplate = (): Template => ({
   frequency: 'Annual',
   scoreMethod: 'Average',
   formula: '(goal_score * 0.5) + (feedback_score * 0.3) + (self_score * 0.2)',
+  gradeKind: 'Numeric band',
   grades: DEFAULT_GRADES.map((g) => ({ ...g })),
   kras: [],
   criteria: [],
@@ -271,7 +300,7 @@ export function AppraisalTemplateMaster() {
                       <td className="px-3 py-2">{row.frequency}</td>
                       <td className="px-3 py-2">{row.designations.length}</td>
                       <td className="px-3 py-2">{row.cycles}</td>
-                      <td className="px-3 py-2"><Button size="xs" variant="ghost" onClick={() => { setForm(row); setTab('general'); setShowForm(true); }}>Open</Button></td>
+                      <td className="px-3 py-2"><Button size="xs" variant="ghost" onClick={() => { setForm({ ...row, gradeKind: row.gradeKind || 'Numeric band', grades: row.grades?.length ? row.grades : DEFAULT_GRADES.map((g) => ({ ...g })) }); setTab('general'); setShowForm(true); }}>Open</Button></td>
                     </tr>
                   ))}
                 </tbody>
@@ -304,29 +333,43 @@ export function AppraisalTemplateMaster() {
                   <p className={`mt-1 text-xs ${formulaOk ? 'text-emerald-700' : 'text-red-600'}`}>{formulaOk ? 'Formula looks valid' : 'Formula must use at least one known variable'}</p>
                 </div>
               )}
-              {form.scoreMethod === 'Average' && (
-                <div className="md:col-span-2 overflow-x-auto">
-                  <p className="mb-2 text-sm font-medium text-gray-700">Grade Scale</p>
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b bg-gray-50 text-left text-xs uppercase text-gray-500">
-                        {['From', 'To', 'Grade', 'Increment eligibility', 'Remarks'].map((h) => <th key={h} className="px-2 py-2">{h}</th>)}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {form.grades.map((g, i) => (
-                        <tr key={i} className="border-b">
-                          <td className="px-2 py-1"><input type="number" className="w-20 rounded border px-2 py-1" value={g.from} onChange={(e) => setForm({ ...form, grades: form.grades.map((r, idx) => idx === i ? { ...r, from: Number(e.target.value) } : r) })} /></td>
-                          <td className="px-2 py-1"><input type="number" className="w-20 rounded border px-2 py-1" value={g.to} onChange={(e) => setForm({ ...form, grades: form.grades.map((r, idx) => idx === i ? { ...r, to: Number(e.target.value) } : r) })} /></td>
-                          <td className="px-2 py-1"><input className="w-full rounded border px-2 py-1" value={g.grade} onChange={(e) => setForm({ ...form, grades: form.grades.map((r, idx) => idx === i ? { ...r, grade: e.target.value } : r) })} /></td>
-                          <td className="px-2 py-1"><input className="w-full rounded border px-2 py-1" value={g.increment} onChange={(e) => setForm({ ...form, grades: form.grades.map((r, idx) => idx === i ? { ...r, increment: e.target.value } : r) })} /></td>
-                          <td className="px-2 py-1"><input className="w-full rounded border px-2 py-1" value={g.remarks} onChange={(e) => setForm({ ...form, grades: form.grades.map((r, idx) => idx === i ? { ...r, remarks: e.target.value } : r) })} /></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+              <div className="md:col-span-2 overflow-x-auto">
+                <div className="mb-2 flex flex-wrap items-end justify-between gap-3">
+                  <Select
+                    label="Appraisal grade type"
+                    value={form.gradeKind || 'Numeric band'}
+                    onChange={(e) => {
+                      const kind = (typeof e === 'string' ? e : e.target.value) as GradeKind;
+                      setForm({ ...form, gradeKind: kind, grades: GRADE_PRESETS[kind].map((g) => ({ ...g })) });
+                    }}
+                    options={(['Numeric band', 'Letter grade', 'Percentage', 'Descriptive'] as GradeKind[]).map((v) => ({ value: v, label: v }))}
+                  />
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" onClick={() => setForm({ ...form, grades: [...form.grades, { from: 0, to: 0, grade: 'New grade', increment: 'Hold', remarks: '' }] })}>Add Grade</Button>
+                    <Button size="sm" variant="ghost" disabled={form.grades.length <= 1} onClick={() => setForm({ ...form, grades: form.grades.slice(0, -1) })}>Remove Last</Button>
+                  </div>
                 </div>
-              )}
+                <p className="mb-2 text-xs text-gray-500">Add extra bands or switch type (numeric, letter, percentage, descriptive). Changing type loads a matching scale you can then edit.</p>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-gray-50 text-left text-xs uppercase text-gray-500">
+                      {['From', 'To', 'Grade', 'Increment eligibility', 'Remarks', ''].map((h) => <th key={h || 'g'} className="px-2 py-2">{h}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {form.grades.map((g, i) => (
+                      <tr key={i} className="border-b">
+                        <td className="px-2 py-1"><input type="number" className="w-20 rounded border px-2 py-1" value={g.from} onChange={(e) => setForm({ ...form, grades: form.grades.map((r, idx) => idx === i ? { ...r, from: Number(e.target.value) } : r) })} /></td>
+                        <td className="px-2 py-1"><input type="number" className="w-20 rounded border px-2 py-1" value={g.to} onChange={(e) => setForm({ ...form, grades: form.grades.map((r, idx) => idx === i ? { ...r, to: Number(e.target.value) } : r) })} /></td>
+                        <td className="px-2 py-1"><input className="w-full rounded border px-2 py-1" value={g.grade} onChange={(e) => setForm({ ...form, grades: form.grades.map((r, idx) => idx === i ? { ...r, grade: e.target.value } : r) })} /></td>
+                        <td className="px-2 py-1"><input className="w-full rounded border px-2 py-1" value={g.increment} onChange={(e) => setForm({ ...form, grades: form.grades.map((r, idx) => idx === i ? { ...r, increment: e.target.value } : r) })} /></td>
+                        <td className="px-2 py-1"><input className="w-full rounded border px-2 py-1" value={g.remarks} onChange={(e) => setForm({ ...form, grades: form.grades.map((r, idx) => idx === i ? { ...r, remarks: e.target.value } : r) })} /></td>
+                        <td className="px-2 py-1"><button type="button" onClick={() => setForm({ ...form, grades: form.grades.filter((_, idx) => idx !== i) })}><Trash2 className="h-4 w-4 text-gray-400" /></button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 

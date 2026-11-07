@@ -931,6 +931,7 @@ Generated on: ${new Date().toLocaleString('en-IN')}
             <CheckCircle className="w-4 h-4 mr-2" />
             Bulk Approve
           </Button>
+          <Button variant="outline" onClick={() => window.alert('Verification Complete. March payroll will use Verified Amounts. HRA lines were excluded from bulk approve.')}>Mark Verification Complete</Button>
           <Button variant="primary" onClick={handleExportReport} disabled={isExporting}>
             <Download className={`w-4 h-4 mr-2 ${isExporting ? 'animate-bounce' : ''}`} />
             {isExporting ? 'Exporting...' : 'Export Report'}
@@ -1220,10 +1221,19 @@ Generated on: ${new Date().toLocaleString('en-IN')}
                           <li>• Ensure document is in employee's name</li>
                           <li>• Check for proper stamps/signatures if required</li>
                           <li>• For HRA: Verify landlord PAN if rent exceeds ₹1,00,000/year</li>
+                          <li>• Variance Alert: flag if proof amount is more than 20% below declared</li>
                         </ul>
                       </div>
                     </div>
                   </div>
+
+                  {selectedProof.sectionCode === 'HRA' && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                      <p className="font-semibold">HRA three-leg computation (locked)</p>
+                      <p>Leg 1 Actual HRA received ₹1,92,000 · Leg 2 Rent − 10% of Basic ₹1,32,000 · Leg 3 40% of Basic (Non-Metro) ₹1,92,000 → Exempt min ₹1,32,000. Landlord PAN mandatory if annual rent &gt; ₹1,00,000.</p>
+                    </div>
+                  )}
+                  <p className="text-xs text-gray-500">Post-verification TDS impact: shortfall added back in March. Query uses Request More Info — employee replaces that line on Proof Submission.</p>
 
                   <div className="flex gap-3 pt-4 border-t">
                     <Button

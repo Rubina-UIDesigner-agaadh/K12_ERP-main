@@ -125,6 +125,7 @@ const studentSettingsSidebar: SidebarSection[] = [
   },
   {
     title: 'Academic Progression Rules',
+    hidden: true,
     items: [
       { label: 'Student Promotion Policy Setup', id: 'promotion-policy' }]
 
@@ -303,7 +304,7 @@ const hrAttendanceSidebar: SidebarSection[] = [
 const payrollSidebar: SidebarSection[] = [
   { title: 'Payroll Run Overview', items: [{ label: 'Payroll Summary Dashboard', id: 'payroll-summary-dashboard' }] },
   { title: 'Pay Structure & Revisions', items: [{ label: 'Assign Salary Structure', id: 'employee-pay-structure' }, { label: 'Bulk Increment / Pay Revision', id: 'bulk-increment-pay-revision' }] },
-  { title: 'Earnings, Deductions & Loans', items: [{ label: 'Overtime & Additional Earnings', id: 'overtime-additional-earnings' }, { label: 'Manual Deduction / Adjustment', id: 'manual-deduction-adjustment' }, { label: 'Staff Loan Management', id: 'staff-loan-management' }] },
+  { title: 'Earnings, Deductions & Loans', items: [{ label: 'Overtime Earnings', id: 'overtime-additional-earnings' }, { label: 'Manual Deduction / Adjustment', id: 'manual-deduction-adjustment' }, { label: 'Staff Loan Management', id: 'staff-loan-management' }] },
   { title: 'Payroll Processing', items: [{ label: 'Payroll Entry', id: 'payroll-entry' }, { label: 'Supplementary / Arrear Payroll', id: 'supplementary-arrear-payroll' }, { label: 'Payroll Reversal / Re-process', id: 'payroll-reversal-reprocess' }] },
   { title: 'Exceptions & Holds', items: [{ label: 'Salary Withholding & Release', id: 'payroll-exception-list' }] },
   { title: 'Payslips & Release', items: [{ label: 'Payslip Lock & Release', id: 'payslip-lock-release' }, { label: 'Salary Slips', id: 'employee-payslip-list' }] },
@@ -318,7 +319,7 @@ const hrMasterSidebar: SidebarSection[] = [
   { title: 'Pay Components & Grades', items: [{ label: 'Salary Component Master', id: 'pay-head-master' }, { label: 'Salary Structure Master', id: 'salary-structure-master' }, { label: 'Salary Grade / Pay Scale Master', id: 'salary-grade-pay-scale-master' }] },
   { title: 'Payroll Cycle & Payout Setup', items: [{ label: 'Payroll Calendar / Period Master', id: 'payroll-calendar-period-master' }, { label: 'Payroll Settings', id: 'payroll-setup' }, { label: 'Disbursement Mode / Bank Setup', id: 'disbursement-mode-bank-setup' }] },
   { title: 'Appraisal Framework', items: [{ label: 'Appraisal Settings', id: 'appraisal-settings' }, { label: 'Appraisal Cycle Master', id: 'appraisal-cycle-master' }, { label: 'Appraisal Template Master', id: 'appraisal-template-master' }, { label: 'Competency & KPI Master', id: 'competency-kpi-master' }, { label: 'Rating Scale Master', id: 'rating-scale-master' }, { label: 'Appraisal Role & Workflow Master', id: 'appraisal-role-workflow-master' }] },
-  { title: 'Income Tax Framework', items: [{ label: 'Financial Year & Tax Configuration Master', id: 'financial-year-tax-config-master' }, { label: 'Tax Regime Master', id: 'tax-regime-master' }, { label: 'Tax Slab & Surcharge Master', id: 'tax-slab-surcharge-master' }, { label: 'Income Tax Slab', id: 'income-tax-slab' }, { label: 'Exemption & Deduction Section Master', id: 'exemption-deduction-section-master' }, { label: 'Income Head Mapping Master', id: 'income-head-mapping-master' }, { label: 'HRA & Special Exemption Rule Master', id: 'hra-special-exemption-rule-master' }] }
+  { title: 'Income Tax Framework', items: [{ label: 'Income Tax Slab', id: 'income-tax-slab' }, { label: 'Exemption & Deduction Section Master', id: 'exemption-deduction-section-master' }, { label: 'HRA & Special Exemption Rule Master', id: 'hra-special-exemption-rule-master' }] }
 ];
 
 const appraisalSidebar: SidebarSection[] = [
@@ -342,7 +343,7 @@ const recruitmentSidebar: SidebarSection[] = [
 
 const incomeTaxSidebar: SidebarSection[] = [
   { title: 'Tax Compliance Overview', items: [{ label: 'Income Tax Dashboard', id: 'income-tax-dashboard' }] },
-  { title: 'Tax Profiles & Declarations', items: [{ label: 'Employee Tax Profile & Regime Selection', id: 'employee-tax-profile-regime-selection' }, { label: 'Employee Income & Investment Declaration', id: 'employee-income-investment-declaration' }, { label: 'Employee Tax Exemption Declaration', id: 'employee-tax-exemption-declaration' }, { label: 'Employee Other Income Declaration', id: 'employee-other-income-declaration' }, { label: 'Employee Benefit Application', id: 'employee-benefit-application' }, { label: 'Investment Declaration Status', id: 'investment-declaration-status' }] },
+  { title: 'Tax Profiles & Declarations', items: [{ label: 'Employee Tax Profile & Regime Selection', id: 'employee-tax-profile-regime-selection' }, { label: 'Employee Income & Investment Declaration', id: 'employee-income-investment-declaration' }, { label: 'Employee Tax Exemption Declaration', id: 'employee-tax-exemption-declaration' }, { label: 'Employee Other Income Declaration', id: 'employee-other-income-declaration' }, { label: 'Employee Benefit Application', id: 'employee-benefit-application' }, { label: 'Employee Benefit Claim', id: 'employee-benefit-claim' }, { label: 'Investment Declaration Status', id: 'investment-declaration-status' }] },
   { title: 'Proof Verification', items: [{ label: 'Investment / Deduction Proof Verification', id: 'investment-deduction-proof-verification' }, { label: 'Employee Tax Exemption Proof Submission', id: 'employee-tax-exemption-proof-submission' }, { label: 'Proof Verification Status', id: 'proof-verification-status' }] },
   { title: 'Tax Computation', items: [{ label: 'Annual Tax Projection Calculation', id: 'annual-tax-projection-calculation' }, { label: 'Monthly TDS Computation & Transfer to Payroll', id: 'monthly-tds-computation-transfer' }, { label: 'Annual Tax Reconciliation & Finalisation', id: 'annual-tax-reconciliation-finalisation' }] },
   { title: 'TDS Registers & Challans', items: [{ label: 'Monthly TDS Register', id: 'monthly-tds-register' }, { label: 'Challan / Tax Payment Register', id: 'challan-tax-payment-register' }] },

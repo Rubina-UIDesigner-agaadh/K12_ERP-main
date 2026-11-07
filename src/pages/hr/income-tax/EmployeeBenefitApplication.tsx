@@ -208,7 +208,7 @@ export function EmployeeBenefitApplication() {
             <Button onClick={() => save('Draft')}><Save className="h-4 w-4 mr-1" />Save Draft</Button>
             <Button onClick={() => save('Submitted')}>Submit</Button>
             {form.status === 'Submitted' && form.rows.some((r) => r.payAgainstClaim) && (
-              <Button variant="outline" onClick={() => { setNotice('Opening Benefit Claim with applied components pre-filled.'); navigate('/hr/income-tax/employee-benefit-application'); }}>Create Benefit Claim</Button>
+              <Button variant="outline" onClick={() => { setNotice('Opening Benefit Claim with applied components pre-filled.'); navigate(`/hr/income-tax/employee-benefit-claim?application=${form.id}`); }}>Create Benefit Claim</Button>
             )}
             {form.status === 'Submitted' && <Button variant="outline" onClick={() => amend(form)}>Amend</Button>}
             <Button variant="outline" onClick={() => setMode('list')}>Back</Button>

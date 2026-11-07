@@ -57,16 +57,6 @@ const SEED_ANNUAL: AnnualPeriod[] = [
 ];
 
 const withPeriodDefaults = (row: Partial<AnnualPeriod> & Pick<AnnualPeriod, 'id' | 'name' | 'company' | 'financialYear' | 'startDate' | 'endDate' | 'status' | 'declarationStart' | 'declarationEnd' | 'hasSalarySlips' | 'description'>): AnnualPeriod => ({
-  academicYear: row.academicYear || row.financialYear,
-  fiscalYear: row.fiscalYear || `FY ${row.financialYear}`,
-  frequency: row.frequency || 'Monthly',
-  paymentDay: row.paymentDay || 1,
-  holidayList: row.holidayList || '',
-  currency: row.currency || 'INR',
-  costCenter: row.costCenter || '',
-  flexibleBenefits: Boolean(row.flexibleBenefits),
-  benefitClaimDeadline: row.benefitClaimDeadline || '',
-  autoTaxUnclaimed: Boolean(row.autoTaxUnclaimed),
   ...row,
   academicYear: row.academicYear || row.financialYear,
   fiscalYear: row.fiscalYear || `FY ${row.financialYear}`,

@@ -198,6 +198,9 @@ export function EmployeeTaxExemptionProofSubmission() {
       </div>
       {notice && <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800">{notice}</div>}
       <p className="text-xs text-gray-500">Create an Employee Tax Exemption Declaration before creating a proof submission. Unlike declarations, any number of proofs can be submitted.</p>
+      <div className="rounded-lg border border-amber-100 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+        After submit, HR reviews on Investment / Deduction Proof Verification. Verification Status updates here. If HR raises a Query on a line, you can upload a replacement document for that line only — other verified lines stay unchanged.
+      </div>
 
       {mode === 'list' && (
         <Card>
@@ -221,6 +224,13 @@ export function EmployeeTaxExemptionProofSubmission() {
 
       {mode === 'form' && (
         <div className="space-y-4">
+          <Card title="Verification Status">
+            <div className="space-y-2 p-4 text-sm">
+              <p>Overall: {form.status === 'Submitted' ? 'In Progress / awaiting HR' : 'Draft'}. Queries from Proof Verification appear per line below.</p>
+              <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900">HR query example: “PPF passbook deposits in this FY total less than claimed. Upload the FY 2026–27 passbook page.” Upload a replacement only for that line — other verified lines are not disturbed.</p>
+              <input type="file" className="block text-xs" onChange={() => setNotice('Replacement document attached for the queried line. Re-submit that line only.')} />
+            </div>
+          </Card>
           <Card title="Header">
             <div className="grid gap-4 p-4 md:grid-cols-2">
               <Select label={isEmployee ? 'Employee (locked)' : 'Employee'} options={EMPLOYEES.map((e) => ({ value: e.id, label: `${e.name} (${e.id})` }))} value={form.employeeId} onChange={(e) => {

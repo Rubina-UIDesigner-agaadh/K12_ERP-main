@@ -609,6 +609,10 @@ export const hrRegistry: Record<string, () => any> = {
     () => import('../hr/income-tax/EmployeeBenefitApplication'),
     'EmployeeBenefitApplication'
   ),
+  'employee-benefit-claim': rp(
+    () => import('../hr/income-tax/EmployeeBenefitClaim'),
+    'EmployeeBenefitClaim'
+  ),
   'investment-deduction-proof-verification': rp(
     () => import('../hr/income-tax/InvestmentDeductionProofVerification'),
     'InvestmentDeductionProofVerification'

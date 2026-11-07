@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
@@ -153,10 +153,7 @@ const emptyCycle = (): Cycle => ({
 
 const SECTIONS = [
   { id: 'config' as const, label: 'Cycle Configuration' },
-  { id: 'people' as const, label: 'Employee Groups' },
-  { id: 'timeline' as const, label: 'Timeline & Reminders' },
-  { id: 'stats' as const, label: 'Appraisal Stats' },
-  { id: 'actions' as const, label: 'Actions' }
+  { id: 'people' as const, label: 'Employee Groups' }
 ];
 
 export function AppraisalCycleMaster() {
@@ -170,9 +167,7 @@ export function AppraisalCycleMaster() {
   const [popDept, setPopDept] = useState<string[]>([]);
   const [popDesig, setPopDesig] = useState<string[]>([]);
   const [popCat, setPopCat] = useState('');
-  const [statFilter, setStatFilter] = useState<string | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
-  const [progress, setProgress] = useState('');
   const templates = templateNames();
 
   const flash = (text: string) => {
@@ -186,33 +181,6 @@ export function AppraisalCycleMaster() {
   };
 
   const filtered = cycles.filter((c) => c.name.toLowerCase().includes(search.toLowerCase()));
-
-  const stats = useMemo(() => {
-    const e = form.employees;
-    return {
-      total: e.length,
-      selfPending: e.filter((r) => !r.selfDone).length,
-      feedbackPending: e.filter((r) => !r.feedback).length,
-      noGoals: e.filter((r) => !r.goals).length,
-      noAppraisal: e.filter((r) => !r.appraisalCreated).length,
-      submitted: e.filter((r) => r.status === 'Submitted' || r.status === 'Approved').length,
-      approved: e.filter((r) => r.status === 'Approved').length,
-      below: e.filter((r) => r.below).length,
-      increment: e.filter((r) => r.increment).length
-    };
-  }, [form.employees]);
-
-  const statRows = (key: string) => {
-    if (key === 'self') return form.employees.filter((r) => !r.selfDone);
-    if (key === 'feedback') return form.employees.filter((r) => !r.feedback);
-    if (key === 'goals') return form.employees.filter((r) => !r.goals);
-    if (key === 'none') return form.employees.filter((r) => !r.appraisalCreated);
-    if (key === 'submitted') return form.employees.filter((r) => r.status === 'Submitted' || r.status === 'Approved');
-    if (key === 'approved') return form.employees.filter((r) => r.status === 'Approved');
-    if (key === 'below') return form.employees.filter((r) => r.below);
-    if (key === 'increment') return form.employees.filter((r) => r.increment);
-    return form.employees;
-  };
 
   const applyAppraiser = (rows: EmpRow[], rule: string) => rows.map((r) => ({
     ...r,
@@ -252,28 +220,6 @@ export function AppraisalCycleMaster() {
     persist(form.id ? cycles.map((c) => (c.id === form.id ? record : c)) : [record, ...cycles]);
     setForm(record);
     flash('Appraisal cycle saved.');
-  };
-
-  const createAppraisals = () => {
-    let created = 0;
-    let skipped = 0;
-    const next = form.employees.map((e) => {
-      if (e.appraisalCreated) {
-        skipped += 1;
-        return e;
-      }
-      created += 1;
-      return { ...e, appraisalCreated: true, status: e.status === 'Not Started' ? 'In Progress' as const : e.status };
-    });
-    setForm({ ...form, employees: next });
-    setProgress(`Created ${created}, skipped ${skipped} existing.`);
-    flash(`Bulk create finished. ${created} appraisal(s) created, ${skipped} already existed.`);
-  };
-
-  const syncAppraisals = () => {
-    const missing = form.employees.filter((e) => !e.appraisalCreated).length;
-    setForm({ ...form, employees: form.employees.map((e) => e.appraisalCreated ? e : { ...e, appraisalCreated: true, status: 'Not Started' as const }) });
-    flash(`Sync Appraisals created records only for ${missing} employee(s) who did not yet have one.`);
   };
 
   return (
@@ -395,87 +341,6 @@ export function AppraisalCycleMaster() {
                   </tbody>
                 </table>
               </div>
-            </div>
-          )}
-
-          {section === 'timeline' && (
-            <div className="space-y-4 p-5">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b bg-gray-50 text-left text-xs uppercase text-gray-500">
-                    {['Phase', 'Start', 'End', 'Responsible'].map((h) => <th key={h} className="px-2 py-2">{h}</th>)}
-                  </tr>
-                </thead>
-                <tbody>
-                  {form.phases.map((p, i) => (
-                    <tr key={p.name} className="border-b">
-                      <td className="px-2 py-2">{p.name}</td>
-                      <td className="px-2 py-2"><input type="date" className="rounded border px-2 py-1" value={p.start} onChange={(e) => setForm({ ...form, phases: form.phases.map((r, idx) => idx === i ? { ...r, start: e.target.value } : r) })} /></td>
-                      <td className="px-2 py-2"><input type="date" className="rounded border px-2 py-1" value={p.end} onChange={(e) => setForm({ ...form, phases: form.phases.map((r, idx) => idx === i ? { ...r, end: e.target.value } : r) })} /></td>
-                      <td className="px-2 py-2">
-                        <select className="rounded border px-2 py-1" value={p.party} onChange={(e) => setForm({ ...form, phases: form.phases.map((r, idx) => idx === i ? { ...r, party: e.target.value } : r) })}>
-                          <option>Employee</option>
-                          <option>HR</option>
-                        </select>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.reminders} onChange={(e) => setForm({ ...form, reminders: e.target.checked })} /> Automated reminders at the start of each phase</label>
-              {form.reminders && (
-                <div className="grid gap-4 md:grid-cols-2">
-                  <Select label="Reminder schedule" value={form.reminderWhen} onChange={(e) => setForm({ ...form, reminderWhen: typeof e === 'string' ? e : e.target.value })} options={['3 days before', '1 day before', 'On Start Date', 'Custom (N days before)'].map((v) => ({ value: v, label: v }))} />
-                  <Select label="Reminder template" value={form.reminderTemplate} onChange={(e) => setForm({ ...form, reminderTemplate: typeof e === 'string' ? e : e.target.value })} options={['Goal Setting Reminder', 'Self Appraisal Due', 'Feedback Pending'].map((v) => ({ value: v, label: v }))} />
-                </div>
-              )}
-              <p className="text-xs text-gray-500">Self-appraisal due date is shown on the staff portal with remaining days.</p>
-            </div>
-          )}
-
-          {section === 'stats' && (
-            <div className="space-y-4 p-5">
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-                {[
-                  { key: 'all', label: 'Total Appraisees', value: stats.total, color: 'text-indigo-700' },
-                  { key: 'self', label: 'Self Appraisal Pending', value: stats.selfPending, color: 'text-amber-700' },
-                  { key: 'feedback', label: 'Feedback Pending', value: stats.feedbackPending, color: 'text-red-700' },
-                  { key: 'goals', label: 'Goals Not Set', value: stats.noGoals, color: 'text-red-700' },
-                  { key: 'none', label: 'Appraisals Not Created', value: stats.noAppraisal, color: 'text-amber-700' },
-                  { key: 'submitted', label: 'Appraisals Submitted', value: stats.submitted, color: 'text-emerald-700' },
-                  { key: 'approved', label: 'Appraisals Approved', value: stats.approved, color: 'text-emerald-700' },
-                  { key: 'below', label: 'Below Threshold', value: stats.below, color: 'text-red-700' },
-                  { key: 'increment', label: 'Increment Eligible', value: stats.increment, color: 'text-emerald-700' }
-                ].map((card) => (
-                  <button key={card.key} type="button" onClick={() => setStatFilter(card.key)} className="rounded-xl border border-gray-200 bg-white p-4 text-left hover:border-indigo-300">
-                    <p className="text-xs font-semibold uppercase text-gray-500">{card.label}</p>
-                    <p className={`mt-1 text-2xl font-bold ${card.color}`}>{card.value}</p>
-                  </button>
-                ))}
-              </div>
-              {statFilter && (
-                <Card title="Filtered employees">
-                  <ul className="space-y-1 p-4 text-sm">
-                    {statRows(statFilter).map((e) => <li key={e.id}>{e.name} · {e.designation} · {e.status}</li>)}
-                    {statRows(statFilter).length === 0 && <li className="text-gray-500">No employees in this bucket.</li>}
-                  </ul>
-                </Card>
-              )}
-            </div>
-          )}
-
-          {section === 'actions' && (
-            <div className="space-y-3 p-5">
-              {progress && <p className="text-sm text-gray-600">{progress}</p>}
-              <div className="flex flex-wrap gap-2">
-                <Button size="sm" onClick={createAppraisals} disabled={form.status === 'Locked' || form.status === 'Completed'}>Create Appraisals (Bulk)</Button>
-                <Button size="sm" variant="outline" onClick={syncAppraisals}>Sync Appraisals</Button>
-                <Button size="sm" variant="outline" onClick={() => flash('Kickoff emails sent with cycle name, period, appraiser and self-appraisal due date.')}>Send Kickoff Emails</Button>
-                <Button size="sm" variant="outline" onClick={() => { setForm({ ...form, status: 'Locked' }); flash('Cycle locked. No new appraisals can be created.'); }}>Lock Cycle</Button>
-                <Button size="sm" variant="outline" onClick={() => { setForm({ ...form, status: 'Completed' }); flash('Cycle closed. Increment linkage can proceed.'); }}>Close Cycle</Button>
-                <Button size="sm" variant="outline" onClick={() => flash('Cycle summary exported (Excel/CSV) for governing body review.')}>Export Cycle Summary</Button>
-              </div>
-              <p className="text-xs text-gray-500">Sync Appraisals creates records only for employees added after the first bulk create, without duplicating existing appraisals.</p>
             </div>
           )}
 

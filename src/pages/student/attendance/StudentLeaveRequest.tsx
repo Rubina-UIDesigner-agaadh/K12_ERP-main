@@ -6,7 +6,7 @@ import { Select } from '../../../components/ui/Select';
 import { Search, Upload, Save, History } from 'lucide-react';
 export function StudentLeaveRequest() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
@@ -22,9 +22,7 @@ export function StudentLeaveRequest() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          <Card title="Leave Application">
+      <Card title="Leave Application">
             <div className="space-y-6">
               {/* Student Search */}
               <div className="flex gap-4 items-end">
@@ -107,31 +105,7 @@ export function StudentLeaveRequest() {
                 <Button variant="primary">Submit Request</Button>
               </div>
             </div>
-          </Card>
-        </div>
-
-        <div className="space-y-6">
-          <Card title="Leave Policy Summary">
-            <div className="space-y-4 text-sm">
-              <div className="flex justify-between py-2 border-b border-gray-100">
-                <span className="text-gray-600">Sick Leave Limit</span>
-                <span className="font-medium">10 Days/Year</span>
-              </div>
-              <div className="flex justify-between py-2 border-b border-gray-100">
-                <span className="text-gray-600">Casual Leave Limit</span>
-                <span className="font-medium">5 Days/Term</span>
-              </div>
-              <div className="flex justify-between py-2 border-b border-gray-100">
-                <span className="text-gray-600">Document Required</span>
-                <span className="font-medium">&gt; 2 Days</span>
-              </div>
-              <div className="p-3 bg-yellow-50 text-yellow-800 rounded text-xs mt-4">
-                Note: Leaves exceeding 3 days require Principal's approval.
-              </div>
-            </div>
-          </Card>
-        </div>
-      </div>
+      </Card>
     </div>);
 
 }

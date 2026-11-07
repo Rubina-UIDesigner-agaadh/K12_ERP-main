@@ -120,7 +120,7 @@ export function EmployeePayStructure() {
   const emp = EMPLOYEES.find((e) => e.id === form.employeeId);
   const structure = STRUCTURES.find((s) => s.name === form.structure);
   const active = rows.find((r) => r.employeeId === form.employeeId && r.assignmentStatus === 'Active');
-  const history = rows.filter((r) => r.employeeId === form.employeeId);
+  
   const backdated = form.effectiveFrom && form.effectiveFrom < today;
   const empMatches = EMPLOYEES.filter((e) => `${e.id} ${e.name}`.toLowerCase().includes(empQuery.toLowerCase()));
 
@@ -271,8 +271,7 @@ export function EmployeePayStructure() {
       </div>
 
       {tab === 'individual' && showForm && (
-        <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
-          <Card className="overflow-hidden" noPadding>
+        <Card className="overflow-hidden" noPadding>
             <div className="space-y-8 p-8">
               <div>
                 <h2 className="mb-4 flex items-center gap-3 text-base font-semibold text-gray-800"><span className="h-5 w-1 rounded bg-indigo-600" />Employee Details</h2>
@@ -314,7 +313,6 @@ export function EmployeePayStructure() {
                   <Select label="Salary Structure *" value={form.structure} onChange={(e) => { setForm({ ...form, structure: typeof e === 'string' ? e : e.target.value }); setPreviewOpen(true); }} options={[{ value: '', label: 'Select submitted structure' }, ...STRUCTURES.map((s) => ({ value: s.name, label: `${s.name}` }))]} />
                   <div>
                     <Input label="Effective From *" type="date" value={form.effectiveFrom} onChange={(e) => setForm({ ...form, effectiveFrom: e.target.value })} />
-                    {backdated && <p className="mt-1 text-xs italic text-amber-600">Backdated — system will prompt recalculation</p>}
                   </div>
                   <div>
                     <Select label="Income Tax Slab *" value={form.taxSlab} onChange={(e) => {
@@ -405,30 +403,6 @@ export function EmployeePayStructure() {
               </div>
             </div>
           </Card>
-
-          <div className="space-y-4">
-            <Card title="Assignment History">
-              {!emp && <p className="text-sm text-gray-400">No previous assignments</p>}
-              {emp && history.length === 0 && <p className="text-sm text-gray-400">No previous assignments</p>}
-              <ul className="space-y-3">
-                {history.map((h) => (
-                  <li key={h.id} className="border-l-2 border-gray-200 pl-3 text-sm">
-                    <p className="text-[11px] font-semibold text-gray-400">{h.effectiveFrom}</p>
-                    <p className="font-medium text-gray-700">{h.structure}</p>
-                    <p className="text-gray-500">{inr(h.baseSalary)} <Badge variant={h.assignmentStatus === 'Active' ? 'success' : 'secondary'}>{h.assignmentStatus === 'Active' ? 'Active' : 'Ended'}</Badge></p>
-                  </li>
-                ))}
-              </ul>
-            </Card>
-            <Card title="Quick Tips">
-              <ul className="list-disc space-y-1 pl-4 text-xs leading-relaxed text-gray-500">
-                <li>Only submitted structures appear in dropdown</li>
-                <li>Backdated assignments trigger recalculation prompt</li>
-                <li>Income Tax Slab must match the employee&apos;s declared regime</li>
-              </ul>
-            </Card>
-          </div>
-        </div>
       )}
 
       {tab === 'bulk' && (

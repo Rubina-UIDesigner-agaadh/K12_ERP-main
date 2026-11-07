@@ -133,6 +133,18 @@ export function HraSpecialExemptionRuleMaster() {
   const [search, setSearch] = useState('');
   const [hraForm, setHraForm] = useState(emptyHraForm);
   const [exemptionForm, setExemptionForm] = useState(emptyExemptionForm);
+  const [hraEnabled, setHraEnabled] = useState(true);
+  const [includeDa, setIncludeDa] = useState(false);
+  const [schoolQuarters, setSchoolQuarters] = useState(true);
+  const [hostelWarden, setHostelWarden] = useState(true);
+  const [daComponent, setDaComponent] = useState('DA');
+  const [hraComponent, setHraComponent] = useState('House Rent Allowance');
+  const [basicComponent, setBasicComponent] = useState('Basic Pay');
+  const [panThreshold, setPanThreshold] = useState(100000);
+  const [formula, setFormula] = useState('min(actual_hra_received, annual_rent_paid - 0.1 * basic_salary, hra_percent * basic_salary / 100)');
+  const [formulaTest, setFormulaTest] = useState('');
+  const [eligName, setEligName] = useState('Meera Iyer');
+  const [eligResult, setEligResult] = useState('');
   const filteredHra = hraRules.filter((r) =>
   r.ruleName.toLowerCase().includes(search.toLowerCase())
   );
@@ -296,6 +308,32 @@ export function HraSpecialExemptionRuleMaster() {
           </div>
         </div>
       </div>
+
+      <Card title="Company HRA settings">
+        <div className="space-y-3 p-4 text-sm">
+          <label className="flex items-center gap-2"><input type="checkbox" checked={hraEnabled} onChange={(e) => setHraEnabled(e.target.checked)} /> Enable HRA Exemption (master switch for declaration, proof and verification)</label>
+          <div className="grid gap-3 md:grid-cols-3">
+            <Input label="HRA Salary Component" value={hraComponent} onChange={(e) => setHraComponent(e.target.value)} />
+            <Input label="Basic Salary Component" value={basicComponent} onChange={(e) => setBasicComponent(e.target.value)} />
+            <Input label="Landlord PAN threshold (₹)" type="number" value={panThreshold} onChange={(e) => setPanThreshold(Number(e.target.value) || 0)} />
+          </div>
+          <label className="flex items-center gap-2"><input type="checkbox" checked={includeDa} onChange={(e) => setIncludeDa(e.target.checked)} /> Include DA in Basic for HRA (government-aided)</label>
+          {includeDa && <Input label="DA Salary Component" value={daComponent} onChange={(e) => setDaComponent(e.target.value)} />}
+          <p className="text-xs text-gray-500">Statutory Metro cities (locked): Delhi, Mumbai, Kolkata, Chennai, Hyderabad, Bengaluru. Unlisted employee cities default to Non-Metro 40%.</p>
+          <label className="flex items-center gap-2"><input type="checkbox" checked={schoolQuarters} onChange={(e) => setSchoolQuarters(e.target.checked)} /> School provides residential accommodation — block HRA for school-quarters residents</label>
+          <label className="flex items-center gap-2"><input type="checkbox" checked={hostelWarden} onChange={(e) => setHostelWarden(e.target.checked)} /> Hostel wardens residing on campus treated as school-provided accommodation</label>
+          <p className="text-xs text-gray-500">Differently-abled transport allowance higher limit ₹3,200/month. Uniform allowance exemption for support staff up to ₹5,000/year.</p>
+          <Input label="HRA formula" value={formula} onChange={(e) => setFormula(e.target.value)} />
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" onClick={() => setFormulaTest('Sample: Leg1 ₹1,92,000 · Leg2 ₹1,32,000 · Leg3 ₹1,92,000 → exempt ₹1,32,000')}>Test Formula</Button>
+            <Button size="sm" variant="outline" onClick={() => setEligResult(`${eligName}: Non-Metro 40% · city Ahmedabad · school quarters ${schoolQuarters ? 'may block HRA' : 'off'} · exempt preview ₹1,32,000`)}>Check HRA Eligibility</Button>
+            <Input className="max-w-xs" value={eligName} onChange={(e) => setEligName(e.target.value)} />
+          </div>
+          {formulaTest && <p className="text-xs text-indigo-700">{formulaTest}</p>}
+          {eligResult && <p className="text-xs text-indigo-700">{eligResult}</p>}
+          {!hraEnabled && <p className="text-sm text-red-700">HRA Configuration Incomplete until Enable HRA Exemption is ON and HRA/Basic components are set.</p>}
+        </div>
+      </Card>
 
       <Card>
         <Tabs
