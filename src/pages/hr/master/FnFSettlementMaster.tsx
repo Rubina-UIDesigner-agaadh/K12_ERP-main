@@ -44,6 +44,7 @@ export function FnFSettlementMaster() {
   const [docDraft, setDocDraft] = useState('');
   const [heads, setHeads] = useState<SettlementHead[]>([
     { id: '1', name: 'Pending Salary (Pro-rated)', kind: 'Earning', appliesTo: 'All' },
+    { id: '1b', name: 'Pending Salary — Withheld', kind: 'Earning', appliesTo: 'Employees with active salary withholding' },
     { id: '2', name: 'Leave Encashment', kind: 'Earning', appliesTo: 'Permanent, Contract' },
     { id: '3', name: 'Gratuity', kind: 'Earning', appliesTo: 'Permanent' },
     { id: '4', name: 'Asset damage / loss fine', kind: 'Deduction', appliesTo: 'All' },
@@ -63,6 +64,25 @@ export function FnFSettlementMaster() {
         <p className="text-sm text-gray-500 mt-1">Master setup for how every employee resignation, approval, documents and full & final settlement are processed.</p>
       </div>
       {notice && <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-800 flex justify-between"><span>{notice}</span><button type="button" onClick={() => setNotice(null)}>×</button></div>}
+
+      <Card title="Active salary withholding on exit">
+        <p className="mb-3 text-sm text-gray-600">F&amp;F auto-detects active withholdings. Withheld slips appear as Pending Salary — Withheld. Approving F&amp;F does not auto-pay those slips — release them on Salary Withholding or offset against asset recovery / notice shortfall.</p>
+        <table className="mb-3 min-w-full text-sm">
+          <thead className="bg-amber-50 text-left text-xs uppercase text-amber-800">
+            <tr>{['Employee', 'Hold', 'Cycles unpaid', 'Net withheld', 'Action'].map((h) => <th key={h} className="px-3 py-2">{h}</th>)}</tr>
+          </thead>
+          <tbody>
+            <tr className="border-t">
+              <td className="px-3 py-2">Sunita Rao · EMP-2048</td>
+              <td className="px-3 py-2 font-mono text-xs">SW-2026-001</td>
+              <td className="px-3 py-2">3</td>
+              <td className="px-3 py-2 font-semibold">₹1,45,320</td>
+              <td className="px-3 py-2"><Button size="xs" variant="outline" onClick={() => setNotice('Withholding must be released separately. F&F JE will not pay these slips.')}>Keep separate</Button> <Button size="xs" onClick={() => setNotice('Offset ₹1,45,320 withheld salary against asset recovery / notice shortfall in this F&F. Remaining hold closed as Partial Release.')}>Offset in F&F</Button></td>
+            </tr>
+          </tbody>
+        </table>
+        <p className="text-xs text-gray-500">Absconding / terminated staff may take a partial release here. Complete exit = F&amp;F + withholding release.</p>
+      </Card>
 
       <Card title="Notice period & eligibility by employee type">
         <div className="overflow-x-auto">

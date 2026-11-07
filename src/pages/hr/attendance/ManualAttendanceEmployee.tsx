@@ -1,12 +1,11 @@
 // File: ManualAttendanceMarking.tsx
 
-import React, { useEffect, useRef, useState } from 'react';
-import { Modal } from '../../../components/ui/Modal';
+import React, { useEffect, useState } from 'react';
 import { EmployeeAttendanceAdmin } from './EmployeeAttendanceAdmin';
 import {
-  AlertCircle, AlertTriangle, ArrowUpDown, Calendar, CheckCircle, ChevronLeft, ChevronRight, Clock, Coffee, RefreshCw,
-  Download, Edit3, FileSpreadsheet, Home, Lock, Printer, Radio,
-  Save, Search, Send, UserCheck, Wifi, X, XCircle
+  AlertCircle, AlertTriangle, ArrowUpDown, Calendar, CheckCircle, ChevronLeft, ChevronRight, Clock, Coffee,
+  Download, Edit3, FileSpreadsheet, Home, Lock, Printer,
+  Save, Search, Send, UserCheck, X, XCircle
 } from 'lucide-react';
 
 // Types
@@ -448,8 +447,6 @@ const PENDING_TARGET = 24;
 const PAGE_SIZE = 6;
 const DEADLINE_MINUTES = 11 * 60;
 const SHIFT_START_MINUTES = 9 * 60;
-const DEVICE_METHODS = ['Fingerprint', 'Face Scan', 'RFID Card'];
-const DEVICE_GATES = ['Gate 1', 'Gate 2', 'Staff Room'];
 const YESTERDAY_TOTAL = 85;
 // Yesterday's counts (mock) used for the "vs yesterday" trend arrows
 const YESTERDAY_COUNTS: Partial<Record<DisplayStatus, number>> = { present: 41, late: 2, absent: 9, half_day: 3, leave: 5, on_duty: 1 };
@@ -502,17 +499,6 @@ interface AttendanceRow extends Employee {
   markSource?: 'auto' | 'manual';
 }
 
-interface DeviceEvent {
-  id: string;
-  name: string;
-  code: string;
-  time: string;
-  method: string;
-  gate: string;
-  late: boolean;
-  lateBy: number;
-}
-
 const toDateInput = (date: Date): string =>
 `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
@@ -523,15 +509,6 @@ const formatLongDate = (iso: string): string => {
 
 const minutesToClock = (minutes: number): string =>
 `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
-
-// 24-hour "HH:MM" to "hh:mm AM/PM" for the device feed
-const formatClock12 = (hhmm: string): string => {
-  const minutes = parseTime(hhmm);
-  if (minutes === null) return '—';
-  const hours24 = Math.floor(minutes / 60);
-  const hours12 = hours24 % 12 === 0 ? 12 : hours24 % 12;
-  return `${String(hours12).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')} ${hours24 < 12 ? 'AM' : 'PM'}`;
-};
 
 // Staff type is not in the original mock records, so it is derived from the serial number for filtering
 const staffTypeOf = (serialNo: number): StaffType => (serialNo % 4 === 0 ? 'Contract' : serialNo % 3 === 0 ? 'Part-time' : 'Full-time');
@@ -635,21 +612,6 @@ const buildAttendanceRoster = (): AttendanceRow[] => {
   return [...base, ...generated];
 };
 
-// Device events are the biometric captures (one per auto-marked record), ordered by time
-const buildDeviceFeed = (rows: AttendanceRow[]): DeviceEvent[] => rows
-  .filter((row) => row.loginTime && row.markSource === 'auto')
-  .map((row) => ({
-    id: row.id,
-    name: row.name,
-    code: row.employeeId,
-    time: row.loginTime,
-    method: DEVICE_METHODS[row.serialNo % DEVICE_METHODS.length],
-    gate: DEVICE_GATES[row.serialNo % DEVICE_GATES.length],
-    late: row.isLate,
-    lateBy: row.lateByMinutes
-  }))
-  .sort((a, b) => a.time.localeCompare(b.time));
-
 const trendFor = (key: DisplayStatus, count: number, total: number): { arrow: string; delta: number; percent: number } => {
   const today = total ? (count / total) * 100 : 0;
   const yesterday = ((YESTERDAY_COUNTS[key] ?? 0) / YESTERDAY_TOTAL) * 100;
@@ -696,7 +658,6 @@ export function ManualAttendanceMarking() {
   const deadlinePassed = now.getHours() * 60 + now.getMinutes() > DEADLINE_MINUTES;
 
   const [initialRoster] = useState<AttendanceRow[]>(() => buildAttendanceRoster());
-  const [deviceFeed] = useState<DeviceEvent[]>(() => buildDeviceFeed(initialRoster));
   const [selectedDate, setSelectedDate] = useState(today);
   const [departmentFilter, setDepartmentFilter] = useState('all');
   const [staffTypeFilter, setStaffTypeFilter] = useState<'all' | StaffType>('all');
@@ -712,14 +673,12 @@ export function ManualAttendanceMarking() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<EditDraft>({ choice: 'present', inTime: '', outTime: '', reason: '' });
   const [editError, setEditError] = useState<string | null>(null);
-  const [showFullLog, setShowFullLog] = useState(false);
   const [sheetTab, setSheetTab] = useState<'mark' | 'admin' | 'history'>('mark');
   const [correctionHistory, setCorrectionHistory] = useState([
     { id: 'CR-001', at: '08 Oct 2026 10:14', emp: 'Jane Smith (EMP002)', from: 'Absent', to: 'Present', by: 'HR Admin', reason: 'Biometric failed at Gate 2' },
     { id: 'CR-002', at: '07 Oct 2026 16:40', emp: 'David Lee (EMP007)', from: 'Not marked', to: 'On Duty', by: 'HR Admin', reason: 'Official visit to north campus' }
   ]);
   const [notice, setNotice] = useState<{ type: 'success' | 'info' | 'error'; text: string } | null>(null);
-  const feedRef = useRef<HTMLUListElement>(null);
 
   const isToday = selectedDate === today;
   const canEdit = !locked;
@@ -737,8 +696,6 @@ export function ManualAttendanceMarking() {
 
   // Device-wide counts for the feed panel and the bottom bar
   const globalPending = isToday ? rows.filter((row) => displayStatusOf(row) === 'not_marked').length : 0;
-  const globalAuto = isToday ? rows.filter((row) => row.markSource === 'auto').length : 0;
-  const feedToday = isToday ? deviceFeed : [];
 
   const tableRows = scopeRows
     .filter((row) =>
@@ -755,12 +712,6 @@ export function ManualAttendanceMarking() {
   useEffect(() => {
     setPage(1);
   }, [quickFilter, appliedSearch, departmentFilter, staffTypeFilter, selectedDate]);
-
-  // Keep the device feed scrolled to the latest event
-  useEffect(() => {
-    const list = feedRef.current;
-    if (list) list.scrollTop = list.scrollHeight;
-  }, [feedToday.length]);
 
   // Unsaved-changes guard: browser close / reload, and in-app navigation (BrowserRouter has no data-router blocker)
   useEffect(() => {
@@ -960,18 +911,6 @@ export function ManualAttendanceMarking() {
             </h1>
             <p className="text-sm text-gray-500 mt-1">Mark attendance and apply admin corrections in one place · Today: {formatLongDate(today)}</p>
           </div>
-          <div className="flex items-center gap-3 rounded-lg border border-green-500 bg-green-50 px-4 py-2">
-            <RefreshCw className="w-4 h-4 text-green-700" />
-            <p className="text-sm font-semibold text-gray-900">Auto + Manual Together</p>
-            <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-green-600 px-2 py-0.5 text-[11px] font-medium text-white">
-              <CheckCircle className="w-3 h-3" /> Currently ON
-            </span>
-          </div>
-        </div>
-        <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-gray-100 pt-3 text-xs text-gray-600">
-          <span className="font-medium text-gray-700">Auto-Sync Status:</span>
-          <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /> Biometric Device Connected</span>
-          <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-500" /> ERP Sync: Live</span>
           {locked && (
             <span className="inline-flex items-center gap-1.5 text-amber-700 font-medium"><Lock className="w-3.5 h-3.5" /> Day submitted and locked</span>
           )}
@@ -1090,8 +1029,8 @@ export function ManualAttendanceMarking() {
         </div>
       </div>
 
-        <div className="lg:flex lg:items-stretch border-t border-gray-100">
-          <div className="flex-1 min-w-0">
+        <div className="border-t border-gray-100">
+          <div className="min-w-0">
           {/* Zone 6: bulk action bar */}
           <div className="px-5 py-3 bg-gray-50 border-b border-gray-200 space-y-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">Bulk Actions (select employees using the checkboxes, then apply a status)</p>
@@ -1219,26 +1158,14 @@ export function ManualAttendanceMarking() {
                             </td>
                             <td className="px-4 py-3">
                               <p className="text-gray-900">{row.loginTime || '—:—'}</p>
-                              {row.loginTime && row.markSource && (
-                                <span className={`text-[10px] font-medium ${row.markSource === 'auto' ? 'text-green-700' : 'text-blue-700'}`}>
-                                  {row.markSource === 'auto' ? 'Auto' : 'Manual'}
-                                </span>
-                              )}
                             </td>
                             <td className="px-4 py-3">
                               <p className="text-gray-900">{row.logoutTime || '—:—'}</p>
-                              {row.logoutTime && row.markSource && (
-                                <span className={`text-[10px] font-medium ${row.markSource === 'auto' ? 'text-green-700' : 'text-blue-700'}`}>
-                                  {row.markSource === 'auto' ? 'Auto' : 'Manual'}
-                                </span>
-                              )}
                             </td>
                             <td className="px-4 py-3">
-                              {row.loginTime && !row.logoutTime
-                                ? <span className="font-medium text-green-700">Live</span>
-                                : row.loginTime
-                                  ? <span className="text-gray-900">{row.netWorkingHours.toFixed(2)} hrs</span>
-                                  : <span className="text-gray-400">—</span>}
+                              {row.loginTime
+                                ? <span className="text-gray-900">{row.netWorkingHours.toFixed(2)} hrs</span>
+                                : <span className="text-gray-400">—</span>}
                             </td>
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-1">
@@ -1378,60 +1305,6 @@ export function ManualAttendanceMarking() {
             </div>
           </div>
         </div>
-        {/* Zone 7: live auto-feed on the right of the same panel */}
-        <div className="lg:w-80 lg:flex-shrink-0 lg:border-l border-t lg:border-t-0 border-gray-200">
-          <div>
-            <div className="px-4 py-3 border-b border-gray-200">
-              <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-                <Radio className="w-4 h-4 text-green-600" />
-                LIVE AUTO FEED — Biometric / RFID
-              </h3>
-              <p className="mt-1 flex items-center gap-1.5 text-xs text-green-700">
-                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /> Device: Connected | Syncing Live
-              </p>
-            </div>
-            <ul ref={feedRef} className="divide-y divide-gray-100 max-h-80 overflow-y-auto">
-              {feedToday.length === 0 && (
-                <li className="px-4 py-6 text-center text-sm text-gray-500">No device events for this date.</li>
-              )}
-              {feedToday.map((entry) => (
-                <li key={entry.id} className="px-4 py-2.5 text-sm">
-                  <p className="flex items-center gap-2 text-gray-900">
-                    <Clock className="w-3.5 h-3.5 text-gray-400" />
-                    <span className="font-mono text-xs font-semibold">{formatClock12(entry.time)}</span>
-                    <span className="text-gray-400">—</span>
-                    <CheckCircle className="w-3.5 h-3.5 text-green-600" />
-                    <span className="truncate">{entry.name} ({entry.code})</span>
-                  </p>
-                  <p className="ml-6 text-xs text-gray-500">{entry.method} ● {entry.gate}</p>
-                  {entry.late && (
-                    <p className="ml-6 flex items-center gap-1 text-xs font-medium text-yellow-700">
-                      <AlertTriangle className="w-3 h-3" /> {entry.lateBy} min late
-                    </p>
-                  )}
-                </li>
-              ))}
-            </ul>
-            <div className="space-y-1.5 border-t border-gray-200 px-4 py-3 text-sm">
-              <p className="flex justify-between">
-                <span className="text-gray-600">Auto-marked today:</span>
-                <span className="font-semibold text-green-700">{globalAuto} / {rows.length}</span>
-              </p>
-              <p className="flex justify-between">
-                <span className="text-gray-600">Still Pending:</span>
-                <span className="font-semibold text-red-600">{globalPending}</span>
-              </p>
-            </div>
-            <div className="px-4 pb-4">
-              <button
-                type="button"
-                onClick={() => setShowFullLog(true)}
-                className="w-full px-3 py-2 text-sm font-medium border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
-                View Full Auto Log
-              </button>
-            </div>
-          </div>
-        </div>
         </div>
 
       {/* Zone 8: sticky bottom bar */}
@@ -1473,45 +1346,7 @@ export function ManualAttendanceMarking() {
       )}
       </div>
 
-      {/* Full auto log */}
-      <Modal
-        isOpen={showFullLog}
-        onClose={() => setShowFullLog(false)}
-        title="Full Auto Log"
-        size="lg"
-        footer={(
-          <div className="flex justify-end">
-            <button type="button" onClick={() => setShowFullLog(false)} className={BUTTON_OUTLINE_CLASS}>Close</button>
-          </div>)}>
-        {feedToday.length === 0 ? (
-          <p className="text-sm text-gray-500">No device events for this date.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 text-sm">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-gray-500">Time</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-gray-500">Employee</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-gray-500">Method</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-gray-500">Gate</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-gray-500">Late</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {feedToday.map((entry) => (
-                  <tr key={entry.id}>
-                    <td className="px-3 py-2 font-mono text-xs">{formatClock12(entry.time)}</td>
-                    <td className="px-3 py-2">{entry.name} <span className="text-xs text-gray-500">({entry.code})</span></td>
-                    <td className="px-3 py-2">{entry.method}</td>
-                    <td className="px-3 py-2">{entry.gate}</td>
-                    <td className="px-3 py-2">{entry.late ? `Yes (${entry.lateBy} min)` : 'No'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Modal>
+
     </div>);
 
 }

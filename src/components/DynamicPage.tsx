@@ -1,6 +1,8 @@
 import React, { Suspense, Component } from 'react';
-import { pageRegistry } from '../pages/PageRegistry';
+import * as pageRegistryMod from '../pages/PageRegistry';
 import { FileQuestion, Loader2, AlertTriangle, Copy, Check, RotateCcw } from 'lucide-react';
+
+const pageRegistry = (pageRegistryMod.pageRegistry ?? pageRegistryMod.default ?? {}) as Record<string, () => any>;
 interface DynamicPageProps {
   moduleName: string;
   subModuleName: string;

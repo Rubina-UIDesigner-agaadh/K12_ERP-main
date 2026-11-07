@@ -1,4 +1,7 @@
 import React, { useState, useRef } from 'react';
+import { useParams } from 'react-router-dom';
+import { RatingDistributionNormalisation } from './RatingDistributionNormalisation';
+import { TrainingNeedsActionPlanReport } from './TrainingNeedsActionPlanReport';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Select } from '../../../components/ui/Select';
@@ -226,7 +229,7 @@ const mockResults: ResultRow[] = [
 }];
 
 
-export function AppraisalResultReport() {
+function AppraisalResultReportInner() {
   const [search, setSearch] = useState('');
   const [deptFilter, setDeptFilter] = useState('');
   const [gradeFilter, setGradeFilter] = useState('');
@@ -1051,4 +1054,35 @@ export function AppraisalResultReport() {
       </Card>
     </div>);
 
+}
+
+const APPRAISAL_REPORT_TABS = [
+  { id: 'appraisal-result-report', label: 'Appraisal Result Report' },
+  { id: 'rating-distribution-normalisation', label: 'Rating Distribution & Normalisation' },
+  { id: 'training-needs-action-plan-report', label: 'Training Needs & Action Plan Report' },
+];
+
+export function AppraisalResultReport() {
+  const { pageId } = useParams<{ pageId: string }>();
+  const initial = APPRAISAL_REPORT_TABS.find((t) => t.id === pageId)?.id ?? 'appraisal-result-report';
+  const [tab, setTab] = useState(initial);
+  return (
+    <div>
+      <div className="flex gap-1 overflow-x-auto border-b border-gray-200 bg-white px-4 sm:px-6">
+        {APPRAISAL_REPORT_TABS.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => setTab(item.id)}
+            className={`whitespace-nowrap px-4 py-2.5 text-sm font-medium border-b-2 ${tab === item.id ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500'}`}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+      {tab === 'rating-distribution-normalisation' ? <RatingDistributionNormalisation /> :
+        tab === 'training-needs-action-plan-report' ? <TrainingNeedsActionPlanReport /> :
+        <AppraisalResultReportInner />}
+    </div>
+  );
 }

@@ -1,1750 +1,535 @@
-import React, { useState, useMemo, useCallback } from 'react';
-import {
-  Plus,
-  Search,
-  User,
-  Trash2,
-  Pencil,
-  X,
-  Save,
-  Copy,
-  ChevronRight,
-  AlertCircle,
-  Check,
-  History,
-  FileText,
-  Archive,
-  RefreshCw,
-  CheckCircle2,
-  XCircle,
-  IndianRupee,
-  Calendar,
-  Building2,
-  Briefcase,
-  Download,
-  Printer,
-  MoreVertical } from
-'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Card } from '../../../components/ui/Card';
+import { Button } from '../../../components/ui/Button';
+import { Input } from '../../../components/ui/Input';
+import { Select } from '../../../components/ui/Select';
+import { Badge } from '../../../components/ui/Badge';
+import { Modal } from '../../../components/ui/Modal';
+import { MultiSelect } from '../../../components/ui/MultiSelect';
+import { Plus, Search } from 'lucide-react';
 
-// ==================== TYPES ====================
-
-interface Employee {
-  id: string;
-  name: string;
-  code: string;
-  designation: string;
-  department: string;
-  employmentType: 'permanent' | 'contract' | 'temporary';
-  status: 'Active' | 'Inactive';
-  photo: string;
-  joiningDate: string;
-  email: string;
-  phone: string;
-}
-
-interface SalaryComponent {
-  id: string;
-  name: string;
-  type: 'Fixed' | 'Variable';
-  calculationType: 'Flat' | 'Percentage';
-  percentageOf?: string;
-  amount: number;
-  percentage?: number;
-  isActive: boolean;
-}
-
-interface SalaryStructure {
+const STORE = 'k12-salary-assignments-v1';
+type Tab = 'individual' | 'bulk';
+type DocStatus = 'Draft' | 'Submitted' | 'Cancelled';
+type Assignment = {
   id: string;
   employeeId: string;
+  employeeName: string;
+  department: string;
+  designation: string;
+  branch: string;
+  grade: string;
+  structure: string;
+  frequency: string;
+  category: string;
   effectiveFrom: string;
-  effectiveTo?: string;
-  status: 'Active' | 'Inactive' | 'Draft';
-  earnings: SalaryComponent[];
-  deductions: SalaryComponent[];
-  createdAt: string;
-  updatedAt: string;
-  remarks?: string;
-}
-
-interface StructureHistory {
-  id: string;
-  structureId: string;
-  action: 'created' | 'updated' | 'activated' | 'deactivated';
-  timestamp: string;
-  changes?: string;
-}
-
-// ==================== CONSTANTS ====================
-
-const EARNING_COMPONENTS = [
-'Basic Salary',
-'House Rent Allowance',
-'Dearness Allowance',
-'Special Allowance',
-'Medical Allowance',
-'Conveyance Allowance',
-'Technical Allowance',
-'Internet Allowance',
-'Leave Travel Allowance',
-'Performance Bonus',
-'Overtime',
-'Other Allowance'];
-
-
-const DEDUCTION_COMPONENTS = [
-'Provident Fund',
-'ESI',
-'Professional Tax',
-'TDS',
-'Income Tax',
-'Loan Recovery',
-'Advance Recovery',
-'Insurance Premium',
-'Other Deduction'];
-
-
-const PERCENTAGE_BASE_OPTIONS = ['Basic Salary', 'Gross Salary', 'CTC'];
-
-const DEPARTMENTS = [
-'Teaching',
-'Administration',
-'IT Department',
-'Finance',
-'Support Staff'];
-
-
-// ==================== INITIAL DATA ====================
-
-const INITIAL_EMPLOYEES: Employee[] = [
-{
-  id: '1',
-  name: 'Rajesh Kumar',
-  code: 'EMP001',
-  designation: 'Senior Teacher',
-  department: 'Teaching',
-  employmentType: 'permanent',
-  status: 'Active',
-  photo: 'https://i.pravatar.cc/150?img=12',
-  joiningDate: '2020-04-01',
-  email: 'rajesh.kumar@school.edu',
-  phone: '9876543210'
-},
-{
-  id: '2',
-  name: 'Priya Sharma',
-  code: 'EMP002',
-  designation: 'Admin Officer',
-  department: 'Administration',
-  employmentType: 'permanent',
-  status: 'Active',
-  photo: 'https://i.pravatar.cc/150?img=5',
-  joiningDate: '2019-07-15',
-  email: 'priya.sharma@school.edu',
-  phone: '9876543211'
-},
-{
-  id: '3',
-  name: 'Amit Patel',
-  code: 'EMP003',
-  designation: 'IT Manager',
-  department: 'IT Department',
-  employmentType: 'permanent',
-  status: 'Active',
-  photo: 'https://i.pravatar.cc/150?img=33',
-  joiningDate: '2021-01-10',
-  email: 'amit.patel@school.edu',
-  phone: '9876543212'
-},
-{
-  id: '4',
-  name: 'Sneha Reddy',
-  code: 'EMP004',
-  designation: 'Accountant',
-  department: 'Finance',
-  employmentType: 'contract',
-  status: 'Active',
-  photo: 'https://i.pravatar.cc/150?img=9',
-  joiningDate: '2022-03-01',
-  email: 'sneha.reddy@school.edu',
-  phone: '9876543213'
-},
-{
-  id: '5',
-  name: 'Vikram Singh',
-  code: 'EMP005',
-  designation: 'Lab Assistant',
-  department: 'Support Staff',
-  employmentType: 'temporary',
-  status: 'Inactive',
-  photo: 'https://i.pravatar.cc/150?img=15',
-  joiningDate: '2023-06-15',
-  email: 'vikram.singh@school.edu',
-  phone: '9876543214'
-},
-{
-  id: '6',
-  name: 'Meera Nair',
-  code: 'EMP006',
-  designation: 'Librarian',
-  department: 'Support Staff',
-  employmentType: 'permanent',
-  status: 'Active',
-  photo: 'https://i.pravatar.cc/150?img=23',
-  joiningDate: '2018-08-20',
-  email: 'meera.nair@school.edu',
-  phone: '9876543215'
-}];
-
-
-const INITIAL_STRUCTURES: SalaryStructure[] = [
-{
-  id: '1',
-  employeeId: '1',
-  effectiveFrom: '2024-04-01',
-  status: 'Active',
-  createdAt: '2024-03-15',
-  updatedAt: '2024-03-15',
-  earnings: [
-  { id: '1-e-1', name: 'Basic Salary', type: 'Fixed', calculationType: 'Flat', amount: 35000, isActive: true },
-  { id: '1-e-2', name: 'House Rent Allowance', type: 'Fixed', calculationType: 'Percentage', percentageOf: 'Basic Salary', percentage: 40, amount: 14000, isActive: true },
-  { id: '1-e-3', name: 'Dearness Allowance', type: 'Fixed', calculationType: 'Percentage', percentageOf: 'Basic Salary', percentage: 10, amount: 3500, isActive: true },
-  { id: '1-e-4', name: 'Special Allowance', type: 'Fixed', calculationType: 'Flat', amount: 5000, isActive: true },
-  { id: '1-e-5', name: 'Medical Allowance', type: 'Fixed', calculationType: 'Flat', amount: 2500, isActive: true }],
-
-  deductions: [
-  { id: '1-d-1', name: 'Provident Fund', type: 'Fixed', calculationType: 'Percentage', percentageOf: 'Basic Salary', percentage: 12, amount: 4200, isActive: true },
-  { id: '1-d-2', name: 'ESI', type: 'Fixed', calculationType: 'Percentage', percentageOf: 'Gross Salary', percentage: 0.75, amount: 450, isActive: true },
-  { id: '1-d-3', name: 'Professional Tax', type: 'Fixed', calculationType: 'Flat', amount: 200, isActive: true },
-  { id: '1-d-4', name: 'TDS', type: 'Variable', calculationType: 'Flat', amount: 2500, isActive: true }]
-
-},
-{
-  id: '2',
-  employeeId: '2',
-  effectiveFrom: '2024-04-01',
-  status: 'Active',
-  createdAt: '2024-03-15',
-  updatedAt: '2024-03-15',
-  earnings: [
-  { id: '2-e-1', name: 'Basic Salary', type: 'Fixed', calculationType: 'Flat', amount: 28000, isActive: true },
-  { id: '2-e-2', name: 'House Rent Allowance', type: 'Fixed', calculationType: 'Percentage', percentageOf: 'Basic Salary', percentage: 40, amount: 11200, isActive: true },
-  { id: '2-e-3', name: 'Dearness Allowance', type: 'Fixed', calculationType: 'Percentage', percentageOf: 'Basic Salary', percentage: 10, amount: 2800, isActive: true },
-  { id: '2-e-4', name: 'Conveyance Allowance', type: 'Fixed', calculationType: 'Flat', amount: 1600, isActive: true }],
-
-  deductions: [
-  { id: '2-d-1', name: 'Provident Fund', type: 'Fixed', calculationType: 'Percentage', percentageOf: 'Basic Salary', percentage: 12, amount: 3360, isActive: true },
-  { id: '2-d-2', name: 'Professional Tax', type: 'Fixed', calculationType: 'Flat', amount: 200, isActive: true }]
-
-},
-{
-  id: '3',
-  employeeId: '3',
-  effectiveFrom: '2024-04-01',
-  status: 'Active',
-  createdAt: '2024-03-15',
-  updatedAt: '2024-03-15',
-  earnings: [
-  { id: '3-e-1', name: 'Basic Salary', type: 'Fixed', calculationType: 'Flat', amount: 45000, isActive: true },
-  { id: '3-e-2', name: 'House Rent Allowance', type: 'Fixed', calculationType: 'Percentage', percentageOf: 'Basic Salary', percentage: 50, amount: 22500, isActive: true },
-  { id: '3-e-3', name: 'Technical Allowance', type: 'Fixed', calculationType: 'Flat', amount: 8000, isActive: true },
-  { id: '3-e-4', name: 'Internet Allowance', type: 'Fixed', calculationType: 'Flat', amount: 2000, isActive: true }],
-
-  deductions: [
-  { id: '3-d-1', name: 'Provident Fund', type: 'Fixed', calculationType: 'Percentage', percentageOf: 'Basic Salary', percentage: 12, amount: 5400, isActive: true },
-  { id: '3-d-2', name: 'Professional Tax', type: 'Fixed', calculationType: 'Flat', amount: 200, isActive: true },
-  { id: '3-d-3', name: 'TDS', type: 'Variable', calculationType: 'Flat', amount: 5000, isActive: true }]
-
-}];
-
-
-// ==================== HELPER FUNCTIONS ====================
-
-const formatDate = (dateString: string): string => {
-  return new Date(dateString).toLocaleDateString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric'
-  });
+  baseSalary: number;
+  variableAmount: number;
+  taxSlab: string;
+  taxRegime: 'Old' | 'New';
+  payrollAccount: string;
+  status: DocStatus;
+  assignmentStatus: 'Active' | 'Ended';
 };
 
-const formatCurrency = (amount: number): string => {
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0
-  }).format(amount);
-};
+const EMPLOYEES = [
+  { id: 'EMP-1042', name: 'Meera Iyer', department: 'Science', designation: 'PGT Physics', branch: 'Main Branch', grade: 'A', net: 72000 },
+  { id: 'EMP-1088', name: 'Rajesh Kumar', department: 'Mathematics', designation: 'TGT Maths', branch: 'Main Branch', grade: 'B', net: 58000 },
+  { id: 'EMP-1101', name: 'Kavita Shah', department: 'Administration', designation: 'Office Superintendent', branch: 'City Campus', grade: 'C', net: 42000 },
+  { id: 'EMP-1120', name: 'Anil Patel', department: 'Sports', designation: 'PET', branch: 'North Campus', grade: 'B', net: 36000 },
+  { id: 'EMP-1144', name: 'Priya Nair', department: 'Languages', designation: 'PGT English', branch: 'Main Branch', grade: 'A', net: 64000 }
+];
+const STRUCTURES = [
+  { name: 'Teaching Staff - Permanent', frequency: 'Monthly', category: 'Teaching' },
+  { name: 'Teaching Grade B 2026', frequency: 'Monthly', category: 'Teaching' },
+  { name: 'Non-Teaching Grade C', frequency: 'Monthly', category: 'Non-Teaching' },
+  { name: 'Support Staff Grade D', frequency: 'Monthly', category: 'Contractual' }
+];
+const EARNINGS = [
+  { name: 'Basic Pay', formula: 'Fixed', abbr: 'BASIC' },
+  { name: 'DA', formula: 'basic * 0.45', abbr: 'DA' },
+  { name: 'HRA', formula: 'basic * 0.40', abbr: 'HRA' }
+];
+const DEDUCTIONS = [
+  { name: 'EPF (Employee)', formula: 'min(basic * 0.12, 1800)', abbr: 'EPF' },
+  { name: 'Professional Tax', formula: 'Fixed slab', abbr: 'PT' },
+  { name: 'Income Tax (TDS)', formula: 'Projected / remaining months', abbr: 'TDS' }
+];
 
-const getCurrentDate = (): string => {
-  return new Date().toISOString().split('T')[0];
-};
+const inr = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
+const today = '2026-11-02';
 
-const generateId = (): string => {
-  return Date.now().toString() + Math.random().toString(36).substr(2, 9);
-};
+const SEED: Assignment[] = [
+  { id: 'SA-01', employeeId: 'EMP-1042', employeeName: 'Meera Iyer', department: 'Science', designation: 'PGT Physics', branch: 'Main Branch', grade: 'A', structure: 'Teaching Staff - Permanent', frequency: 'Monthly', category: 'Teaching', effectiveFrom: '2026-04-01', baseSalary: 50000, variableAmount: 4000, taxSlab: 'New Regime — FY 2026-27', taxRegime: 'New', payrollAccount: '', status: 'Submitted', assignmentStatus: 'Active' },
+  { id: 'SA-00', employeeId: 'EMP-1042', employeeName: 'Meera Iyer', department: 'Science', designation: 'PGT Physics', branch: 'Main Branch', grade: 'A', structure: 'Teaching Grade B 2025', frequency: 'Monthly', category: 'Teaching', effectiveFrom: '2025-04-01', baseSalary: 38000, variableAmount: 2000, taxSlab: 'Old Regime — FY 2025-26', taxRegime: 'Old', payrollAccount: '', status: 'Submitted', assignmentStatus: 'Ended' }
+];
 
-// ==================== MAIN COMPONENT ====================
+const load = (): Assignment[] => {
+  try {
+    const raw = localStorage.getItem(STORE);
+    return raw ? JSON.parse(raw) as Assignment[] : SEED;
+  } catch {
+    return SEED;
+  }
+};
 
 export function EmployeePayStructure() {
-  // ==================== STATE ====================
-
-  // Data State
-  const [employees] = useState<Employee[]>(INITIAL_EMPLOYEES);
-  const [salaryStructures, setSalaryStructures] = useState<SalaryStructure[]>(INITIAL_STRUCTURES);
-  const [structureHistory, setStructureHistory] = useState<StructureHistory[]>([]);
-
-  // Selection State
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>(employees[0].id);
-
-  // Filter State
-  const [searchTerm, setSearchTerm] = useState('');
-  const [departmentFilter, setDepartmentFilter] = useState('');
-  const [employmentTypeFilter, setEmploymentTypeFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-
-  // Modal State
-  const [showComponentModal, setShowComponentModal] = useState(false);
-  const [showStructureModal, setShowStructureModal] = useState(false);
-  const [showHistoryModal, setShowHistoryModal] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [showCopyModal, setShowCopyModal] = useState(false);
-
-  // Edit State
-  const [editingComponent, setEditingComponent] = useState<SalaryComponent | null>(null);
-  const [componentType, setComponentType] = useState<'earning' | 'deduction'>('earning');
-  const [deletingComponentId, setDeletingComponentId] = useState<string | null>(null);
-  const [deletingComponentType, setDeletingComponentType] = useState<'earning' | 'deduction'>('earning');
-
-  // Form State
-  const [componentForm, setComponentForm] = useState({
-    name: '',
-    customName: '',
-    type: 'Fixed' as 'Fixed' | 'Variable',
-    calculationType: 'Flat' as 'Flat' | 'Percentage',
-    percentageOf: 'Basic Salary',
-    amount: 0,
-    percentage: 0
+  const [tab, setTab] = useState<Tab>('individual');
+  const [rows, setRows] = useState<Assignment[]>(load);
+  const [notice, setNotice] = useState('');
+  const [showForm, setShowForm] = useState(true);
+  const [empQuery, setEmpQuery] = useState('');
+  const [empOpen, setEmpOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(true);
+  const [backdateOpen, setBackdateOpen] = useState(false);
+  const [docStatus, setDocStatus] = useState<DocStatus>('Draft');
+  const [form, setForm] = useState({
+    employeeId: '',
+    structure: '',
+    effectiveFrom: '2026-11-01',
+    taxSlab: 'New Regime — FY 2026-27',
+    taxRegime: 'New' as 'Old' | 'New',
+    baseSalary: 0,
+    variableAmount: 0,
+    payrollAccount: '',
+    previousTaxable: 0,
+    previousTds: 0,
+    form12b: ''
   });
 
-  const [structureForm, setStructureForm] = useState({
-    effectiveFrom: '',
-    remarks: '',
-    copyFromEmployeeId: ''
-  });
+  const [fDept, setFDept] = useState<string[]>([]);
+  const [fDesig, setFDesig] = useState<string[]>([]);
+  const [fCat, setFCat] = useState('');
+  const [fGrade, setFGrade] = useState('');
+  const [applied, setApplied] = useState(false);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [bulkStructure, setBulkStructure] = useState(STRUCTURES[0].name);
+  const [bulkDate, setBulkDate] = useState('2026-11-01');
+  const [bulkBase, setBulkBase] = useState<{ [id: string]: number }>({});
+  const [bulkTax, setBulkTax] = useState<{ [id: string]: string }>({});
+  const [bulkModal, setBulkModal] = useState(false);
+  const [bulkMode, setBulkMode] = useState<'pct' | 'fixed'>('pct');
+  const [bulkVal, setBulkVal] = useState('10');
+  const [progressOpen, setProgressOpen] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [progressLog, setProgressLog] = useState<{ ok: boolean; text: string }[]>([]);
 
-  // ==================== COMPUTED VALUES ====================
+  const flash = (t: string) => { setNotice(t); window.setTimeout(() => setNotice(''), 5000); };
+  const persist = (next: Assignment[]) => { setRows(next); localStorage.setItem(STORE, JSON.stringify(next)); };
 
-  const selectedEmployee = useMemo(() => {
-    return employees.find((e) => e.id === selectedEmployeeId) || employees[0];
-  }, [selectedEmployeeId, employees]);
+  const emp = EMPLOYEES.find((e) => e.id === form.employeeId);
+  const structure = STRUCTURES.find((s) => s.name === form.structure);
+  const active = rows.find((r) => r.employeeId === form.employeeId && r.assignmentStatus === 'Active');
+  
+  const backdated = form.effectiveFrom && form.effectiveFrom < today;
+  const empMatches = EMPLOYEES.filter((e) => `${e.id} ${e.name}`.toLowerCase().includes(empQuery.toLowerCase()));
 
-  const currentStructure = useMemo(() => {
-    return (
-      salaryStructures.find(
-        (s) => s.employeeId === selectedEmployeeId && s.status === 'Active'
-      ) || null);
+  const gross = form.baseSalary + Math.round(form.baseSalary * 0.45) + Math.round(form.baseSalary * 0.40) + form.variableAmount;
+  const tds = Math.round(form.baseSalary * 0.06);
+  const deductions = Math.min(Math.round(form.baseSalary * 0.12), 1800) + 200 + tds;
+  const net = Math.max(0, gross - deductions);
 
-  }, [selectedEmployeeId, salaryStructures]);
-
-  const employeeStructures = useMemo(() => {
-    return salaryStructures.filter((s) => s.employeeId === selectedEmployeeId);
-  }, [selectedEmployeeId, salaryStructures]);
-
-  const filteredEmployees = useMemo(() => {
-    return employees.filter((emp) => {
-      const matchesSearch =
-      emp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      emp.code.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesDept = !departmentFilter || emp.department === departmentFilter;
-      const matchesType = !employmentTypeFilter || emp.employmentType === employmentTypeFilter;
-      const matchesStatus = !statusFilter || emp.status === statusFilter;
-      return matchesSearch && matchesDept && matchesType && matchesStatus;
+  const bulkPool = useMemo(() => {
+    if (!applied) return [];
+    return EMPLOYEES.filter((e) => {
+      if (fDept.length && !fDept.includes(e.department)) return false;
+      if (fDesig.length && !fDesig.includes(e.designation.split(' ')[0]) && !fDesig.includes(e.designation)) return false;
+      if (fCat === 'Teaching' && !e.designation.match(/PGT|TGT|PET|Principal/)) return false;
+      if (fCat === 'Non-Teaching' && e.designation.match(/PGT|TGT|PET/)) return false;
+      if (fGrade && e.grade !== fGrade) return false;
+      return true;
     });
-  }, [employees, searchTerm, departmentFilter, employmentTypeFilter, statusFilter]);
+  }, [applied, fDept, fDesig, fCat, fGrade]);
 
-  const totalEarnings = useMemo(() => {
-    if (!currentStructure) return 0;
-    return currentStructure.earnings.
-    filter((e) => e.isActive).
-    reduce((sum, item) => sum + item.amount, 0);
-  }, [currentStructure]);
+  const currentOf = (id: string) => rows.find((r) => r.employeeId === id && r.assignmentStatus === 'Active');
 
-  const totalDeductions = useMemo(() => {
-    if (!currentStructure) return 0;
-    return currentStructure.deductions.
-    filter((d) => d.isActive).
-    reduce((sum, item) => sum + item.amount, 0);
-  }, [currentStructure]);
+  const pickEmp = (e: typeof EMPLOYEES[0]) => {
+    setForm((f) => ({ ...f, employeeId: e.id }));
+    setEmpQuery(`${e.name} (${e.id})`);
+    setEmpOpen(false);
+  };
 
-  const netSalary = totalEarnings - totalDeductions;
-
-  const currentStructureHistory = useMemo(() => {
-    if (!currentStructure) return [];
-    return structureHistory.filter((h) => h.structureId === currentStructure.id);
-  }, [currentStructure, structureHistory]);
-
-  // ==================== HISTORY HANDLER ====================
-
-  const addHistoryEntry = useCallback(
-    (structureId: string, action: StructureHistory['action'], changes?: string) => {
-      const newHistory: StructureHistory = {
-        id: generateId(),
-        structureId,
-        action,
-        timestamp: new Date().toISOString(),
-        changes
-      };
-      setStructureHistory((prev) => [newHistory, ...prev]);
-    },
-    []
-  );
-
-  // ==================== EMPLOYEE HANDLERS ====================
-
-  const handleSelectEmployee = useCallback((employeeId: string) => {
-    setSelectedEmployeeId(employeeId);
-  }, []);
-
-  // ==================== COMPONENT MODAL HANDLERS ====================
-
-  const handleOpenAddComponent = useCallback((type: 'earning' | 'deduction') => {
-    setComponentType(type);
-    setEditingComponent(null);
-    setComponentForm({
-      name: '',
-      customName: '',
-      type: 'Fixed',
-      calculationType: 'Flat',
-      percentageOf: 'Basic Salary',
-      amount: 0,
-      percentage: 0
-    });
-    setShowComponentModal(true);
-  }, []);
-
-  const handleOpenEditComponent = useCallback(
-    (component: SalaryComponent, type: 'earning' | 'deduction') => {
-      setComponentType(type);
-      setEditingComponent(component);
-
-      const componentsList = type === 'earning' ? EARNING_COMPONENTS : DEDUCTION_COMPONENTS;
-      const isCustomName = !componentsList.includes(component.name);
-
-      setComponentForm({
-        name: isCustomName ? type === 'earning' ? 'Other Allowance' : 'Other Deduction' : component.name,
-        customName: isCustomName ? component.name : '',
-        type: component.type,
-        calculationType: component.calculationType,
-        percentageOf: component.percentageOf || 'Basic Salary',
-        amount: component.amount,
-        percentage: component.percentage || 0
-      });
-      setShowComponentModal(true);
-    },
-    []
-  );
-
-  const handleCloseComponentModal = useCallback(() => {
-    setShowComponentModal(false);
-    setEditingComponent(null);
-  }, []);
-
-  const handleSaveComponent = useCallback(() => {
-    if (!currentStructure) {
-      alert('No active structure found. Please create a structure first.');
+  const doSave = (as: DocStatus, recalc: boolean) => {
+    if (!form.employeeId || !form.structure || !form.effectiveFrom || !form.baseSalary) {
+      flash('Please fill Employee, Structure, From Date, and Base Amount');
       return;
     }
-
-    const componentName =
-    componentForm.name === 'Other Allowance' || componentForm.name === 'Other Deduction' ?
-    componentForm.customName :
-    componentForm.name;
-
-    if (!componentName) {
-      alert('Please enter a component name');
-      return;
-    }
-
-    if (componentForm.amount <= 0) {
-      alert('Please enter a valid amount');
-      return;
-    }
-
-    const now = getCurrentDate();
-
-    const newComponent: SalaryComponent = {
-      id: editingComponent?.id || generateId(),
-      name: componentName,
-      type: componentForm.type,
-      calculationType: componentForm.calculationType,
-      percentageOf: componentForm.calculationType === 'Percentage' ? componentForm.percentageOf : undefined,
-      percentage: componentForm.calculationType === 'Percentage' ? componentForm.percentage : undefined,
-      amount: componentForm.amount,
-      isActive: editingComponent?.isActive ?? true
+    const found = EMPLOYEES.find((e) => e.id === form.employeeId);
+    if (!found) return;
+    const next = rows.map((r) => r.employeeId === form.employeeId && r.assignmentStatus === 'Active'
+      ? { ...r, assignmentStatus: 'Ended' as const }
+      : r);
+    const created: Assignment = {
+      id: `SA-${Date.now()}`,
+      employeeId: found.id,
+      employeeName: found.name,
+      department: found.department,
+      designation: found.designation,
+      branch: found.branch,
+      grade: found.grade,
+      structure: form.structure,
+      frequency: structure?.frequency || 'Monthly',
+      category: structure?.category || 'Teaching',
+      effectiveFrom: form.effectiveFrom,
+      baseSalary: form.baseSalary,
+      variableAmount: form.variableAmount,
+      taxSlab: form.taxSlab,
+      taxRegime: form.taxRegime,
+      payrollAccount: form.payrollAccount,
+      status: as,
+      assignmentStatus: 'Active'
     };
+    persist([created, ...next]);
+    setDocStatus(as);
+    setBackdateOpen(false);
+    flash(as === 'Submitted'
+      ? `Assignment Submitted — Salary structure assigned to ${found.name} from ${form.effectiveFrom}${recalc ? ' · slips after this date queued for recalculation' : ''}`
+      : `Assignment Saved — Salary structure assigned to ${found.name} from ${form.effectiveFrom}`);
+  };
 
-    setSalaryStructures((prev) =>
-    prev.map((structure) => {
-      if (structure.id !== currentStructure.id) return structure;
-
-      if (componentType === 'earning') {
-        const updatedEarnings = editingComponent ?
-        structure.earnings.map((e) => e.id === editingComponent.id ? newComponent : e) :
-        [...structure.earnings, newComponent];
-        return { ...structure, earnings: updatedEarnings, updatedAt: now };
-      } else {
-        const updatedDeductions = editingComponent ?
-        structure.deductions.map((d) => d.id === editingComponent.id ? newComponent : d) :
-        [...structure.deductions, newComponent];
-        return { ...structure, deductions: updatedDeductions, updatedAt: now };
-      }
-    })
-    );
-
-    addHistoryEntry(
-      currentStructure.id,
-      editingComponent ? 'updated' : 'created',
-      `${editingComponent ? 'Updated' : 'Added'} ${componentType}: ${componentName}`
-    );
-
-    setShowComponentModal(false);
-    setEditingComponent(null);
-  }, [currentStructure, componentForm, componentType, editingComponent, addHistoryEntry]);
-
-  // ==================== DELETE COMPONENT HANDLERS ====================
-
-  const handleOpenDeleteConfirm = useCallback((componentId: string, type: 'earning' | 'deduction') => {
-    setDeletingComponentId(componentId);
-    setDeletingComponentType(type);
-    setShowDeleteConfirm(true);
-  }, []);
-
-  const handleCloseDeleteConfirm = useCallback(() => {
-    setShowDeleteConfirm(false);
-    setDeletingComponentId(null);
-  }, []);
-
-  const handleDeleteComponent = useCallback(() => {
-    if (!currentStructure || !deletingComponentId) return;
-
-    const now = getCurrentDate();
-
-    let componentName = '';
-
-    setSalaryStructures((prev) =>
-    prev.map((structure) => {
-      if (structure.id !== currentStructure.id) return structure;
-
-      if (deletingComponentType === 'earning') {
-        const component = structure.earnings.find((e) => e.id === deletingComponentId);
-        componentName = component?.name || '';
-        return {
-          ...structure,
-          earnings: structure.earnings.filter((e) => e.id !== deletingComponentId),
-          updatedAt: now
-        };
-      } else {
-        const component = structure.deductions.find((d) => d.id === deletingComponentId);
-        componentName = component?.name || '';
-        return {
-          ...structure,
-          deductions: structure.deductions.filter((d) => d.id !== deletingComponentId),
-          updatedAt: now
-        };
-      }
-    })
-    );
-
-    addHistoryEntry(currentStructure.id, 'updated', `Deleted ${deletingComponentType}: ${componentName}`);
-
-    setShowDeleteConfirm(false);
-    setDeletingComponentId(null);
-  }, [currentStructure, deletingComponentId, deletingComponentType, addHistoryEntry]);
-
-  // ==================== TOGGLE COMPONENT ACTIVE ====================
-
-  const handleToggleComponentActive = useCallback(
-    (componentId: string, type: 'earning' | 'deduction') => {
-      if (!currentStructure) return;
-
-      const now = getCurrentDate();
-
-      setSalaryStructures((prev) =>
-      prev.map((structure) => {
-        if (structure.id !== currentStructure.id) return structure;
-
-        if (type === 'earning') {
-          return {
-            ...structure,
-            earnings: structure.earnings.map((e) =>
-            e.id === componentId ? { ...e, isActive: !e.isActive } : e
-            ),
-            updatedAt: now
-          };
-        } else {
-          return {
-            ...structure,
-            deductions: structure.deductions.map((d) =>
-            d.id === componentId ? { ...d, isActive: !d.isActive } : d
-            ),
-            updatedAt: now
-          };
-        }
-      })
-      );
-    },
-    [currentStructure]
-  );
-
-  // ==================== STRUCTURE HANDLERS ====================
-
-  const handleOpenCreateStructure = useCallback(() => {
-    setStructureForm({
-      effectiveFrom: getCurrentDate(),
-      remarks: '',
-      copyFromEmployeeId: ''
-    });
-    setShowStructureModal(true);
-  }, []);
-
-  const handleCloseStructureModal = useCallback(() => {
-    setShowStructureModal(false);
-  }, []);
-
-  const handleCreateStructure = useCallback(() => {
-    if (!structureForm.effectiveFrom) {
-      alert('Please select effective date');
+  const save = (as: DocStatus) => {
+    if (!form.employeeId || !form.structure || !form.effectiveFrom || !form.baseSalary) {
+      flash('Please fill Employee, Structure, From Date, and Base Amount');
       return;
     }
+    if (active && as === 'Submitted') flash('An active assignment already exists. Submit to supersede it.');
+    if (backdated && as === 'Submitted') { setBackdateOpen(true); return; }
+    doSave(as, false);
+  };
 
-    const now = getCurrentDate();
-
-    // Deactivate existing active structure
-    setSalaryStructures((prev) =>
-    prev.map((s) => {
-      if (s.employeeId === selectedEmployeeId && s.status === 'Active') {
-        return {
-          ...s,
-          status: 'Inactive' as const,
-          effectiveTo: structureForm.effectiveFrom,
-          updatedAt: now
-        };
-      }
-      return s;
-    })
-    );
-
-    let newEarnings: SalaryComponent[] = [];
-    let newDeductions: SalaryComponent[] = [];
-
-    // Copy from another employee if selected
-    if (structureForm.copyFromEmployeeId) {
-      const sourceStructure = salaryStructures.find(
-        (s) => s.employeeId === structureForm.copyFromEmployeeId && s.status === 'Active'
-      );
-      if (sourceStructure) {
-        newEarnings = sourceStructure.earnings.map((e) => ({
-          ...e,
-          id: generateId()
-        }));
-        newDeductions = sourceStructure.deductions.map((d) => ({
-          ...d,
-          id: generateId()
-        }));
-      }
-    }
-
-    const newStructureId = generateId();
-
-    const newStructure: SalaryStructure = {
-      id: newStructureId,
-      employeeId: selectedEmployeeId,
-      effectiveFrom: structureForm.effectiveFrom,
-      status: 'Active',
-      earnings: newEarnings,
-      deductions: newDeductions,
-      remarks: structureForm.remarks,
-      createdAt: now,
-      updatedAt: now
-    };
-
-    setSalaryStructures((prev) => [...prev, newStructure]);
-    addHistoryEntry(newStructureId, 'created', 'New salary structure created');
-
-    setShowStructureModal(false);
-  }, [structureForm, selectedEmployeeId, salaryStructures, addHistoryEntry]);
-
-  const handleDeactivateStructure = useCallback(() => {
-    if (!currentStructure) return;
-
-    const confirmDeactivate = window.confirm(
-      'Are you sure you want to deactivate this salary structure?'
-    );
-    if (!confirmDeactivate) return;
-
-    const now = getCurrentDate();
-
-    setSalaryStructures((prev) =>
-    prev.map((s) => {
-      if (s.id === currentStructure.id) {
-        return {
-          ...s,
-          status: 'Inactive' as const,
-          effectiveTo: now,
-          updatedAt: now
-        };
-      }
-      return s;
-    })
-    );
-
-    addHistoryEntry(currentStructure.id, 'deactivated', 'Salary structure deactivated');
-  }, [currentStructure, addHistoryEntry]);
-
-  // ==================== COPY STRUCTURE HANDLERS ====================
-
-  const handleOpenCopyModal = useCallback(() => {
-    setShowCopyModal(true);
-  }, []);
-
-  const handleCloseCopyModal = useCallback(() => {
-    setShowCopyModal(false);
-  }, []);
-
-  const handleCopyToEmployee = useCallback(
-    (targetEmployeeId: string) => {
-      if (!currentStructure) return;
-
-      const now = getCurrentDate();
-
-      // Deactivate existing active structure for target employee
-      setSalaryStructures((prev) =>
-      prev.map((s) => {
-        if (s.employeeId === targetEmployeeId && s.status === 'Active') {
-          return {
-            ...s,
-            status: 'Inactive' as const,
-            effectiveTo: now,
-            updatedAt: now
-          };
+  const runBulk = () => {
+    setProgressOpen(true);
+    setProgress(0);
+    setProgressLog([]);
+    const ids = selected.length ? selected : bulkPool.map((e) => e.id);
+    ids.forEach((id, i) => {
+      window.setTimeout(() => {
+        const e = EMPLOYEES.find((x) => x.id === id)!;
+        const base = bulkBase[id] || currentOf(id)?.baseSalary || 40000;
+        const ok = Boolean(bulkDate);
+        setProgressLog((p) => [...p, { ok, text: ok ? `${id} ${e.name} — Assigned (${bulkStructure})` : `${id} ${e.name} — Failed: No From Date` }]);
+        setProgress(Math.round(((i + 1) / ids.length) * 100));
+        if (ok) {
+          const ended = rows.map((r) => r.employeeId === id && r.assignmentStatus === 'Active' ? { ...r, assignmentStatus: 'Ended' as const } : r);
+          persist([{
+            id: `SA-${Date.now()}-${i}`,
+            employeeId: e.id,
+            employeeName: e.name,
+            department: e.department,
+            designation: e.designation,
+            branch: e.branch,
+            grade: e.grade,
+            structure: bulkStructure,
+            frequency: 'Monthly',
+            category: STRUCTURES.find((s) => s.name === bulkStructure)?.category || 'Teaching',
+            effectiveFrom: bulkDate,
+            baseSalary: base,
+            variableAmount: 0,
+            taxSlab: bulkTax[id] || 'New Regime — FY 2026-27',
+            taxRegime: 'New',
+            payrollAccount: '',
+            status: 'Submitted',
+            assignmentStatus: 'Active'
+          }, ...ended]);
         }
-        return s;
-      })
-      );
+        if (i === ids.length - 1) flash(`Bulk Assignment Complete — ${ids.length} assignments processed`);
+      }, 180 * (i + 1));
+    });
+  };
 
-      const newStructureId = generateId();
+  const applyBulkBase = () => {
+    const next: { [id: string]: number } = { ...bulkBase };
+    selected.forEach((id) => {
+      const cur = currentOf(id)?.baseSalary || 45000;
+      next[id] = bulkMode === 'pct' ? Math.round(cur * (1 + Number(bulkVal) / 100)) : cur + Number(bulkVal);
+    });
+    setBulkBase(next);
+    setBulkModal(false);
+    flash('Base amounts updated on selected rows.');
+  };
 
-      const newStructure: SalaryStructure = {
-        id: newStructureId,
-        employeeId: targetEmployeeId,
-        effectiveFrom: now,
-        status: 'Active',
-        earnings: currentStructure.earnings.map((e) => ({
-          ...e,
-          id: generateId()
-        })),
-        deductions: currentStructure.deductions.map((d) => ({
-          ...d,
-          id: generateId()
-        })),
-        createdAt: now,
-        updatedAt: now,
-        remarks: `Copied from ${selectedEmployee.name}`
-      };
-
-      setSalaryStructures((prev) => [...prev, newStructure]);
-      addHistoryEntry(newStructureId, 'created', `Copied from ${selectedEmployee.name}`);
-
-      setShowCopyModal(false);
-      alert('Structure copied successfully!');
-    },
-    [currentStructure, selectedEmployee, addHistoryEntry]
-  );
-
-  // ==================== RECALCULATE AMOUNTS ====================
-
-  const handleRecalculateAmounts = useCallback(() => {
-    if (!currentStructure) return;
-
-    const basicSalary = currentStructure.earnings.find((e) => e.name === 'Basic Salary')?.amount || 0;
-    const grossSalary = currentStructure.earnings.reduce((sum, e) => sum + e.amount, 0);
-
-    const now = getCurrentDate();
-
-    setSalaryStructures((prev) =>
-    prev.map((structure) => {
-      if (structure.id !== currentStructure.id) return structure;
-
-      const updatedEarnings = structure.earnings.map((e) => {
-        if (e.calculationType === 'Percentage' && e.percentage) {
-          const base = e.percentageOf === 'Basic Salary' ? basicSalary : grossSalary;
-          return { ...e, amount: Math.round(base * e.percentage / 100) };
-        }
-        return e;
-      });
-
-      const updatedDeductions = structure.deductions.map((d) => {
-        if (d.calculationType === 'Percentage' && d.percentage) {
-          const base = d.percentageOf === 'Basic Salary' ? basicSalary : grossSalary;
-          return { ...d, amount: Math.round(base * d.percentage / 100) };
-        }
-        return d;
-      });
-
-      return {
-        ...structure,
-        earnings: updatedEarnings,
-        deductions: updatedDeductions,
-        updatedAt: now
-      };
-    })
-    );
-
-    addHistoryEntry(currentStructure.id, 'updated', 'Recalculated percentage-based amounts');
-    alert('Amounts recalculated based on percentages!');
-  }, [currentStructure, addHistoryEntry]);
-
-  // ==================== HISTORY MODAL ====================
-
-  const handleOpenHistoryModal = useCallback(() => {
-    setShowHistoryModal(true);
-  }, []);
-
-  const handleCloseHistoryModal = useCallback(() => {
-    setShowHistoryModal(false);
-  }, []);
-
-  // ==================== RENDER ====================
+  const filterCount = [fDept.length ? 1 : 0, fDesig.length ? 1 : 0, fCat ? 1 : 0, fGrade ? 1 : 0].reduce((a, b) => a + b, 0);
+  const avgBase = selected.length ? Math.round(selected.reduce((s, id) => s + (currentOf(id)?.baseSalary || 45000), 0) / selected.length) : 45000;
+  const newAvg = bulkMode === 'pct' ? Math.round(avgBase * (1 + Number(bulkVal || 0) / 100)) : avgBase + Number(bulkVal || 0);
 
   return (
-    <div className="min-h-screen w-full bg-slate-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Header */}
-        <div className="mb-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900">Employee Pay Structure</h1>
-              <p className="text-sm text-slate-500 mt-1">Manage salary structures and components</p>
-            </div>
-            <button
-              onClick={handleOpenCreateStructure}
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium">
-
-              <Plus className="w-4 h-4" />
-              New Structure
-            </button>
-          </div>
-
-          {/* Filters */}
-          <div className="flex flex-wrap gap-3">
-            <div className="relative flex-1 min-w-[200px] max-w-xs">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Search employee..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
-
-            </div>
-            <select
-              value={departmentFilter}
-              onChange={(e) => setDepartmentFilter(e.target.value)}
-              className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 min-w-[150px]">
-
-              <option value="">All Departments</option>
-              {DEPARTMENTS.map((dept) =>
-              <option key={dept} value={dept}>
-                  {dept}
-                </option>
-              )}
-            </select>
-            <select
-              value={employmentTypeFilter}
-              onChange={(e) => setEmploymentTypeFilter(e.target.value)}
-              className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 min-w-[140px]">
-
-              <option value="">All Types</option>
-              <option value="permanent">Permanent</option>
-              <option value="contract">Contract</option>
-              <option value="temporary">Temporary</option>
-            </select>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 min-w-[120px]">
-
-              <option value="">All Status</option>
-              <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
-            </select>
-          </div>
+    <div className="space-y-6 p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Salary Structure Assignment</h1>
+          <p className="mt-1 text-sm text-gray-500">Assign salary structures to employees individually or in bulk</p>
         </div>
-
-        {/* Main Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-          {/* Left Panel: Employee List */}
-          <div className="lg:col-span-2">
-            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-              <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-slate-700">Employee List</h3>
-                <span className="text-xs text-slate-500">{filteredEmployees.length} employees</span>
-              </div>
-              <div className="max-h-[calc(100vh-320px)] overflow-y-auto">
-                {filteredEmployees.map((emp) => {
-                  const hasStructure = salaryStructures.some(
-                    (s) => s.employeeId === emp.id && s.status === 'Active'
-                  );
-                  const isSelected = selectedEmployeeId === emp.id;
-
-                  return (
-                    <button
-                      key={emp.id}
-                      onClick={() => handleSelectEmployee(emp.id)}
-                      className={`w-full p-4 flex items-center gap-3 border-b border-slate-100 transition-colors text-left ${
-                      isSelected ?
-                      'bg-indigo-50 border-l-4 border-l-indigo-500' :
-                      'hover:bg-slate-50'}`
-                      }>
-
-                      <img
-                        src={emp.photo}
-                        alt={emp.name}
-                        className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
-
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-slate-900 text-sm truncate">{emp.name}</div>
-                        <div className="text-xs text-slate-500 truncate">
-                          {emp.code} • {emp.designation}
-                        </div>
-                      </div>
-                      <div className="flex flex-col items-end gap-1">
-                        <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                          emp.status === 'Active' ?
-                          'bg-green-100 text-green-700' :
-                          'bg-slate-100 text-slate-600'}`
-                          }>
-
-                          {emp.status}
-                        </span>
-                        {!hasStructure &&
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
-                            No Structure
-                          </span>
-                        }
-                      </div>
-                    </button>);
-
-                })}
-
-                {filteredEmployees.length === 0 &&
-                <div className="p-8 text-center">
-                    <User className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                    <p className="text-slate-500">No employees found</p>
-                  </div>
-                }
-              </div>
-            </div>
-          </div>
-
-          {/* Right Panel: Salary Structure */}
-          <div className="lg:col-span-3">
-            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-              {/* Employee Header */}
-              <div className="p-6 border-b border-slate-200 bg-slate-50">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-4">
-                    <img
-                      src={selectedEmployee.photo}
-                      alt={selectedEmployee.name}
-                      className="w-16 h-16 rounded-full object-cover" />
-
-                    <div>
-                      <h2 className="text-xl font-semibold text-slate-900">{selectedEmployee.name}</h2>
-                      <div className="text-sm text-slate-600">
-                        {selectedEmployee.code} • {selectedEmployee.designation}
-                      </div>
-                      <div className="text-sm text-slate-500">
-                        {selectedEmployee.department} • {selectedEmployee.employmentType}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {currentStructure ?
-                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-700">
-                        <Check className="w-4 h-4" />
-                        Active Structure
-                      </span> :
-
-                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium bg-amber-100 text-amber-700">
-                        <AlertCircle className="w-4 h-4" />
-                        No Active Structure
-                      </span>
-                    }
-                  </div>
-                </div>
-
-                {currentStructure &&
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                    <div>
-                      <div className="text-xs text-slate-500 uppercase tracking-wide mb-1">
-                        Effective From
-                      </div>
-                      <div className="font-medium text-slate-900">
-                        {formatDate(currentStructure.effectiveFrom)}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-slate-500 uppercase tracking-wide mb-1">
-                        Last Updated
-                      </div>
-                      <div className="font-medium text-slate-900">
-                        {formatDate(currentStructure.updatedAt)}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-slate-500 uppercase tracking-wide mb-1">
-                        Components
-                      </div>
-                      <div className="font-medium text-slate-900">
-                        {currentStructure.earnings.length} + {currentStructure.deductions.length}
-                      </div>
-                    </div>
-                    <div className="flex items-end gap-2">
-                      <button
-                      onClick={handleOpenHistoryModal}
-                      className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                      title="View History">
-
-                        <History className="w-4 h-4" />
-                      </button>
-                      <button
-                      onClick={handleOpenCopyModal}
-                      className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                      title="Copy to Another Employee">
-
-                        <Copy className="w-4 h-4" />
-                      </button>
-                      <button
-                      onClick={handleRecalculateAmounts}
-                      className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                      title="Recalculate Amounts">
-
-                        <RefreshCw className="w-4 h-4" />
-                      </button>
-                      <button
-                      onClick={handleDeactivateStructure}
-                      className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                      title="Deactivate Structure">
-
-                        <Archive className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                }
-              </div>
-
-              {currentStructure ?
-              <>
-                  {/* Earnings */}
-                  <div className="p-6 border-b border-slate-200">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-sm font-semibold text-slate-700">Earnings</h3>
-                      <button
-                      onClick={() => handleOpenAddComponent('earning')}
-                      className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors">
-
-                        <Plus className="w-3 h-3" />
-                        Add Component
-                      </button>
-                    </div>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left text-sm">
-                        <thead className="border-b border-slate-200">
-                          <tr>
-                            <th className="pb-2 text-xs font-medium text-slate-500 uppercase tracking-wider">
-                              Component
-                            </th>
-                            <th className="pb-2 text-xs font-medium text-slate-500 uppercase tracking-wider">
-                              Type
-                            </th>
-                            <th className="pb-2 text-xs font-medium text-slate-500 uppercase tracking-wider">
-                              Calculation
-                            </th>
-                            <th className="pb-2 text-xs font-medium text-slate-500 uppercase tracking-wider text-right">
-                              Amount
-                            </th>
-                            <th className="pb-2 text-xs font-medium text-slate-500 uppercase tracking-wider text-center">
-                              Status
-                            </th>
-                            <th className="pb-2 text-xs font-medium text-slate-500 uppercase tracking-wider text-center">
-                              Actions
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {currentStructure.earnings.map((item) =>
-                        <tr
-                          key={item.id}
-                          className={`hover:bg-slate-50 ${!item.isActive ? 'opacity-50' : ''}`}>
-
-                              <td className="py-3 font-medium text-slate-900">{item.name}</td>
-                              <td className="py-3 text-slate-600">{item.type}</td>
-                              <td className="py-3 text-slate-600">
-                                {item.calculationType === 'Percentage' ?
-                            `${item.percentage}% of ${item.percentageOf}` :
-                            'Flat'}
-                              </td>
-                              <td className="py-3 text-right font-semibold text-emerald-600">
-                                {formatCurrency(item.amount)}
-                              </td>
-                              <td className="py-3 text-center">
-                                <button
-                              onClick={() => handleToggleComponentActive(item.id, 'earning')}
-                              className="focus:outline-none">
-
-                                  {item.isActive ?
-                              <CheckCircle2 className="w-5 h-5 text-green-500 mx-auto" /> :
-
-                              <XCircle className="w-5 h-5 text-slate-300 mx-auto" />
-                              }
-                                </button>
-                              </td>
-                              <td className="py-3 text-center">
-                                <div className="flex items-center justify-center gap-1">
-                                  <button
-                                onClick={() => handleOpenEditComponent(item, 'earning')}
-                                className="p-1 text-slate-400 hover:text-indigo-600 rounded transition-colors">
-
-                                    <Pencil className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                onClick={() => handleOpenDeleteConfirm(item.id, 'earning')}
-                                className="p-1 text-slate-400 hover:text-red-600 rounded transition-colors">
-
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                        )}
-                          {currentStructure.earnings.length === 0 &&
-                        <tr>
-                              <td colSpan={6} className="py-8 text-center text-slate-400">
-                                No earning components added
-                              </td>
-                            </tr>
-                        }
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-
-                  {/* Deductions */}
-                  <div className="p-6 border-b border-slate-200">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-sm font-semibold text-slate-700">Deductions</h3>
-                      <button
-                      onClick={() => handleOpenAddComponent('deduction')}
-                      className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors">
-
-                        <Plus className="w-3 h-3" />
-                        Add Component
-                      </button>
-                    </div>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left text-sm">
-                        <thead className="border-b border-slate-200">
-                          <tr>
-                            <th className="pb-2 text-xs font-medium text-slate-500 uppercase tracking-wider">
-                              Component
-                            </th>
-                            <th className="pb-2 text-xs font-medium text-slate-500 uppercase tracking-wider">
-                              Type
-                            </th>
-                            <th className="pb-2 text-xs font-medium text-slate-500 uppercase tracking-wider">
-                              Calculation
-                            </th>
-                            <th className="pb-2 text-xs font-medium text-slate-500 uppercase tracking-wider text-right">
-                              Amount
-                            </th>
-                            <th className="pb-2 text-xs font-medium text-slate-500 uppercase tracking-wider text-center">
-                              Status
-                            </th>
-                            <th className="pb-2 text-xs font-medium text-slate-500 uppercase tracking-wider text-center">
-                              Actions
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {currentStructure.deductions.map((item) =>
-                        <tr
-                          key={item.id}
-                          className={`hover:bg-slate-50 ${!item.isActive ? 'opacity-50' : ''}`}>
-
-                              <td className="py-3 font-medium text-slate-900">{item.name}</td>
-                              <td className="py-3 text-slate-600">{item.type}</td>
-                              <td className="py-3 text-slate-600">
-                                {item.calculationType === 'Percentage' ?
-                            `${item.percentage}% of ${item.percentageOf}` :
-                            'Flat'}
-                              </td>
-                              <td className="py-3 text-right font-semibold text-red-600">
-                                {formatCurrency(item.amount)}
-                              </td>
-                              <td className="py-3 text-center">
-                                <button
-                              onClick={() => handleToggleComponentActive(item.id, 'deduction')}
-                              className="focus:outline-none">
-
-                                  {item.isActive ?
-                              <CheckCircle2 className="w-5 h-5 text-green-500 mx-auto" /> :
-
-                              <XCircle className="w-5 h-5 text-slate-300 mx-auto" />
-                              }
-                                </button>
-                              </td>
-                              <td className="py-3 text-center">
-                                <div className="flex items-center justify-center gap-1">
-                                  <button
-                                onClick={() => handleOpenEditComponent(item, 'deduction')}
-                                className="p-1 text-slate-400 hover:text-indigo-600 rounded transition-colors">
-
-                                    <Pencil className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                onClick={() => handleOpenDeleteConfirm(item.id, 'deduction')}
-                                className="p-1 text-slate-400 hover:text-red-600 rounded transition-colors">
-
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                        )}
-                          {currentStructure.deductions.length === 0 &&
-                        <tr>
-                              <td colSpan={6} className="py-8 text-center text-slate-400">
-                                No deduction components added
-                              </td>
-                            </tr>
-                        }
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-
-                  {/* Summary */}
-                  <div className="p-6 bg-slate-50">
-                    <h3 className="text-sm font-semibold text-slate-700 mb-4">Salary Summary</h3>
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="bg-white border border-slate-200 rounded-lg p-4">
-                        <div className="text-xs text-slate-500 uppercase tracking-wide mb-1">
-                          Gross Earnings
-                        </div>
-                        <div className="text-2xl font-bold text-emerald-600">
-                          {formatCurrency(totalEarnings)}
-                        </div>
-                      </div>
-                      <div className="bg-white border border-slate-200 rounded-lg p-4">
-                        <div className="text-xs text-slate-500 uppercase tracking-wide mb-1">
-                          Total Deductions
-                        </div>
-                        <div className="text-2xl font-bold text-red-600">
-                          {formatCurrency(totalDeductions)}
-                        </div>
-                      </div>
-                      <div className="bg-indigo-600 rounded-lg p-4">
-                        <div className="text-xs text-indigo-200 uppercase tracking-wide mb-1">
-                          Net Salary
-                        </div>
-                        <div className="text-2xl font-bold text-white">
-                          {formatCurrency(netSalary)}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </> :
-
-              <div className="p-12 text-center">
-                  <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <FileText className="w-8 h-8 text-slate-400" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-slate-700 mb-2">
-                    No Active Salary Structure
-                  </h3>
-                  <p className="text-sm text-slate-500 mb-4">
-                    Create a new salary structure for this employee
-                  </p>
-                  <button
-                  onClick={handleOpenCreateStructure}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium">
-
-                    <Plus className="w-4 h-4" />
-                    Create Structure
-                  </button>
-                </div>
-              }
-            </div>
-
-            {/* Previous Structures */}
-            {employeeStructures.filter((s) => s.status !== 'Active').length > 0 &&
-            <div className="mt-4 bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-                <div className="p-4 border-b border-slate-200 bg-slate-50">
-                  <h3 className="text-sm font-semibold text-slate-700">Previous Structures</h3>
-                </div>
-                <div className="divide-y divide-slate-100">
-                  {employeeStructures.
-                filter((s) => s.status !== 'Active').
-                map((structure) =>
-                <div key={structure.id} className="p-4 flex items-center justify-between">
-                        <div>
-                          <div className="text-sm font-medium text-slate-900">
-                            {formatDate(structure.effectiveFrom)} -{' '}
-                            {structure.effectiveTo ? formatDate(structure.effectiveTo) : 'Present'}
-                          </div>
-                          <div className="text-xs text-slate-500">
-                            {structure.earnings.length} earnings, {structure.deductions.length}{' '}
-                            deductions
-                          </div>
-                        </div>
-                        <span
-                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                    structure.status === 'Inactive' ?
-                    'bg-slate-100 text-slate-600' :
-                    'bg-amber-100 text-amber-700'}`
-                    }>
-
-                          {structure.status}
-                        </span>
-                      </div>
-                )}
-                </div>
-              </div>
-            }
-          </div>
-        </div>
+        <Button onClick={() => { setTab('individual'); setShowForm(true); setDocStatus('Draft'); }}><Plus className="h-4 w-4" />New Assignment</Button>
       </div>
 
-      {/* ==================== MODALS ==================== */}
+      {notice && <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800" role="status">{notice}</div>}
 
-      {/* Component Modal */}
-      {showComponentModal &&
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-lg shadow-2xl">
-            <div className="flex items-center justify-between p-4 border-b border-slate-200">
-              <h2 className="text-lg font-semibold text-slate-900">
-                {editingComponent ? 'Edit' : 'Add'}{' '}
-                {componentType === 'earning' ? 'Earning' : 'Deduction'} Component
-              </h2>
-              <button
-              onClick={handleCloseComponentModal}
-              className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center">
+      <div className="inline-flex rounded-full border border-gray-200 bg-gray-100 p-1">
+        {[{ id: 'individual' as const, label: 'Individual Assignment' }, { id: 'bulk' as const, label: 'Bulk Assignment Tool' }].map((t) => (
+          <button key={t.id} type="button" onClick={() => setTab(t.id)} className={`rounded-full px-5 py-2 text-sm font-semibold ${tab === t.id ? 'bg-indigo-600 text-white shadow' : 'text-gray-500 hover:text-gray-700'}`}>{t.label}</button>
+        ))}
+      </div>
 
-                <X className="w-5 h-5 text-slate-500" />
-              </button>
-            </div>
-            <div className="p-6 space-y-4">
+      {tab === 'individual' && showForm && (
+        <Card className="overflow-hidden" noPadding>
+            <div className="space-y-8 p-8">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                  Component Name
-                </label>
-                <select
-                value={componentForm.name}
-                onChange={(e) => setComponentForm((prev) => ({ ...prev, name: e.target.value }))}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500">
-
-                  <option value="">Select Component</option>
-                  {(componentType === 'earning' ? EARNING_COMPONENTS : DEDUCTION_COMPONENTS).map(
-                  (comp) =>
-                  <option key={comp} value={comp}>
-                        {comp}
-                      </option>
-
-                )}
-                </select>
-              </div>
-
-              {(componentForm.name === 'Other Allowance' ||
-            componentForm.name === 'Other Deduction') &&
-            <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                    Custom Name
-                  </label>
-                  <input
-                type="text"
-                value={componentForm.customName}
-                onChange={(e) =>
-                setComponentForm((prev) => ({ ...prev, customName: e.target.value }))
-                }
-                placeholder="Enter custom component name"
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500" />
-
-                </div>
-            }
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Type</label>
-                  <select
-                  value={componentForm.type}
-                  onChange={(e) =>
-                  setComponentForm((prev) => ({
-                    ...prev,
-                    type: e.target.value as 'Fixed' | 'Variable'
-                  }))
-                  }
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500">
-
-                    <option value="Fixed">Fixed</option>
-                    <option value="Variable">Variable</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                    Calculation
-                  </label>
-                  <select
-                  value={componentForm.calculationType}
-                  onChange={(e) =>
-                  setComponentForm((prev) => ({
-                    ...prev,
-                    calculationType: e.target.value as 'Flat' | 'Percentage'
-                  }))
-                  }
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500">
-
-                    <option value="Flat">Flat Amount</option>
-                    <option value="Percentage">Percentage</option>
-                  </select>
-                </div>
-              </div>
-
-              {componentForm.calculationType === 'Percentage' &&
-            <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                      Percentage Of
-                    </label>
-                    <select
-                  value={componentForm.percentageOf}
-                  onChange={(e) =>
-                  setComponentForm((prev) => ({ ...prev, percentageOf: e.target.value }))
-                  }
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500">
-
-                      {PERCENTAGE_BASE_OPTIONS.map((opt) =>
-                  <option key={opt} value={opt}>
-                          {opt}
-                        </option>
-                  )}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                      Percentage (%)
-                    </label>
-                    <input
-                  type="number"
-                  value={componentForm.percentage}
-                  onChange={(e) =>
-                  setComponentForm((prev) => ({
-                    ...prev,
-                    percentage: parseFloat(e.target.value) || 0
-                  }))
-                  }
-                  step="0.01"
-                  min="0"
-                  max="100"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500" />
-
-                  </div>
-                </div>
-            }
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">Amount (₹)</label>
-                <input
-                type="number"
-                value={componentForm.amount}
-                onChange={(e) =>
-                setComponentForm((prev) => ({
-                  ...prev,
-                  amount: parseFloat(e.target.value) || 0
-                }))
-                }
-                min="0"
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500" />
-
-                {componentForm.calculationType === 'Percentage' &&
-              <p className="text-xs text-slate-500 mt-1">
-                    This will be recalculated based on percentage
-                  </p>
-              }
-              </div>
-            </div>
-            <div className="flex items-center justify-end gap-3 p-4 border-t border-slate-200 bg-slate-50">
-              <button
-              onClick={handleCloseComponentModal}
-              className="px-4 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-100 transition-colors font-medium">
-
-                Cancel
-              </button>
-              <button
-              onClick={handleSaveComponent}
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium">
-
-                <Save className="w-4 h-4" />
-                {editingComponent ? 'Update' : 'Add'} Component
-              </button>
-            </div>
-          </div>
-        </div>
-      }
-
-      {/* Create Structure Modal */}
-      {showStructureModal &&
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-lg shadow-2xl">
-            <div className="flex items-center justify-between p-4 border-b border-slate-200">
-              <h2 className="text-lg font-semibold text-slate-900">Create New Salary Structure</h2>
-              <button
-              onClick={handleCloseStructureModal}
-              className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center">
-
-                <X className="w-5 h-5 text-slate-500" />
-              </button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
-                <img
-                src={selectedEmployee.photo}
-                alt={selectedEmployee.name}
-                className="w-10 h-10 rounded-full" />
-
-                <div>
-                  <div className="font-medium text-slate-900">{selectedEmployee.name}</div>
-                  <div className="text-sm text-slate-500">{selectedEmployee.code}</div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                  Effective From
-                </label>
-                <input
-                type="date"
-                value={structureForm.effectiveFrom}
-                onChange={(e) =>
-                setStructureForm((prev) => ({ ...prev, effectiveFrom: e.target.value }))
-                }
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500" />
-
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                  Copy From (Optional)
-                </label>
-                <select
-                value={structureForm.copyFromEmployeeId}
-                onChange={(e) =>
-                setStructureForm((prev) => ({ ...prev, copyFromEmployeeId: e.target.value }))
-                }
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500">
-
-                  <option value="">Start from scratch</option>
-                  {employees.
-                filter(
-                  (e) =>
-                  e.id !== selectedEmployeeId &&
-                  salaryStructures.some((s) => s.employeeId === e.id && s.status === 'Active')
-                ).
-                map((emp) =>
-                <option key={emp.id} value={emp.id}>
-                        {emp.name} ({emp.code})
-                      </option>
-                )}
-                </select>
-                <p className="text-xs text-slate-500 mt-1">
-                  Copy salary components from another employee's structure
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                  Remarks (Optional)
-                </label>
-                <textarea
-                value={structureForm.remarks}
-                onChange={(e) =>
-                setStructureForm((prev) => ({ ...prev, remarks: e.target.value }))
-                }
-                placeholder="Any notes or remarks..."
-                rows={2}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 resize-none" />
-
-              </div>
-            </div>
-            <div className="flex items-center justify-end gap-3 p-4 border-t border-slate-200 bg-slate-50">
-              <button
-              onClick={handleCloseStructureModal}
-              className="px-4 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-100 transition-colors font-medium">
-
-                Cancel
-              </button>
-              <button
-              onClick={handleCreateStructure}
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium">
-
-                <Plus className="w-4 h-4" />
-                Create Structure
-              </button>
-            </div>
-          </div>
-        </div>
-      }
-
-      {/* History Modal */}
-      {showHistoryModal &&
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-lg shadow-2xl">
-            <div className="flex items-center justify-between p-4 border-b border-slate-200">
-              <h2 className="text-lg font-semibold text-slate-900">Structure History</h2>
-              <button
-              onClick={handleCloseHistoryModal}
-              className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center">
-
-                <X className="w-5 h-5 text-slate-500" />
-              </button>
-            </div>
-            <div className="max-h-96 overflow-y-auto">
-              {currentStructureHistory.length > 0 ?
-            <div className="divide-y divide-slate-100">
-                  {currentStructureHistory.map((h) =>
-              <div key={h.id} className="p-4">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span
-                    className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                    h.action === 'created' ?
-                    'bg-green-100 text-green-700' :
-                    h.action === 'updated' ?
-                    'bg-blue-100 text-blue-700' :
-                    h.action === 'activated' ?
-                    'bg-emerald-100 text-emerald-700' :
-                    'bg-slate-100 text-slate-700'}`
-                    }>
-
-                          {h.action}
-                        </span>
-                        <span className="text-xs text-slate-500">
-                          {new Date(h.timestamp).toLocaleString()}
-                        </span>
-                      </div>
-                      {h.changes && <p className="text-sm text-slate-600">{h.changes}</p>}
+                <h2 className="mb-4 flex items-center gap-3 text-base font-semibold text-gray-800"><span className="h-5 w-1 rounded bg-indigo-600" />Employee Details</h2>
+                <label className="mb-1 block text-sm font-medium text-gray-600">Employee *</label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                  <input value={empQuery} onFocus={() => setEmpOpen(true)} onChange={(e) => { setEmpQuery(e.target.value); setEmpOpen(true); }} placeholder="Search by ID or name…" className="h-11 w-full rounded-lg border border-gray-200 py-2 pl-9 pr-3 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
+                  {empOpen && (
+                    <div className="absolute z-20 mt-1 max-h-72 w-full overflow-auto rounded-lg border bg-white shadow">
+                      {empMatches.map((e) => (
+                        <button key={e.id} type="button" onClick={() => pickEmp(e)} className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-indigo-50">
+                          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-700">{e.name.split(' ').map((p) => p[0]).join('')}</span>
+                          <span className="flex-1">{e.name}</span>
+                          <span className="text-xs text-gray-400">{e.id}</span>
+                          <span className="text-xs text-gray-400">{e.department}</span>
+                        </button>
+                      ))}
                     </div>
+                  )}
+                </div>
+                {emp && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {[{ l: emp.department, k: 'Dept' }, { l: emp.designation, k: 'Desig' }, { l: emp.branch, k: 'Branch' }, { l: `Grade ${emp.grade}`, k: 'Grade' }].map((c) => (
+                      <span key={c.k} className="rounded-full border border-gray-200 bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">{c.l}</span>
+                    ))}
+                  </div>
+                )}
+                {active && (
+                  <div className="mt-3 flex items-center justify-between rounded-lg border-l-4 border-amber-500 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    <span>Active assignment exists from {active.effectiveFrom}. Creating a new one will end-date the previous.</span>
+                    <button type="button" className="font-semibold text-amber-700 hover:underline" onClick={() => setForm((f) => ({ ...f, structure: active.structure, baseSalary: active.baseSalary, variableAmount: active.variableAmount, taxSlab: active.taxSlab }))}>View Current →</button>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <h2 className="mb-4 flex items-center gap-3 text-base font-semibold text-gray-800"><span className="h-5 w-1 rounded bg-indigo-600" />Structure & Dates</h2>
+                <div className="grid gap-5 md:grid-cols-3">
+                  <Select label="Salary Structure *" value={form.structure} onChange={(e) => { setForm({ ...form, structure: typeof e === 'string' ? e : e.target.value }); setPreviewOpen(true); }} options={[{ value: '', label: 'Select submitted structure' }, ...STRUCTURES.map((s) => ({ value: s.name, label: `${s.name}` }))]} />
+                  <div>
+                    <Input label="Effective From *" type="date" value={form.effectiveFrom} onChange={(e) => setForm({ ...form, effectiveFrom: e.target.value })} />
+                  </div>
+                  <div>
+                    <Select label="Income Tax Slab *" value={form.taxSlab} onChange={(e) => {
+                      const v = typeof e === 'string' ? e : e.target.value;
+                      setForm({ ...form, taxSlab: v, taxRegime: v.startsWith('Old') ? 'Old' : 'New' });
+                    }} options={[{ value: 'New Regime — FY 2026-27', label: 'New Regime — FY 2026-27' }, { value: 'Old Regime — FY 2026-27', label: 'Old Regime — FY 2026-27' }]} />
+                    <p className="mt-1 text-xs italic text-gray-400">Mandatory if the assigned structure contains a tax component.</p>
+                    <p className="mt-2 text-sm text-gray-700">Tax Regime: <span className="font-medium">{form.taxRegime} Regime</span> <span className="text-xs text-gray-400">(from selected slab)</span></p>
+                    <button type="button" className="mt-1 text-sm text-indigo-700 underline" onClick={() => flash('Tax regime comparator: Old vs New annual tax is estimated from this assignment. Choose the cheaper regime on the employee self-service portal; it writes back here.')}>Tax Regime Comparator</button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-5 md:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-600">Base Amount (Basic Pay) *</label>
+                  <div className="flex h-11 overflow-hidden rounded-lg border border-gray-200">
+                    <span className="flex items-center bg-gray-50 px-3 text-gray-400">₹</span>
+                    <input type="number" className="w-full px-3 text-right text-sm outline-none" value={form.baseSalary || ''} onChange={(e) => setForm({ ...form, baseSalary: Number(e.target.value) })} />
+                  </div>
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-600">Variable Component</label>
+                  <div className="flex h-11 overflow-hidden rounded-lg border border-gray-200">
+                    <span className="flex items-center bg-gray-50 px-3 text-gray-400">₹</span>
+                    <input type="number" className="w-full px-3 text-right text-sm outline-none" value={form.variableAmount || ''} onChange={(e) => setForm({ ...form, variableAmount: Number(e.target.value) })} />
+                  </div>
+                  <p className="mt-1 text-xs italic text-gray-400">Target-based incentive, if applicable</p>
+                </div>
+                <Select label="Payroll Payable Account" value={form.payrollAccount} onChange={(e) => setForm({ ...form, payrollAccount: typeof e === 'string' ? e : e.target.value })} options={[{ value: '', label: 'Use global account' }, { value: 'SBI Salary Payable', label: 'SBI Salary Payable' }]} />
+              </div>
+
+              {form.effectiveFrom && !form.effectiveFrom.endsWith('-04-01') && (
+                <div>
+                  <h2 className="mb-4 flex items-center gap-3 text-base font-semibold text-gray-800"><span className="h-5 w-1 rounded bg-indigo-600" />Opening Balances (mid-year joiner)</h2>
+                  <div className="grid gap-5 md:grid-cols-2">
+                    <Input label="Taxable Earnings from Previous Employer" type="number" value={form.previousTaxable || ''} onChange={(e) => setForm({ ...form, previousTaxable: Number(e.target.value) || 0 })} />
+                    <Input label="Tax Deducted by Previous Employer" type="number" value={form.previousTds || ''} onChange={(e) => setForm({ ...form, previousTds: Number(e.target.value) || 0 })} />
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-gray-600">Form 12B Reference</label>
+                      <input type="file" accept=".pdf,image/*" className="block w-full text-sm text-gray-600" onChange={(e) => setForm({ ...form, form12b: e.target.files?.[0]?.name || '' })} />
+                      {form.form12b && <p className="mt-1 text-xs text-gray-500">{form.form12b}</p>}
+                    </div>
+                  </div>
+                  {form.previousTaxable > 0 && (
+                    <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">Opening balance detected. Total annual taxable income will include ₹{form.previousTaxable.toLocaleString('en-IN')} from previous employer.</p>
+                  )}
+                </div>
               )}
-                </div> :
 
-            <div className="p-8 text-center text-slate-400">No history available</div>
-            }
-            </div>
-            <div className="p-4 border-t border-slate-200 bg-slate-50">
-              <button
-              onClick={handleCloseHistoryModal}
-              className="w-full px-4 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-100 transition-colors font-medium">
-
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      }
-
-      {/* Copy Modal */}
-      {showCopyModal &&
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-lg shadow-2xl">
-            <div className="flex items-center justify-between p-4 border-b border-slate-200">
-              <h2 className="text-lg font-semibold text-slate-900">Copy Structure to Employee</h2>
-              <button
-              onClick={handleCloseCopyModal}
-              className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center">
-
-                <X className="w-5 h-5 text-slate-500" />
-              </button>
-            </div>
-            <div className="p-4">
-              <p className="text-sm text-slate-600 mb-4">
-                Select an employee to copy this salary structure to:
-              </p>
-              <div className="max-h-64 overflow-y-auto space-y-2">
-                {employees.
-              filter((e) => e.id !== selectedEmployeeId).
-              map((emp) =>
-              <button
-                key={emp.id}
-                onClick={() => handleCopyToEmployee(emp.id)}
-                className="w-full p-3 flex items-center gap-3 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-left">
-
-                      <img src={emp.photo} alt={emp.name} className="w-10 h-10 rounded-full" />
-                      <div className="flex-1">
-                        <div className="font-medium text-slate-900">{emp.name}</div>
-                        <div className="text-xs text-slate-500">
-                          {emp.code} • {emp.department}
-                        </div>
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-slate-400" />
-                    </button>
+              {form.structure && (
+                <div>
+                  <button type="button" className="mb-3 flex w-full items-center justify-between text-base font-semibold text-gray-800" onClick={() => setPreviewOpen((v) => !v)}>
+                    <span className="flex items-center gap-3"><span className="h-5 w-1 rounded bg-indigo-600" />Structure Preview</span>
+                    <span>{previewOpen ? '▴' : '▾'}</span>
+                  </button>
+                  {previewOpen && (
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <table className="w-full text-sm">
+                        <thead><tr className="bg-emerald-50 text-[11px] font-semibold uppercase text-emerald-700"><th className="px-3 py-2 text-left" colSpan={3}>Earnings</th></tr></thead>
+                        <tbody>{EARNINGS.map((r) => <tr key={r.abbr} className="border-b border-gray-100 hover:bg-indigo-50"><td className="px-3 py-2 text-gray-700">{r.name}</td><td className="px-3 py-2 italic text-gray-400">{r.formula}</td><td className="px-3 py-2 font-mono text-xs text-gray-400">{r.abbr}</td></tr>)}</tbody>
+                      </table>
+                      <table className="w-full text-sm">
+                        <thead><tr className="bg-red-50 text-[11px] font-semibold uppercase text-red-700"><th className="px-3 py-2 text-left" colSpan={3}>Deductions</th></tr></thead>
+                        <tbody>{DEDUCTIONS.map((r) => <tr key={r.abbr} className="border-b border-gray-100 hover:bg-indigo-50"><td className="px-3 py-2 text-gray-700">{r.name}</td><td className="px-3 py-2 italic text-gray-400">{r.formula}</td><td className="px-3 py-2 font-mono text-xs text-gray-400">{r.abbr}</td></tr>)}</tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
               )}
+
+              {form.baseSalary > 0 && (
+                <div className="rounded-xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-slate-50 p-5">
+                  <p className="mb-4 text-sm font-semibold text-indigo-700">Estimated Monthly Compensation</p>
+                  <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+                    {[{ l: 'Gross Pay', v: gross }, { l: 'Deductions', v: deductions }, { l: 'Est. TDS', v: tds }, { l: 'Net Pay', v: net }].map((s) => (
+                      <div key={s.l}><p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">{s.l}</p><p className="text-xl font-bold text-gray-800">{inr(s.v)}</p></div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="sticky bottom-0 flex items-center justify-between border-t bg-white px-8 py-4">
+              <Badge variant={docStatus === 'Submitted' ? 'success' : docStatus === 'Cancelled' ? 'danger' : 'secondary'}>{docStatus}</Badge>
+              <div className="flex gap-3">
+                <Button variant="outline" onClick={() => save('Draft')}>Save as Draft</Button>
+                <Button onClick={() => save('Submitted')}>Submit</Button>
               </div>
             </div>
-            <div className="p-4 border-t border-slate-200 bg-slate-50">
-              <button
-              onClick={handleCloseCopyModal}
-              className="w-full px-4 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-100 transition-colors font-medium">
+          </Card>
+      )}
 
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      }
-
-      {/* Delete Confirmation Modal */}
-      {showDeleteConfirm &&
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-sm shadow-2xl">
-            <div className="p-6 text-center">
-              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <AlertCircle className="w-6 h-6 text-red-600" />
+      {tab === 'bulk' && (
+        <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
+          <div className="space-y-4">
+            <Card title="Filter Employees">
+              <div className="grid gap-4 md:grid-cols-4">
+                <MultiSelect label="Department" options={['Science', 'Mathematics', 'Administration', 'Sports', 'Languages'].map((v) => ({ value: v, label: v }))} value={fDept} onChange={setFDept} placeholder="Departments" />
+                <MultiSelect label="Designation" options={['PGT', 'TGT', 'PRT', 'Principal', 'Clerk', 'PET'].map((v) => ({ value: v, label: v }))} value={fDesig} onChange={setFDesig} placeholder="Designations" />
+                <Select label="Staff Category" value={fCat} onChange={(e) => setFCat(typeof e === 'string' ? e : e.target.value)} options={[{ value: '', label: 'All' }, { value: 'Teaching', label: 'Teaching' }, { value: 'Non-Teaching', label: 'Non-Teaching' }, { value: 'Contractual', label: 'Contractual' }]} />
+                <Select label="Employee Grade" value={fGrade} onChange={(e) => setFGrade(typeof e === 'string' ? e : e.target.value)} options={[{ value: '', label: 'All grades' }, { value: 'A', label: 'Grade A' }, { value: 'B', label: 'Grade B' }, { value: 'C', label: 'Grade C' }]} />
               </div>
-              <h3 className="text-lg font-semibold text-slate-900 mb-2">Delete Component?</h3>
-              <p className="text-sm text-slate-500">
-                This action cannot be undone. The component will be permanently removed from this
-                salary structure.
-              </p>
-            </div>
-            <div className="flex items-center gap-3 p-4 border-t border-slate-200 bg-slate-50">
-              <button
-              onClick={handleCloseDeleteConfirm}
-              className="flex-1 px-4 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-100 transition-colors font-medium">
+              <div className="mt-4 flex items-center justify-end gap-4">
+                {applied && <span className="rounded-full bg-indigo-100 px-3 py-1 text-[11px] font-semibold text-indigo-700">{filterCount} filters applied</span>}
+                <button type="button" className="text-sm text-gray-400 hover:text-gray-600" onClick={() => { setFDept([]); setFDesig([]); setFCat(''); setFGrade(''); setApplied(false); setSelected([]); }}>Clear All</button>
+                <Button onClick={() => { setApplied(true); setSelected([]); }}>Apply Filters</Button>
+              </div>
+            </Card>
 
-                Cancel
-              </button>
-              <button
-              onClick={handleDeleteComponent}
-              className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium">
+            {applied && bulkPool.length === 0 && (
+              <Card>
+                <div className="py-10 text-center">
+                  <p className="text-base font-semibold text-gray-600">No Employees Match Your Filters</p>
+                  <p className="mx-auto mt-1 max-w-xs text-sm text-gray-400">Try adjusting the department, designation, or staff category filters</p>
+                  <Button variant="outline" className="mt-4" onClick={() => setApplied(false)}>Clear Filters</Button>
+                </div>
+              </Card>
+            )}
 
-                Delete
-              </button>
-            </div>
+            {applied && bulkPool.length > 0 && (
+              <Card noPadding>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm" role="grid">
+                    <thead>
+                      <tr className="border-b-2 bg-gray-50 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                        <th className="w-10 px-4 py-3"><input type="checkbox" checked={selected.length === bulkPool.length} onChange={(e) => setSelected(e.target.checked ? bulkPool.map((x) => x.id) : [])} /></th>
+                        {['Employee', 'Current Structure', 'New Structure', 'Base Amount', 'From Date', 'Income Tax Slab'].map((h) => <th key={h} className="px-4 py-3">{h}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bulkPool.map((e) => {
+                        const cur = currentOf(e.id);
+                        const on = selected.includes(e.id);
+                        return (
+                          <tr key={e.id} className={`border-b border-gray-100 hover:bg-indigo-50 ${on ? 'border-l-[3px] border-l-indigo-400 bg-indigo-50' : ''}`}>
+                            <td className="px-4 py-3"><input type="checkbox" checked={on} onChange={(ev) => setSelected((p) => ev.target.checked ? [...p, e.id] : p.filter((x) => x !== e.id))} /></td>
+                            <td className="px-4 py-3"><p className="font-medium text-gray-800">{e.name}</p><p className="text-xs text-gray-400">{e.id}</p></td>
+                            <td className="px-4 py-3 text-gray-500">{cur?.structure || '—'} {cur && <span className="ml-1 rounded bg-gray-100 px-2 py-0.5 text-[11px]">{cur.frequency}</span>}</td>
+                            <td className="px-4 py-3">
+                              <select className="rounded-md border-transparent bg-transparent text-sm hover:border-indigo-300 hover:bg-white" value={bulkStructure} onChange={(ev) => setBulkStructure(ev.target.value)}>
+                                {STRUCTURES.map((s) => <option key={s.name}>{s.name}</option>)}
+                              </select>
+                            </td>
+                            <td className="px-4 py-3">
+                              <input type="number" className="w-28 rounded-md border-transparent bg-transparent text-right hover:border-indigo-300 hover:bg-white" value={bulkBase[e.id] ?? cur?.baseSalary ?? 40000} onChange={(ev) => setBulkBase({ ...bulkBase, [e.id]: Number(ev.target.value) })} />
+                            </td>
+                            <td className="px-4 py-3"><input type="date" className="rounded-md border-transparent bg-transparent hover:border-indigo-300 hover:bg-white" value={bulkDate} onChange={(ev) => setBulkDate(ev.target.value)} /></td>
+                            <td className="px-4 py-3">
+                              <select className="rounded-md border-transparent bg-transparent text-sm hover:border-indigo-300 hover:bg-white" value={bulkTax[e.id] || 'New Regime — FY 2026-27'} onChange={(ev) => setBulkTax({ ...bulkTax, [e.id]: ev.target.value })}>
+                                <option>New Regime — FY 2026-27</option>
+                                <option>Old Regime — FY 2026-27</option>
+                              </select>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="flex items-center justify-between border-t-2 bg-gray-50 px-4 py-3 text-xs text-gray-400">
+                  <span>Showing {bulkPool.length} of {bulkPool.length} employees</span>
+                  <button type="button" className="text-sm font-medium text-indigo-600" onClick={() => setSelected(bulkPool.map((e) => e.id))}>Select All ({bulkPool.length})</button>
+                </div>
+                {selected.length > 0 && (
+                  <div className="flex items-center justify-between rounded-b-lg bg-indigo-600 px-6 py-3 text-white">
+                    <span className="text-sm font-semibold">{selected.length} employees selected</span>
+                    <div className="flex gap-3">
+                      <Button variant="outline" className="border-indigo-300 text-white hover:bg-indigo-500" onClick={() => setBulkModal(true)}>Bulk Update Base</Button>
+                      <Button className="bg-white text-indigo-600 hover:bg-indigo-50" onClick={runBulk}>Assign Structure</Button>
+                    </div>
+                  </div>
+                )}
+              </Card>
+            )}
+          </div>
+          <div className="space-y-3">
+            <Card title="Active Filters">
+              <div className="flex flex-wrap gap-2">
+                {fDept.map((d) => <span key={d} className="rounded-full bg-indigo-100 px-3 py-1 text-xs text-indigo-700">{d}</span>)}
+                {fDesig.map((d) => <span key={d} className="rounded-full bg-indigo-100 px-3 py-1 text-xs text-indigo-700">{d}</span>)}
+                {fCat && <span className="rounded-full bg-indigo-100 px-3 py-1 text-xs text-indigo-700">{fCat}</span>}
+                {!filterCount && <p className="text-sm text-gray-400">None</p>}
+              </div>
+            </Card>
+            {[{ l: 'Matched Employees', v: applied ? bulkPool.length : 0 }, { l: 'Already Assigned', v: applied ? bulkPool.filter((e) => currentOf(e.id)).length : 0 }, { l: 'Pending Assignment', v: applied ? bulkPool.filter((e) => !currentOf(e.id)).length : 0 }].map((s) => (
+              <div key={s.l} className="rounded-xl bg-gray-50 p-4">
+                <p className="text-[11px] font-semibold uppercase text-gray-400">{s.l}</p>
+                <p className={`text-xl font-bold ${s.l.startsWith('Pending') && s.v > 0 ? 'text-amber-600' : 'text-gray-800'}`}>{s.v}</p>
+              </div>
+            ))}
           </div>
         </div>
-      }
-    </div>);
+      )}
 
+      <Modal isOpen={backdateOpen} onClose={() => setBackdateOpen(false)} title="Recalculate Existing Salary Slips?" size="md" footer={<div className="flex justify-center gap-3"><Button variant="outline" onClick={() => doSave('Submitted', false)}>Skip Recalculation</Button><Button onClick={() => doSave('Submitted', true)}>Recalculate Slips</Button></div>}>
+        <p className="text-center text-sm text-gray-500">This assignment is backdated to {form.effectiveFrom}. Do you want the system to recalculate any existing salary slips generated after this date?</p>
+      </Modal>
+
+      <Modal isOpen={bulkModal} onClose={() => setBulkModal(false)} title="Bulk Update Base Amount" size="md" footer={<div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setBulkModal(false)}>Cancel</Button><Button onClick={applyBulkBase}>Apply to Selected</Button></div>}>
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" onClick={() => setBulkMode('pct')} className={`rounded-lg py-2 text-sm font-semibold ${bulkMode === 'pct' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600'}`}>By Percentage (%)</button>
+          <button type="button" onClick={() => setBulkMode('fixed')} className={`rounded-lg py-2 text-sm font-semibold ${bulkMode === 'fixed' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600'}`}>By Fixed Amount (₹)</button>
+        </div>
+        <Input className="mt-4" type="number" label={bulkMode === 'pct' ? 'Percentage' : 'Amount'} value={bulkVal} onChange={(e) => setBulkVal(e.target.value)} />
+        <div className="mt-4 rounded-lg bg-gray-50 p-3 text-sm text-gray-600">Current avg base: {inr(avgBase)} → New avg base: {inr(newAvg)} <span className="font-semibold text-emerald-600">{bulkMode === 'pct' ? `+${bulkVal}%` : `+${inr(Number(bulkVal) || 0)}`}</span></div>
+      </Modal>
+
+      <Modal isOpen={progressOpen} onClose={() => setProgressOpen(false)} title={progress >= 100 ? 'Assignment Complete' : 'Assigning Salary Structures…'} size="lg" footer={<div className="flex justify-end gap-2"><Button onClick={() => setProgressOpen(false)}>Done</Button>{progressLog.some((l) => !l.ok) && <Button variant="outline">Retry Failed</Button>}</div>}>
+        <p className="mb-2 text-sm text-gray-500">{progressLog.length} employees processed</p>
+        <div className="h-2 overflow-hidden rounded-full bg-gray-200"><div className={`h-2 ${progress >= 100 ? 'bg-emerald-500' : 'bg-indigo-600'}`} style={{ width: `${progress}%` }} /></div>
+        {progress >= 100 && <p className="mt-2 text-sm"><span className="font-semibold text-emerald-600">{progressLog.filter((l) => l.ok).length} successful</span> · <span className="font-semibold text-red-500">{progressLog.filter((l) => !l.ok).length} failed</span></p>}
+        <ul className="mt-3 max-h-48 overflow-auto text-xs">
+          {progressLog.map((l, i) => <li key={i} className={`border-b border-gray-50 py-1 ${l.ok ? 'text-gray-600' : 'text-red-500'}`}>{l.ok ? 'OK' : 'Failed'} {l.text}</li>)}
+        </ul>
+      </Modal>
+    </div>
+  );
 }
 
 export default EmployeePayStructure;

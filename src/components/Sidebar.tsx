@@ -1,14 +1,346 @@
 import React, { useEffect, useState } from 'react';
 import {
-  LayoutDashboard,
+  Activity,
+  AlertCircle,
+  AlertTriangle,
+  Archive,
+  ArrowRightLeft,
+  Award,
+  Banknote,
+  BarChart3,
+  Bell,
+  BookOpen,
+  Briefcase,
+  Building,
+  Bus,
+  Calendar,
+  CalendarDays,
+  Check,
+  CheckCircle,
   ChevronRight,
   ChevronDown,
-  Star,
-  Heart,
+  ClipboardList,
+  Clock,
+  CreditCard,
+  Database,
+  DollarSign,
+  Edit,
   ExternalLink,
-  Maximize2 } from
+  FileCheck,
+  FileText,
+  FolderOpen,
+  GitBranch,
+  Hash,
+  Heart,
+  History,
+  Inbox,
+  Key,
+  Layers,
+  LayoutDashboard,
+  Link,
+  List,
+  Lock,
+  Mail,
+  Maximize2,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PhoneCall,
+  PieChart,
+  Plus,
+  Printer,
+  Puzzle,
+  QrCode,
+  Receipt,
+  RefreshCw,
+  Repeat,
+  RotateCcw,
+  Scan,
+  Search,
+  Send,
+  Settings,
+  Shield,
+  Smile,
+  Star,
+  TrendingUp,
+  Upload,
+  User,
+  UserCheck,
+  Users,
+  UserX,
+  Wallet,
+  type LucideIcon } from
 'lucide-react';
 import { SubModule, SidebarSection, FavoriteItem } from '../types/navigation';
+import { shortcutLabelForPage } from '../pages/my-details/settings/MyDisplayLanguage';
+
+const PAGE_ICONS: Record<string, LucideIcon> = {
+  'user-dashboard': BarChart3,
+  'student-list': List,
+  'student-summary-dashboard': BarChart3,
+  'student-preference-collection': ClipboardList,
+  'student-list-all-batch-combined': Archive,
+  'stream-allocation-engine': GitBranch,
+  'id-register': CreditCard,
+  'student-detail': User,
+  'verify-info-documents': FileCheck,
+  'student-sibling': Users,
+  'alumni-convert': Award,
+  'student-transfer-withdrawal': ArrowRightLeft,
+  'student-health-medical': Heart,
+  'student-discipline': Shield,
+  'allocation-result': CheckCircle,
+  'student-achievements': Award,
+  'audit-trail': History,
+  'student-custom-search': Search,
+  'student-reports': BarChart3,
+  'late-arrival-early-departure': Smile,
+  'student-register': ClipboardList,
+  'gr-no-rules': Hash,
+  'su-id-generation': Key,
+  'id-card-template': CreditCard,
+  'student-doc-type': FileText,
+  'admission-form-settings': Settings,
+  'promotion-policy': TrendingUp,
+  'roll-no-logic': List,
+  'admission-summary': BarChart3,
+  'admission-inquiry-follow-up': PhoneCall,
+  'admission-form': ClipboardList,
+  'document-upload-auto-fill': Upload,
+  'admission-exam-setup': ClipboardList,
+  'admission-mark-entry': Edit,
+  'admission-merit-setup': Award,
+  'student-readmission': RotateCcw,
+  'admission-report': BarChart3,
+  'admission-custom-search': Search,
+  'admission-audit-log': History,
+  'inquiry-reference-master': Database,
+  'admission-inquiry-setup': Settings,
+  'division-register': ClipboardList,
+  'attendance-summary': BarChart3,
+  'attendance-defaulter-overview': AlertTriangle,
+  'quick-present-entry': Check,
+  'attendance-register-combined': ClipboardList,
+  'student-attendance': UserCheck,
+  'subjectwise-attendance': BookOpen,
+  'manual-attendance-correction': Edit,
+  'device-sync-biometric': Scan,
+  'digital-registration-attendance': Scan,
+  'digital-registration-attendance-hr': Scan,
+  'student-leave-request': FileText,
+  'student-leave-listing': List,
+  'attendance-follow-up': PhoneCall,
+  'certificate-summary': BarChart3,
+  'bonafide-combined': FileText,
+  'first-trial-combined': FileText,
+  'leaving-combined': FileText,
+  'character-combined': FileText,
+  transfer: ArrowRightLeft,
+  'other-certificate': FileText,
+  'print-template-student': Printer,
+  'print-template': Printer,
+  'signature-registry': FileCheck,
+  'signature-usage-permissions': Shield,
+  'document-signature-mapping': Layers,
+  'signature-approval-rules': CheckCircle,
+  'signature-usage-audit-log': History,
+  'global-print-settings': Printer,
+  'module-print-configuration': Layers,
+  'document-print-configuration': FileText,
+  'print-access-permissions': Lock,
+  'print-history-audit': History,
+  'general-ledger': BookOpen,
+  'day-book': Calendar,
+  'cash-book': Banknote,
+  'bank-book': Building,
+  'account-master': Database,
+  'income-expenditure': ArrowRightLeft,
+  'balance-sheet': FileText,
+  'ledger-audit-trail': History,
+  'fee-summary-dashboard': BarChart3,
+  'fee-receipt-list': List,
+  'fee-collection-register': ClipboardList,
+  'fee-receipt': Receipt,
+  'student-fee-invoice': FileText,
+  'divisionwise-fee': ArrowRightLeft,
+  'student-fee-process': RefreshCw,
+  'fee-receipt-bulk': Layers,
+  'fee-refund': RotateCcw,
+  'assign-exemption-type': FolderOpen,
+  'fee-opening': Receipt,
+  'fee-auto-demand-scheduler': Upload,
+  'fee-head-master-admin': CreditCard,
+  'fee-category-installment-due-rules-master': CreditCard,
+  'fee-collection-reports': BarChart3,
+  'fee-receipt-template': FileText,
+  'charge-summary-dashboard': BarChart3,
+  'charge-receipt': Receipt,
+  'charge-receipt-import': Upload,
+  'charge-receipt-report': BarChart3,
+  'scholarship-summary-dashboard': BarChart3,
+  'student-scholarship-list': List,
+  'scholarship-application-list': FileText,
+  'scholarship-approval-sanction': Check,
+  'scholarship-allocation-fee': Link,
+  'scholarship-disbursement': Send,
+  'bulk-scholarship-disbursement': Layers,
+  'scholarship-adjustment-cancellation': Edit,
+  'scholarship-report': BarChart3,
+  'expense-summary-dashboard': BarChart3,
+  'expense-list': List,
+  'expense-voucher-entry': Plus,
+  'expense-payment': CreditCard,
+  'petty-cash-expense-entry': Edit,
+  'recurring-expense-scheduler': Repeat,
+  'bulk-expense-import': Upload,
+  'expense-approval-workflow': Settings,
+  'expense-posting': Send,
+  'expense-report': BarChart3,
+  'budget-vs-actual-report': BarChart3,
+  'department-wise-expense': Building,
+  'vendor-wise-expense': Users,
+  'petty-cash-report': BarChart3,
+  'employee-summary-dashboard': BarChart3,
+  'employee-list-directory': List,
+  'employee-profile-view': User,
+  'probation-confirmation-list': ClipboardList,
+  'exit-relieved-employees': UserX,
+  'add-edit-employee-profile': Edit,
+  'employee-service-register': FileText,
+  'employee-confirmation': CheckCircle,
+  'employee-transfer': ArrowRightLeft,
+  'teacher-shift-view-switch': RefreshCw,
+  'shift-view-and-switch': RefreshCw,
+  'employee-separation-exit': UserX,
+  'document-upload-verification': FileCheck,
+  'employee-id-card': CreditCard,
+  'teacher-class-subject-allocation': Users,
+  'employee-report-advanced': Search,
+  'employee-reports': BarChart3,
+  'staff-strength-demographic-report': BarChart3,
+  'teaching-allocation-summary': PieChart,
+  'employee-attendance-summary': BarChart3,
+  'daily-attendance-log': Calendar,
+  'late-early-arrival-register': Clock,
+  'overtime-register': Clock,
+  'employee-attendance-admin': Settings,
+  'manual-attendance-employee': Edit,
+  'leave-balance-adjust-bulk': Layers,
+  'leave-balance-add': Plus,
+  'leave-balance-listing': List,
+  'leave-balance-adjust': Edit,
+  'monthly-attendance-register-hr': Calendar,
+  'leave-entry-bulk': Layers,
+  'leave-single-application': FileText,
+  'apply-leave': FileText,
+  'leave-listing': List,
+  'hr-attendance-report': BarChart3,
+  'hr-leave-report': BarChart3,
+  'absentee-latecomer-report': AlertTriangle,
+  'payroll-summary-dashboard': BarChart3,
+  'salary-register-view': ClipboardList,
+  'employee-payslip-list': FileText,
+  'payroll-exception-list': AlertCircle,
+  'employee-pay-structure': Layers,
+  'payroll-process': RefreshCw,
+  'payroll-entry': Edit,
+  'supplementary-arrear-payroll': Repeat,
+  'overtime-additional-earnings': TrendingUp,
+  'overtime-management': Clock,
+  'staff-loan-management': Wallet,
+  'manual-deduction-adjustment': Edit,
+  'bulk-increment-pay-revision': TrendingUp,
+  'payslip-lock-release': Lock,
+  'salary-disbursement-bank-advice': Banknote,
+  'staff-advance-issue': Send,
+  'staff-advance-settlement': Check,
+  'payroll-reversal-reprocess': RotateCcw,
+  'payroll-report': BarChart3,
+  'earnings-deduction-summary': PieChart,
+  'department-cost-center-salary': Building,
+  'payroll-audit-variance-report': AlertCircle,
+  'designation-master': Award,
+  'employee-document-type-master': FileText,
+  'separation-exit-reason-master': AlertCircle,
+  'role-responsibility-master': Shield,
+  'qualification-subject-master': BookOpen,
+  'shift-master': Clock,
+  'working-calendar-master': Calendar,
+  'leave-type-master': Calendar,
+  'attendance-rule-master': Settings,
+  'recruitment-stage-status-master': Layers,
+  'pay-head-master': DollarSign,
+  'salary-structure-master': Layers,
+  'payroll-calendar-period-master': Calendar,
+  'payroll-setup': Settings,
+  'income-tax-slab': BarChart3,
+  'appraisal-settings': Settings,
+  'appraisal-dashboard': BarChart3,
+  'appraisal-cycle-status-view': List,
+  'employee-appraisal-history': History,
+  'appraisal-cycle-assignment': Layers,
+  'self-appraisal-entry': User,
+  'goal-setting-tracking': Star,
+  'appraisal-individual-form': FileText,
+  'employee-performance-feedback': Users,
+  'appraisal-outcome-increment': Award,
+  'manager-hod-appraisal-entry': UserCheck,
+  'student-feedback-entry': Smile,
+  'appraisal-consolidation-final-rating': CheckCircle,
+  'appraisal-result-report': BarChart3,
+  'recruitment-dashboard': BarChart3,
+  'vacancy-requisition-list': List,
+  'applicant-list': Users,
+  'interview-test-schedule-view': Calendar,
+  'offer-joining-status-view': CheckCircle,
+  'income-tax-dashboard': BarChart3,
+  'employee-tax-exemption-declaration': FileText,
+  'employee-other-income-declaration': FileText,
+  'employee-benefit-application': FileText,
+  'employee-benefit-claim': FileText,
+  'employee-tax-exemption-proof-submission': FileText,
+  'employee-tax-summary-list': List,
+  'investment-declaration-status': FileText,
+  'proof-verification-status': CheckCircle,
+  'monthly-tds-register': Calendar,
+  'exam-master': Database,
+  'user-master': Users,
+  'active-users': Users,
+  'security-summary-dashboard': BarChart3,
+  'planner-dashboard': BarChart3,
+  'activity-calendar': Calendar,
+  'study-material': BookOpen,
+  'classwork': ClipboardList,
+  'homework-assignments': ClipboardList,
+  'my-messages-inbox': Inbox,
+  'my-notification-centre': Bell,
+  'qr-barcode-master': QrCode
+};
+
+function pageIcon(id: string, label: string): LucideIcon {
+  if (PAGE_ICONS[id]) return PAGE_ICONS[id];
+  const t = `${id} ${label}`.toLowerCase();
+  if (/(dashboard|overview|kpi)/.test(t)) return LayoutDashboard;
+  if (/(teacher|staff|employee|payroll|salary|hr )/.test(t)) return Briefcase;
+  if (/(student|enrol|admission|applicant)/.test(t)) return Users;
+  if (/(fee|invoice|payment|wallet|collection|scholarship)/.test(t)) return Wallet;
+  if (/(expense|bill|vendor|purchase)/.test(t)) return Receipt;
+  if (/(report|analytic|mis)/.test(t)) return BarChart3;
+  if (/(attend|leave|calendar)/.test(t)) return CalendarDays;
+  if (/(exam|assessment|result|mark)/.test(t)) return ClipboardList;
+  if (/(academic|curriculum|plan|lesson|syllabus|subject)/.test(t)) return BookOpen;
+  if (/(timetable|schedule)/.test(t)) return Clock;
+  if (/(setting|config|setup|master)/.test(t)) return Settings;
+  if (/(alert|notif)/.test(t)) return Bell;
+  if (/(message|inbox|mail|email|sms|whatsapp)/.test(t)) return Mail;
+  if (/(transport|bus|gps|route|vehicle)/.test(t)) return Bus;
+  if (/(barcode|qr|id-register|id card)/.test(t)) return QrCode;
+  if (/(certificate|award)/.test(t)) return Award;
+  if (/(security|role|permission|audit)/.test(t)) return Shield;
+  if (/(plugin)/.test(t)) return Puzzle;
+  if (/(health)/.test(t)) return Activity;
+  if (/(list|register)/.test(t)) return List;
+  return FileText;
+}
 
 interface SidebarProps {
   activeSubModule: SubModule | null;
@@ -19,6 +351,8 @@ interface SidebarProps {
   favorites: FavoriteItem[];
   onToggleFavorite: (item: FavoriteItem) => void;
   onNavigateFavorite: (item: FavoriteItem) => void;
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
 }
 
 type ContextMenuState = {
@@ -50,7 +384,9 @@ export function Sidebar({
   activeModuleLabel,
   favorites,
   onToggleFavorite,
-  onNavigateFavorite
+  onNavigateFavorite,
+  collapsed,
+  onToggleCollapsed
 }: SidebarProps) {
   const defaultSidebar: SidebarSection[] = [
   {
@@ -70,6 +406,42 @@ export function Sidebar({
     Record<string, boolean>>(
     {});
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [labelOverrides, setLabelOverrides] = useState<Record<string, string>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('k12-sidebar-page-labels') || '{}');
+    } catch {
+      return {};
+    }
+  });
+  const [renaming, setRenaming] = useState(false);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+
+  const pageLabel = (id: string, fallback: string) => labelOverrides[id] || fallback;
+
+  const startRenaming = () => {
+    const next: Record<string, string> = {};
+    sections.filter((section) => !section.hidden).forEach((section) => {
+      section.items.forEach((item) => {
+        next[item.id] = pageLabel(item.id, item.label);
+      });
+    });
+    setDrafts(next);
+    setRenaming(true);
+  };
+
+  const finishRenaming = () => {
+    const next = { ...labelOverrides };
+    sections.filter((section) => !section.hidden).forEach((section) => {
+      section.items.forEach((item) => {
+        const value = (drafts[item.id] ?? '').trim() || item.label;
+        if (value === item.label) delete next[item.id];
+        else next[item.id] = value;
+      });
+    });
+    setLabelOverrides(next);
+    localStorage.setItem('k12-sidebar-page-labels', JSON.stringify(next));
+    setRenaming(false);
+  };
 
   const toggleSection = (title: string) => {
     setCollapsedSections((prev) => ({
@@ -114,21 +486,111 @@ export function Sidebar({
   }, [contextMenu]);
 
   return (
-    <aside className="flex w-80 shrink-0 flex-col overflow-hidden bg-gradient-to-b from-[#0D3B4C] via-[#145369] to-[#1A6B8A] transition-all duration-300">
-      <div className="border-b border-white/10 px-5 py-4">
-        <h2 className="flex items-center gap-2 text-xl font-semibold tracking-wide text-white">
-          <LayoutDashboard className="h-7 w-7 text-cyan-300" />
-          {showFavoritesView ?
-          'Dashboard' :
-          activeSubModule?.label || 'Dashboard'}
-        </h2>
-        <p className="mt-1 pl-9 text-sm font-medium uppercase tracking-wider text-white/60">
-          {showFavoritesView ? 'My Favorites' : 'Module View'}
-        </p>
+    <aside className={`flex shrink-0 flex-col overflow-hidden bg-gradient-to-b from-[#0D3B4C] via-[#145369] to-[#1A6B8A] transition-[width] duration-300 ${collapsed ? 'w-[4.75rem]' : 'w-80'}`}>
+      <div className={`border-b border-white/10 ${collapsed ? 'px-1 py-3' : 'px-5 py-4'}`}>
+        {collapsed ? (
+          <button
+            type="button"
+            title="Expand sidebar"
+            aria-label="Expand sidebar"
+            onClick={onToggleCollapsed}
+            className="flex h-10 w-full items-center justify-center rounded-md text-white/90 transition-colors hover:bg-white/10 hover:text-white"
+          >
+            <PanelLeftOpen className="h-5 w-5" />
+          </button>
+        ) : (
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <h2 className="truncate text-xl font-semibold tracking-wide text-white">
+                {showFavoritesView ? 'Dashboard' : activeSubModule?.label || 'Dashboard'}
+              </h2>
+              <p className="mt-1 truncate text-xs font-medium tracking-wide text-white/60">
+                {showFavoritesView
+                  ? 'My Favorites'
+                  : `${activeModuleLabel}${activeSubModule?.label ? ` › ${activeSubModule.label}` : ''}`}
+              </p>
+            </div>
+            <div className="flex shrink-0 items-start gap-1">
+              {!showFavoritesView &&
+              <button
+                type="button"
+                title={renaming ? 'Done' : 'Edit page names'}
+                aria-label={renaming ? 'Done renaming' : 'Edit page names'}
+                onClick={() => renaming ? finishRenaming() : startRenaming()}
+                className={`mt-0.5 flex h-8 w-8 items-center justify-center rounded-md transition-colors ${renaming ? 'bg-white/20 text-cyan-200' : 'text-white/70 hover:bg-white/10 hover:text-white'}`}>
+                {renaming ? <Check className="h-4 w-4" /> : <Edit className="h-4 w-4" />}
+              </button>
+              }
+              <button
+                type="button"
+                title="Collapse sidebar"
+                aria-label="Collapse sidebar"
+                onClick={onToggleCollapsed}
+                className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-md text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+              >
+                <PanelLeftClose className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
-      <nav className="flex-1 overflow-y-auto px-3 py-4 custom-scrollbar">
-        {showFavoritesView ?
+      <nav className={`flex-1 overflow-y-auto custom-scrollbar ${collapsed ? 'px-1.5 py-3' : 'px-3 py-4'}`}>
+        {collapsed ? (
+        <div className="space-y-1">
+          {showFavoritesView ? (
+            favorites.length === 0 ? (
+              <p className="px-1 text-center text-[10px] text-white/40">No favorites</p>
+            ) : (
+              favorites.map((fav) => {
+                const Icon = pageIcon(fav.sidebarItemId, fav.sidebarItemLabel);
+                const shortcut = shortcutLabelForPage(fav.moduleId, fav.subModuleId, fav.sidebarItemId);
+                return (
+                  <button
+                    key={`${fav.moduleId}-${fav.subModuleId}-${fav.sidebarItemId}`}
+                    type="button"
+                    title={`${fav.sidebarItemLabel}${shortcut ? ` · ${shortcut}` : ''}`}
+                    aria-label={fav.sidebarItemLabel}
+                    onClick={() => onNavigateFavorite(fav)}
+                    onContextMenu={(e) => openContextMenu(
+                      e,
+                      `/${fav.moduleId}/${fav.subModuleId}/${fav.sidebarItemId}`,
+                      fav.sidebarItemLabel,
+                    )}
+                    className="flex min-h-[3.35rem] w-full flex-col items-center justify-center gap-0.5 rounded-md px-0.5 py-1.5 text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+                  >
+                    <Icon className="h-5 w-5 shrink-0" />
+                    <span className="w-full truncate text-center text-[9px] font-medium leading-tight text-white/70">{fav.sidebarItemLabel}</span>
+                  </button>
+                );
+              })
+            )
+          ) : (
+            sections.filter((section) => !section.hidden).flatMap((section) => section.items).map((item) => {
+              const shown = pageLabel(item.id, item.label);
+              const Icon = pageIcon(item.id, shown);
+              const isActive = activeSidebarItemId === item.id;
+              const path = `/${activeModuleId}/${activeSubModule?.id || item.id}/${item.id}`;
+              const shortcut = shortcutLabelForPage(activeModuleId, activeSubModule?.id || item.id, item.id);
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  title={`${shown}${shortcut ? ` · ${shortcut}` : ''}`}
+                  aria-label={shown}
+                  aria-current={isActive ? 'page' : undefined}
+                  onClick={() => onSidebarItemSelect(item.id)}
+                  onContextMenu={(e) => openContextMenu(e, path, shown)}
+                  className={`flex min-h-[3.35rem] w-full flex-col items-center justify-center gap-0.5 rounded-md px-0.5 py-1.5 transition-colors ${isActive ? 'bg-white/15 text-cyan-300 shadow-sm' : 'text-white/75 hover:bg-white/10 hover:text-white'}`}
+                >
+                  <Icon className="h-5 w-5 shrink-0" />
+                  <span className={`w-full truncate text-center text-[9px] font-medium leading-tight ${isActive ? 'text-cyan-200' : 'text-white/70'}`}>{shown}</span>
+                </button>
+              );
+            })
+          )}
+        </div>
+        ) : showFavoritesView ?
         <div className="space-y-4">
             <div className="mb-2 flex items-center gap-2 px-3">
               <Star className="h-4 w-4 text-yellow-400" />
@@ -201,29 +663,43 @@ export function Sidebar({
                   {section.items.map((item) => {
                   const isActive = activeSidebarItemId === item.id;
                   const favorited = isFavorited(item.id);
+                  const shown = pageLabel(item.id, item.label);
                   const path = `/${activeModuleId}/${activeSubModule?.id || item.id}/${item.id}`;
                   return (
                     <div
                       key={item.id}
-                      onContextMenu={(e) => openContextMenu(e, path, item.label)}
+                      onContextMenu={(e) => openContextMenu(e, path, shown)}
                       className={`group flex w-full items-center justify-between rounded-md pr-2 transition-all duration-200
                           ${isActive ? 'bg-white/10 text-white shadow-sm' : 'text-white/70 hover:bg-white/5 hover:text-white'}`}>
 
-                        <button
+                        {renaming ?
+                      <input
+                        value={drafts[item.id] ?? shown}
+                        onChange={(e) => setDrafts((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') finishRenaming();
+                          if (e.key === 'Escape') setRenaming(false);
+                        }}
+                        className="mx-2 my-1 flex-1 rounded px-2 py-1 text-sm text-gray-900 outline-none ring-2 ring-cyan-300" /> :
+
+
+                      <button
                         onClick={() => onSidebarItemSelect(item.id)}
                         className="flex-1 py-2 pl-3 text-left text-sm font-medium truncate">
 
-                          {item.label}
+                          {shown}
                         </button>
+                      }
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1">
                           <button
                           onClick={(e) => {
                             e.stopPropagation();
                             if (activeSubModule) {
                               onToggleFavorite({
                                 sidebarItemId: item.id,
-                                sidebarItemLabel: item.label,
+                                sidebarItemLabel: shown,
                                 subModuleId: activeSubModule.id,
                                 subModuleLabel: activeSubModule.label,
                                 moduleId: activeModuleId,
@@ -256,12 +732,14 @@ export function Sidebar({
         }
       </nav>
 
+      {!collapsed && (
       <div className="border-t border-white/10 p-4">
         <div className="flex items-center justify-between text-sm text-white/30">
           <span>v3.1.0</span>
           <span>EduManager</span>
         </div>
       </div>
+      )}
 
       {contextMenu &&
       <div

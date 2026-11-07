@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
@@ -416,6 +417,10 @@ const formatDateTime = (dateString: string): string => {
 };
 
 export function InvestmentDeclarationStatus() {
+  const navigate = useNavigate();
+  const deadline = '2026-05-15';
+  const daysLeft = Math.ceil((new Date(deadline).getTime() - new Date('2026-11-05').getTime()) / 86400000);
+  const deadlinePassed = daysLeft < 0;
   // State Management
   const [employees, setEmployees] = useState<Employee[]>(initialEmployees);
   const [filters, setFilters] = useState<FilterState>({
@@ -1300,6 +1305,15 @@ Total Declared Amount: ${formatCurrency(data.reduce((sum, e) => sum + e.totalDec
         </div>
       </div>
 
+      <Card className="p-4">
+        <div className="grid gap-3 text-sm md:grid-cols-4">
+          <p><span className="text-xs uppercase text-gray-400">Active Payroll Period</span><br />AY 2026-27 (01-04-2026 to 31-03-2027)</p>
+          <p><span className="text-xs uppercase text-gray-400">School financial year</span><br />FY 2026–27</p>
+          <p><span className="text-xs uppercase text-gray-400">Declaration deadline</span><br />{deadlinePassed ? `Deadline Passed — ${Math.abs(daysLeft)} days ago` : `${deadline} · ${daysLeft} calendar days remaining`}</p>
+          <p><span className="text-xs uppercase text-gray-400">Completion</span><br />{statistics.submittedPercentage}% submitted</p>
+        </div>
+      </Card>
+
       {/* Status Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card
@@ -1355,6 +1369,18 @@ Total Declared Amount: ${formatCurrency(data.reduce((sum, e) => sum + e.totalDec
           <p className="text-sm text-gray-600">Not Started</p>
         </Card>
       </div>
+
+      <Card className="p-4">
+        <h3 className="mb-2 text-sm font-semibold text-gray-800">Impact summary for non-declarers (Old Regime)</h3>
+        <p className="text-sm text-gray-600">School-average declared benchmark ₹1,50,000. Estimated excess monthly TDS school-wide ₹2.14L. Highest-impact non-declarers should be chased first. New Regime employees are Not Applicable and excluded from Not Started.</p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" onClick={() => handleFilterChange('status', 'not-started')}>Select All Not Started</Button>
+          <Button size="sm" variant="outline" onClick={() => handleFilterChange('status', 'pending')}>Select All Draft</Button>
+          <Button size="sm" variant="outline" onClick={() => navigate('/hr/income-tax/employee-tax-exemption-declaration')}>Create / Edit on Behalf</Button>
+          <Button size="sm" variant="outline" onClick={handleOpenBulkReminderModal}>Send Reminder</Button>
+        </div>
+        <p className="mt-2 text-xs text-gray-500">Reminder history is in Activity History. Template includes employee name, period, deadline, excess TDS and a link to the declaration form.</p>
+      </Card>
 
       {/* Filters */}
       <Card className="p-4">

@@ -5,7 +5,7 @@ import { Select } from '../../../components/ui/Select';
 import { Input } from '../../../components/ui/Input';
 import { Table } from '../../../components/ui/Table';
 import { Badge } from '../../../components/ui/Badge';
-import { AlertTriangle, Bell, Download, Mail, Phone, Search, RotateCcw, Filter, Building, Check, ChevronDown } from 'lucide-react';
+import { AlertTriangle, Bell, Download, Search, RotateCcw, Filter, Building, Check, ChevronDown } from 'lucide-react';
 
 // --- Constants ---
 const BRANCHES = [
@@ -101,8 +101,6 @@ export function AttendanceDefaulterOverview() {
   const [appliedFilters, setAppliedFilters] = useState(filters);
   const [isFilterExpanded, setIsFilterExpanded] = useState(true);
 
-  const activeBranches = useMemo(() => BRANCHES.filter((b) => selectedBranches.includes(b.id)), [selectedBranches]);
-
   const filteredDefaulters = useMemo(() => {
     return defaultersData.filter((student) => {
       if (!selectedBranches.includes(student.branchId)) return false;
@@ -140,7 +138,7 @@ export function AttendanceDefaulterOverview() {
   { key: 'present', header: 'Present', render: (row: Defaulter) => <span className="text-green-600 font-medium">{row.present}</span> },
   { key: 'absent', header: 'Absent', render: (row: Defaulter) => <span className="text-red-600 font-medium">{row.absent}</span> },
   { key: 'percentage', header: 'Attendance %', render: (row: Defaulter) => <Badge variant={row.percentage >= 70 ? 'warning' : 'danger'}>{row.percentage}%</Badge> },
-  { key: 'actions', header: 'Actions', render: (row: Defaulter) => <div className="flex gap-2"><Button variant="ghost" size="sm" title={`Call ${row.parentPhone}`} onClick={() => window.open(`tel:${row.parentPhone}`)}><Phone className="w-4 h-4" /></Button><Button variant="ghost" size="sm" title={`Email ${row.parentEmail}`} onClick={() => window.open(`mailto:${row.parentEmail}`)}><Mail className="w-4 h-4" /></Button></div> }];
+  { key: 'actions', header: 'Actions', render: (row: Defaulter) => <div className="flex gap-2"><Button variant="ghost" size="sm" title={`Send Reminder to ${row.parentPhone}`} onClick={() => window.alert(`Reminder sent to ${row.firstName} ${row.lastName}'s parent (${row.parentPhone})`)}><Bell className="w-4 h-4" /></Button></div> }];
 
 
   return (
@@ -152,22 +150,10 @@ export function AttendanceDefaulterOverview() {
           <p className="text-gray-500 mt-1">Students with attendance below threshold</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <MultiSelect options={BRANCHES} selected={selectedBranches} onChange={setSelectedBranches} />
-          <Select value={selectedBatch} onChange={(value) => setSelectedBatch(value)} options={BATCHES} className="min-w-[120px]" />
           <Button variant="outline"><Download className="w-4 h-4 mr-2" />Export</Button>
           <Button variant="primary"><Bell className="w-4 h-4 mr-2" />Send Alert</Button>
         </div>
       </div>
-
-      {/* Active Branch Filter Display */}
-      {selectedBranches.length > 0 &&
-      <div className="flex items-center gap-2 flex-wrap p-3 bg-white rounded-lg border">
-          <span className="text-xs font-medium text-gray-500">Active:</span>
-          {activeBranches.map((b) => <BranchBadge key={b.id} branchId={b.id} />)}
-          <span className="text-xs text-gray-400">|</span>
-          <span className="text-xs font-medium text-gray-600">Batch: {selectedBatch}</span>
-        </div>
-      }
 
       {selectedBranches.length === 0 ?
       <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-8 text-center">
@@ -195,6 +181,11 @@ export function AttendanceDefaulterOverview() {
             {isFilterExpanded &&
           <div className="p-4 space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div>
+                    <p className="mb-1 text-sm font-medium text-gray-700">Branch</p>
+                    <MultiSelect options={BRANCHES} selected={selectedBranches} onChange={setSelectedBranches} />
+                  </div>
+                  <Select label="Batch" value={selectedBatch} onChange={(value) => setSelectedBatch(value)} options={BATCHES} />
                   <Input label="GR Number" placeholder="Search by GR No..." value={filters.grNo} onChange={(e) => handleFilterChange('grNo', e.target.value)} icon={<Search className="w-4 h-4 text-gray-400" />} />
                   <Input label="SU ID" placeholder="Search by SU ID..." value={filters.suId} onChange={(e) => handleFilterChange('suId', e.target.value)} icon={<Search className="w-4 h-4 text-gray-400" />} />
                   <Input label="First Name" placeholder="Search by first name..." value={filters.firstName} onChange={(e) => handleFilterChange('firstName', e.target.value)} icon={<Search className="w-4 h-4 text-gray-400" />} />

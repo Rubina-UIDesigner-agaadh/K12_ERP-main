@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Select } from '../../../components/ui/Select';
@@ -12,6 +13,11 @@ import {
   TrendingDown } from
 'lucide-react';
 export function AnnualTaxReconciliationFinalisation() {
+  const navigate = useNavigate();
+  const [reconStatus, setReconStatus] = useState('Not Started');
+  const [previewed, setPreviewed] = useState(false);
+  const [signed, setSigned] = useState(false);
+  const [proceedAnyway, setProceedAnyway] = useState(false);
   return (
     <div className="space-y-6 p-6">
       {/* Header */}
@@ -29,12 +35,25 @@ export function AnnualTaxReconciliationFinalisation() {
             <Download className="w-4 h-4 mr-2" />
             Export
           </Button>
+          <Button variant="outline" onClick={() => { setPreviewed(true); setReconStatus('Pre-Reconciliation Preview Generated'); }}>Generate Preview</Button>
+          <Button variant="outline" onClick={() => { setReconStatus('Corrections Applied'); }}>Recalculate Preview</Button>
+          <Button variant="primary" className="bg-red-600 hover:bg-red-700" onClick={() => { if (!proceedAnyway) return; setReconStatus('March Payroll Triggered'); navigate('/hr/payroll/payroll-entry'); }}>
+            Proceed to March Payroll Entry
+          </Button>
           <Button variant="primary" className="bg-red-600 hover:bg-red-700">
             <Lock className="w-4 h-4 mr-2" />
             Finalise Year
           </Button>
         </div>
       </div>
+      <Card className="p-4 text-sm">
+        <div className="grid gap-3 md:grid-cols-4">
+          <p><span className="text-xs uppercase text-gray-400">Payroll Period</span><br />AY 2026-27</p>
+          <p><span className="text-xs uppercase text-gray-400">Reconciliation Status</span><br />{reconStatus}{signed ? ' · Signed Off' : ''}</p>
+          <p><span className="text-xs uppercase text-gray-400">March Payroll Date</span><br />31 Mar 2027</p>
+          <p><span className="text-xs uppercase text-gray-400">High Impact auto-selected</span><br />Employees with March TDS multiple &gt; 3</p>
+        </div>
+      </Card>
 
       {/* Filters */}
       <Card className="p-4">
@@ -123,6 +142,10 @@ export function AnnualTaxReconciliationFinalisation() {
           <p className="text-sm text-gray-600">Excess</p>
         </Card>
       </div>
+
+      {previewed && (
+        <p className="text-xs text-gray-500">Preview includes Annual CTC, declared vs verified exemptions, flexible benefits accrued vs claimed, taxable income, slab + 4% cess, rebate u/s 87A, April–February TDS, March TDS multiple (Normal / Moderate / High).</p>
+      )}
 
       {/* Reconciliation Table */}
       <Card>
@@ -279,6 +302,39 @@ export function AnnualTaxReconciliationFinalisation() {
               changes can be made to FY 2024-25 tax records.
             </p>
           </div>
+        </div>
+      </Card>
+
+      {previewed && (
+        <Card className="p-4 text-sm">
+          <h3 className="mb-2 font-semibold text-gray-900">Correction window</h3>
+          <p className="text-gray-600">High Impact employees can be notified of extra March TDS. Extend proof deadline on Proof Submission. Last-minute benefit claims can be approved without leaving this page — then Recalculate Preview.</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Button size="sm" variant="outline">Notify High Impact employees</Button>
+            <Button size="sm" variant="outline" onClick={() => navigate('/hr/income-tax/employee-benefit-claim')}>Benefit claim approval queue</Button>
+            <Button size="sm" variant="outline" onClick={() => navigate('/hr/income-tax/employee-tax-exemption-proof-submission')}>Extend proof deadline</Button>
+          </div>
+        </Card>
+      )}
+
+      <Card className="p-4 text-sm">
+        <h3 className="mb-2 font-semibold text-gray-900">Pre-execution checklist</h3>
+        <ul className="space-y-1 text-gray-700">
+          <li>Proof verifications complete: 91% — warning below 95%</li>
+          <li>Pending benefit claims: 2 — warning if above zero</li>
+          <li>Query Pending on proof verification: 1</li>
+          <li>Proof submission deadline: passed</li>
+        </ul>
+        <label className="mt-3 flex items-center gap-2"><input type="checkbox" checked={proceedAnyway} onChange={(e) => setProceedAnyway(e.target.checked)} /> Proceed anyway — I acknowledge outstanding items (audit log)</label>
+        <p className="mt-2 text-xs text-gray-500">March Payroll Entry will pre-activate Deduct Tax For Unsubmitted Tax Exemption Proof and Deduct Tax For Unclaimed Employee Benefits.</p>
+      </Card>
+
+      <Card className="p-4 text-sm">
+        <h3 className="mb-2 font-semibold text-gray-900">Post-reconciliation / sign-off</h3>
+        <p>Over-deduction: carry forward to next FY, refund via next slip, or employee claims via ITR. Under-deduction requires a mandatory review note.</p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <Button size="sm" onClick={() => { setSigned(true); setReconStatus('Signed Off'); localStorage.setItem('k12-tax-recon-signed', '1'); }}>Submit for Finance / Principal sign-off</Button>
+          <Button size="sm" variant="outline" onClick={() => navigate('/hr/income-tax/form-16-annual-statement-export')} disabled={!signed}>Go to Form-16 generation</Button>
         </div>
       </Card>
 

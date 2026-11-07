@@ -1,4 +1,8 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
+import { EarningsDeductionSummary } from './EarningsDeductionSummary';
+import { DepartmentCostCenterSalary } from './DepartmentCostCenterSalary';
+import { PayrollAuditVarianceReport } from './PayrollAuditVarianceReport';
 import {
   DownloadIcon,
   FileTextIcon,
@@ -1458,7 +1462,7 @@ function ReportPreview({
 // ---------------------------------------------------------------------------
 // Main Component
 // ---------------------------------------------------------------------------
-export function PayrollReport() {
+function PayrollReportInner() {
   // Report Configuration State
   const [reportConfig, setReportConfig] = useState<ReportConfig>({
     reportType: 'monthly-summary',
@@ -2174,4 +2178,37 @@ ${(generatedReport.data as EmployeePayrollData[]).
       <NotificationToast notifications={notifications} onDismiss={dismissNotification} />
     </div>);
 
+}
+
+const PAYROLL_REPORT_TABS = [
+  { id: 'payroll-report', label: 'Payroll Report' },
+  { id: 'earnings-deduction-summary', label: 'Earnings & Deduction Summary' },
+  { id: 'department-cost-center-salary', label: 'Department / Cost Center Salary' },
+  { id: 'payroll-audit-variance-report', label: 'Payroll Audit & Variance Report' },
+];
+
+export function PayrollReport() {
+  const { pageId } = useParams<{ pageId: string }>();
+  const initial = PAYROLL_REPORT_TABS.find((t) => t.id === pageId)?.id ?? 'payroll-report';
+  const [tab, setTab] = useState(initial);
+  return (
+    <div>
+      <div className="flex gap-1 overflow-x-auto border-b border-gray-200 bg-white px-4 sm:px-6">
+        {PAYROLL_REPORT_TABS.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => setTab(item.id)}
+            className={`whitespace-nowrap px-4 py-2.5 text-sm font-medium border-b-2 ${tab === item.id ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500'}`}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+      {tab === 'earnings-deduction-summary' ? <EarningsDeductionSummary /> :
+        tab === 'department-cost-center-salary' ? <DepartmentCostCenterSalary /> :
+        tab === 'payroll-audit-variance-report' ? <PayrollAuditVarianceReport /> :
+        <PayrollReportInner />}
+    </div>
+  );
 }

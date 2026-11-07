@@ -1817,595 +1817,124 @@ function KpiTile({
 // SECTION 5 : UNIFIED SCHOLARSHIP REPORTS PAGE
 // ============================================================================
 export function ScholarshipReport() {
-  const [draftFilters, setDraftFilters] = useState<Record<string, any>>({});
-  const [appliedFilters, setAppliedFilters] = useState<Record<string, any>>({});
-  const [isFilterPanelOpen, setIsFilterPanelOpen] = useState<boolean>(true);
-  const [reportSearch, setReportSearch] = useState<string>('');
-  const [familyFilter, setFamilyFilter] = useState<string>('all');
-  const [collapsedFamilies, setCollapsedFamilies] = useState<Record<string, boolean>>({});
-  const [selectedReport, setSelectedReport] = useState<{ family: ReportFamily; report: ReportDef } | null>(
-    null
-  );
-  const [notice, setNotice] = useState<string>('');
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [activeTab, setActiveTab] = useState<'templates' | 'generated' | 'data'>('templates');
+  const [genLog, setGenLog] = useState<{ id: string; title: string; when: string }[]>([]);
+  const [picked, setPicked] = useState<string | null>(null);
 
-  const flash = (msg: string) => {
-    setNotice(msg);
-    window.setTimeout(() => setNotice(''), 3200);
-  };
+  const templates = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const list = REPORT_FAMILIES.flatMap((f) => f.reports.map((r) => ({ ...r, family: f.title, key: `${f.id}-${r.no}` })));
+    return list.filter((r) => !q || `${r.name} ${r.purpose} ${r.family}`.toLowerCase().includes(q));
+  }, [search]);
 
-  const handleFilterChange = (id: string, value: any) => {
-    setDraftFilters((prev) => ({ ...prev, [id]: value }));
-  };
+  const rows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return BENEFICIARIES.filter((row) => {
+      if (statusFilter !== 'all' && row.disbursementStatus !== statusFilter) return false;
+      if (!q) return true;
+      const hay = `${row.studentName} ${row.studentId} ${row.className} ${row.schemeName} ${row.disbursementStatus} ${row.applicationStatus}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }, [search, statusFilter]);
 
-  const appliedRows = useMemo(() => applyFilters(BENEFICIARIES, appliedFilters), [appliedFilters]);
+  const statuses = useMemo(() => Array.from(new Set(BENEFICIARIES.map((r) => r.disbursementStatus))).sort(), []);
 
-  const activeFilterChips = useMemo(() => {
-    const chips: { id: string; label: string; value: string }[] = [];
-    FILTER_GROUPS.forEach((g) =>
-      g.filters.forEach((f) => {
-        const raw = appliedFilters[f.id];
-        if (isBlank(raw)) return;
-        if (Array.isArray(raw)) {
-          const picked = raw.filter((v: string) => !isIgnoredOption(v));
-          if (picked.length === 0) return;
-          chips.push({ id: f.id, label: f.label, value: picked.join(', ') });
-        } else if (typeof raw === 'object') {
-          chips.push({
-            id: f.id,
-            label: f.label,
-            value: `${raw.min || '0'} — ${raw.max || '∞'}`
-          });
-        } else {
-          if (isIgnoredOption(String(raw))) return;
-          chips.push({ id: f.id, label: f.label, value: String(raw) + (f.unit || '') });
-        }
-      })
-    );
-    return chips;
-  }, [appliedFilters]);
-
-  const draftCount = useMemo(
-    () => Object.keys(draftFilters).filter((k) => !isBlank(draftFilters[k])).length,
-    [draftFilters]
-  );
-
-  const previewColumns = selectedReport ? selectedReport.report.columns : [];
-  const previewTotals = useMemo(() => {
-    return appliedRows.reduce(
-      (acc, r) => {
-        acc.total += r.totalAmount;
-        acc.disbursed += r.disbursedAmount;
-        acc.pending += r.pendingAmount;
-        return acc;
-      },
-      { total: 0, disbursed: 0, pending: 0 }
-    );
-  }, [appliedRows]);
-
-  const familyTotals = useMemo(() => {
-    return REPORT_FAMILIES.map((f) => ({ id: f.id, code: f.code, count: f.reports.length, title: f.title }));
-  }, []);
-
-  const exportPreviewCsv = () => {
-    if (!selectedReport) return;
-    const header = previewColumns.map((c) => COLUMN_LABELS[c] || c).join(',');
-    const lines = appliedRows.map((row) =>
-      previewColumns
-        .map((c) => `"${String(formatCell(c, (row as any)[c])).replace(/"/g, '""')}"`)
-        .join(',')
-    );
-    const csv = [header, ...lines].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${selectedReport.report.name.replace(/[^A-Za-z0-9]+/g, '_')}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    flash(`Exported "${selectedReport.report.name}" (${appliedRows.length} rows) to CSV.`);
+  const generate = (title: string) => {
+    setGenLog((prev) => [{ id: `${title}-${prev.length + 1}`, title, when: new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) }, ...prev]);
+    setActiveTab('generated');
   };
 
   return (
-    <div className="space-y-6">
-      {/* ---------------- HEADER ---------------- */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-gray-200">
-        <div className="flex items-center gap-3">
-
+    <div className="flex flex-col h-full bg-gray-50 min-h-full">
+      <div className="flex-shrink-0 bg-white border-b px-6 py-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-indigo-600 flex items-center justify-center text-white shadow-sm">
-                <FileText className="w-5 h-5" />
-              </div>
+            <h1 className="text-xl font-bold text-gray-900">Scholarship Reports</h1>
+            <p className="text-gray-500 text-sm mt-1">Search beneficiaries, filter by disbursement status, and generate scholarship reports</p>
+          </div>
+          <Button size="sm" onClick={() => generate(picked ? templates.find((t) => t.key === picked)?.name || 'Scholarship Report' : 'Scholarship Disbursement Summary')}>Generate Report</Button>
+        </div>
+      </div>
+
+      <div className="flex-shrink-0 bg-white border-b px-6 py-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-[220px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search students, schemes, reports…" className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm bg-white" />
+          </div>
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-3 py-2 bg-white border rounded-lg text-sm">
+            <option value="all">All disbursement statuses</option>
+            {statuses.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <div className="flex-shrink-0 bg-white border-b px-6">
+        <div className="flex gap-1">
+          {[
+            { id: 'templates' as const, label: 'Templates', count: templates.length },
+            { id: 'generated' as const, label: 'Generated', count: genLog.length },
+            { id: 'data' as const, label: 'Live Data', count: rows.length }
+          ].map((tab) => (
+            <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id)} className={`px-4 py-2.5 text-sm font-medium border-b-2 ${activeTab === tab.id ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500'}`}>
+              {tab.label}<span className="ml-1 px-1.5 py-0.5 text-xs bg-gray-100 rounded-full text-gray-600">{tab.count}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-6 space-y-3">
+        {activeTab === 'templates' && templates.map((r) => (
+          <Card key={r.key} className={`rounded-xl border p-4 ${picked === r.key ? 'border-blue-400 bg-blue-50/40' : 'border-gray-200'}`}>
+            <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                  Scholarship Reports Central <Badge variant="secondary" className="text-xs bg-indigo-50 text-indigo-700 border border-indigo-200"> FY: 2025-26 </Badge>
-                </h1>
-                <p className="text-xs text-gray-500">
-                  Single unified workspace — all {TOTAL_FILTERS} scholarship report criteria and all {TOTAL_REPORTS} statutory &amp; MIS reports in one page
-                </p>
+                <p className="text-sm font-semibold text-gray-900">{r.name}</p>
+                <p className="mt-1 text-xs text-gray-500">{r.family} · {r.purpose}</p>
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => setPicked(r.key)}>Select</Button>
+                <Button size="sm" onClick={() => generate(r.name)}>Generate</Button>
               </div>
             </div>
-          </div>
-        </div>
+          </Card>
+        ))}
+        {activeTab === 'templates' && templates.length === 0 && <p className="text-sm text-gray-500">No scholarship reports match the search.</p>}
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="text-xs text-emerald-700 border-emerald-200 bg-emerald-50 hover:bg-emerald-100"
-            onClick={() => flash('Compiling all 68 scholarship report sheets into the Excel workbook...')}
-          >
-            <FileSpreadsheet className="w-4 h-4 mr-1" /> Export Excel
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="text-xs text-rose-600 border-rose-200 bg-rose-50 hover:bg-rose-100"
-            onClick={() => flash('Printing compiled scholarship report portfolio (PDF)...')}
-          >
-            <Printer className="w-4 h-4 mr-1" /> Print PDF
-          </Button>
-        </div>
-      </div>
+        {activeTab === 'generated' && (genLog.length === 0 ? <p className="text-sm text-gray-500">No reports generated this session.</p> : genLog.map((g) => (
+          <Card key={g.id} className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+            <p className="text-sm font-semibold text-emerald-900">{g.title}</p>
+            <p className="mt-1 text-xs text-emerald-700">{g.when} · {rows.length} beneficiaries in scope</p>
+          </Card>
+        )))}
 
-      {notice && (
-        <div className="p-3.5 bg-indigo-50 border border-indigo-200 text-indigo-800 rounded-xl flex items-center gap-2.5 text-xs font-semibold">
-          <CheckCircle2 className="w-4 h-4 text-indigo-600 flex-shrink-0" />
-          {notice}
-        </div>
-      )}
-
-      {/* ---------------- KPI STRIP ---------------- */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        <KpiTile label="Total Reports" value={String(TOTAL_REPORTS)} note="5 report families" tone="indigo" />
-        <KpiTile label="Report Filters" value={String(TOTAL_FILTERS)} note="10 criteria groups" tone="blue" />
-        <KpiTile label="Active Criteria" value={String(activeFilterChips.length)} note="Applied to results" tone="amber" />
-        <KpiTile label="Records in Scope" value={String(appliedRows.length)} note={`of ${BENEFICIARIES.length} beneficiary records`} tone="emerald" />
-        <KpiTile label="Total Scholarship" value={inr(previewTotals.total)} note="Sanctioned value" tone="indigo" />
-        <KpiTile label="Disbursed / Pending" value={`${inr(previewTotals.disbursed)}`} note={`${inr(previewTotals.pending)} pending`} tone="purple" />
-      </div>
-
-      {/* ==================================================================== */}
-      {/* SINGLE FILTER PANEL — ALL 10 GROUPS INSIDE ONE PANEL                 */}
-      {/* ==================================================================== */}
-      <Card className="border border-gray-200 shadow-sm overflow-hidden">
-        <div
-          className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 cursor-pointer hover:bg-gray-50/60"
-          onClick={() => setIsFilterPanelOpen(!isFilterPanelOpen)}
-        >
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-indigo-100 rounded-lg">
-              <Filter className="w-4 h-4 text-indigo-600" />
-            </div>
-            <div>
-              <h2 className="text-sm font-bold text-gray-900">
-                Scholarship Report Criteria — All 10 Filter Groups
-              </h2>
-              <p className="text-[11px] text-gray-500">
-                {TOTAL_FILTERS} filters in a single panel · {draftCount} selected · {activeFilterChips.length} applied
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary" className="text-[10px] bg-gray-100 text-gray-600">
-              {FILTER_GROUPS.length} groups
-            </Badge>
-            {isFilterPanelOpen ? (
-              <ChevronUp className="w-4 h-4 text-gray-500" />
-            ) : (
-              <ChevronDown className="w-4 h-4 text-gray-500" />
-            )}
-          </div>
-        </div>
-
-        {isFilterPanelOpen && (
-          <div className="p-4 pt-0 space-y-5 animate-in fade-in">
-            {FILTER_GROUPS.map((group, gi) => (
-              <div
-                key={group.id}
-                className={gi === 0 ? 'pt-1' : 'pt-4 border-t border-gray-100'}
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-700">
-                    {group.title}
-                  </h3>
-                  <span className="text-[10px] font-semibold text-gray-400">
-                    {group.filters.length} filters
-                  </span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
-                  {group.filters.map((f) => (
-                    <FilterField
-                      key={f.id}
-                      def={f}
-                      value={draftFilters[f.id]}
-                      onChange={handleFilterChange}
-                    />
+        {activeTab === 'data' && (
+          <Card className="rounded-xl border border-gray-200 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
+                  <tr>{['Student', 'Class', 'Scheme', 'Sanctioned', 'Disbursed', 'Pending', 'Status'].map((h) => <th key={h} className="px-3 py-2 font-semibold">{h}</th>)}</tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => (
+                    <tr key={row.id} className="border-t border-gray-100">
+                      <td className="px-3 py-2"><p className="font-medium text-gray-900">{row.studentName}</p><p className="text-xs text-gray-500">{row.studentId}</p></td>
+                      <td className="px-3 py-2">{row.className} {row.section}</td>
+                      <td className="px-3 py-2">{row.schemeName}</td>
+                      <td className="px-3 py-2">{inr(row.totalAmount)}</td>
+                      <td className="px-3 py-2">{inr(row.disbursedAmount)}</td>
+                      <td className="px-3 py-2">{inr(row.pendingAmount)}</td>
+                      <td className="px-3 py-2">{row.disbursementStatus}</td>
+                    </tr>
                   ))}
-                </div>
-              </div>
-            ))}
-
-            {/* Panel footer — same panel, no separate cards */}
-            <div className="pt-4 border-t border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
-              <div className="flex flex-wrap items-center gap-1.5 max-h-20 overflow-y-auto">
-                {activeFilterChips.length === 0 ? (
-                  <span className="text-[11px] text-gray-400 italic">
-                    No criteria applied — all {BENEFICIARIES.length} scholarship records are in scope.
-                  </span>
-                ) : (
-                  activeFilterChips.map((c) => (
-                    <span
-                      key={c.id}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200"
-                    >
-                      {c.label}: {c.value}
-                    </span>
-                  ))
-                )}
-              </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-xs"
-                  onClick={() => {
-                    setDraftFilters({});
-                    setAppliedFilters({});
-                    flash('All report criteria cleared.');
-                  }}
-                >
-                  <RotateCcw className="w-3.5 h-3.5 mr-1" /> Reset All
-                </Button>
-                <Button
-                  size="sm"
-                  className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white"
-                  onClick={() => {
-                    setAppliedFilters({ ...draftFilters });
-                    flash(`Filters applied — ${Object.keys(draftFilters).filter((k) => !isBlank(draftFilters[k])).length} criteria active.`);
-                  }}
-                >
-                  <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Apply Filters
-                </Button>
-              </div>
+                </tbody>
+              </table>
             </div>
-          </div>
+            {rows.length === 0 && <p className="p-4 text-sm text-gray-500">No scholarship records match the search and status filter.</p>}
+          </Card>
         )}
-      </Card>
-
-      {/* ==================================================================== */}
-      {/* REPORT LIBRARY — ALL 68 REPORTS                                      */}
-      {/* ==================================================================== */}
-      <Card className="border border-gray-200 shadow-sm overflow-hidden">
-        <div className="p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-gray-100">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <Layers className="w-4 h-4 text-blue-600" />
-            </div>
-            <div>
-              <h2 className="text-sm font-bold text-gray-900">
-                Scholarship Report Library — {TOTAL_REPORTS} Reports
-              </h2>
-              <p className="text-[11px] text-gray-500">
-                Click any report to generate it using the criteria applied above
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative">
-              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
-              <input
-                type="text"
-                value={reportSearch}
-                onChange={(e) => setReportSearch(e.target.value)}
-                placeholder="Search report name or purpose..."
-                className="pl-9 pr-3 py-1.5 w-64 border border-gray-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              />
-            </div>
-            <select
-              value={familyFilter}
-              onChange={(e) => setFamilyFilter(e.target.value)}
-              className="py-1.5 px-2 border border-gray-300 rounded-lg text-xs bg-white focus:outline-none"
-            >
-              <option value="all">All Families ({TOTAL_REPORTS})</option>
-              {familyTotals.map((f) => (
-                <option key={f.id} value={f.id}>
-                  Family {f.code} — {f.title} ({f.count})
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div className="p-4 space-y-4">
-          {REPORT_FAMILIES.filter((f) => familyFilter === 'all' || familyFilter === f.id).map(
-            (family) => {
-              const visible = family.reports.filter((r) => {
-                if (!reportSearch.trim()) return true;
-                const q = reportSearch.toLowerCase();
-                return (
-                  r.name.toLowerCase().indexOf(q) !== -1 ||
-                  r.purpose.toLowerCase().indexOf(q) !== -1 ||
-                  r.meta.toLowerCase().indexOf(q) !== -1
-                );
-              });
-              const collapsed = !!collapsedFamilies[family.id];
-              const tone = TONE_STYLES[family.tone];
-
-              return (
-                <div key={family.id} className="border border-gray-200 rounded-xl overflow-hidden">
-                  <div
-                    className="p-3 flex items-center justify-between gap-3 bg-gray-50/70 cursor-pointer hover:bg-gray-100/70"
-                    onClick={() =>
-                      setCollapsedFamilies((prev) => ({ ...prev, [family.id]: !prev[family.id] }))
-                    }
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <span
-                        className={
-                          'w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-bold border ' +
-                          tone.chip
-                        }
-                      >
-                        {family.code}
-                      </span>
-                      <div>
-                        <h3 className="text-xs font-bold text-gray-900">{family.title}</h3>
-                        <p className="text-[10px] text-gray-500">{family.subtitle}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="secondary" className="text-[10px] bg-white border border-gray-200 text-gray-600">
-                        {visible.length} of {family.reports.length} reports
-                      </Badge>
-                      {collapsed ? (
-                        <ChevronDown className="w-4 h-4 text-gray-500" />
-                      ) : (
-                        <ChevronUp className="w-4 h-4 text-gray-500" />
-                      )}
-                    </div>
-                  </div>
-
-                  {!collapsed && (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left text-xs border-collapse">
-                        <thead>
-                          <tr className="bg-gray-50 border-b border-gray-200 text-gray-600 font-semibold uppercase tracking-wider">
-                            <th className="p-3 w-12 text-center">#</th>
-                            <th className="p-3">Report Name</th>
-                            <th className="p-3">Purpose / Contents</th>
-                            <th className="p-3">Frequency · Submitted To</th>
-                            <th className="p-3 text-right">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {visible.map((report) => {
-                            const isActive =
-                              selectedReport &&
-                              selectedReport.family.id === family.id &&
-                              selectedReport.report.no === report.no;
-                            return (
-                              <tr
-                                key={family.id + '-' + report.no}
-                                className={
-                                  'transition-colors ' +
-                                  (isActive ? 'bg-indigo-50/40' : 'hover:bg-indigo-50/20')
-                                }
-                              >
-                                <td className="p-3 text-center font-mono text-gray-500">{report.no}</td>
-                                <td className="p-3 font-semibold text-gray-900">
-                                  {report.name}
-                                  {isActive && (
-                                    <Badge
-                                      variant="secondary"
-                                      className="ml-2 text-[9px] bg-indigo-100 text-indigo-700 border border-indigo-200"
-                                    >
-                                      Generated
-                                    </Badge>
-                                  )}
-                                </td>
-                                <td className="p-3 text-gray-600">{report.purpose}</td>
-                                <td className="p-3 text-gray-500">{report.meta}</td>
-                                <td className="p-3">
-                                  <div className="flex items-center justify-end gap-1.5">
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      className="h-7 px-2 text-[11px] text-indigo-700 hover:bg-indigo-50"
-                                      onClick={() => {
-                                        setSelectedReport({ family, report });
-                                        flash(`Generated "${report.name}" from ${appliedRows.length} in-scope records.`);
-                                      }}
-                                    >
-                                      <Eye className="w-3.5 h-3.5 mr-1" /> Generate
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      className="h-7 px-2 text-[11px] text-gray-600 hover:bg-gray-100"
-                                      onClick={() => {
-                                        setSelectedReport({ family, report });
-                                        flash(`Preparing PDF export for "${report.name}"...`);
-                                      }}
-                                    >
-                                      <Download className="w-3.5 h-3.5" />
-                                    </Button>
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                          {visible.length === 0 && (
-                            <tr>
-                              <td colSpan={5} className="p-4 text-center text-gray-400 italic">
-                                No reports in this family match “{reportSearch}”.
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              );
-            }
-          )}
-        </div>
-      </Card>
-
-      {/* ==================================================================== */}
-      {/* GENERATED REPORT PREVIEW                                             */}
-      {/* ==================================================================== */}
-      {selectedReport && (
-        <Card className="border border-gray-200 shadow-sm overflow-hidden">
-          <div className="p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-gray-100">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 bg-emerald-100 rounded-lg">
-                <ShieldCheck className="w-4 h-4 text-emerald-600" />
-              </div>
-              <div>
-                <h2 className="text-sm font-bold text-gray-900">{selectedReport.report.name}</h2>
-                <p className="text-[11px] text-gray-500">
-                  Family {selectedReport.family.code} · {selectedReport.report.meta} ·{' '}
-                  {selectedReport.report.purpose}
-                </p>
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="secondary" className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200">
-                {appliedRows.length} records
-              </Badge>
-              <Button variant="outline" size="sm" className="text-xs" onClick={exportPreviewCsv}>
-                <FileSpreadsheet className="w-3.5 h-3.5 mr-1" /> Export CSV
-              </Button>
-              <Button variant="outline" size="sm" className="text-xs" onClick={() => flash('Sending report to print queue...')}>
-                <Printer className="w-3.5 h-3.5 mr-1" /> Print
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-xs"
-                onClick={() => setSelectedReport(null)}
-              >
-                Close
-              </Button>
-            </div>
-          </div>
-
-          {/* Report KPI strip */}
-          <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-3 border-b border-gray-100">
-            <div className="p-3 rounded-xl border border-gray-200 bg-gray-50/60">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Records</p>
-              <p className="text-lg font-bold text-gray-900">{appliedRows.length}</p>
-            </div>
-            <div className="p-3 rounded-xl border border-indigo-100 bg-indigo-50/50">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-indigo-600">
-                Total Scholarship
-              </p>
-              <p className="text-lg font-bold text-indigo-700">{inr(previewTotals.total)}</p>
-            </div>
-            <div className="p-3 rounded-xl border border-emerald-100 bg-emerald-50/50">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-600">Disbursed</p>
-              <p className="text-lg font-bold text-emerald-700">{inr(previewTotals.disbursed)}</p>
-            </div>
-            <div className="p-3 rounded-xl border border-amber-100 bg-amber-50/50">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-600">Pending</p>
-              <p className="text-lg font-bold text-amber-700">{inr(previewTotals.pending)}</p>
-            </div>
-          </div>
-
-          {/* Applied criteria recap */}
-          <div className="px-4 py-3 border-b border-gray-100 flex flex-wrap items-center gap-1.5">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500 mr-1">
-              Criteria applied:
-            </span>
-            {activeFilterChips.length === 0 ? (
-              <span className="text-[11px] text-gray-400 italic">None — full scholarship dataset</span>
-            ) : (
-              activeFilterChips.map((c) => (
-                <span
-                  key={'preview-' + c.id}
-                  className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-700 border border-gray-200"
-                >
-                  {c.label}: {c.value}
-                </span>
-              ))
-            )}
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-200 text-gray-600 font-semibold uppercase tracking-wider">
-                  {previewColumns.map((c) => (
-                    <th key={c} className="p-3 whitespace-nowrap">
-                      {COLUMN_LABELS[c] || c}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {appliedRows.map((row) => (
-                  <tr key={row.id} className="hover:bg-indigo-50/20 transition-colors">
-                    {previewColumns.map((c) => (
-                      <td key={row.id + '-' + c} className="p-3 whitespace-nowrap text-gray-700">
-                        {formatCell(c, (row as any)[c])}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-                {appliedRows.length === 0 && (
-                  <tr>
-                    <td colSpan={previewColumns.length} className="p-6 text-center text-gray-400 italic">
-                      No records match the applied criteria. Adjust the filters and apply again.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-              <tfoot className="bg-gray-50 font-bold border-t border-gray-200 text-xs">
-                <tr>
-                  <td className="p-3 text-gray-700">Total ({appliedRows.length} records)</td>
-                  {previewColumns.slice(1).map((c) =>
-                    MONEY_KEYS.indexOf(c) !== -1 ? (
-                      <td key={'tot-' + c} className="p-3 text-right font-mono text-gray-900">
-                        {inr(appliedRows.reduce((a, b) => a + Number((b as any)[c] || 0), 0))}
-                      </td>
-                    ) : (
-                      <td key={'tot-' + c} className="p-3 text-gray-400">
-                        —
-                      </td>
-                    )
-                  )}
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        </Card>
-      )}
-
-      {/* ---------------- FOOTER ---------------- */}
-      <div className="flex flex-col sm:flex-row items-center justify-between text-xs text-gray-500 px-2 pt-2">
-        <div className="flex items-center gap-2">
-          <BookOpen className="w-3.5 h-3.5 text-gray-400" />
-          K12 ERP Master System · Scholarship Reports &amp; Statutory Submission Engine
-        </div>
-        <div className="flex items-center gap-4 mt-2 sm:mt-0">
-          <span>
-            <Building2 className="w-3.5 h-3.5 inline mr-1 text-gray-400" />
-            {TOTAL_REPORTS} reports · {TOTAL_FILTERS} criteria
-          </span>
-          <span className="flex items-center gap-1">
-            <Clock className="w-3.5 h-3.5 text-gray-400" /> Last generated: Today
-          </span>
-          <span className="flex items-center gap-1">
-            <Sparkles className="w-3.5 h-3.5 text-gray-400" /> Active Academic Year: <b>2025-26</b>
-          </span>
-        </div>
       </div>
     </div>
   );
 }
-
-export default ScholarshipReport;

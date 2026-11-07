@@ -138,6 +138,10 @@ export const hrRegistry: Record<string, () => any> = {
     () => import('../hr/attendance/ManualAttendanceEmployee'),
     'ManualAttendanceEmployee'
   ),
+  'digital-registration-attendance-hr': rp(
+    () => import('../hr/attendance/DigitalRegistrationAttendanceHr'),
+    'DigitalRegistrationAttendanceHr'
+  ),
   'manual-attendance-employee': rp(
     () => import('../hr/attendance/ManualAttendanceEmployee'),
     'ManualAttendanceEmployee'
@@ -220,6 +224,10 @@ export const hrRegistry: Record<string, () => any> = {
     () => import('../hr/payroll/PayrollProcess'),
     'PayrollProcess'
   ),
+  'payroll-entry': rp(
+    () => import('../hr/payroll/PayrollEntry'),
+    'PayrollEntry'
+  ),
   'supplementary-arrear-payroll': rp(
     () => import('../hr/payroll/SupplementaryArrearPayroll'),
     'SupplementaryArrearPayroll'
@@ -227,6 +235,14 @@ export const hrRegistry: Record<string, () => any> = {
   'overtime-additional-earnings': rp(
     () => import('../hr/payroll/OvertimeAdditionalEarnings'),
     'OvertimeAdditionalEarnings'
+  ),
+  'overtime-management': rp(
+    () => import('../hr/payroll/OvertimeManagement'),
+    'OvertimeManagement'
+  ),
+  'staff-loan-management': rp(
+    () => import('../hr/payroll/StaffLoanManagement'),
+    'StaffLoanManagement'
   ),
   'manual-deduction-adjustment': rp(
     () => import('../hr/payroll/ManualDeductionAdjustment'),
@@ -253,16 +269,16 @@ export const hrRegistry: Record<string, () => any> = {
     'PayrollReport'
   ),
   'earnings-deduction-summary': rp(
-    () => import('../hr/payroll/EarningsDeductionSummary'),
-    'EarningsDeductionSummary'
+    () => import('../hr/payroll/PayrollReport'),
+    'PayrollReport'
   ),
   'department-cost-center-salary': rp(
-    () => import('../hr/payroll/DepartmentCostCenterSalary'),
-    'DepartmentCostCenterSalary'
+    () => import('../hr/payroll/PayrollReport'),
+    'PayrollReport'
   ),
   'payroll-audit-variance-report': rp(
-    () => import('../hr/payroll/PayrollAuditVarianceReport'),
-    'PayrollAuditVarianceReport'
+    () => import('../hr/payroll/PayrollReport'),
+    'PayrollReport'
   ),
   'pay-head-master': rp(
     () => import('../hr/payroll/PayHeadMaster'),
@@ -279,6 +295,10 @@ export const hrRegistry: Record<string, () => any> = {
   'payroll-calendar-period-master': rp(
     () => import('../hr/payroll/PayrollCalendarPeriodMaster'),
     'PayrollCalendarPeriodMaster'
+  ),
+  'income-tax-slab': rp(
+    () => import('../hr/income-tax/IncomeTaxSlab'),
+    'IncomeTaxSlab'
   ),
   'payroll-setup': rp(
     () => import('../hr/payroll/PayrollSetup'),
@@ -377,6 +397,22 @@ export const hrRegistry: Record<string, () => any> = {
     () => import('../hr/appraisal/SelfAppraisalEntry'),
     'SelfAppraisalEntry'
   ),
+  'goal-setting-tracking': rp(
+    () => import('../hr/appraisal/GoalSettingTracking'),
+    'GoalSettingTracking'
+  ),
+  'appraisal-individual-form': rp(
+    () => import('../hr/appraisal/AppraisalIndividualForm'),
+    'AppraisalIndividualForm'
+  ),
+  'employee-performance-feedback': rp(
+    () => import('../hr/appraisal/EmployeePerformanceFeedback'),
+    'EmployeePerformanceFeedback'
+  ),
+  'appraisal-outcome-increment': rp(
+    () => import('../hr/appraisal/AppraisalOutcomeIncrement'),
+    'AppraisalOutcomeIncrement'
+  ),
   'manager-hod-appraisal-entry': rp(
     () => import('../hr/appraisal/ManagerHodAppraisalEntry'),
     'ManagerHodAppraisalEntry'
@@ -384,6 +420,10 @@ export const hrRegistry: Record<string, () => any> = {
   'peer-student-feedback-capture': rp(
     () => import('../hr/appraisal/PeerStudentFeedbackCapture'),
     'PeerStudentFeedbackCapture'
+  ),
+  'student-feedback-entry': rp(
+    () => import('../hr/appraisal/StudentFeedbackEntry'),
+    'StudentFeedbackEntry'
   ),
   'appraisal-consolidation-final-rating': rp(
     () => import('../hr/appraisal/AppraisalConsolidationFinalRating'),
@@ -398,12 +438,16 @@ export const hrRegistry: Record<string, () => any> = {
     'AppraisalResultReport'
   ),
   'rating-distribution-normalisation': rp(
-    () => import('../hr/appraisal/RatingDistributionNormalisation'),
-    'RatingDistributionNormalisation'
+    () => import('../hr/appraisal/AppraisalResultReport'),
+    'AppraisalResultReport'
   ),
   'training-needs-action-plan-report': rp(
-    () => import('../hr/appraisal/TrainingNeedsActionPlanReport'),
-    'TrainingNeedsActionPlanReport'
+    () => import('../hr/appraisal/AppraisalResultReport'),
+    'AppraisalResultReport'
+  ),
+  'appraisal-settings': rp(
+    () => import('../hr/appraisal/AppraisalSettings'),
+    'AppraisalSettings'
   ),
   'appraisal-cycle-master': rp(
     () => import('../hr/appraisal/AppraisalCycleMaster'),
@@ -553,9 +597,29 @@ export const hrRegistry: Record<string, () => any> = {
     () => import('../hr/income-tax/EmployeeIncomeInvestmentDeclaration'),
     'EmployeeIncomeInvestmentDeclaration'
   ),
+  'employee-tax-exemption-declaration': rp(
+    () => import('../hr/income-tax/EmployeeTaxExemptionDeclaration'),
+    'EmployeeTaxExemptionDeclaration'
+  ),
+  'employee-other-income-declaration': rp(
+    () => import('../hr/income-tax/EmployeeOtherIncomeDeclaration'),
+    'EmployeeOtherIncomeDeclaration'
+  ),
+  'employee-benefit-application': rp(
+    () => import('../hr/income-tax/EmployeeBenefitApplication'),
+    'EmployeeBenefitApplication'
+  ),
+  'employee-benefit-claim': rp(
+    () => import('../hr/income-tax/EmployeeBenefitClaim'),
+    'EmployeeBenefitClaim'
+  ),
   'investment-deduction-proof-verification': rp(
     () => import('../hr/income-tax/InvestmentDeductionProofVerification'),
     'InvestmentDeductionProofVerification'
+  ),
+  'employee-tax-exemption-proof-submission': rp(
+    () => import('../hr/income-tax/EmployeeTaxExemptionProofSubmission'),
+    'EmployeeTaxExemptionProofSubmission'
   ),
   'annual-tax-projection-calculation': rp(
     () => import('../hr/income-tax/AnnualTaxProjectionCalculation'),
@@ -610,3 +674,5 @@ export const hrRegistry: Record<string, () => any> = {
     'HraSpecialExemptionRuleMaster'
   )
 };
+
+export default hrRegistry;

@@ -1319,6 +1319,7 @@ export function ProofVerificationStatus() {
             <span className="ml-2 text-xs">Last updated: {lastRefreshed.toLocaleTimeString()}</span>
             }
           </p>
+          <p className="mt-2 text-sm text-gray-600">Payroll period AY 2026-27 · Proof submission deadline 15 Feb 2027 · March payroll 31 Mar 2027. Old Regime employees only. March Payroll approaching — resolve shortfalls before that date.</p>
         </div>
         <div className="flex gap-2 flex-wrap">
           <Button variant="outline" size="sm" onClick={refreshData} disabled={isLoading}>
@@ -1405,6 +1406,20 @@ export function ProofVerificationStatus() {
           <p className="text-sm text-gray-600">Rejected</p>
         </Card>
       </div>
+
+      <Card className="p-4">
+        <div className="grid gap-3 text-sm md:grid-cols-4">
+          <p><b>Old Regime employees</b><br />{summaryStats.total}</p>
+          <p><b>Shortfall employees</b><br />{summaryStats.rejected} · aggregate shortfall ₹18.4L</p>
+          <p><b>Estimated additional March TDS</b><br />₹4.12L school-wide</p>
+          <p><b>High Impact (March TDS ×3+)</b><br />6 employees — escalate to Principal / Finance</p>
+        </div>
+        <p className="mt-2 text-xs text-gray-500">Forecast based on current verifications. Expand an employee row conceptually via Open to see category shortfall (80C / 80D / HRA). Query Pending reminders go from Proof Verification. Proceed to Annual Tax Reconciliation when ≥95% complete.</p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" onClick={() => setStatusFilter('Pending')}>Remind non-submitters</Button>
+          <Button size="sm" variant="outline" onClick={() => setStatusFilter('Rejected')}>Remind partial shortfall</Button>
+        </div>
+      </Card>
 
       {/* Filters */}
       <Card className="p-4">

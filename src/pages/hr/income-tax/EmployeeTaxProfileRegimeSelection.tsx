@@ -443,6 +443,20 @@ export function EmployeeTaxProfileRegimeSelection() {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(['basic', 'regime', 'settings'])
   );
+  const [accessRole, setAccessRole] = useState<'employee' | 'hr'>('hr');
+  const [otherLines, setOtherLines] = useState<{ id: string; category: string; amount: number }[]>([
+    { id: 'ol1', category: '80E Education Loan Interest', amount: 0 },
+    { id: 'ol2', category: '80G Donations', amount: 0 },
+    { id: 'ol3', category: 'LTA', amount: 0 },
+    { id: 'ol4', category: 'Section 24b Home Loan Interest', amount: 0 }
+  ]);
+  const PAYROLL_PERIOD = { label: 'AY 2026-27 Payroll Period', start: '2026-04-01', end: '2027-03-31' };
+  const REGIME_DEADLINE = '2026-04-30';
+  const daysToDeadline = Math.ceil((new Date(REGIME_DEADLINE).getTime() - new Date('2026-11-05').getTime()) / 86400000);
+  const deadlinePassed = daysToDeadline < 0;
+  const SESSION_EMPLOYEE_ID = '3';
+  const canEdit = accessRole === 'hr' || (accessRole === 'employee' && !Boolean(editedEmployee?.regimeConfirmed));
+  const employeeLocked = !canEdit;
 
   // Get selected employee
   const selectedEmployee = useMemo(
@@ -553,6 +567,10 @@ export function EmployeeTaxProfileRegimeSelection() {
   // Save profile
   const saveProfile = useCallback(async () => {
     if (!editedEmployee || !selectedEmployee) return;
+    if (!canEdit) {
+      setNotification({ type: 'error', message: 'This profile is locked. Switch to HR / Payroll Manager to submit or unlock.' });
+      return;
+    }
 
     // Validation
     if (!editedEmployee.pan && selectedRegime !== 'Not Selected') {
@@ -629,7 +647,7 @@ export function EmployeeTaxProfileRegimeSelection() {
 
       setNotification({
         type: 'success',
-        message: `Tax profile saved for ${editedEmployee.name}`
+        message: `Regime written to Salary Structure Assignment for ${editedEmployee.name}. Confirmation emailed with projected annual tax and monthly TDS.`
       });
     } catch (error) {
       setNotification({
@@ -655,12 +673,29 @@ export function EmployeeTaxProfileRegimeSelection() {
     }
   }, [selectedEmployee]);
 
+  const hraBreakdown = useMemo(() => {
+    if (!editedEmployee) return { annualBasic: 0, annualHraReceived: 0, annualRent: 0, legs: { actual: 0, rentMinus10: 0, pctBasic: 0 }, exempt: 0 };
+    const income = editedEmployee.annualIncome;
+    const annualBasic = Math.round(income * 0.4);
+    const annualHraReceived = Math.round(annualBasic * 0.4);
+    const annualRent = (editedEmployee.taxSettings.hraMonthlyRent || 0) * 12;
+    const metroPct = editedEmployee.taxSettings.cityType === 'metro' ? 0.5 : 0.4;
+    const legs = {
+      actual: annualHraReceived,
+      rentMinus10: Math.max(0, annualRent - Math.round(annualBasic * 0.1)),
+      pctBasic: Math.round(annualBasic * metroPct)
+    };
+    const exempt = editedEmployee.taxSettings.hraApplicable ? Math.min(legs.actual, legs.rentMinus10, legs.pctBasic) : 0;
+    return { annualBasic, annualHraReceived, annualRent, legs, exempt };
+  }, [editedEmployee]);
+
   // Calculate tax estimate
-  const calculateTax = useCallback((income: number, regime: 'Old' | 'New', deductions: TaxDeclaration) => {
-    let taxableIncome = income - 50000; // Standard deduction
+  const calculateTax = useCallback((income: number, regime: 'Old' | 'New', deductions: TaxDeclaration, hraExempt = 0, extraOld = 0) => {
+    const std = regime === 'New' ? 75000 : 50000;
+    let taxableIncome = income - std;
 
     if (regime === 'Old') {
-      // Apply deductions
+      taxableIncome -= hraExempt;
       taxableIncome -= Math.min(deductions.section80C, 150000);
       taxableIncome -= Math.min(deductions.section80D, 75000);
       taxableIncome -= deductions.section80E;
@@ -668,63 +703,44 @@ export function EmployeeTaxProfileRegimeSelection() {
       taxableIncome -= Math.min(deductions.section24, 200000);
       taxableIncome -= Math.min(deductions.nps80CCD, 50000);
       taxableIncome -= deductions.otherDeductions;
-
-      // Old regime slabs
-      let tax = 0;
-      if (taxableIncome > 1000000) {
-        tax += (taxableIncome - 1000000) * 0.30;
-        taxableIncome = 1000000;
-      }
-      if (taxableIncome > 500000) {
-        tax += (taxableIncome - 500000) * 0.20;
-        taxableIncome = 500000;
-      }
-      if (taxableIncome > 250000) {
-        tax += (taxableIncome - 250000) * 0.05;
-      }
-
-      return Math.round(tax * 1.04); // Including cess
-    } else {
-      // New regime slabs
-      let tax = 0;
-      if (taxableIncome > 1500000) {
-        tax += (taxableIncome - 1500000) * 0.30;
-        taxableIncome = 1500000;
-      }
-      if (taxableIncome > 1200000) {
-        tax += (taxableIncome - 1200000) * 0.20;
-        taxableIncome = 1200000;
-      }
-      if (taxableIncome > 900000) {
-        tax += (taxableIncome - 900000) * 0.15;
-        taxableIncome = 900000;
-      }
-      if (taxableIncome > 600000) {
-        tax += (taxableIncome - 600000) * 0.10;
-        taxableIncome = 600000;
-      }
-      if (taxableIncome > 300000) {
-        tax += (taxableIncome - 300000) * 0.05;
-      }
-
-      return Math.round(tax * 1.04); // Including cess
+      taxableIncome -= extraOld;
     }
+    taxableIncome = Math.max(0, Math.round(taxableIncome));
+    const rebateLimit = regime === 'New' ? 700000 : 500000;
+    let working = taxableIncome;
+    let tax = 0;
+    if (regime === 'Old') {
+      if (working > 1000000) { tax += (working - 1000000) * 0.30; working = 1000000; }
+      if (working > 500000) { tax += (working - 500000) * 0.20; working = 500000; }
+      if (working > 250000) { tax += (working - 250000) * 0.05; }
+    } else {
+      if (working > 1500000) { tax += (working - 1500000) * 0.30; working = 1500000; }
+      if (working > 1200000) { tax += (working - 1200000) * 0.20; working = 1200000; }
+      if (working > 900000) { tax += (working - 900000) * 0.15; working = 900000; }
+      if (working > 600000) { tax += (working - 600000) * 0.10; working = 600000; }
+      if (working > 300000) { tax += (working - 300000) * 0.05; }
+    }
+    if (taxableIncome <= rebateLimit) tax = 0;
+    if (taxableIncome > 5000000) tax += tax * 0.10;
+    return Math.round(tax * 1.04);
   }, []);
 
   // Get recommended regime
   const getRecommendedRegime = useCallback(() => {
     if (!editedEmployee) return null;
 
-    const oldTax = calculateTax(editedEmployee.annualIncome, 'Old', editedEmployee.declarations);
+    const extra = otherLines.reduce((s, l) => s + (Number(l.amount) || 0), 0);
+    const oldTax = calculateTax(editedEmployee.annualIncome, 'Old', editedEmployee.declarations, hraBreakdown.exempt, extra);
     const newTax = calculateTax(editedEmployee.annualIncome, 'New', editedEmployee.declarations);
 
     return {
-      recommended: oldTax < newTax ? 'Old' : 'New',
+      recommended: oldTax === 0 && newTax === 0 ? 'Either' : oldTax < newTax ? 'Old' : 'New',
       oldTax,
       newTax,
-      savings: Math.abs(oldTax - newTax)
+      savings: Math.abs(oldTax - newTax),
+      bothZero: oldTax === 0 && newTax === 0
     };
-  }, [editedEmployee, calculateTax]);
+  }, [editedEmployee, calculateTax, hraBreakdown.exempt, otherLines]);
 
   const recommendation = getRecommendedRegime();
 
@@ -841,10 +857,21 @@ export function EmployeeTaxProfileRegimeSelection() {
             Employee Tax Profile & Regime Selection
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            HR &gt; Payroll &gt; Income Tax &gt; Tax Profile
+            Employee Self-Service → Tax & Payroll → Tax Regime Selector
           </p>
         </div>
         <div className="flex gap-3 flex-wrap">
+          <div className="flex rounded-lg border border-gray-200 p-1">
+            <button type="button" className={`rounded-md px-3 py-1.5 text-sm ${accessRole === 'employee' ? 'bg-indigo-600 text-white' : 'text-gray-600'}`} onClick={() => {
+              setAccessRole('employee');
+              setSelectedEmployeeId(SESSION_EMPLOYEE_ID);
+              setNotification({ type: 'info', message: 'Employee mode: only your own tax profile is available. Employee identity is locked.' });
+            }}>Employee</button>
+            <button type="button" className={`rounded-md px-3 py-1.5 text-sm ${accessRole === 'hr' ? 'bg-indigo-600 text-white' : 'text-gray-600'}`} onClick={() => {
+              setAccessRole('hr');
+              setNotification({ type: 'info', message: 'HR / Payroll Manager mode: select any employee. You can submit on their behalf, including after the deadline.' });
+            }}>HR / Payroll Manager</button>
+          </div>
           <Button variant="outline" onClick={exportProfile} disabled={!editedEmployee}>
             <Download className="w-4 h-4 mr-2" />
             Export
@@ -888,45 +915,20 @@ export function EmployeeTaxProfileRegimeSelection() {
         </Card>
       }
 
-      {/* Filters */}
+      {accessRole === 'hr' && (
       <Card className="p-4">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search employee..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-
-            {searchQuery &&
-            <button
-              onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2">
-
-                <X className="w-4 h-4 text-gray-400" />
-              </button>
-            }
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Select
-            options={FISCAL_YEARS}
-            value={fiscalYear}
-            onChange={setFiscalYear} />
-
-          <Select
-            options={DEPARTMENTS}
-            value={departmentFilter}
-            onChange={setDepartmentFilter} />
-
-          <Select
-            options={REGIME_FILTER_OPTIONS}
-            value={regimeFilter}
-            onChange={setRegimeFilter} />
-
+            label="Select employee"
+            options={employees.map((emp) => ({ value: emp.id, label: `${emp.name} (${emp.code}) · ${emp.department}` }))}
+            value={selectedEmployeeId}
+            onChange={(e) => {
+              const id = typeof e === 'string' ? e : e.target.value;
+              if (hasUnsavedChanges && !window.confirm('You have unsaved changes. Discard them?')) return;
+              setSelectedEmployeeId(id);
+            }} />
+          <Select options={FISCAL_YEARS} value={fiscalYear} onChange={setFiscalYear} />
         </div>
-
-        {/* Quick Stats */}
         <div className="mt-4 pt-4 border-t grid grid-cols-5 gap-4 text-center">
           <div>
             <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
@@ -950,77 +952,16 @@ export function EmployeeTaxProfileRegimeSelection() {
           </div>
         </div>
       </Card>
+      )}
+      {accessRole === 'employee' && (
+        <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm text-indigo-800">
+          Signed in as {employees.find((e) => e.id === SESSION_EMPLOYEE_ID)?.name}. Employee lookup is hidden. {deadlinePassed ? 'Declaration deadline has passed — only HR can submit a new choice if yours is not yet locked.' : `${daysToDeadline} day(s) remain to choose.`}
+        </div>
+      )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Employee List Sidebar */}
-        <Card className="lg:col-span-1 p-4 h-[700px] overflow-y-auto">
-          <h3 className="font-semibold text-gray-900 mb-4">
-            Employee List ({filteredEmployees.length})
-          </h3>
-          <div className="space-y-2">
-            {filteredEmployees.length === 0 ?
-            <div className="text-center py-8 text-gray-500">
-                <User className="w-12 h-12 mx-auto mb-2 opacity-40" />
-                <p>No employees found</p>
-              </div> :
-
-            filteredEmployees.map((emp) =>
-            <div
-              key={emp.id}
-              onClick={() => {
-                if (hasUnsavedChanges) {
-                  const confirm = window.confirm('You have unsaved changes. Discard them?');
-                  if (!confirm) return;
-                }
-                setSelectedEmployeeId(emp.id);
-              }}
-              className={`p-3 rounded-lg cursor-pointer transition-colors ${
-              selectedEmployeeId === emp.id ?
-              'bg-blue-50 border-2 border-blue-500' :
-              'bg-gray-50 hover:bg-gray-100 border-2 border-transparent'}`
-              }>
-
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center flex-shrink-0">
-                      <User className="w-5 h-5 text-gray-600" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-900 text-sm truncate">{emp.name}</p>
-                      <p className="text-xs text-gray-500">{emp.code}</p>
-                      <p className="text-xs text-gray-500">{emp.department}</p>
-                    </div>
-                  </div>
-                  <div className="mt-2 flex items-center justify-between">
-                    <Badge
-                  className={
-                  emp.regime === 'New' ?
-                  'bg-blue-100 text-blue-700 text-xs' :
-                  emp.regime === 'Old' ?
-                  'bg-purple-100 text-purple-700 text-xs' :
-                  'bg-red-100 text-red-700 text-xs'
-                  }>
-
-                      {emp.regime}
-                    </Badge>
-                    <div className="flex items-center gap-1">
-                      {emp.panVerified ?
-                  <CheckCircle className="w-4 h-4 text-green-600" title="PAN Verified" /> :
-
-                  <AlertCircle className="w-4 h-4 text-red-600" title="PAN Missing" />
-                  }
-                      {emp.regimeConfirmed &&
-                  <Lock className="w-4 h-4 text-blue-600" title="Regime Locked" />
-                  }
-                    </div>
-                  </div>
-                </div>
-            )
-            }
-          </div>
-        </Card>
-
+      <div className="space-y-6">
         {/* Tax Profile Form */}
-        <div className="lg:col-span-3 space-y-6">
+        <div className={`space-y-6 ${employeeLocked ? 'pointer-events-none opacity-70' : ''}`}>
           {editedEmployee ?
           <>
               {/* Basic Tax Information */}
@@ -1063,6 +1004,25 @@ export function EmployeeTaxProfileRegimeSelection() {
                           Department
                         </label>
                         <Input value={editedEmployee.department} disabled />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Designation
+                        </label>
+                        <Input value={editedEmployee.designation} disabled />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Current Payroll Period
+                        </label>
+                        <Input value={`${PAYROLL_PERIOD.label} (${PAYROLL_PERIOD.start} to ${PAYROLL_PERIOD.end})`} disabled />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Deadline to Choose
+                        </label>
+                        <Input value={deadlinePassed ? `Passed (${REGIME_DEADLINE}) — HR can still submit` : `${REGIME_DEADLINE} · ${daysToDeadline} day(s) remaining`} disabled />
+                        {!deadlinePassed && daysToDeadline < 7 && <p className="mt-1 text-xs text-amber-700">Less than 7 days remain. Reminder urgency is escalated.</p>}
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1219,9 +1179,9 @@ export function EmployeeTaxProfileRegimeSelection() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                   <div
-                  onClick={() => !editedEmployee.regimeConfirmed && handleRegimeChange('Old')}
+                  onClick={() => canEdit && handleRegimeChange('Old')}
                   className={`p-4 border-2 rounded-lg transition-all ${
-                  editedEmployee.regimeConfirmed ?
+                  !canEdit ?
                   'cursor-not-allowed opacity-75' :
                   'cursor-pointer'} ${
 
@@ -1250,9 +1210,9 @@ export function EmployeeTaxProfileRegimeSelection() {
                   </div>
 
                   <div
-                  onClick={() => !editedEmployee.regimeConfirmed && handleRegimeChange('New')}
+                  onClick={() => canEdit && handleRegimeChange('New')}
                   className={`p-4 border-2 rounded-lg transition-all ${
-                  editedEmployee.regimeConfirmed ?
+                  !canEdit ?
                   'cursor-not-allowed opacity-75' :
                   'cursor-pointer'} ${
 
@@ -1280,7 +1240,7 @@ export function EmployeeTaxProfileRegimeSelection() {
                 </div>
 
                 {/* Declaration Checkbox */}
-                {selectedRegime !== 'Not Selected' && !editedEmployee.regimeConfirmed &&
+                {selectedRegime !== 'Not Selected' && canEdit &&
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                     <div className="flex items-start gap-3">
                       <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" />
@@ -1304,6 +1264,31 @@ export function EmployeeTaxProfileRegimeSelection() {
                   </div>
               }
               </Card>
+
+              {recommendation && (
+                <Card className="p-6">
+                  <h3 className="mb-3 text-lg font-bold text-gray-900">Live regime comparison</h3>
+                  {recommendation.bothZero && <p className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">Both regimes result in zero tax. You may select either.</p>}
+                  {!recommendation.bothZero && <p className="mb-3 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm text-indigo-800">Recommended: {recommendation.recommended} Regime. Annual savings ₹{recommendation.savings.toLocaleString('en-IN')}.</p>}
+                  <div className="grid gap-4 md:grid-cols-2 text-sm">
+                    <div className="rounded-lg border p-3">
+                      <p className="font-semibold text-purple-800">Old Regime</p>
+                      <p>Standard deduction ₹50,000</p>
+                      <p>HRA exemption ₹{hraBreakdown.exempt.toLocaleString('en-IN')}</p>
+                      <p>Annual tax (incl. 4% cess) ₹{recommendation.oldTax.toLocaleString('en-IN')}</p>
+                      <p>Monthly TDS ₹{Math.round(recommendation.oldTax / 12).toLocaleString('en-IN')}</p>
+                    </div>
+                    <div className="rounded-lg border p-3">
+                      <p className="font-semibold text-blue-800">New Regime</p>
+                      <p>Standard deduction ₹75,000</p>
+                      <p>No Chapter VI-A / HRA exemption</p>
+                      <p>Annual tax (incl. 4% cess) ₹{recommendation.newTax.toLocaleString('en-IN')}</p>
+                      <p>Monthly TDS ₹{Math.round(recommendation.newTax / 12).toLocaleString('en-IN')}</p>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-xs text-gray-500">Changing 80C, 80D, rent or city type recalculates both columns immediately. Selection writes the chosen Income Tax Slab back to Salary Structure Assignment.</p>
+                </Card>
+              )}
 
               {/* Tax Settings */}
               <Card className="p-6">
@@ -1424,6 +1409,13 @@ export function EmployeeTaxProfileRegimeSelection() {
                         )}
                             </select>
                           </div>
+                          <div className="col-span-2 grid grid-cols-2 gap-3 rounded-lg border border-indigo-100 bg-white p-3 text-sm">
+                            <p>Annual HRA received (from structure): <span className="font-medium">₹{hraBreakdown.annualHraReceived.toLocaleString('en-IN')}</span></p>
+                            <p>HRA exemption (least of 3): <span className="font-medium">₹{hraBreakdown.exempt.toLocaleString('en-IN')}</span></p>
+                            <p>Leg 1 — Actual HRA: ₹{hraBreakdown.legs.actual.toLocaleString('en-IN')}</p>
+                            <p>Leg 2 — Rent − 10% of Basic: ₹{hraBreakdown.legs.rentMinus10.toLocaleString('en-IN')}</p>
+                            <p className="col-span-2">Leg 3 — {editedEmployee.taxSettings.cityType === 'metro' ? '50%' : '40%'} of Basic: ₹{hraBreakdown.legs.pctBasic.toLocaleString('en-IN')}</p>
+                          </div>
                         </div>
                   }
                     </div>
@@ -1531,11 +1523,11 @@ export function EmployeeTaxProfileRegimeSelection() {
                     onChange={(e) =>
                     updateField(
                       'declarations.section80C',
-                      Math.min(parseInt(e.target.value) || 0, 150000)
+                      parseInt(e.target.value) || 0
                     )
                     }
-                    max={150000}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                        {editedEmployee.declarations.section80C > 150000 && <p className="mt-1 text-xs text-amber-700">Only ₹1,50,000 is counted. Excess will not reduce tax.</p>}
 
                       </div>
                       <div>
@@ -1614,6 +1606,16 @@ export function EmployeeTaxProfileRegimeSelection() {
                     max={50000}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
 
+                      </div>
+                      <div className="md:col-span-2 space-y-2">
+                        <p className="text-sm font-medium text-gray-700">Other declared exemptions</p>
+                        {otherLines.map((line) => (
+                          <div key={line.id} className="grid grid-cols-2 gap-2">
+                            <Select options={[{ value: '80E Education Loan Interest', label: '80E Education Loan Interest' }, { value: '80G Donations', label: '80G Donations' }, { value: 'LTA', label: 'LTA' }, { value: 'Section 24b Home Loan Interest', label: 'Section 24b Home Loan Interest' }]} value={line.category} onChange={(e) => setOtherLines((prev) => prev.map((item) => item.id === line.id ? { ...item, category: typeof e === 'string' ? e : e.target.value } : item))} />
+                            <Input type="number" value={line.amount} onChange={(e) => setOtherLines((prev) => prev.map((item) => item.id === line.id ? { ...item, amount: parseInt(e.target.value, 10) || 0 } : item))} />
+                          </div>
+                        ))}
+                        <Button variant="outline" size="sm" onClick={() => setOtherLines((prev) => [...prev, { id: `ol-${Date.now()}`, category: '80E Education Loan Interest', amount: 0 }])}>Add line</Button>
                       </div>
                     </div>
               }

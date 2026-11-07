@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   ArrowUpIcon,
   ArrowDownIcon,
@@ -376,6 +377,7 @@ function CustomTooltip({ active, payload, label }: any) {
   return null;
 }
 export function PayrollDashboard() {
+  const navigate = useNavigate();
   const [activeKpiInfo, setActiveKpiInfo] = useState<KpiInfo | null>(null);
   const [selectedBranches, setSelectedBranches] = useState<string[]>(['all']);
   const [batchYear, setBatchYear] = useState('2024-2025');
@@ -532,6 +534,12 @@ export function PayrollDashboard() {
           </div>
         )}
       </div>
+
+      <button type="button" onClick={() => navigate('/hr/payroll/payslip-lock-release')} className="w-full rounded-xl border border-amber-200 bg-amber-50 p-5 text-left shadow-sm hover:border-amber-300">
+        <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Payslip Release Status</p>
+        <p className="mt-1 text-2xl font-bold text-gray-900">Unreleased Payslips: 18</p>
+        <p className="mt-1 text-sm text-amber-800">October 2026 — 18 locked / held. Click to open Payslip Lock &amp; Release. Tile becomes “All Payslips Released” with the release date after full release.</p>
+      </button>
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

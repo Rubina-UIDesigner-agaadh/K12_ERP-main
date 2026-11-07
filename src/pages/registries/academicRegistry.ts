@@ -18,6 +18,10 @@ export const academicRegistry: Record<string, () => any> = {
     () => import('../academic/academics/TeacherPlanProgressPage'),
     'TeacherPlanProgressPage'
   ),
+  'teacher-plan-progress-admin': rp(
+    () => import('../academic/academics/TeacherPlanProgressAdmin'),
+    'TeacherPlanProgressAdmin'
+  ),
   'syllabus-planner': rp(
     () => import('../academic/academics/SyllabusPlanner'),
     'SyllabusPlanner'
@@ -232,3 +236,5 @@ export const academicRegistry: Record<string, () => any> = {
     'TeacherWorkloadView'
   )
 };
+
+export default academicRegistry;

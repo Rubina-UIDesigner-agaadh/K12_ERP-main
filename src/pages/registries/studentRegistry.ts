@@ -1,5 +1,6 @@
 import { rp } from './registryHelper';
 
+/** Lazy page map for Student module routes. Keep this file .ts-only (no JSX). */
 export const studentRegistry: Record<string, () => any> = {
   // Management
   'student-list': rp(
@@ -298,6 +299,10 @@ export const studentRegistry: Record<string, () => any> = {
     () => import('../student/attendance/ManualAttendanceCorrection'),
     'ManualAttendanceCorrection'
   ),
+  'digital-registration-attendance': rp(
+    () => import('../student/attendance/DigitalRegistrationAttendance'),
+    'DigitalRegistrationAttendance'
+  ),
   'device-sync-biometric': rp(
     () => import('../student/attendance/DeviceSyncBiometric'),
     'DeviceSyncBiometric'
@@ -327,12 +332,12 @@ export const studentRegistry: Record<string, () => any> = {
     'AttendanceReports'
   ),
   'attendance-defaulter-list': rp(
-    () => import('../student/attendance/AttendanceDefaulterList'),
-    'AttendanceDefaulterList'
+    () => import('../student/attendance/AttendanceReports'),
+    'AttendanceReports'
   ),
   'late-arrival-early-departure': rp(
-    () => import('../student/attendance/LateArrivalEarlyDeparture'),
-    'LateArrivalEarlyDeparture'
+    () => import('../student/attendance/AttendanceReports'),
+    'AttendanceReports'
   ),
   'holiday-working-day-calendar': rp(
     () => import('../student/attendance/HolidayWorkingDayCalendar'),
@@ -374,3 +379,5 @@ export const studentRegistry: Record<string, () => any> = {
     'PrintTemplate'
   )
 };
+
+export default studentRegistry;

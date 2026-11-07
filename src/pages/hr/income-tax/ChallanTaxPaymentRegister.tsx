@@ -1443,6 +1443,20 @@ Generated: ${new Date().toLocaleString()}
         </div>
       </div>
 
+      <Card className="p-4">
+        <div className="grid gap-3 text-sm md:grid-cols-4">
+          <p><span className="text-xs uppercase text-gray-400">Company / TAN</span><br />EduManager School · AHME12345A</p>
+          <p><span className="text-xs uppercase text-gray-400">Financial Year / Quarter</span><br />FY 2026–27 · Q3 (Oct–Dec)</p>
+          <p><span className="text-xs uppercase text-gray-400">Due date rule</span><br />7th of next month · March → 30 April. Late deposit: interest u/s 234B/234C and fee u/s 234E.</p>
+          <p><span className="text-xs uppercase text-gray-400">Payment mode</span><br />OLTAS / e-Payment (BSR 7 digits). Physical counter optional.</p>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={() => setNotification({ show: true, type: 'success', message: 'Fetched deductees from submitted salary slips for the selected deduction month. PAN Missing rows are highlighted for TDS return.' })}>Fetch from Payroll</Button>
+          <Button variant="outline" size="sm" onClick={() => setNotification({ show: true, type: 'warning', message: 'Deducted vs deposited must match before 24Q. Gap months stay Pending in the register.' })}>Reconcile deducted vs deposited</Button>
+          <Button variant="outline" size="sm" onClick={() => setNotification({ show: true, type: 'info', message: 'TDS Return for the quarter is ready once all months are recorded and PAN is complete.' })}>File TDS Return for quarter</Button>
+        </div>
+      </Card>
+
       {/* Filters */}
       <Card className="p-4">
         <div className="flex items-center justify-between mb-4">

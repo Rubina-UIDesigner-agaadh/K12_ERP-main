@@ -1,6 +1,6 @@
 // AttendanceReports.tsx - Attendance Reports with Branch & Batch Selection
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   FileText, Download, BarChart, TrendingUp, Users, Calendar, Filter, X, Search, Eye, Printer, Mail,
   RefreshCw, CheckCircle, Clock, AlertCircle, ChevronDown, ChevronUp, ArrowUpRight, ArrowDownRight,
@@ -119,8 +119,16 @@ const Toast = ({ message, type, onClose }: {message: string;type: 'success' | 'e
 };
 
 // Main Component
+const reportSectionFromPath = (): 'reports' | 'defaulter' | 'late' => {
+  const path = typeof window === 'undefined' ? '' : window.location.pathname;
+  if (path.includes('attendance-defaulter-list')) return 'defaulter';
+  if (path.includes('late-arrival-early-departure')) return 'late';
+  return 'reports';
+};
+
 export function AttendanceReports() {
   // States
+  const [reportSection, setReportSection] = useState<'reports' | 'defaulter' | 'late'>(() => reportSectionFromPath());
   const [filters, setFilters] = useState({ period: 'all', class: 'all', section: 'all', gender: 'all', attendance: 'all', status: 'all', search: '' });
   const [selectedBranches, setSelectedBranches] = useState<string[]>([]);
   const [selectedBatch, setSelectedBatch] = useState('');
@@ -204,6 +212,8 @@ export function AttendanceReports() {
     below75: filteredStudents.filter((s) => s.attendancePercentage < 75).length
   }), [filteredStudents]);
 
+  useEffect(() => { setReportSection(reportSectionFromPath()); }, []);
+
   const handleGenerateReport = () => {
     if (!selectedReportType) {showToast('Please select a report type', 'error');return;}
     setIsGenerating(true);
@@ -221,10 +231,94 @@ export function AttendanceReports() {
   const inputClass = 'w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500';
   const selectClass = 'w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white';
 
+  const lateRows = [
+    { id: '1', student: 'Amit Kumar', className: '9-B', date: '2026-10-12', type: 'Late Arrival', time: '08:45 AM', deviation: '45 mins', reason: 'Bus Breakdown' },
+    { id: '2', student: 'Priya Desai', className: '10-A', date: '2026-10-12', type: 'Early Departure', time: '01:30 PM', deviation: '2 hours', reason: 'Medical Appointment' },
+    { id: '3', student: 'Zara Khan', className: '10-A', date: '2026-10-31', type: 'Late Arrival', time: '08:41 AM', deviation: '41 mins', reason: 'Traffic' }
+  ];
+  const defaulterRows = studentAttendanceData.filter((s) => s.attendancePercentage < 75);
+
   return (
     <div className="h-screen overflow-hidden bg-gray-50 flex flex-col">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
+      <div className="flex-shrink-0 flex gap-1 bg-white border-b border-gray-200 px-6">
+        {([
+          { id: 'reports' as const, label: 'Report Criteria' },
+          { id: 'defaulter' as const, label: 'Defaulter List' },
+          { id: 'late' as const, label: 'Late Arrival / Early Departure' }
+        ]).map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => setReportSection(item.id)}
+            className={`whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium ${reportSection === item.id ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500'}`}>
+            {item.label}
+          </button>
+        ))}
+      </div>
+
+      {reportSection === 'defaulter' && (
+        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          <h1 className="text-2xl font-bold text-gray-900">Attendance Defaulter List</h1>
+          <p className="text-sm text-gray-500">Students below 75% attendance. Search is on this combined Attendance Reports page.</p>
+          <Card>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-gray-50 text-left text-xs uppercase text-gray-500">
+                    {['Student', 'Class', 'Present', 'Absent', '%', 'Consecutive absent', 'Parent'].map((h) => <th key={h} className="px-3 py-2">{h}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {defaulterRows.map((row) => (
+                    <tr key={row.id} className="border-b border-gray-100">
+                      <td className="px-3 py-2"><p className="font-medium">{row.studentName}</p><p className="text-xs text-gray-500">{row.studentId}</p></td>
+                      <td className="px-3 py-2">{row.class} {row.section}</td>
+                      <td className="px-3 py-2">{row.presentDays}</td>
+                      <td className="px-3 py-2">{row.absentDays}</td>
+                      <td className="px-3 py-2">{getAttendanceBadge(row.attendancePercentage)}</td>
+                      <td className="px-3 py-2">{row.consecutiveAbsent}</td>
+                      <td className="px-3 py-2 text-xs">{row.parentName}<br />{row.mobile}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {reportSection === 'late' && (
+        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          <h1 className="text-2xl font-bold text-gray-900">Late Arrival / Early Departure</h1>
+          <Card>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-gray-50 text-left text-xs uppercase text-gray-500">
+                    {['Student', 'Date', 'Type', 'Time', 'Deviation', 'Reason'].map((h) => <th key={h} className="px-3 py-2">{h}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {lateRows.map((row) => (
+                    <tr key={row.id} className="border-b border-gray-100">
+                      <td className="px-3 py-2"><p className="font-medium">{row.student}</p><p className="text-xs text-gray-500">{row.className}</p></td>
+                      <td className="px-3 py-2">{row.date}</td>
+                      <td className="px-3 py-2"><Badge variant={row.type === 'Late Arrival' ? 'warning' : 'info'}>{row.type}</Badge></td>
+                      <td className="px-3 py-2">{row.time}</td>
+                      <td className="px-3 py-2 text-red-600">{row.deviation}</td>
+                      <td className="px-3 py-2 text-gray-600">{row.reason}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {reportSection === 'reports' && <>
       {/* Header */}
       <div className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
@@ -569,6 +663,7 @@ export function AttendanceReports() {
           </div>
         }
       </Modal>
+      </>}
     </div>);
 
 }

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Search, RotateCcw, Download, Printer, Eye, CheckCircle, XCircle, Mail,
-  Play, SlidersHorizontal, FileSpreadsheet
+  Search, RotateCcw, Download, Printer, Eye, XCircle, Mail,
+  SlidersHorizontal, FileSpreadsheet
 } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
@@ -83,6 +83,8 @@ export type WaitMove = {
   action: string;
   stream: string;
   by: string;
+  prevPos?: string;
+  result?: string;
 };
 
 export type StreamStore = {
@@ -132,7 +134,13 @@ const DEFAULT_DOCS: StreamDoc[] = [
 const DEFAULT_WAIT: StreamWaitRow[] = [
   { pos: 1, name: 'Rohan Mehta', roll: 'CBSE1003', cat: 'SC', pct: 62, stream: 'Science', comb: 'PCM', why: '1st Pref Full — All Category Seats Gone', date: '19-06-2025', round: 'Round 1', notified: 'Yes' },
   { pos: 2, name: 'Ishaan Gupta', roll: 'CBSE1007', cat: 'OBC', pct: 55.3, stream: 'Science', comb: 'PCB', why: '1st Pref Full', date: '19-06-2025', round: 'Round 1', notified: 'No' },
-  { pos: 3, name: 'Meera Joshi', roll: 'CBSE1006', cat: 'EWS', pct: 71.8, stream: 'Commerce', comb: 'Commerce with Math', why: 'EWS seats exhausted', date: '19-06-2025', round: 'Round 1', notified: 'Yes' }
+  { pos: 3, name: 'Meera Joshi', roll: 'CBSE1006', cat: 'EWS', pct: 71.8, stream: 'Commerce', comb: 'Commerce with Math', why: 'EWS seats exhausted', date: '19-06-2025', round: 'Round 1', notified: 'Yes' },
+  { pos: 4, name: 'Ananya Iyer', roll: 'CBSE1004', cat: 'ST', pct: 48.5, stream: 'Arts', comb: 'Humanities', why: 'Cutoff not met for Science', date: '20-06-2025', round: 'Round 1', notified: 'No' },
+  { pos: 5, name: 'Kabir Khan', roll: 'CBSE1005', cat: 'General', pct: 84.1, stream: 'Science', comb: 'PCMB', why: 'Round 1 seat not confirmed', date: '20-06-2025', round: 'Round 2', notified: 'Yes' },
+  { pos: 6, name: 'Sara Ali', roll: 'CBSE1008', cat: 'General', pct: 88.0, stream: 'Commerce', comb: 'Commerce with Math', why: 'Preference reshuffle after decline', date: '21-06-2025', round: 'Round 2', notified: 'No' },
+  { pos: 7, name: 'Vivaan Reddy', roll: 'CBSE1009', cat: 'SC', pct: 39.2, stream: 'Vocational', comb: 'IT', why: 'Waitlisted after counselling', date: '22-06-2025', round: 'Round 2', notified: 'Yes' },
+  { pos: 8, name: 'Neha Shah', roll: 'CBSE0911', cat: 'General', pct: 82.6, stream: 'Science', comb: 'PCM', why: 'Seat released — waiting Round 2', date: '22-06-2025', round: 'Round 2', notified: 'No' },
+  { pos: 9, name: 'Arjun Nair', roll: 'CBSE0912', cat: 'OBC', pct: 67.4, stream: 'Commerce', comb: 'Commerce without Math', why: 'Category seats exhausted', date: '23-06-2025', round: 'Round 2', notified: 'Yes' }
 ];
 
 export function stamp() {
@@ -183,6 +191,9 @@ export function defaultStreamStore(): StreamStore {
       { name: 'Sara Ali', cat: 'SC', stream: 'Arts', comb: 'Humanities', reason: 'Parent request — verified', by: 'Counsellor Mehta', date: '22-06-2025' }
     ],
     movements: [
+      { at: '24 Jun 2025, 10:15', student: 'Rahul K', action: 'Promoted', stream: 'Science', prevPos: '#3', result: 'Accepted', by: 'Auto' },
+      { at: '25 Jun 2025, 09:00', student: 'Meena P', action: 'No Response', stream: 'Science', prevPos: '#1', result: 'Moved to #3', by: 'Auto' },
+      { at: '25 Jun 2025, 14:40', student: 'Suresh R', action: 'Removed', stream: 'Commerce', prevPos: '#2', result: 'Not Allotted', by: 'Admin' },
       { at: '21 Jun 2025', student: 'Kabir Khan', action: 'Promoted — Seat Freed', stream: 'Science', by: 'System (Auto)' },
       { at: '22 Jun 2025', student: 'Sara Ali', action: 'Removed — Student Withdrew', stream: 'Commerce', by: 'Admin' },
       { at: '23 Jun 2025', student: 'Diya Sharma', action: 'Seat Accepted', stream: 'Science', by: 'Student' }
@@ -247,7 +258,6 @@ const SUMMARY: { key: AppStatus | 'all'; label: string; color: string }[] = [
   { key: 'Eligible', label: 'Eligible', color: 'bg-green-600' },
   { key: 'Not Eligible', label: 'Not Eligible', color: 'bg-red-600' },
   { key: 'Allotted', label: 'Allotted', color: 'bg-purple-600' },
-  { key: 'Waitlisted', label: 'Waitlisted', color: 'bg-orange-500' },
   { key: 'Accepted', label: 'Accepted', color: 'bg-emerald-800' },
   { key: 'Rejected', label: 'Rejected', color: 'bg-red-800' }
 ];
@@ -270,7 +280,6 @@ export function ApplicationsDashboard() {
   const [stream, setStream] = useState('all');
   const [status, setStatus] = useState('all');
   const [eligibility, setEligibility] = useState('all');
-  const [density, setDensity] = useState<'comfortable' | 'compact'>('comfortable');
   const [round, setRound] = useState('all');
   const [minPct, setMinPct] = useState(0);
   const [maxPct, setMaxPct] = useState(100);
@@ -341,12 +350,6 @@ export function ApplicationsDashboard() {
     const next = { ...store, applications: store.applications.map((a) => ids.includes(a.id) ? mapper(a) : a) };
     pushAudit(next, auditAction, ids.join(', '), detail);
     persist(next);
-  };
-
-  const runCheck = (ids: string[]) => {
-    updateApps(ids, runEligibilityOn, 'Eligibility Run', `Eligibility re-checked for ${ids.length} application(s).`);
-    setNotice(`Eligibility check completed for ${ids.length} student(s).`);
-    setSelected([]);
   };
 
   const applyReasonAction = () => {
@@ -466,8 +469,6 @@ export function ApplicationsDashboard() {
         {selected.length > 0 && (
           <div className="px-4 py-3 bg-indigo-50 border-b flex flex-wrap gap-2 items-center">
             <span className="text-sm text-indigo-800 font-medium">{selected.length} selected</span>
-            <Button size="sm" variant="outline" onClick={() => runCheck(selected)}><Play className="w-3.5 h-3.5 mr-1" /> Run Eligibility Check</Button>
-            <Button size="sm" variant="outline" onClick={() => setReasonModal({ ids: selected, action: 'eligible' })}><CheckCircle className="w-3.5 h-3.5 mr-1" /> Mark as Eligible</Button>
             <Button size="sm" variant="outline" onClick={() => setReasonModal({ ids: selected, action: 'not-eligible' })}><XCircle className="w-3.5 h-3.5 mr-1" /> Mark as Not Eligible</Button>
             <Button size="sm" variant="outline" onClick={() => setReasonModal({ ids: selected, action: 'notify' })}><Mail className="w-3.5 h-3.5 mr-1" /> Send Notification</Button>
             <Button size="sm" variant="outline" onClick={() => downloadCsv([['ID', 'Name', 'Roll', 'Status'], ...filtered.filter((r) => selected.includes(r.id)).map((r) => [r.id, r.name, r.roll, r.status])], 'selected-applications.csv')}><Download className="w-3.5 h-3.5 mr-1" /> Export Selected</Button>
@@ -481,10 +482,20 @@ export function ApplicationsDashboard() {
             <option value="name">Name</option><option value="pct">Aggregate %</option><option value="submitted">Submission Date</option><option value="status">Status</option>
           </select></label>
           <label>Order <select value={sortDir} onChange={(e) => setSortDir(e.target.value as 'asc' | 'desc')} className="border rounded px-2 py-1"><option value="asc">Ascending</option><option value="desc">Descending</option></select></label>
-          <label>Density <select value={density} onChange={(e) => setDensity(e.target.value as typeof density)} className="border rounded px-2 py-1"><option value="comfortable">Comfortable</option><option value="compact">Compact</option></select></label>
           <span className="inline-flex items-center gap-1 text-gray-500"><SlidersHorizontal className="w-3.5 h-3.5" /> Columns</span>
-          {['roll', 'p2', 'p3', 'allotted'].map((c) => (
-            <label key={c} className="text-xs"><input type="checkbox" checked={colOn(c)} onChange={() => toggleCol(c)} className="mr-1" />{c}</label>
+          {[
+            { key: 'roll', label: 'Roll Number' },
+            { key: 'classSec', label: 'Class & Section' },
+            { key: 'pct', label: 'Aggregate %' },
+            { key: 'p1', label: '1st Preference' },
+            { key: 'p2', label: '2nd Preference' },
+            { key: 'p3', label: '3rd Preference' },
+            { key: 'status', label: 'Status' },
+            { key: 'eligibility', label: 'Eligibility' },
+            { key: 'allotted', label: 'Allotted Stream' },
+            { key: 'submitted', label: 'Submitted On' }
+          ].map((c) => (
+            <label key={c.key} className="text-xs whitespace-nowrap"><input type="checkbox" checked={colOn(c.key)} onChange={() => toggleCol(c.key)} className="mr-1" />{c.label}</label>
           ))}
           <div className="ml-auto flex gap-2">
             <Button size="sm" variant="outline" onClick={() => downloadCsv([['ID', 'Student', 'Roll', '%', 'Status'], ...filtered.map((r) => [r.id, r.name, r.roll, r.pct, r.status])], 'applications.csv')}><FileSpreadsheet className="w-3.5 h-3.5 mr-1" /> Excel</Button>
@@ -497,9 +508,19 @@ export function ApplicationsDashboard() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-3 py-2"><input type="checkbox" checked={pageRows.length > 0 && pageRows.every((r) => selected.includes(r.id))} onChange={(e) => setSelected(e.target.checked ? Array.from(new Set([...selected, ...pageRows.map((r) => r.id)])) : selected.filter((id) => !pageRows.some((r) => r.id === id)))} /></th>
-                {['#', 'Student', 'Roll Number', 'Class & Section', 'Aggregate %', '1st Preference', '2nd Preference', '3rd Preference', 'Status', 'Eligibility', 'Allotted Stream', 'Submitted On', 'Actions'].map((h) =>
-                  <th key={h} className="px-3 py-2 text-left text-xs font-semibold uppercase text-gray-500 whitespace-nowrap">{h}</th>
-                )}
+                <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-gray-500 whitespace-nowrap">#</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-gray-500 whitespace-nowrap">Student</th>
+                {colOn('roll') && <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-gray-500 whitespace-nowrap">Roll Number</th>}
+                {colOn('classSec') && <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-gray-500 whitespace-nowrap">Class & Section</th>}
+                {colOn('pct') && <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-gray-500 whitespace-nowrap">Aggregate %</th>}
+                {colOn('p1') && <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-gray-500 whitespace-nowrap">1st Preference</th>}
+                {colOn('p2') && <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-gray-500 whitespace-nowrap">2nd Preference</th>}
+                {colOn('p3') && <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-gray-500 whitespace-nowrap">3rd Preference</th>}
+                {colOn('status') && <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-gray-500 whitespace-nowrap">Status</th>}
+                {colOn('eligibility') && <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-gray-500 whitespace-nowrap">Eligibility</th>}
+                {colOn('allotted') && <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-gray-500 whitespace-nowrap">Allotted Stream</th>}
+                {colOn('submitted') && <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-gray-500 whitespace-nowrap">Submitted On</th>}
+                <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-gray-500 whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -507,8 +528,8 @@ export function ApplicationsDashboard() {
                 <tr><td colSpan={14} className="px-3 py-8 text-center text-gray-400">No applications match the current filters.</td></tr>
               )}
               {pageRows.map((row, idx) => (
-                <tr key={row.id} className={`hover:bg-gray-50 ${density === 'compact' ? 'text-xs' : ''}`}>
-                  <td className={density === 'compact' ? 'px-2 py-1' : 'px-3 py-2'}><input type="checkbox" checked={selected.includes(row.id)} onChange={() => setSelected((s) => s.includes(row.id) ? s.filter((id) => id !== row.id) : [...s, row.id])} /></td>
+                <tr key={row.id} className="hover:bg-gray-50">
+                  <td className="px-3 py-2"><input type="checkbox" checked={selected.includes(row.id)} onChange={() => setSelected((s) => s.includes(row.id) ? s.filter((id) => id !== row.id) : [...s, row.id])} /></td>
                   <td className="px-3 py-2 text-gray-500">{(page - 1) * pageSize + idx + 1}</td>
                   <td className="px-3 py-2">
                     <button type="button" className="flex items-center gap-2 text-left" onClick={() => setViewing(row)}>
@@ -516,23 +537,18 @@ export function ApplicationsDashboard() {
                       <span className="font-medium text-indigo-700 hover:underline">{row.name}</span>
                     </button>
                   </td>
-                  <td className="px-3 py-2">{colOn('roll') ? row.roll : '—'}</td>
-                  <td className="px-3 py-2">{row.classSec}</td>
-                  <td className={`px-3 py-2 ${pctColor(row.pct)}`}>{row.pct.toFixed(1)}%</td>
-                  <td className="px-3 py-2"><Badge variant="info">{row.p1}</Badge></td>
-                  <td className="px-3 py-2">{colOn('p2') ? <Badge variant="outline">{row.p2}</Badge> : '—'}</td>
-                  <td className="px-3 py-2">{colOn('p3') ? <Badge variant="outline">{row.p3}</Badge> : '—'}</td>
-                  <td className="px-3 py-2"><Badge variant={STATUS_VARIANT[row.status]}>{row.status}</Badge></td>
-                  <td className="px-3 py-2">{row.eligibility === 'Eligible' ? '✅ Eligible' : row.eligibility === 'Not Eligible' ? '❌ Not Eligible' : '⏳ Pending'}</td>
-                  <td className="px-3 py-2">{colOn('allotted') ? (row.allotted || '—') : '—'}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">{row.submitted}</td>
+                  {colOn('roll') && <td className="px-3 py-2">{row.roll}</td>}
+                  {colOn('classSec') && <td className="px-3 py-2">{row.classSec}</td>}
+                  {colOn('pct') && <td className={`px-3 py-2 ${pctColor(row.pct)}`}>{row.pct.toFixed(1)}%</td>}
+                  {colOn('p1') && <td className="px-3 py-2"><Badge variant="info">{row.p1}</Badge></td>}
+                  {colOn('p2') && <td className="px-3 py-2"><Badge variant="outline">{row.p2}</Badge></td>}
+                  {colOn('p3') && <td className="px-3 py-2"><Badge variant="outline">{row.p3}</Badge></td>}
+                  {colOn('status') && <td className="px-3 py-2"><Badge variant={STATUS_VARIANT[row.status]}>{row.status}</Badge></td>}
+                  {colOn('eligibility') && <td className="px-3 py-2">{row.eligibility === 'Eligible' ? '✅ Eligible' : row.eligibility === 'Not Eligible' ? '❌ Not Eligible' : '⏳ Pending'}</td>}
+                  {colOn('allotted') && <td className="px-3 py-2">{row.allotted || '—'}</td>}
+                  {colOn('submitted') && <td className="px-3 py-2 whitespace-nowrap">{row.submitted}</td>}
                   <td className="px-3 py-2">
-                    <div className="flex gap-1">
-                      <button type="button" title="View" onClick={() => setViewing(row)} className="p-1.5 hover:bg-gray-100 rounded"><Eye className="w-4 h-4" /></button>
-                      <button type="button" title="Check" onClick={() => runCheck([row.id])} className="p-1.5 hover:bg-gray-100 rounded"><Play className="w-4 h-4" /></button>
-                      <button type="button" title="Override" onClick={() => setReasonModal({ ids: [row.id], action: 'override' })} className="p-1.5 hover:bg-gray-100 rounded"><CheckCircle className="w-4 h-4" /></button>
-                      <button type="button" title="Allot" onClick={() => { setAllotStream(row.p1); setReasonModal({ ids: [row.id], action: 'allot' }); }} className="p-1.5 hover:bg-gray-100 rounded text-indigo-600">🎯</button>
-                    </div>
+                    <button type="button" title="View" onClick={() => setViewing(row)} className="p-1.5 hover:bg-gray-100 rounded"><Eye className="w-4 h-4" /></button>
                   </td>
                 </tr>
               ))}
