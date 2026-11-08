@@ -6,6 +6,8 @@ import { Input } from '../../../components/ui/Input';
 import { Select } from '../../../components/ui/Select';
 import { Badge } from '../../../components/ui/Badge';
 import { Plus, Save } from 'lucide-react';
+import { calculateIncomeTax } from './incomeTax';
+import { BENEFIT_CLAIM_STORE, loadJson } from './taxRecords';
 
 type Status = 'Draft' | 'Submitted' | 'Cancelled';
 type BenefitRow = {
@@ -92,7 +94,13 @@ export function EmployeeBenefitApplication() {
   const available = form.rows.reduce((s, r) => s + r.annual, 0);
   const applied = form.rows.reduce((s, r) => s + r.applied, 0);
   const unallocated = available - applied;
-  const taxOnUnallocated = Math.round(Math.max(0, unallocated) * 0.2 * 1.04);
+  const claims = loadJson<any[]>(BENEFIT_CLAIM_STORE, []);
+  const claimedForApp = claims.filter((c) => c.applicationId === form.id && c.status !== 'Rejected' && c.status !== 'Cancelled');
+  const reserved = claimedForApp.filter((c) => c.status === 'Submitted' || c.status === 'Pending HR review').reduce((s: number, c: any) => s + (c.claimed || 0), 0);
+  const approvedClaimed = claimedForApp.filter((c) => c.status === 'Approved' || c.status === 'Paid' || c.status === 'Partially Approved').reduce((s: number, c: any) => s + (c.approvedAmount || c.claimed || 0), 0);
+  const taxOnUnallocated = unallocated > 0
+    ? Math.max(0, calculateIncomeTax({ annualGrossSalary: 900000, otherIncome: unallocated, periodId: form.periodId, regime: 'Old Regime' }).finalAnnualTax - calculateIncomeTax({ annualGrossSalary: 900000, periodId: form.periodId, regime: 'Old Regime' }).finalAnnualTax)
+    : 0;
   const overClaim = form.rows.find((r) => r.applied > r.annual);
   const cea = form.rows.find((r) => r.component === 'Children Education Allowance');
 
@@ -103,6 +111,9 @@ export function EmployeeBenefitApplication() {
   };
   const save = (status: Status) => {
     if (overClaim) { setNotice(`${overClaim.component}: amount applied cannot exceed annual entitlement ${inr(overClaim.annual)}.`); return; }
+    if (applied > available) { setNotice('Total allocation cannot exceed eligible flexible benefits.'); return; }
+    const duplicate = list.find((r) => r.employeeId === form.employeeId && r.periodId === form.periodId && r.id !== form.id && r.status !== 'Cancelled');
+    if (duplicate) { setNotice('Only one benefit application is allowed per employee per payroll period.'); return; }
     const rec: Rec = { ...form, id: form.id || `BA-${Date.now()}`, status };
     persist(list.some((r) => r.id === rec.id) ? list.map((r) => r.id === rec.id ? rec : r) : [rec, ...list], status === 'Submitted' ? 'Application submitted. Pay-against-claim amounts wait in the pending claim pool; others appear on the next slip.' : 'Draft saved.');
     setForm(rec);
@@ -116,7 +127,7 @@ export function EmployeeBenefitApplication() {
     setMode('form');
   };
 
-  const live = useMemo(() => ({ available, applied, unallocated, taxOnUnallocated }), [available, applied, unallocated, taxOnUnallocated]);
+  const live = useMemo(() => ({ available, applied, unallocated, taxOnUnallocated, reserved, approvedClaimed }), [available, applied, unallocated, taxOnUnallocated, reserved, approvedClaimed]);
 
   return (
     <div className="space-y-6 p-6">
@@ -199,8 +210,10 @@ export function EmployeeBenefitApplication() {
               <p>Total benefits applied {inr(live.applied)}</p>
               <p>Total benefits available {inr(live.available)}</p>
               <p>Unallocated amount {inr(live.unallocated)}</p>
-              <p>Estimated tax on unallocated {inr(live.taxOnUnallocated)}</p>
-              {live.unallocated > 0 && <p className="md:col-span-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800">Unapplied / unclaimed benefits are taxed in the last payroll when “Deduct Tax For Unclaimed Employee Benefits” is on. Submit claims before the March payroll.</p>}
+              <p>Reserved for pending claims {inr(live.reserved)}</p>
+              <p>Approved / paid claims {inr(live.approvedClaimed)}</p>
+              <p>Estimated tax on unallocated (shared engine, if year-end tax-on-unclaimed is configured) {inr(live.taxOnUnallocated)}</p>
+              {live.unallocated > 0 && <p className="md:col-span-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800">Unapplied / unclaimed benefits are taxed in the last payroll when “Deduct Tax For Unclaimed Employee Benefits” is on. Submit claims before the March payroll. Tax treatment is not hardcoded as exempt.</p>}
             </div>
           </Card>
 

@@ -9,6 +9,23 @@ import { Plus, Save } from 'lucide-react';
 
 const APP_STORE = 'k12-benefit-application-v1';
 const STORE = 'k12-benefit-claim-v1';
+type AppRec = { id: string; employeeId: string; periodId: string; status: string; rows: { component: string; annual: number; applied: number; payAgainstClaim: boolean; claimed: number }[] };
+const loadApps = (): AppRec[] => {
+  try {
+    const raw = localStorage.getItem(APP_STORE);
+    return raw ? JSON.parse(raw) as AppRec[] : [];
+  } catch {
+    return [];
+  }
+};
+const mapBenefit = (key: string) => {
+  const k = key.toLowerCase();
+  if (k.includes('leave travel') || k === 'lta') return 'LTA' as const;
+  if (k.includes('medical')) return 'Medical' as const;
+  if (k.includes('education') || k === 'cea') return 'CEA' as const;
+  if (k.includes('uniform')) return 'Uniform' as const;
+  return null;
+};
 const PERIOD = { id: 'AY-2026-27', label: 'AY 2026-27 Payroll Period (01-04-2026 to 31-03-2027)', start: '2026-04-01', end: '2027-03-31' };
 const inr = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
 
@@ -136,6 +153,8 @@ export function EmployeeBenefitClaim() {
   const isEmployee = role === 'employee';
   const canApprove = role === 'hr' && (form.status === 'Submitted' || form.status === 'Partially Approved');
   const emp = EMPLOYEES.find((e) => e.id === form.employeeId) || EMPLOYEES[0];
+  const apps = loadApps().filter((a) => a.employeeId === form.employeeId && a.periodId === form.periodId && a.status !== 'Cancelled');
+  const approvedApp = apps.find((a) => a.status === 'Submitted' || a.status === 'Approved') || apps[0];
   const options = eligibleFor(form.structure);
   const billTotal = form.bills.reduce((s, b) => s + (Number(b.amount) || 0), 0);
   const effective = Math.min(form.claimed, form.maxEligible, billTotal || 0);
@@ -193,6 +212,13 @@ export function EmployeeBenefitClaim() {
   const validateSubmit = () => {
     if (form.claimDate < PERIOD.start || form.claimDate > PERIOD.end) return 'Claim date must fall in the active payroll period.';
     if (form.claimed <= 0) return 'Enter a claimed amount.';
+    if (!approvedApp) return 'Select an approved Employee Benefit Application before claiming.';
+    const appRow = approvedApp.rows.find((r) => mapBenefit(r.component) === form.benefit);
+    if (appRow && !appRow.payAgainstClaim) return 'This component is paid through salary, not as a claim.';
+    const allocated = appRow?.applied ?? form.maxEligible;
+    const already = list.filter((r) => r.employeeId === form.employeeId && r.benefit === form.benefit && r.id !== form.id && r.status !== 'Rejected' && r.status !== 'Cancelled').reduce((s, r) => s + (r.status === 'Approved' || r.status === 'Partially Approved' || r.status === 'Paid' ? r.approvedAmount : r.status === 'Submitted' ? r.claimed : 0), 0);
+    const remaining = Math.max(0, allocated - already);
+    if (form.claimed > remaining) return `Claimed amount cannot exceed remaining eligible ${inr(remaining)} from the application.`;
     if (form.claimed > form.maxEligible) return `Claimed amount cannot exceed max eligible ${inr(form.maxEligible)}.`;
     if (billTotal < form.claimed) return `Bills total ${inr(billTotal)} is less than claimed ${inr(form.claimed)}. Claim is limited to bills.`;
     if (form.bills.some((b) => !b.number.trim() || !b.description.trim() || !b.file.trim() || !b.amount)) return 'Every bill needs date, number, description, amount and attachment.';
@@ -303,7 +329,7 @@ export function EmployeeBenefitClaim() {
                   <Input label="Claim Date" type="date" value={form.claimDate} onChange={(e) => setForm({ ...form, claimDate: e.target.value })} />
                   <Input label="Payroll Period" value={PERIOD.label} readOnly />
                   <Input label="Salary Structure" value={form.structure} readOnly />
-                  {form.applicationId && <Input label="From Benefit Application" value={form.applicationId} readOnly />}
+                  <Select label="Benefit application reference" options={[{ value: '', label: apps.length ? 'Select application' : 'No application — create one first' }, ...apps.map((a) => ({ value: a.id, label: `${a.id} · ${a.status}` }))]} value={form.applicationId || ''} onChange={(e) => setForm({ ...form, applicationId: (typeof e === 'string' ? e : e.target.value) || undefined })} />
                 </div>
               </Card>
 

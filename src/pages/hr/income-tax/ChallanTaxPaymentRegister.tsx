@@ -1361,6 +1361,9 @@ Generated: ${new Date().toLocaleString()}
 
   return (
     <div className="space-y-6 p-6">
+      <div className="rounded-lg border border-indigo-100 bg-indigo-50 px-4 py-2 text-sm text-indigo-900">
+        Paid is not the same as available for TDS return allocation. Map employees and returns only after the challan is submitted/verified. Do not allocate more than deposited − already claimed. TRACES verification is recorded here only as a frontend status unless a real integration exists. Capture CIN, BSR, challan serial, surcharge/cess breakup on the challan form when editing.
+      </div>
       {/* Notification */}
       {notification.show &&
       <div

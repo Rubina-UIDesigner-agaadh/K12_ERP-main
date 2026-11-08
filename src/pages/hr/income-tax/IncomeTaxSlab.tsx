@@ -10,6 +10,8 @@ import { Modal } from '../../../components/ui/Modal';
 import { Plus, Edit, Trash2, Save } from 'lucide-react';
 import { PAYROLL_COMPANIES } from '../payroll/PayrollSetup';
 import { ANNUAL_PERIOD_STORE, INCOME_TAX_SLAB_STORE, type AnnualPeriod } from '../payroll/PayrollCalendarPeriodMaster';
+import { calculateIncomeTax, remainingPayrollMonths } from './incomeTax';
+import type { TaxPack } from './incomeTax';
 
 type Regime = 'Old Regime' | 'New Regime' | 'Custom';
 type SlabRow = { id: string; from: number; to: number | null; rate: number; condition: string };
@@ -57,11 +59,16 @@ const defaultCharges = (): TaxCharge[] => [
   { id: 'c4', description: 'Surcharge (25%)', kind: 'Percentage of Tax', rate: 25, condition: 'annual_taxable_earning > 20000000', minAmount: 20000001, maxAmount: null }
 ];
 const defaultExemptions = (): ExemptionRow[] => [
-  { id: 'e1', category: 'Standard Deduction', sub: '—', maxAmount: 75000, basedOn: 'Fixed', appliesIf: 'Old Regime only', oldOnly: true },
+  { id: 'e1', category: 'Standard Deduction', sub: '—', maxAmount: 50000, basedOn: 'Fixed', appliesIf: 'Always', oldOnly: false },
   { id: 'e2', category: 'HRA Exemption', sub: '80GG / Actual', maxAmount: 0, basedOn: 'Formula', appliesIf: 'Declared', oldOnly: true },
-  { id: 'e3', category: '80C', sub: 'ELSS/PPF/LIC', maxAmount: 150000, basedOn: 'Declared', appliesIf: 'Old Regime', oldOnly: true },
-  { id: 'e4', category: '80D', sub: 'Medical Insurance', maxAmount: 25000, basedOn: 'Declared', appliesIf: 'Old Regime', oldOnly: true },
-  { id: 'e5', category: 'LTA', sub: 'Leave Travel', maxAmount: 0, basedOn: 'Declared', appliesIf: 'Old Regime', oldOnly: true }
+  { id: 'e3', category: '80C', sub: 'ELSS/PPF/LIC/Tuition/Principal', maxAmount: 150000, basedOn: 'Declared', appliesIf: 'Old Regime', oldOnly: true },
+  { id: 'e4', category: '80D', sub: 'Medical Insurance', maxAmount: 75000, basedOn: 'Declared', appliesIf: 'Old Regime', oldOnly: true },
+  { id: 'e5', category: '80E', sub: 'Education loan interest', maxAmount: 0, basedOn: 'Declared', appliesIf: 'Old Regime', oldOnly: true },
+  { id: 'e6', category: '80G', sub: 'Donations', maxAmount: 0, basedOn: 'Declared', appliesIf: 'Old Regime', oldOnly: true },
+  { id: 'e7', category: '80CCD(1B)', sub: 'NPS additional', maxAmount: 50000, basedOn: 'Declared', appliesIf: 'Old Regime', oldOnly: true },
+  { id: 'e8', category: 'Section 24b', sub: 'Home loan interest', maxAmount: 200000, basedOn: 'Declared', appliesIf: 'Old Regime', oldOnly: true },
+  { id: 'e9', category: '80TTA', sub: 'Savings interest', maxAmount: 10000, basedOn: 'Declared', appliesIf: 'Old Regime', oldOnly: true },
+  { id: 'e10', category: 'LTA', sub: 'Leave Travel', maxAmount: 0, basedOn: 'Declared', appliesIf: 'Old Regime', oldOnly: true }
 ];
 const oldRows = (): SlabRow[] => [
   { id: 'o1', from: 0, to: 300000, rate: 0, condition: '' },
@@ -96,27 +103,32 @@ const loadPacks = (): TaxSlabPack[] => {
 };
 const savePacks = (rows: TaxSlabPack[]) => localStorage.setItem(INCOME_TAX_SLAB_STORE, JSON.stringify(rows));
 
-const taxOn = (income: number, rows: SlabRow[]) => {
-  let tax = 0;
-  [...rows].sort((a, b) => a.from - b.from).forEach((row) => {
-    const hi = row.to == null ? income : row.to;
-    const lo = row.from === 0 ? 0 : row.from - 1;
-    const amount = Math.max(0, Math.min(income, hi) - lo);
-    tax += amount * (row.rate / 100);
-  });
-  return tax;
-};
 const compute = (gross: number, pack: TaxSlabPack | undefined, declarations: boolean, extra80c: number, extra80d: number) => {
-  if (!pack) return { gross, std: 0, d80c: 0, d80d: 0, taxable: gross, tax: 0, surcharge: 0, cess: 0, total: 0, monthly: 0, rate: 0 };
-  const std = pack.exemptions.find((item) => item.category === 'Standard Deduction')?.maxAmount || 0;
-  const d80c = declarations && pack.regime === 'Old Regime' ? extra80c : 0;
-  const d80d = declarations && pack.regime === 'Old Regime' ? extra80d : 0;
-  const taxable = Math.max(0, gross - std - d80c - d80d);
-  const tax = taxOn(taxable, pack.rows);
-  const surcharge = taxable > pack.surchargeThreshold ? tax * (pack.surchargeRate / 100) : 0;
-  const cess = (tax + surcharge) * (pack.cessPercent / 100);
-  const total = tax + surcharge + cess;
-  return { gross, std, d80c, d80d, taxable, tax, surcharge, cess, total, monthly: total / 12, rate: gross ? (total / gross) * 100 : 0 };
+  if (!pack) return { gross, std: 0, d80c: 0, d80d: 0, taxable: gross, tax: 0, rebate: 0, surcharge: 0, cess: 0, total: 0, monthly: 0, rate: 0, remainingMonths: remainingPayrollMonths() };
+  const result = calculateIncomeTax({
+    pack: pack as TaxPack,
+    regime: pack.regime,
+    periodId: pack.periodId,
+    annualGrossSalary: gross,
+    applyDeclarations: declarations,
+    deductions: { section80C: extra80c, section80D: extra80d },
+    remainingMonths: remainingPayrollMonths()
+  });
+  return {
+    gross: result.grossIncome,
+    std: result.standardDeduction,
+    d80c: result.deductionsApplied.section80C || 0,
+    d80d: result.deductionsApplied.section80D || 0,
+    taxable: result.taxableIncome,
+    tax: result.taxAfterRebate,
+    rebate: result.rebate,
+    surcharge: result.surcharge,
+    cess: result.cess,
+    total: result.finalAnnualTax,
+    monthly: result.monthlyTdsEstimate,
+    rate: result.effectiveRate,
+    remainingMonths: result.remainingMonths
+  };
 };
 
 const blankPack = (periodId: string, regime: Regime): TaxSlabPack => ({
@@ -213,15 +225,18 @@ export function IncomeTaxSlab() {
     if (!draft.periodId) { setNotice('Payroll period is required.'); return; }
     const overlap = overlapPair(draft.rows);
     if (overlap) { setNotice(`Tax slab ranges overlap between Row ${overlap[0]} and Row ${overlap[1]}. Please correct before saving.`); return; }
-    const exists = packs.some((item) => item.id === draft.id);
-    persist(exists ? packs.map((item) => item.id === draft.id ? draft : item) : [...packs, { ...draft, status: draft.status || 'Active' }], 'Tax slab saved.');
+    const stdRow = draft.exemptions.find((item) => item.category === 'Standard Deduction');
+    const synced = { ...draft, standardExemption: stdRow?.maxAmount ?? draft.standardExemption };
+    const exists = packs.some((item) => item.id === synced.id);
+    persist(exists ? packs.map((item) => item.id === synced.id ? synced : item) : [...packs, { ...synced, status: synced.status || 'Active' }], 'Tax slab saved.');
     setMode('list');
   };
   const submitDraft = () => {
     if (!draft) return;
     const overlap = overlapPair(draft.rows);
     if (overlap) { setNotice(`Tax slab ranges overlap between Row ${overlap[0]} and Row ${overlap[1]}. Please correct before saving.`); return; }
-    const next = { ...draft, submitted: true, status: 'Active' as const };
+    const stdRow = draft.exemptions.find((item) => item.category === 'Standard Deduction');
+    const next = { ...draft, standardExemption: stdRow?.maxAmount ?? draft.standardExemption, submitted: true, status: 'Active' as const };
     const exists = packs.some((item) => item.id === draft.id);
     persist(exists ? packs.map((item) => item.id === draft.id ? next : item) : [...packs, next], 'Tax slab submitted and locked.');
     setDraft(next);
@@ -448,7 +463,13 @@ export function IncomeTaxSlab() {
                   <input type="checkbox" checked={Boolean(draft.allowExemption)} disabled={draft.submitted || draft.regime === 'New Regime'} onChange={(e) => patchDraft({ allowExemption: e.target.checked })} />
                   Allow Tax Exemption {draft.regime === 'New Regime' && <span className="text-xs text-amber-700">(must stay OFF for New Tax Regime)</span>}
                 </label>
-                <Input label="Standard Tax Exemption Amount" type="number" value={String(draft.standardExemption || 0)} disabled={!draft.allowExemption || draft.submitted} onChange={(e) => patchDraft({ standardExemption: Number(e.target.value) || 0 })} />
+                <Input label="Standard Tax Exemption Amount" type="number" value={String(draft.standardExemption || 0)} disabled={draft.submitted} onChange={(e) => {
+                  const amount = Number(e.target.value) || 0;
+                  patchDraft({
+                    standardExemption: amount,
+                    exemptions: draft.exemptions.map((item) => item.category === 'Standard Deduction' ? { ...item, maxAmount: amount } : item)
+                  });
+                }} />
                 <Input label="Tax Relief Limit (e.g. 87A)" type="number" value={String(draft.taxReliefLimit || 0)} disabled={draft.submitted} onChange={(e) => patchDraft({ taxReliefLimit: Number(e.target.value) || 0 })} />
               </div>
             </Card>
@@ -461,7 +482,13 @@ export function IncomeTaxSlab() {
                       <tr key={row.id} className={`border-t ${row.oldOnly && draft.regime === 'New Regime' ? 'bg-amber-50' : ''}`}>
                         <td className="py-2">{row.category}{row.oldOnly && draft.regime === 'New Regime' && <span className="ml-1 text-[10px] text-amber-700">Old regime only</span>}</td>
                         <td>{row.sub}</td>
-                        <td>{row.maxAmount ? inr(row.maxAmount) : '—'}</td>
+                        <td><input type="number" className="h-8 w-28 rounded border px-1" disabled={draft.submitted} value={row.maxAmount} onChange={(e) => {
+                          const amount = Number(e.target.value) || 0;
+                          patchDraft({
+                            exemptions: draft.exemptions.map((item) => item.id === row.id ? { ...item, maxAmount: amount } : item),
+                            standardExemption: row.category === 'Standard Deduction' ? amount : draft.standardExemption
+                          });
+                        }} /></td>
                         <td>
                           <select className="h-8 rounded border px-1" value={row.basedOn} onChange={(e) => patchDraft({ exemptions: draft.exemptions.map((item) => item.id === row.id ? { ...item, basedOn: e.target.value as ExemptionRow['basedOn'] } : item) })}>
                             {['Fixed', 'Declared', 'Formula'].map((item) => <option key={item}>{item}</option>)}
@@ -507,10 +534,11 @@ export function IncomeTaxSlab() {
                   <p>80D: ({inr(result.d80d)})</p>
                   <p className="font-medium">Net taxable: {inr(result.taxable)}</p>
                   <p>Tax: {inr(result.tax)}</p>
+                  <p>Rebate / tax relief: ({inr(result.rebate)})</p>
                   <p>Surcharge: {inr(result.surcharge)}</p>
                   <p>Cess: {inr(result.cess)}</p>
                   <p className="font-semibold">Total tax: {inr(result.total)}</p>
-                  <p>Monthly TDS: {inr(result.monthly)}</p>
+                  <p>Monthly TDS ({result.remainingMonths} remaining months): {inr(result.monthly)}</p>
                   <p>Effective rate: {result.rate.toFixed(2)}% {result.rate <= 10 ? '(green band)' : result.rate <= 20 ? '(amber band)' : '(red band)'}</p>
                 </div>
                 <Button variant="outline" className="w-full" onClick={() => setShowCompare((v) => !v)}>Compare Old vs New Regime</Button>
@@ -549,8 +577,10 @@ export function IncomeTaxSlab() {
               <p>Tax {inr(r.tax)}</p>
               <p>Surcharge {inr(r.surcharge)}</p>
               <p>Cess {inr(r.cess)}</p>
+              <p>Rebate / tax relief {inr(r.rebate)}</p>
               <p>Relief limit {inr(draft.taxReliefLimit || 0)}</p>
-              <p className="font-semibold">Total {inr(Math.max(0, r.total - (r.taxable <= 1200000 ? draft.taxReliefLimit || 0 : 0)))}</p>
+              <p className="font-semibold">Total {inr(r.total)}</p>
+              <p>Monthly TDS ({r.remainingMonths} remaining months) {inr(r.monthly)}</p>
             </div>
           );
         })()}

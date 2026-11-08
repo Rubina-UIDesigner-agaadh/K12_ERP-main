@@ -6,6 +6,7 @@ import { Input } from '../../../components/ui/Input';
 import { Select } from '../../../components/ui/Select';
 import { Badge } from '../../../components/ui/Badge';
 import { Plus, Save, Trash2 } from 'lucide-react';
+import { calculateHraExemption, calculateIncomeTax, remainingPayrollMonths } from './incomeTax';
 
 type Status = 'Draft' | 'Submitted' | 'Cancelled';
 type Row = { id: string; sub: string; category: string; declared: number; max: number };
@@ -39,10 +40,14 @@ const SUBS = [
   { name: 'Tuition Fees (Children)', category: 'Section 80C', max: 150000 },
   { name: 'Mediclaim (Self)', category: 'Section 80D', max: 25000 },
   { name: 'Mediclaim (Parents Senior)', category: 'Section 80D', max: 50000 },
+  { name: 'Home Loan Principal', category: 'Section 80C', max: 150000 },
+  { name: 'NPS (80CCD1)', category: 'Section 80C', max: 150000 },
+  { name: 'NPS additional (80CCD1B)', category: 'Section 80CCD(1B)', max: 50000 },
   { name: 'Education Loan Interest', category: 'Section 80E', max: 0 },
-  { name: 'Donations to approved funds', category: 'Section 80G', max: 0 }
+  { name: 'Donations to approved funds', category: 'Section 80G', max: 0 },
+  { name: 'Savings account interest (80TTA)', category: 'Section 80TTA', max: 10000 }
 ];
-const CAT_CAP: Record<string, number> = { 'Section 80C': 150000, 'Section 80D': 75000, 'Section 80E': 0, 'Section 80G': 0 };
+const CAT_CAP: Record<string, number> = { 'Section 80C': 150000, 'Section 80D': 75000, 'Section 80CCD(1B)': 50000, 'Section 80E': 0, 'Section 80G': 0, 'Section 80TTA': 10000 };
 const STORE = 'k12-tax-exemption-declaration-v1';
 const inr = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
 const emptyRow = (): Row => ({ id: `r-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, sub: '', category: '', declared: 0, max: 0 });
@@ -56,24 +61,7 @@ const load = (): Rec[] => {
   }
 };
 
-function slabTax(taxable: number, regime: 'Old' | 'New' | '') {
-  let t = Math.max(0, taxable);
-  let tax = 0;
-  if (regime === 'New') {
-    if (t > 1500000) { tax += (t - 1500000) * 0.3; t = 1500000; }
-    if (t > 1200000) { tax += (t - 1200000) * 0.2; t = 1200000; }
-    if (t > 900000) { tax += (t - 900000) * 0.15; t = 900000; }
-    if (t > 600000) { tax += (t - 600000) * 0.1; t = 600000; }
-    if (t > 300000) { tax += (t - 300000) * 0.05; }
-    if (taxable <= 700000) tax = 0;
-  } else {
-    if (t > 1000000) { tax += (t - 1000000) * 0.3; t = 1000000; }
-    if (t > 500000) { tax += (t - 500000) * 0.2; t = 500000; }
-    if (t > 250000) { tax += (t - 250000) * 0.05; }
-    if (taxable <= 500000) tax = 0;
-  }
-  return Math.round(tax * 1.04);
-}
+
 
 export function EmployeeTaxExemptionDeclaration() {
   const navigate = useNavigate();
@@ -136,16 +124,34 @@ export function EmployeeTaxExemptionDeclaration() {
     rentMinus10: Math.max(0, annualRent - emp.basic * 0.1),
     pct: emp.basic * (form.city === 'Metro' ? 0.5 : 0.4)
   };
-  const hraExempt = !newRegime && form.rented ? Math.min(hraLegs.actual, hraLegs.rentMinus10, hraLegs.pct) : 0;
+  const hraExempt = !newRegime && form.rented ? calculateHraExemption(emp.basic, emp.hra, annualRent, form.city === 'Metro') : 0;
   const declaredGross = form.rows.reduce((s, r) => s + r.declared, 0);
-  const totalExempt = (newRegime ? 0 : chapterVia) + hraExempt;
-  const std = newRegime ? 75000 : 50000;
-  const taxable = Math.max(0, emp.ctc - std - (newRegime ? 0 : hraExempt) - (newRegime ? 0 : chapterVia));
-  const annualTax = slabTax(taxable, form.regime || 'Old');
-  const remainingMonths = 5;
-  const monthly = Math.round(annualTax / remainingMonths);
-  const noDeclTax = slabTax(Math.max(0, emp.ctc - std), form.regime || 'Old');
-  const noDeclMonthly = Math.round(noDeclTax / remainingMonths);
+  const nps = eligibleByCat.map['Section 80CCD(1B)'] || 0;
+  const d80tta = eligibleByCat.map['Section 80TTA'] || 0;
+  const taxInput = {
+    periodId: form.periodId,
+    regime: form.regime === 'New' ? 'New Regime' : 'Old Regime',
+    annualGrossSalary: emp.ctc,
+    hraExemption: hraExempt,
+    remainingMonths: remainingPayrollMonths(),
+    deductions: {
+      section80C: eligibleByCat.map['Section 80C'] || 0,
+      section80D: eligibleByCat.map['Section 80D'] || 0,
+      section80E: eligibleByCat.map['Section 80E'] || 0,
+      section80G: eligibleByCat.map['Section 80G'] || 0,
+      nps80CCD: nps,
+      section80TTA: d80tta
+    }
+  };
+  const taxResult = calculateIncomeTax(taxInput);
+  const noDeclResult = calculateIncomeTax({ ...taxInput, applyDeclarations: false, hraExemption: 0, deductions: {} });
+  const totalExempt = taxResult.hraExemption + taxResult.chapterVia;
+  const std = taxResult.standardDeduction;
+  const taxable = taxResult.taxableIncome;
+  const annualTax = taxResult.finalAnnualTax;
+  const remainingMonths = taxResult.remainingMonths;
+  const monthly = taxResult.monthlyTdsEstimate;
+  const noDeclMonthly = noDeclResult.monthlyTdsEstimate;
 
   const persist = (next: Rec[], msg: string) => {
     setRows(next);
@@ -190,7 +196,7 @@ export function EmployeeTaxExemptionDeclaration() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Employee Tax Exemption Declaration</h1>
-          <p className="text-sm text-gray-500">Employee Self-Service → Tax & Payroll → My Tax Declaration</p>
+          <p className="text-sm text-gray-500">Employee Self-Service → Tax & Payroll → My Tax Declaration · also covers Income & Investment Declaration</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <div className="flex rounded-lg border p-1">
@@ -239,7 +245,7 @@ export function EmployeeTaxExemptionDeclaration() {
               <Input label="Declaration Submission Deadline" value={`${deadline} · applied from next payroll if submitted after this date`} disabled />
             </div>
             {!form.regime && <p className="px-4 pb-4 text-sm text-amber-800">Complete Tax Regime Selector before declaring exemptions.</p>}
-            {newRegime && <p className="px-4 pb-4 text-sm text-amber-800">New Regime: Chapter VI-A and HRA are locked. Only the standard deduction of ₹75,000 applies.</p>}
+            {newRegime && <p className="px-4 pb-4 text-sm text-amber-800">New Regime: Chapter VI-A and HRA are locked. Only the standard deduction of {inr(std)} from the Income Tax Slab pack applies.</p>}
           </Card>
 
           <Card title="Exemption declarations">
@@ -300,7 +306,7 @@ export function EmployeeTaxExemptionDeclaration() {
               <p>Less: HRA exemption {inr(hraExempt)}</p>
               <p>Less: Chapter VI-A {inr(newRegime ? 0 : chapterVia)}</p>
               <p className="font-semibold">Annual taxable income {inr(taxable)}</p>
-              <p>Estimated annual tax {inr(annualTax)}</p>
+              <p>Estimated annual tax {inr(annualTax)} ({taxResult.packName || 'Income Tax Slab'})</p>
               <p>Estimated monthly TDS ({remainingMonths} remaining months) {inr(monthly)}</p>
               <p className="md:col-span-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">Without a declaration, monthly TDS would be {inr(noDeclMonthly)}. This declaration saves {inr(Math.max(0, noDeclMonthly - monthly))} per remaining month.</p>
             </div>
