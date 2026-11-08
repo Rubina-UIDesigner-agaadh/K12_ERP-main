@@ -869,6 +869,9 @@ export function Form16AnnualStatementExport() {
 
   return (
     <div className="space-y-6 p-6">
+      <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+        Part A is the TRACES / Q4-return certificate workflow — a local PDF does not mean Part A is available. Part B uses salary and the shared tax engine. Combined preview is a local preview, not an official certificate. Reissue must keep the previous version.
+      </div>
       {/* Notifications */}
       <div className="fixed top-4 right-4 z-50 space-y-2">
         {notifications.map((notification) =>

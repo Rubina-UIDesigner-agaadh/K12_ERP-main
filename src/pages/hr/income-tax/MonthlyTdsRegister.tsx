@@ -1,6 +1,7 @@
 // src/pages/hr/payroll/MonthlyTdsRegister.tsx
 
 import React, { useState, useRef } from 'react';
+import { TAX_STAFF, computeEmployeeTax, inr as taxInr } from './taxRecords';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Select } from '../../../components/ui/Select';
@@ -111,6 +112,7 @@ const initialEmployees: Employee[] = [
 
 
 export function MonthlyTdsRegister() {
+  const [reportTab, setReportTab] = useState<'monthly' | 'employee' | 'dept' | 'year'>('monthly');
   const [selectedMonth, setSelectedMonth] = useState('jan-2025');
   const [selectedFY, setSelectedFY] = useState('2024-25');
   const [selectedDepartment, setSelectedDepartment] = useState('all');
@@ -730,8 +732,8 @@ export function MonthlyTdsRegister() {
     <div className="space-y-6 p-6">
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Monthly TDS Register</h1>
-          <p className="text-sm text-gray-500 mt-1">HR &gt; Payroll &gt; Income Tax &gt; TDS Register</p>
+          <h1 className="text-2xl font-bold text-gray-900">TDS Reports</h1>
+          <p className="text-sm text-gray-500 mt-1">Monthly register plus employee / department / year summaries from the shared tax engine</p>
         </div>
         <div className="flex gap-3">
           <Button variant="outline" onClick={handleRefresh} disabled={isGenerating}>
@@ -753,6 +755,42 @@ export function MonthlyTdsRegister() {
         </div>
       </div>
 
+      <div className="flex flex-wrap gap-2 border-b">
+        {(['monthly', 'employee', 'dept', 'year'] as const).map((id) => (
+          <button key={id} type="button" className={`px-3 py-2 text-sm font-medium border-b-2 ${reportTab === id ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500'}`} onClick={() => setReportTab(id)}>
+            {id === 'monthly' ? 'Monthly register' : id === 'employee' ? 'Employee-wise TDS' : id === 'dept' ? 'Department-wise TDS' : 'Financial year summary'}
+          </button>
+        ))}
+      </div>
+      {reportTab === 'employee' && (
+        <Card>
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500"><tr><th className="px-3 py-2">Employee</th><th className="px-3 py-2">FY</th><th className="px-3 py-2">Projected liability</th><th className="px-3 py-2">Current TDS</th><th className="px-3 py-2">Remaining</th></tr></thead>
+            <tbody>{TAX_STAFF.map((e) => { const tax = computeEmployeeTax(e.id); return (<tr key={e.id} className="border-t"><td className="px-3 py-2">{e.name}<p className="text-xs text-gray-400">{e.id}</p></td><td className="px-3 py-2">AY-2026-27</td><td className="px-3 py-2">{taxInr(tax.finalAnnualTax)}</td><td className="px-3 py-2">{taxInr(tax.tdsDeductedYtd)}</td><td className="px-3 py-2">{taxInr(tax.remainingTax)}</td></tr>); })}</tbody>
+          </table>
+        </Card>
+      )}
+      {reportTab === 'dept' && (
+        <Card>
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500"><tr><th className="px-3 py-2">Department</th><th className="px-3 py-2">Employees</th><th className="px-3 py-2">Taxable</th><th className="px-3 py-2">TDS</th><th className="px-3 py-2">Remaining</th></tr></thead>
+            <tbody>{Array.from(new Set(TAX_STAFF.map((e) => e.department))).map((d) => { const g = TAX_STAFF.filter((e) => e.department === d).map((e) => computeEmployeeTax(e.id)); return (<tr key={d} className="border-t"><td className="px-3 py-2">{d}</td><td className="px-3 py-2">{g.length}</td><td className="px-3 py-2">{taxInr(g.reduce((s, t) => s + t.taxableIncome, 0))}</td><td className="px-3 py-2">{taxInr(g.reduce((s, t) => s + t.tdsDeductedYtd, 0))}</td><td className="px-3 py-2">{taxInr(g.reduce((s, t) => s + t.remainingTax, 0))}</td></tr>); })}</tbody>
+          </table>
+        </Card>
+      )}
+      {reportTab === 'year' && (
+        <Card>
+          <div className="grid gap-3 p-4 md:grid-cols-4 text-sm">
+            <p>FY AY-2026-27</p>
+            <p>Taxable {taxInr(TAX_STAFF.reduce((s, e) => s + computeEmployeeTax(e.id).taxableIncome, 0))}</p>
+            <p>Liability {taxInr(TAX_STAFF.reduce((s, e) => s + computeEmployeeTax(e.id).finalAnnualTax, 0))}</p>
+            <p>TDS {taxInr(TAX_STAFF.reduce((s, e) => s + computeEmployeeTax(e.id).tdsDeductedYtd, 0))}</p>
+            <p className="md:col-span-4 text-xs text-gray-500">Challan deposited vs remaining is completed on Challan Tax Payment Register / TDS Return Filing. Figures above are engine calculations, not a second hardcoded dataset.</p>
+          </div>
+        </Card>
+      )}
+
+      {reportTab === 'monthly' && (
       <Card className="p-4">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Select options={monthOptions} value={selectedMonth} onChange={handleMonthChange} />
@@ -865,6 +903,7 @@ export function MonthlyTdsRegister() {
           </div>
         </div>
       </Card>
+      )}
     </div>);
 
 }

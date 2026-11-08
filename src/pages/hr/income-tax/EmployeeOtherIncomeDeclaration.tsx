@@ -5,6 +5,7 @@ import { Input } from '../../../components/ui/Input';
 import { Select } from '../../../components/ui/Select';
 import { Badge } from '../../../components/ui/Badge';
 import { Plus, Save, Trash2 } from 'lucide-react';
+import { calculateIncomeTax, remainingPayrollMonths } from './incomeTax';
 
 const SOURCES = [
   'House Property Income / Rental Income',
@@ -18,9 +19,9 @@ const SOURCES = [
   'Other'
 ];
 const EMPLOYEES = [
-  { id: 'EMP-1042', name: 'Meera Iyer', slabRate: 0.2 },
-  { id: 'EMP-1088', name: 'Rajesh Kumar', slabRate: 0.1 },
-  { id: 'EMP-1144', name: 'Priya Nair', slabRate: 0.2 }
+  { id: 'EMP-1042', name: 'Meera Iyer', regime: 'Old' as const, ctc: 1200000 },
+  { id: 'EMP-1088', name: 'Rajesh Kumar', regime: 'New' as const, ctc: 900000 },
+  { id: 'EMP-1144', name: 'Priya Nair', regime: 'Old' as const, ctc: 1100000 }
 ];
 const PERIODS = [{ id: 'AY-2026-27', label: 'AY 2026-27 Payroll Period' }];
 const STORE = 'k12-other-income-declaration-v1';
@@ -94,14 +95,34 @@ export function EmployeeOtherIncomeDeclaration() {
     const exempt = r.exemptOn ? Math.min(r.exemptAmt, r.annual) : 0;
     return r.annual - exempt;
   };
-  const totalOther = form.rows.reduce((s, r) => s + Math.max(0, netRow(r)), 0);
+  const agri = form.rows.filter((r) => r.source === 'Agricultural Income').reduce((s, r) => s + Math.max(0, r.annual), 0);
+  const hpRows = form.rows.filter((r) => r.source.startsWith('House Property') || r.source.startsWith('Home Loan Interest'));
+  const otherRows = form.rows.filter((r) => r.source !== 'Agricultural Income' && !r.source.startsWith('House Property') && !r.source.startsWith('Home Loan Interest'));
+  const totalOther = otherRows.reduce((s, r) => s + netRow(r), 0);
+  const hpFromRows = hpRows.reduce((s, r) => s + netRow(r), 0);
   const homeDeduction = form.hasHomeLoan
     ? (form.propertyType === 'Self-Occupied' ? Math.min(form.interestPaid, 200000) : form.interestPaid)
     : 0;
-  const netAdditionalRaw = totalOther - homeDeduction;
-  const netAdditional = Math.max(0, netAdditionalRaw);
-  const remainingMonths = 5;
-  const monthlyTds = Math.round((netAdditional * emp.slabRate * 1.04) / remainingMonths);
+  const houseProperty = hpFromRows - homeDeduction;
+  const remainingMonths = remainingPayrollMonths();
+  const baseTax = calculateIncomeTax({
+    periodId: form.periodId,
+    regime: emp.regime === 'New' ? 'New Regime' : 'Old Regime',
+    annualGrossSalary: emp.ctc,
+    remainingMonths
+  });
+  const withOtherTax = calculateIncomeTax({
+    periodId: form.periodId,
+    regime: emp.regime === 'New' ? 'New Regime' : 'Old Regime',
+    annualGrossSalary: emp.ctc,
+    otherIncome: totalOther,
+    housePropertyIncome: houseProperty,
+    agriculturalIncome: agri,
+    remainingMonths
+  });
+  const netAdditionalRaw = totalOther + houseProperty;
+  const netAdditional = netAdditionalRaw;
+  const monthlyTds = withOtherTax.monthlyTdsEstimate - baseTax.monthlyTdsEstimate;
   const letOutWarning = form.hasHomeLoan && form.propertyType === 'Let-Out' && !form.rows.some((r) => r.source.startsWith('House Property'));
 
   const persist = (next: Rec[], msg: string) => {
@@ -226,9 +247,11 @@ export function EmployeeOtherIncomeDeclaration() {
             <div className="grid gap-2 p-4 text-sm md:grid-cols-2">
               <p>Total other income {inr(summary.totalOther)}</p>
               <p>Less: home loan interest deduction {inr(summary.homeDeduction)}</p>
+              <p>House property (incl. losses) {inr(houseProperty)}</p>
+              <p>Agricultural income (rate purposes only) {inr(agri)}</p>
               <p className="font-semibold">Net additional taxable income {inr(summary.netAdditional)}</p>
-              {netAdditionalRaw < 0 && <p className="text-xs text-gray-500 md:col-span-2">Negative set-off is capped at zero against salary tax, subject to the ₹2,00,000 limit.</p>}
-              <p className="md:col-span-2">Impact on monthly TDS ({remainingMonths} remaining months at {Math.round(emp.slabRate * 100)}% + cess): {inr(summary.monthlyTds)}</p>
+              {netAdditionalRaw < 0 && <p className="text-xs text-gray-500 md:col-span-2">House-property losses are set off against salary in the shared tax engine (not floored before tax).</p>}
+              <p className="md:col-span-2">Impact on monthly TDS ({remainingMonths} remaining months, Income Tax Slab pack {withOtherTax.packName || 'fallback'}): {inr(summary.monthlyTds)}</p>
             </div>
           </Card>
 

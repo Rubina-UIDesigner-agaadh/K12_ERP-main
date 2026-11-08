@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import { calculateHraExemption, calculateIncomeTax, remainingPayrollMonths } from './incomeTax';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
@@ -679,50 +680,36 @@ export function EmployeeTaxProfileRegimeSelection() {
     const annualBasic = Math.round(income * 0.4);
     const annualHraReceived = Math.round(annualBasic * 0.4);
     const annualRent = (editedEmployee.taxSettings.hraMonthlyRent || 0) * 12;
-    const metroPct = editedEmployee.taxSettings.cityType === 'metro' ? 0.5 : 0.4;
+    const metro = editedEmployee.taxSettings.cityType === 'metro';
     const legs = {
       actual: annualHraReceived,
       rentMinus10: Math.max(0, annualRent - Math.round(annualBasic * 0.1)),
-      pctBasic: Math.round(annualBasic * metroPct)
+      pctBasic: Math.round(annualBasic * (metro ? 0.5 : 0.4))
     };
-    const exempt = editedEmployee.taxSettings.hraApplicable ? Math.min(legs.actual, legs.rentMinus10, legs.pctBasic) : 0;
+    const exempt = editedEmployee.taxSettings.hraApplicable
+      ? calculateHraExemption(annualBasic, annualHraReceived, annualRent, metro)
+      : 0;
     return { annualBasic, annualHraReceived, annualRent, legs, exempt };
   }, [editedEmployee]);
 
-  // Calculate tax estimate
-  const calculateTax = useCallback((income: number, regime: 'Old' | 'New', deductions: TaxDeclaration, hraExempt = 0, extraOld = 0) => {
-    const std = regime === 'New' ? 75000 : 50000;
-    let taxableIncome = income - std;
-
-    if (regime === 'Old') {
-      taxableIncome -= hraExempt;
-      taxableIncome -= Math.min(deductions.section80C, 150000);
-      taxableIncome -= Math.min(deductions.section80D, 75000);
-      taxableIncome -= deductions.section80E;
-      taxableIncome -= deductions.section80G;
-      taxableIncome -= Math.min(deductions.section24, 200000);
-      taxableIncome -= Math.min(deductions.nps80CCD, 50000);
-      taxableIncome -= deductions.otherDeductions;
-      taxableIncome -= extraOld;
-    }
-    taxableIncome = Math.max(0, Math.round(taxableIncome));
-    const rebateLimit = regime === 'New' ? 700000 : 500000;
-    let working = taxableIncome;
-    let tax = 0;
-    if (regime === 'Old') {
-      if (working > 1000000) { tax += (working - 1000000) * 0.30; working = 1000000; }
-      if (working > 500000) { tax += (working - 500000) * 0.20; working = 500000; }
-      if (working > 250000) { tax += (working - 250000) * 0.05; }
-    } else {
-      if (working > 1500000) { tax += (working - 1500000) * 0.30; working = 1500000; }
-      if (working > 1200000) { tax += (working - 1200000) * 0.20; working = 1200000; }
-      if (working > 900000) { tax += (working - 900000) * 0.15; working = 900000; }
-      if (working > 600000) { tax += (working - 600000) * 0.10; working = 600000; }
-      if (working > 300000) { tax += (working - 300000) * 0.05; }
-    }
-    if (taxableIncome <= rebateLimit) tax = 0;
-    if (taxableIncome > 5000000) tax += tax * 0.10;
-    return Math.round(tax * 1.04);
+  const taxForRegime = useCallback((income: number, regime: 'Old' | 'New', deductions: TaxDeclaration, hraExempt = 0, extraOld = 0) => {
+    return calculateIncomeTax({
+      periodId: 'AY-2026-27',
+      regime: regime === 'New' ? 'New Regime' : 'Old Regime',
+      annualGrossSalary: income,
+      hraExemption: hraExempt,
+      otherIncome: extraOld,
+      deductions: {
+        section80C: deductions.section80C,
+        section80D: deductions.section80D,
+        section80E: deductions.section80E,
+        section80G: deductions.section80G,
+        section24: deductions.section24,
+        nps80CCD: deductions.nps80CCD,
+        other: deductions.otherDeductions
+      },
+      remainingMonths: remainingPayrollMonths()
+    });
   }, []);
 
   // Get recommended regime
@@ -730,17 +717,26 @@ export function EmployeeTaxProfileRegimeSelection() {
     if (!editedEmployee) return null;
 
     const extra = otherLines.reduce((s, l) => s + (Number(l.amount) || 0), 0);
-    const oldTax = calculateTax(editedEmployee.annualIncome, 'Old', editedEmployee.declarations, hraBreakdown.exempt, extra);
-    const newTax = calculateTax(editedEmployee.annualIncome, 'New', editedEmployee.declarations);
+    const oldResult = taxForRegime(editedEmployee.annualIncome, 'Old', editedEmployee.declarations, hraBreakdown.exempt, extra);
+    const newResult = taxForRegime(editedEmployee.annualIncome, 'New', editedEmployee.declarations);
+    const oldTax = oldResult.finalAnnualTax;
+    const newTax = newResult.finalAnnualTax;
 
     return {
       recommended: oldTax === 0 && newTax === 0 ? 'Either' : oldTax < newTax ? 'Old' : 'New',
       oldTax,
       newTax,
       savings: Math.abs(oldTax - newTax),
-      bothZero: oldTax === 0 && newTax === 0
+      bothZero: oldTax === 0 && newTax === 0,
+      oldStd: oldResult.standardDeduction,
+      newStd: newResult.standardDeduction,
+      oldMonthly: oldResult.monthlyTdsEstimate,
+      newMonthly: newResult.monthlyTdsEstimate,
+      remainingMonths: oldResult.remainingMonths,
+      oldPack: oldResult.packName,
+      newPack: newResult.packName
     };
-  }, [editedEmployee, calculateTax, hraBreakdown.exempt, otherLines]);
+  }, [editedEmployee, taxForRegime, hraBreakdown.exempt, otherLines]);
 
   const recommendation = getRecommendedRegime();
 
@@ -1273,17 +1269,19 @@ export function EmployeeTaxProfileRegimeSelection() {
                   <div className="grid gap-4 md:grid-cols-2 text-sm">
                     <div className="rounded-lg border p-3">
                       <p className="font-semibold text-purple-800">Old Regime</p>
-                      <p>Standard deduction ₹50,000</p>
+                      <p>Pack {recommendation.oldPack || 'Income Tax Slab'}</p>
+                      <p>Standard deduction ₹{recommendation.oldStd.toLocaleString('en-IN')}</p>
                       <p>HRA exemption ₹{hraBreakdown.exempt.toLocaleString('en-IN')}</p>
-                      <p>Annual tax (incl. 4% cess) ₹{recommendation.oldTax.toLocaleString('en-IN')}</p>
-                      <p>Monthly TDS ₹{Math.round(recommendation.oldTax / 12).toLocaleString('en-IN')}</p>
+                      <p>Annual tax (pack surcharge + cess) ₹{recommendation.oldTax.toLocaleString('en-IN')}</p>
+                      <p>Monthly TDS ({recommendation.remainingMonths} remaining months) ₹{recommendation.oldMonthly.toLocaleString('en-IN')}</p>
                     </div>
                     <div className="rounded-lg border p-3">
                       <p className="font-semibold text-blue-800">New Regime</p>
-                      <p>Standard deduction ₹75,000</p>
+                      <p>Pack {recommendation.newPack || 'Income Tax Slab'}</p>
+                      <p>Standard deduction ₹{recommendation.newStd.toLocaleString('en-IN')}</p>
                       <p>No Chapter VI-A / HRA exemption</p>
-                      <p>Annual tax (incl. 4% cess) ₹{recommendation.newTax.toLocaleString('en-IN')}</p>
-                      <p>Monthly TDS ₹{Math.round(recommendation.newTax / 12).toLocaleString('en-IN')}</p>
+                      <p>Annual tax (pack surcharge + cess) ₹{recommendation.newTax.toLocaleString('en-IN')}</p>
+                      <p>Monthly TDS ({recommendation.remainingMonths} remaining months) ₹{recommendation.newMonthly.toLocaleString('en-IN')}</p>
                     </div>
                   </div>
                   <p className="mt-3 text-xs text-gray-500">Changing 80C, 80D, rent or city type recalculates both columns immediately. Selection writes the chosen Income Tax Slab back to Salary Structure Assignment.</p>

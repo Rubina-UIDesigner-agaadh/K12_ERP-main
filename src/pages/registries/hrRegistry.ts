@@ -641,6 +641,10 @@ export const hrRegistry: Record<string, () => any> = {
     () => import('../hr/income-tax/TdsDeductionReport'),
     'TdsDeductionReport'
   ),
+  'tds-return-filing': rp(
+    () => import('../hr/income-tax/TdsReturnFiling'),
+    'TdsReturnFiling'
+  ),
   'challan-tax-payment-register': rp(
     () => import('../hr/income-tax/ChallanTaxPaymentRegister'),
     'ChallanTaxPaymentRegister'

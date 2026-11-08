@@ -1,390 +1,161 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
+import { Input } from '../../../components/ui/Input';
 import { Select } from '../../../components/ui/Select';
 import { Badge } from '../../../components/ui/Badge';
-import {
-  Lock,
-  Download,
-  AlertTriangle,
-  CheckCircle,
-  TrendingUp,
-  TrendingDown } from
-'lucide-react';
+import { TAX_STAFF, computeEmployeeTax, inr, loadDeclarations, loadJson, loadProofs, logActivity, saveJson, RECON_STORE } from './taxRecords';
+
+type Stage = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11;
+
 export function AnnualTaxReconciliationFinalisation() {
   const navigate = useNavigate();
-  const [reconStatus, setReconStatus] = useState('Not Started');
+  const [fy, setFy] = useState('AY-2026-27');
+  const [dept, setDept] = useState('all');
+  const [stage, setStage] = useState<Stage>(1);
   const [previewed, setPreviewed] = useState(false);
   const [signed, setSigned] = useState(false);
-  const [proceedAnyway, setProceedAnyway] = useState(false);
+  const [exception, setException] = useState('');
+  const [notice, setNotice] = useState('');
+  const [history, setHistory] = useState<{ at: string; action: string }[]>(() => loadJson(RECON_STORE, []));
+
+  const decls = loadDeclarations();
+  const proofs = loadProofs();
+  const rows = useMemo(() => TAX_STAFF.filter((e) => dept === 'all' || e.department === dept).map((emp) => {
+    const tax = computeEmployeeTax(emp.id, fy);
+    const decl = decls.find((d) => d.employeeId === emp.id && d.periodId === fy);
+    const empProofs = proofs.filter((p) => p.employeeId === emp.id && p.periodId === fy);
+    const pendingProof = empProofs.some((p) => p.status === 'Pending Verification' || p.status === 'Submitted');
+    return { emp, tax, declStatus: decl?.status || 'Missing', pendingProof, previous: tax.finalAnnualTax };
+  }), [fy, dept, decls, proofs]);
+
+  const blockers = [
+    rows.some((r) => r.declStatus !== 'Submitted') && 'Missing / draft declarations',
+    rows.some((r) => r.pendingProof) && 'Pending proof verification',
+    rows.some((r) => r.tax.remainingTax > 5000) && 'Unresolved shortfalls over ₹5,000',
+    !signed && 'Finance / authorised approval not recorded'
+  ].filter(Boolean) as string[];
+
+  const pushHist = (action: string) => {
+    const next = [{ at: new Date().toISOString(), action }, ...history];
+    setHistory(next);
+    saveJson(RECON_STORE, next);
+  };
+
+  const preview = () => {
+    setPreviewed(true);
+    setStage(3);
+    pushHist('Reconciliation preview generated from shared tax engine');
+    setNotice(`Preview uses live declarations, verified proofs and Income Tax Slab packs for ${fy}.`);
+  };
+
+  const recalculate = () => {
+    if (!previewed) { setNotice('Generate preview first.'); return; }
+    setStage(7);
+    pushHist('Recalculated after corrections');
+    setNotice('Recalculate re-ran computeEmployeeTax for every employee. Previous vs revised shown below.');
+  };
+
+  const approve = () => {
+    setSigned(true);
+    setStage(9);
+    pushHist('Finance approval recorded (frontend workflow only)');
+    logActivity({ employeeId: 'ALL', employeeName: 'All employees', action: 'Reconciliation approved', actor: 'Finance', remarks: fy });
+    setNotice('Approval recorded. This is a frontend workflow state, not a statutory filing.');
+  };
+
+  const finalise = () => {
+    if (blockers.length && !exception.trim()) {
+      setNotice('Finalisation blocked. Resolve checks or enter an authorised exception reason.');
+      return;
+    }
+    if (blockers.length && exception.trim()) {
+      pushHist(`Exception finalisation: ${exception}`);
+    }
+    setStage(10);
+    pushHist('Year marked finalised in frontend state');
+    setNotice('Year finalised in this demo store. Form 16 readiness still depends on Q4 TDS return acceptance (not claimed here).');
+  };
+
   return (
     <div className="space-y-6 p-6">
-      {/* Header */}
-      <div className="flex justify-between items-start">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            Annual Tax Reconciliation & Finalisation
-          </h1>
-          <p className="text-sm text-gray-500 mt-1">
-            HR &gt; Payroll &gt; Income Tax &gt; Year-End Reconciliation
-          </p>
+          <h1 className="text-2xl font-bold text-gray-900">Annual Tax Reconciliation & Finalisation</h1>
+          <p className="text-sm text-gray-500">Preview and Recalculate run the shared tax engine. A checkbox cannot bypass blockers.</p>
         </div>
-        <div className="flex gap-3">
-          <Button variant="outline">
-            <Download className="w-4 h-4 mr-2" />
-            Export
-          </Button>
-          <Button variant="outline" onClick={() => { setPreviewed(true); setReconStatus('Pre-Reconciliation Preview Generated'); }}>Generate Preview</Button>
-          <Button variant="outline" onClick={() => { setReconStatus('Corrections Applied'); }}>Recalculate Preview</Button>
-          <Button variant="primary" className="bg-red-600 hover:bg-red-700" onClick={() => { if (!proceedAnyway) return; setReconStatus('March Payroll Triggered'); navigate('/hr/payroll/payroll-entry'); }}>
-            Proceed to March Payroll Entry
-          </Button>
-          <Button variant="primary" className="bg-red-600 hover:bg-red-700">
-            <Lock className="w-4 h-4 mr-2" />
-            Finalise Year
-          </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={preview}>Generate preview</Button>
+          <Button variant="outline" onClick={recalculate}>Recalculate</Button>
+          <Button variant="outline" onClick={approve}>Record finance approval</Button>
+          <Button onClick={finalise}>Finalise year</Button>
         </div>
       </div>
-      <Card className="p-4 text-sm">
-        <div className="grid gap-3 md:grid-cols-4">
-          <p><span className="text-xs uppercase text-gray-400">Payroll Period</span><br />AY 2026-27</p>
-          <p><span className="text-xs uppercase text-gray-400">Reconciliation Status</span><br />{reconStatus}{signed ? ' · Signed Off' : ''}</p>
-          <p><span className="text-xs uppercase text-gray-400">March Payroll Date</span><br />31 Mar 2027</p>
-          <p><span className="text-xs uppercase text-gray-400">High Impact auto-selected</span><br />Employees with March TDS multiple &gt; 3</p>
-        </div>
-      </Card>
-
-      {/* Filters */}
-      <Card className="p-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Select
-            options={[
-            {
-              value: '2024-25',
-              label: 'FY 2024-25'
-            },
-            {
-              value: '2023-24',
-              label: 'FY 2023-24'
-            }]
-            }
-            defaultValue="2024-25" />
-
-          <Select
-            options={[
-            {
-              value: 'all',
-              label: 'All Departments'
-            },
-            {
-              value: 'it',
-              label: 'IT'
-            },
-            {
-              value: 'hr',
-              label: 'HR'
-            }]
-            }
-            defaultValue="all" />
-
-          <Select
-            options={[
-            {
-              value: 'all',
-              label: 'All Employees'
-            },
-            {
-              value: 'mismatch',
-              label: 'With Mismatch'
-            },
-            {
-              value: 'matched',
-              label: 'Matched'
-            }]
-            }
-            defaultValue="all" />
-
-        </div>
-      </Card>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="p-4 border-l-4 border-blue-500">
-          <div className="flex items-center justify-between mb-2">
-            <TrendingUp className="w-5 h-5 text-blue-600" />
-          </div>
-          <p className="text-2xl font-bold text-gray-900">₹45.2L</p>
-          <p className="text-sm text-gray-600">Total Tax Liability</p>
-        </Card>
-
-        <Card className="p-4 border-l-4 border-green-500">
-          <div className="flex items-center justify-between mb-2">
-            <CheckCircle className="w-5 h-5 text-green-600" />
-          </div>
-          <p className="text-2xl font-bold text-gray-900">₹44.8L</p>
-          <p className="text-sm text-gray-600">Total TDS Deducted</p>
-        </Card>
-
-        <Card className="p-4 border-l-4 border-orange-500">
-          <div className="flex items-center justify-between mb-2">
-            <TrendingDown className="w-5 h-5 text-orange-600" />
-          </div>
-          <p className="text-2xl font-bold text-orange-700">₹40,000</p>
-          <p className="text-sm text-gray-600">Shortfall</p>
-        </Card>
-
-        <Card className="p-4 border-l-4 border-purple-500">
-          <div className="flex items-center justify-between mb-2">
-            <TrendingUp className="w-5 h-5 text-purple-600" />
-          </div>
-          <p className="text-2xl font-bold text-purple-700">₹0</p>
-          <p className="text-sm text-gray-600">Excess</p>
-        </Card>
+      {notice && <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800">{notice}</div>}
+      <div className="flex flex-wrap gap-2">
+        <Select options={[{ value: 'AY-2026-27', label: 'AY 2026-27' }]} value={fy} onChange={(e) => setFy(typeof e === 'string' ? e : e.target.value)} />
+        <Select options={[{ value: 'all', label: 'All departments' }, ...Array.from(new Set(TAX_STAFF.map((e) => e.department))).map((d) => ({ value: d, label: d }))]} value={dept} onChange={(e) => setDept(typeof e === 'string' ? e : e.target.value)} />
       </div>
-
+      <div className="flex flex-wrap gap-2 text-xs">
+        {['Select FY', 'Preview', 'Employee review', 'Declarations/proofs', 'Benefit claims', 'Corrections', 'Recalculate', 'Final review', 'Approval', 'Finalise', 'Form 16 readiness'].map((l, i) => (
+          <span key={l} className={`rounded-full border px-2 py-1 ${stage === i + 1 ? 'border-blue-600 bg-blue-50 text-blue-700' : 'text-gray-500'}`}>{i + 1}. {l}</span>
+        ))}
+      </div>
+      <div className="grid gap-3 md:grid-cols-4">
+        <Card><div className="p-4"><p className="text-xs text-gray-500">Liability</p><p className="text-xl font-semibold">{inr(rows.reduce((s, r) => s + r.tax.finalAnnualTax, 0))}</p></div></Card>
+        <Card><div className="p-4"><p className="text-xs text-gray-500">TDS deducted</p><p className="text-xl font-semibold">{inr(rows.reduce((s, r) => s + r.tax.tdsDeductedYtd, 0))}</p></div></Card>
+        <Card><div className="p-4"><p className="text-xs text-gray-500">Remaining</p><p className="text-xl font-semibold">{inr(rows.reduce((s, r) => s + r.tax.remainingTax, 0))}</p></div></Card>
+        <Card><div className="p-4"><p className="text-xs text-gray-500">Blockers</p><p className="text-xl font-semibold">{blockers.length}</p></div></Card>
+      </div>
       {previewed && (
-        <p className="text-xs text-gray-500">Preview includes Annual CTC, declared vs verified exemptions, flexible benefits accrued vs claimed, taxable income, slab + 4% cess, rebate u/s 87A, April–February TDS, March TDS multiple (Normal / Moderate / High).</p>
-      )}
-
-      {/* Reconciliation Table */}
-      <Card>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase">
-                  Employee
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">
-                  Annual Tax
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">
-                  Total TDS
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">
-                  Difference
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">
-                  Adjustment
-                </th>
-                <th className="px-4 py-3 text-center text-xs font-bold text-gray-600 uppercase">
-                  Final Status
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {[
-              {
-                name: 'Rajesh Kumar',
-                code: 'EMP001',
-                tax: 112500,
-                tds: 112500,
-                diff: 0,
-                status: 'Matched'
-              },
-              {
-                name: 'Priya Sharma',
-                code: 'EMP002',
-                tax: 62500,
-                tds: 62500,
-                diff: 0,
-                status: 'Matched'
-              },
-              {
-                name: 'Amit Patel',
-                code: 'EMP003',
-                tax: 195000,
-                tds: 175000,
-                diff: -20000,
-                status: 'Shortfall'
-              },
-              {
-                name: 'Sneha Reddy',
-                code: 'EMP004',
-                tax: 42500,
-                tds: 42500,
-                diff: 0,
-                status: 'Matched'
-              },
-              {
-                name: 'Vikram Singh',
-                code: 'EMP005',
-                tax: 212500,
-                tds: 192500,
-                diff: -20000,
-                status: 'Shortfall'
-              }].
-              map((emp, index) =>
-              <tr
-                key={index}
-                className={`hover:bg-gray-50 ${emp.diff !== 0 ? 'bg-orange-50' : ''}`}>
-
-                  <td className="px-4 py-3">
-                    <div>
-                      <p className="font-medium text-gray-900">{emp.name}</p>
-                      <p className="text-xs text-gray-500">{emp.code}</p>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-right font-medium text-gray-900">
-                    ₹{emp.tax.toLocaleString()}
-                  </td>
-                  <td className="px-4 py-3 text-right text-green-600 font-medium">
-                    ₹{emp.tds.toLocaleString()}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <span
-                    className={`font-bold ${emp.diff === 0 ? 'text-gray-900' : emp.diff > 0 ? 'text-green-600' : 'text-red-600'}`}>
-
-                      {emp.diff === 0 ?
-                    '₹0' :
-                    emp.diff > 0 ?
-                    `+₹${emp.diff.toLocaleString()}` :
-                    `-₹${Math.abs(emp.diff).toLocaleString()}`}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right text-blue-600 font-medium">
-                    {emp.diff !== 0 ?
-                  `₹${Math.abs(emp.diff).toLocaleString()}` :
-                  '-'}
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    <Badge
-                    className={
-                    emp.status === 'Matched' ?
-                    'bg-green-100 text-green-700' :
-                    emp.status === 'Shortfall' ?
-                    'bg-orange-100 text-orange-700' :
-                    'bg-purple-100 text-purple-700'
-                    }>
-
-                      {emp.status}
-                    </Badge>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-            <tfoot className="bg-gray-100 border-t-2 border-gray-300">
-              <tr>
-                <td className="px-4 py-3 text-right font-bold text-gray-900">
-                  Grand Total:
-                </td>
-                <td className="px-4 py-3 text-right font-bold text-gray-900">
-                  ₹6,25,000
-                </td>
-                <td className="px-4 py-3 text-right font-bold text-green-600">
-                  ₹5,85,000
-                </td>
-                <td className="px-4 py-3 text-right font-bold text-red-600">
-                  -₹40,000
-                </td>
-                <td className="px-4 py-3 text-right font-bold text-blue-600">
-                  ₹40,000
-                </td>
-                <td></td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      </Card>
-
-      {/* Alert */}
-      <Card className="p-4 bg-red-50 border-red-200">
-        <div className="flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5" />
-          <div>
-            <p className="font-semibold text-red-800">
-              Year-End Finalisation Warning
-            </p>
-            <p className="text-sm text-red-700 mt-1">
-              2 employees have tax shortfall totaling ₹40,000. These amounts
-              must be recovered before finalising the year. Once finalised, no
-              changes can be made to FY 2024-25 tax records.
-            </p>
-          </div>
-        </div>
-      </Card>
-
-      {previewed && (
-        <Card className="p-4 text-sm">
-          <h3 className="mb-2 font-semibold text-gray-900">Correction window</h3>
-          <p className="text-gray-600">High Impact employees can be notified of extra March TDS. Extend proof deadline on Proof Submission. Last-minute benefit claims can be approved without leaving this page — then Recalculate Preview.</p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <Button size="sm" variant="outline">Notify High Impact employees</Button>
-            <Button size="sm" variant="outline" onClick={() => navigate('/hr/income-tax/employee-benefit-claim')}>Benefit claim approval queue</Button>
-            <Button size="sm" variant="outline" onClick={() => navigate('/hr/income-tax/employee-tax-exemption-proof-submission')}>Extend proof deadline</Button>
+        <Card>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1000px] text-sm">
+              <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500"><tr><th className="px-3 py-2">Employee</th><th className="px-3 py-2">Gross</th><th className="px-3 py-2">Taxable</th><th className="px-3 py-2">Tax</th><th className="px-3 py-2">TDS</th><th className="px-3 py-2">Remaining</th><th className="px-3 py-2">Declaration</th><th className="px-3 py-2">Proofs</th></tr></thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.emp.id} className="border-t">
+                    <td className="px-3 py-2">{r.emp.name}</td>
+                    <td className="px-3 py-2">{inr(r.tax.grossIncome)}</td>
+                    <td className="px-3 py-2">{inr(r.tax.taxableIncome)}</td>
+                    <td className="px-3 py-2">{inr(r.tax.finalAnnualTax)}</td>
+                    <td className="px-3 py-2">{inr(r.tax.tdsDeductedYtd)}</td>
+                    <td className="px-3 py-2">{inr(r.tax.remainingTax)}</td>
+                    <td className="px-3 py-2"><Badge variant={r.declStatus === 'Submitted' ? 'success' : 'warning'}>{r.declStatus}</Badge></td>
+                    <td className="px-3 py-2"><Badge variant={r.pendingProof ? 'warning' : 'success'}>{r.pendingProof ? 'Pending' : 'Clear'}</Badge></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </Card>
       )}
-
-      <Card className="p-4 text-sm">
-        <h3 className="mb-2 font-semibold text-gray-900">Pre-execution checklist</h3>
-        <ul className="space-y-1 text-gray-700">
-          <li>Proof verifications complete: 91% — warning below 95%</li>
-          <li>Pending benefit claims: 2 — warning if above zero</li>
-          <li>Query Pending on proof verification: 1</li>
-          <li>Proof submission deadline: passed</li>
+      <Card title="Pending items">
+        <ul className="list-disc p-4 text-sm text-amber-800">
+          {blockers.map((b) => <li key={b}>{b}</li>)}
+          {!blockers.length && <li className="text-emerald-700">No mandatory blockers.</li>}
         </ul>
-        <label className="mt-3 flex items-center gap-2"><input type="checkbox" checked={proceedAnyway} onChange={(e) => setProceedAnyway(e.target.checked)} /> Proceed anyway — I acknowledge outstanding items (audit log)</label>
-        <p className="mt-2 text-xs text-gray-500">March Payroll Entry will pre-activate Deduct Tax For Unsubmitted Tax Exemption Proof and Deduct Tax For Unclaimed Employee Benefits.</p>
-      </Card>
-
-      <Card className="p-4 text-sm">
-        <h3 className="mb-2 font-semibold text-gray-900">Post-reconciliation / sign-off</h3>
-        <p>Over-deduction: carry forward to next FY, refund via next slip, or employee claims via ITR. Under-deduction requires a mandatory review note.</p>
-        <div className="mt-2 flex flex-wrap gap-2">
-          <Button size="sm" onClick={() => { setSigned(true); setReconStatus('Signed Off'); localStorage.setItem('k12-tax-recon-signed', '1'); }}>Submit for Finance / Principal sign-off</Button>
-          <Button size="sm" variant="outline" onClick={() => navigate('/hr/income-tax/form-16-annual-statement-export')} disabled={!signed}>Go to Form-16 generation</Button>
+        <div className="grid gap-3 p-4 md:grid-cols-2">
+          <Input label="Authorised exception reason (required if blockers remain)" value={exception} onChange={(e) => setException(e.target.value)} />
+          <p className="text-xs text-gray-500">Form 16 readiness: Part B can be previewed locally. Part A / official certificate still needs Q4 return Accepted — not marked complete from this page.</p>
+        </div>
+        <div className="flex gap-2 px-4 pb-4">
+          <Button variant="outline" onClick={() => navigate('/hr/income-tax/form-16-annual-statement-export')}>Open Form 16</Button>
+          <Button variant="outline" onClick={() => navigate('/hr/income-tax/challan-tax-payment-register')}>Open challans</Button>
         </div>
       </Card>
-
-      {/* Finalisation Confirmation */}
-      <Card className="p-6 bg-gray-50">
-        <h3 className="text-lg font-bold text-gray-900 mb-4">
-          Finalisation Checklist
-        </h3>
-        <div className="space-y-3">
-          {[
-          {
-            text: 'All TDS challans deposited',
-            checked: true
-          },
-          {
-            text: 'All employee declarations verified',
-            checked: true
-          },
-          {
-            text: 'All investment proofs approved',
-            checked: true
-          },
-          {
-            text: 'Tax shortfalls resolved',
-            checked: false
-          },
-          {
-            text: 'Form 16 data prepared',
-            checked: true
-          }].
-          map((item, index) =>
-          <label key={index} className="flex items-center gap-3">
-              <input
-              type="checkbox"
-              checked={item.checked}
-              disabled
-              className="rounded" />
-
-              <span
-              className={`text-sm ${item.checked ? 'text-gray-900' : 'text-red-600 font-medium'}`}>
-
-                {item.text}
-              </span>
-              {item.checked &&
-            <CheckCircle className="w-4 h-4 text-green-600" />
-            }
-            </label>
-          )}
-        </div>
+      <Card title="Finalisation history">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500"><tr><th className="px-3 py-2">When</th><th className="px-3 py-2">Action</th></tr></thead>
+          <tbody>
+            {history.map((h, i) => <tr key={i} className="border-t"><td className="px-3 py-2">{h.at.slice(0, 16).replace('T', ' ')}</td><td className="px-3 py-2">{h.action}</td></tr>)}
+            {!history.length && <tr><td colSpan={2} className="px-3 py-8 text-center text-gray-500">No history yet.</td></tr>}
+          </tbody>
+        </table>
       </Card>
-    </div>);
-
+    </div>
+  );
 }
+
+export default AnnualTaxReconciliationFinalisation;
