@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { loadPayrollPolicyConfig, savePayrollPolicyConfig, subscribePayrollPolicyConfig, PAYROLL_STAFF_CATEGORIES, type AttendanceRuleRecord } from '../payroll/PayrollSetup';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
@@ -116,14 +117,7 @@ const mockRules: AttendanceRule[] = [
   status: 'Active'
 }];
 
-const STAFF_TYPE_OPTIONS = [
-'Teaching',
-'Non-Teaching',
-'Administrative',
-'Support Staff',
-'Transport Staff',
-'Hostel Staff',
-'Contractual'];
+const STAFF_TYPE_OPTIONS = PAYROLL_STAFF_CATEGORIES;
 
 const ABSENT_LOGIC_OPTIONS = [
 'No punch recorded',
@@ -233,7 +227,20 @@ function Modal({ open, title, onClose, children, footer, size = 'md' }: ModalPro
 }
 
 export function AttendanceRuleMaster() {
-  const [rules, setRules] = useState(mockRules);
+  const [rules, setRules] = useState<AttendanceRule[]>(() => {
+    const loaded = loadPayrollPolicyConfig();
+    return loaded.config.attendanceRules.length ? loaded.config.attendanceRules : mockRules;
+  });
+  const persistRules = (next: AttendanceRuleRecord[]) => {
+    setRules(next);
+    const loaded = loadPayrollPolicyConfig();
+    const result = savePayrollPolicyConfig({ ...loaded.config, attendanceRules: next });
+    if (!result.ok) window.alert(result.error || 'Attendance rules could not be saved. Edits remain on this screen.');
+  };
+  useEffect(() => subscribePayrollPolicyConfig(() => {
+    const loaded = loadPayrollPolicyConfig();
+    if (loaded.config.attendanceRules.length) setRules(loaded.config.attendanceRules);
+  }), []);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -337,25 +344,9 @@ export function AttendanceRuleMaster() {
       return;
     }
     if (editId) {
-      setRules((prev) =>
-      prev.map((r) =>
-      r.id === editId ?
-      {
-        ...r,
-        ...form
-      } :
-      r
-      )
-      );
+      persistRules(rules.map((r) => r.id === editId ? { ...r, ...form } : r));
     } else {
-      setRules((prev) => [
-      ...prev,
-      {
-        ...form,
-        id: `AR${Date.now()}`,
-        status: 'Active' as const
-      }]
-      );
+      persistRules([...rules, { ...form, id: `AR${Date.now()}`, status: 'Active' as const }]);
     }
     resetForm();
   };
@@ -440,7 +431,7 @@ export function AttendanceRuleMaster() {
 
   const confirmDelete = () => {
     if (!deleteTarget) return;
-    setRules((prev) => prev.filter((r) => r.id !== deleteTarget.id));
+    persistRules(rules.filter((r) => r.id !== deleteTarget.id));
     if (editId === deleteTarget.id) resetForm();
     setDeleteTarget(null);
     setToast('Rule deleted successfully.');
@@ -448,7 +439,7 @@ export function AttendanceRuleMaster() {
 
   const toggleStatus = (rule: AttendanceRule) => {
     const nextStatus = rule.status === 'Active' ? 'Inactive' : 'Active';
-    setRules((prev) => prev.map((r) => r.id === rule.id ? { ...r, status: nextStatus } : r));
+    persistRules(rules.map((r) => r.id === rule.id ? { ...r, status: nextStatus } : r));
     setToast(`Rule marked as ${nextStatus}.`);
   };
 
@@ -539,15 +530,10 @@ export function AttendanceRuleMaster() {
                   <Select
                 label="Academic / Financial Year *"
                 options={[
-                {
-                  value: '2024-25',
-                  label: '2024-25'
-                },
-                {
-                  value: '2023-24',
-                  label: '2023-24'
-                }]
-                }
+                { value: '2026-27', label: '2026-27' },
+                { value: '2025-26', label: '2025-26' },
+                { value: '2024-25', label: '2024-25' }
+                ]}
                 value={form.academicYear}
                 onChange={(e) =>
                 setForm({
@@ -1252,7 +1238,7 @@ export function AttendanceRuleMaster() {
         {testRule &&
         <div className="space-y-5">
             <p className="text-xs text-gray-500">
-              Rule: full day ≥ {testRule.minHoursFullDay} h · half day {testRule.halfDayMinHours}–{testRule.halfDayMaxHours} h · late grace {testRule.lateComingGrace} min
+              Rule: full day ≥ {testRule.minHoursFullDay} h · half day {testRule.halfDayMinHours}–{testRule.halfDayMaxHours} h · late grace {testRule.lateComingGrace} min. Overnight punch-out earlier than punch-in is not supported in this simulator. Custom absent text is description only and is not included in the simulation.
             </p>
             <div className="grid grid-cols-3 gap-4">
               <Input

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { calculateIncomeTax, projectAnnualTaxable, remainingPayrollMonths } from './incomeTax';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Select } from '../../../components/ui/Select';
@@ -331,43 +332,20 @@ const formatDateTime = (dateString: string): string => {
   });
 };
 
-// TDS Calculation Function
-const calculateTds = (taxableIncome: number, regime: 'New' | 'Old'): number => {
-  // Simplified TDS calculation - in production, use actual tax slabs
-  let annualTaxable = taxableIncome * 12;
-  let annualTax = 0;
-
-  if (regime === 'New') {
-    if (annualTaxable <= 300000) {
-      annualTax = 0;
-    } else if (annualTaxable <= 600000) {
-      annualTax = (annualTaxable - 300000) * 0.05;
-    } else if (annualTaxable <= 900000) {
-      annualTax = 15000 + (annualTaxable - 600000) * 0.10;
-    } else if (annualTaxable <= 1200000) {
-      annualTax = 45000 + (annualTaxable - 900000) * 0.15;
-    } else if (annualTaxable <= 1500000) {
-      annualTax = 90000 + (annualTaxable - 1200000) * 0.20;
-    } else {
-      annualTax = 150000 + (annualTaxable - 1500000) * 0.30;
-    }
-  } else {
-    if (annualTaxable <= 250000) {
-      annualTax = 0;
-    } else if (annualTaxable <= 500000) {
-      annualTax = (annualTaxable - 250000) * 0.05;
-    } else if (annualTaxable <= 1000000) {
-      annualTax = 12500 + (annualTaxable - 500000) * 0.20;
-    } else {
-      annualTax = 112500 + (annualTaxable - 1000000) * 0.30;
-    }
-  }
-
-  // Add 4% cess
-  annualTax = annualTax * 1.04;
-
-  // Monthly TDS
-  return Math.round(annualTax / 12);
+const calculateTds = (
+  emp: Pick<Employee, 'regime' | 'taxableMonthly' | 'ytdTaxable' | 'ytdTds'>,
+  monthNumber: number
+): number => {
+  const remaining = remainingPayrollMonths(monthNumber);
+  const projectedTaxable = projectAnnualTaxable(emp.ytdTaxable, emp.taxableMonthly, remaining);
+  return calculateIncomeTax({
+    periodId: 'AY-2026-27',
+    regime: emp.regime === 'New' ? 'New Regime' : 'Old Regime',
+    annualGrossSalary: 0,
+    taxableIncomeOverride: projectedTaxable,
+    remainingMonths: remaining,
+    tdsDeductedYtd: emp.ytdTds
+  }).monthlyTdsEstimate;
 };
 
 export function MonthlyTdsComputationTransfer() {
@@ -787,7 +765,7 @@ export function MonthlyTdsComputationTransfer() {
       setEmployees((prev) =>
       prev.map((e) => {
         if (e.status === 'Pending' || e.status === 'Ready') {
-          const newCalculatedTds = calculateTds(e.taxableMonthly, e.regime);
+          const newCalculatedTds = calculateTds(e, MONTHS.find((m) => m.value === selectedMonth)?.month ?? new Date().getMonth() + 1);
           const newFinalTds = newCalculatedTds + e.adjustedTds;
           return {
             ...e,
@@ -831,7 +809,7 @@ export function MonthlyTdsComputationTransfer() {
         selectedRows.includes(e.id) && (
         e.status === 'Pending' || e.status === 'Ready'))
         {
-          const newCalculatedTds = calculateTds(e.taxableMonthly, e.regime);
+          const newCalculatedTds = calculateTds(e, MONTHS.find((m) => m.value === selectedMonth)?.month ?? new Date().getMonth() + 1);
           const newFinalTds = newCalculatedTds + e.adjustedTds;
           return {
             ...e,
@@ -867,7 +845,7 @@ export function MonthlyTdsComputationTransfer() {
       setEmployees((prev) =>
       prev.map((e) => {
         if (e.status !== 'Locked' && e.status !== 'Transferred') {
-          const newCalculatedTds = calculateTds(e.taxableMonthly, e.regime);
+          const newCalculatedTds = calculateTds(e, MONTHS.find((m) => m.value === selectedMonth)?.month ?? new Date().getMonth() + 1);
           const newFinalTds = newCalculatedTds + e.adjustedTds;
           return {
             ...e,

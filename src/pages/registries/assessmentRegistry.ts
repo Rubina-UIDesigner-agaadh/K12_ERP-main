@@ -337,3 +337,5 @@ export const assessmentRegistry: Record<string, () => any> = {
         'ResultDistributionReport'
     )
 };
+
+export default assessmentRegistry;

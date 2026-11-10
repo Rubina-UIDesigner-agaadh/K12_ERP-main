@@ -18,7 +18,6 @@ import {
   Clock,
   Settings,
   Eye,
-  Edit,
   MoreHorizontal,
   Info,
   X } from
@@ -1239,9 +1238,6 @@ export function MonthlyAttendanceRegisterHr() {
                           <button type="button" className="p-1 hover:bg-gray-200 rounded" title="View" onClick={() => setViewId(employee.id)}>
                             <Eye className="w-3.5 h-3.5 text-gray-500" />
                           </button>
-                          <button type="button" className="p-1 hover:bg-gray-200 rounded" title="Edit" onClick={() => openEdit(employee)}>
-                            <Edit className="w-3.5 h-3.5 text-gray-500" />
-                          </button>
                           <button type="button" className="p-1 hover:bg-gray-200 rounded" title="More" onClick={() => setActionsId(employee.id)}>
                             <MoreHorizontal className="w-3.5 h-3.5 text-gray-500" />
                           </button>
@@ -1375,10 +1371,6 @@ export function MonthlyAttendanceRegisterHr() {
             <Button variant="outline" className="w-full justify-start" onClick={openImport}>
               <Upload className="w-4 h-4 mr-2" />
               Import Attendance Data
-            </Button>
-            <Button variant="outline" className="w-full justify-start" onClick={openBulk}>
-              <Edit className="w-4 h-4 mr-2" />
-              Bulk Edit Attendance
             </Button>
             <Button variant="outline" className="w-full justify-start" onClick={openHoliday}>
               <Calendar className="w-4 h-4 mr-2" />

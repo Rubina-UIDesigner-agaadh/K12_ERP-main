@@ -272,6 +272,12 @@ export interface MonthlyTeachingPlanRecord {
   completionPercent: number;
 }
 
+export interface PlanCheckpoint {
+  id: string;
+  task: string;
+  done: boolean;
+}
+
 export interface WeeklyTeachingItem {
   id: string;
   teacher: string;
@@ -287,11 +293,14 @@ export interface WeeklyTeachingItem {
   topic: string;
   room: string;
   status: PeriodStatus;
+  checkpoints?: PlanCheckpoint[];
+  planNotes?: string;
   substitute: string;
   substitutionReason?: string;
   type: 'Lesson' | 'Test' | 'Lab' | 'Special Activity';
   planSubmitted: boolean;
   progressPercent?: number;
+  progressNotes?: string;
   reviewDecision?: '' | 'Approved' | 'Rejected' | 'Returned for Revision';
   reviewFeedback?: string;
 }
@@ -620,9 +629,36 @@ export const DEFAULT_WEEKLY_PLANS: WeeklyTeachingItem[] = weeklyClassSamples.fla
     status: completed ? 'Completed' as const : 'Planned' as const,
     substitute: '',
     type: isClassTest ? 'Test' as const : classIndex === 0 && periodIndex === 2 ? 'Lab' as const : 'Lesson' as const,
-    planSubmitted: completed
+    planSubmitted: completed,
+    progressPercent: completed ? 100 : 0,
+    progressNotes: completed ? (isClassTest ? 'Class test conducted and papers collected.' : `Completed ${topic} as planned.`) : '',
+    planNotes: completed ? (isClassTest ? 'Class test conducted and papers collected.' : `Completed ${topic} as planned.`) : '',
+    checkpoints: completed
+      ? [{ id: `wk-${classIndex + 1}-${dayIndex + 1}-${periodIndex + 1}-cp-1`, task: isClassTest ? 'Conduct class test and collect papers' : `Cover ${topic}`, done: true }]
+      : [
+        { id: `wk-${classIndex + 1}-${dayIndex + 1}-${periodIndex + 1}-cp-1`, task: topic, done: false },
+        { id: `wk-${classIndex + 1}-${dayIndex + 1}-${periodIndex + 1}-cp-2`, task: 'Classwork / recap', done: false },
+      ],
   };
 })));
+
+export function checkpointProgress(item: WeeklyTeachingItem): number {
+  const list = item.checkpoints || [];
+  if (list.length) return Math.round((list.filter((checkpoint) => checkpoint.done).length / list.length) * 100);
+  return item.progressPercent ?? (item.status === 'Completed' ? 100 : 0);
+}
+
+export function ensurePlanCheckpoints(item: WeeklyTeachingItem): PlanCheckpoint[] {
+  if (item.checkpoints && item.checkpoints.length) return item.checkpoints;
+  const done = item.status === 'Completed' || (item.progressPercent ?? 0) >= 100;
+  return [{ id: `${item.id}-cp-1`, task: item.topic || item.chapter || 'Complete this period', done }];
+}
+
+export function isPendingWeeklyPlan(item: WeeklyTeachingItem, todayIso: string): boolean {
+  if (item.status === 'Completed' || item.status === 'Skipped') return false;
+  if (!item.date || item.date >= todayIso) return false;
+  return checkpointProgress(item) < 100;
+}
 
 const lesson = (id: string, teacher: string, className: string, subject: string, date: string, title: string, status: LessonStatus, chapterName: string, topicName: string): LessonPlanRecord => ({ ...createBlankLesson(), id, teacher, className, subject, date, title, status, chapter: chapterName, topic: topicName, createdAt: date, objectives: [{ id: `${id}-o1`, statement: `Explain ${topicName.toLowerCase()}.`, bloomLevel: 'Understand' }] });
 export const DEFAULT_LESSON_PLANS: LessonPlanRecord[] = [

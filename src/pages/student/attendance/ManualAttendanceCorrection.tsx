@@ -572,6 +572,19 @@ export function ManualAttendanceCorrection() {
         </div>
       </div>
 
+      <div className="flex flex-wrap gap-2">
+        {[{ id: 'search' as const, label: 'Search & Correct' }, { id: 'history' as const, label: 'Correction History' }].map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setViewMode(t.id)}
+            className={`rounded-lg border px-4 py-2 text-sm font-medium ${viewMode === t.id || (t.id === 'search' && viewMode === 'correction') ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-gray-200 bg-white text-gray-600'}`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
       {viewMode === 'search' &&
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Search Panel */}
@@ -1225,6 +1238,35 @@ export function ManualAttendanceCorrection() {
           </div>
         </div>
       }
+
+      {viewMode === 'history' && (
+        <Card title="Correction History">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-gray-50 text-left text-xs uppercase text-gray-500">
+                  {['Date', 'From → To', 'Reason', 'Requested by', 'Status'].map((h) => <th key={h} className="px-3 py-2">{h}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {mockCorrectionHistory.map((correction) => (
+                  <tr key={correction.id} className="border-b">
+                    <td className="px-3 py-2">{correction.date}</td>
+                    <td className="px-3 py-2">{correction.originalStatus} → {correction.newStatus}</td>
+                    <td className="px-3 py-2">{correction.reason}</td>
+                    <td className="px-3 py-2">{correction.requestedBy}<p className="text-xs text-gray-400">{correction.requestedAt}</p></td>
+                    <td className="px-3 py-2">
+                      <Badge variant={getCorrectionStatusBadge(correction.status)}>
+                        {correction.status.charAt(0).toUpperCase() + correction.status.slice(1)}
+                      </Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
 
       {/* Confirmation Modal */}
       {showConfirmModal &&

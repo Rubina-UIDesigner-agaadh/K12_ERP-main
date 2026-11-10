@@ -66,6 +66,10 @@ export const financeRegistry: Record<string, () => any> = {
     () => import('../finance/fees/FeeStructure'),
     'FeeStructure'
   ),
+  'student-fee-invoice': rp(
+    () => import('../finance/fees/StudentFeeInvoice'),
+    'StudentFeeInvoice'
+  ),
   'royalty-collection': rp(
     () => import('../finance/fees/RoyaltyCollection'),
     'RoyaltyCollection'
@@ -240,3 +244,5 @@ export const financeRegistry: Record<string, () => any> = {
   ),
 
 };
+
+export default financeRegistry;

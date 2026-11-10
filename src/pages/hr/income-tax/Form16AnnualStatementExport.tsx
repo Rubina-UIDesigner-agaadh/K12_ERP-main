@@ -475,6 +475,10 @@ export function Form16AnnualStatementExport() {
 
   // Generate Form-16 for all pending employees
   const generateForm16All = useCallback(async () => {
+    if (localStorage.getItem('k12-tax-recon-signed') !== '1') {
+      addNotification('error', 'Annual Tax Reconciliation must be signed off and all 12 challans recorded before Form-16 can be generated.');
+      return;
+    }
     const pendingEmployees = employees.filter(
       (e) => e.status === 'Pending' || e.status === 'Error'
     );
@@ -865,6 +869,9 @@ export function Form16AnnualStatementExport() {
 
   return (
     <div className="space-y-6 p-6">
+      <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+        Part A is the TRACES / Q4-return certificate workflow — a local PDF does not mean Part A is available. Part B uses salary and the shared tax engine. Combined preview is a local preview, not an official certificate. Reissue must keep the previous version.
+      </div>
       {/* Notifications */}
       <div className="fixed top-4 right-4 z-50 space-y-2">
         {notifications.map((notification) =>
@@ -924,6 +931,11 @@ export function Form16AnnualStatementExport() {
           <p className="text-sm text-gray-500 mt-1">
             HR {'>'} Payroll {'>'} Income Tax {'>'} Reports
           </p>
+          {localStorage.getItem('k12-tax-recon-signed') !== '1' && (
+            <p className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+              Annual Tax Reconciliation must be signed off before Form-16 can be generated. Challan Register must have all 12 months and deducted vs deposited must match.
+            </p>
+          )}
         </div>
         <div className="flex gap-3">
           <Button

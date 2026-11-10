@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
@@ -98,6 +99,7 @@ const BRANCHES = [
 }];
 
 export function IncomeTaxDashboard() {
+  const navigate = useNavigate();
   const [activeKpiInfo, setActiveKpiInfo] = useState<KpiInfo | null>(null);
   const [selectedBranches, setSelectedBranches] = useState<string[]>(['all']);
   const handleBranchToggle = (branchId: string) => {
@@ -249,6 +251,24 @@ export function IncomeTaxDashboard() {
             }
             </button>
           )}
+        </div>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-3">
+        <button type="button" className="rounded-xl border border-gray-200 bg-white p-4 text-left hover:border-indigo-300" onClick={() => navigate('/hr/income-tax/investment-declaration-status')}>
+          <p className="text-xs font-semibold uppercase text-gray-400">Investment Declaration Status</p>
+          <p className="mt-1 text-2xl font-bold text-gray-900">68.4%</p>
+          <p className="text-sm text-gray-500">Declarations submitted this payroll period</p>
+        </button>
+        <button type="button" className="rounded-xl border border-gray-200 bg-white p-4 text-left hover:border-indigo-300" onClick={() => navigate('/hr/income-tax/proof-verification-status')}>
+          <p className="text-xs font-semibold uppercase text-gray-400">Proof Verification Status</p>
+          <p className="mt-1 text-2xl font-bold text-gray-900">41.2%</p>
+          <p className="text-sm text-gray-500">Verified · aggregate shortfall ₹18.4L</p>
+        </button>
+        <div className="rounded-xl border border-gray-200 bg-white p-4">
+          <p className="text-xs font-semibold uppercase text-gray-400">Challan compliance calendar</p>
+          <p className="mt-1 text-sm text-gray-700">TDS due 7th of next month (30 Apr for March). Oct 2026: Recorded · Nov 2026: Pending</p>
+          <button type="button" className="mt-2 text-sm text-indigo-700 underline" onClick={() => navigate('/hr/income-tax/challan-tax-payment-register')}>Open Challan Register</button>
         </div>
       </div>
 

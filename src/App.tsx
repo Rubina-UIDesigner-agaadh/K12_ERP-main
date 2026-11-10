@@ -29,11 +29,11 @@ import {
   Keyboard
 } from
   'lucide-react';
-import { modules } from './data/navigationData';
+import * as navigationData from './data/navigationData';
 import { SecondaryNav } from './components/SecondaryNav';
 import { Sidebar } from './components/Sidebar';
 import { DynamicPage } from './components/DynamicPage';
-import { SubModule, FavoriteItem } from './types/navigation';
+import { SubModule, FavoriteItem, Module } from './types/navigation';
 import { LoginPage } from './pages/LoginPage';
 import { HeaderDropdown } from './components/header/HeaderDropdowns';
 import { SettingsPage } from './pages/SettingsPage';
@@ -44,6 +44,8 @@ import { HelpSupportPanel } from './components/header/HelpSupportPanel';
 import { ThemePanel } from './components/header/ThemePanel';
 import { LogoutModal } from './components/header/LogoutModal';
 import { KeyboardShortcutsRuntime, openShortcutList } from './pages/my-details/settings/MyDisplayLanguage';
+
+const modules = (navigationData.modules ?? (navigationData as { default?: Module[] }).default ?? []) as Module[];
 // Helper: find first page ID for a submodule
 function getFirstPageId(subModule: SubModule): string {
   if (subModule.sidebarConfig && subModule.sidebarConfig.length > 0) {
@@ -215,6 +217,18 @@ function MainLayout() {
   const [medium, setMedium] = useState('English Medium');
   const [branch, setBranch] = useState('Main Campus');
   const [academicYear, setAcademicYear] = useState('AY: 2024-2025');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('k12-sidebar-collapsed') === '1';
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem('k12-sidebar-collapsed', sidebarCollapsed ? '1' : '0');
+    } catch { /* ignore */ }
+  }, [sidebarCollapsed]);
   // Favorites State
   const [favorites, setFavorites] = useState<FavoriteItem[]>(() => {
     try {
@@ -443,7 +457,9 @@ function MainLayout() {
           activeModuleLabel={activeModule?.label || ''}
           favorites={favorites}
           onToggleFavorite={toggleFavorite}
-          onNavigateFavorite={navigateToFavorite} />
+          onNavigateFavorite={navigateToFavorite}
+          collapsed={sidebarCollapsed}
+          onToggleCollapsed={() => setSidebarCollapsed((value) => !value)} />
 
 
         <div className="flex min-w-0 flex-1 flex-col">

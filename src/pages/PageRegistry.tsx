@@ -1,13 +1,31 @@
-import { dashboardRegistry } from './registries/dashboardRegistry';
-import { academicRegistry } from './registries/academicRegistry';
-import { studentRegistry } from './registries/studentRegistry';
-import { financeRegistry } from './registries/financeRegistry';
-import { hrRegistry } from './registries/hrRegistry';
-import { assessmentRegistry } from './registries/assessmentRegistry';
-import { adminRegistry } from './registries/adminRegistry';
-import { moreRegistry } from './registries/moreRegistry';
-import { myDetailsRegistry } from './registries/myDetailsRegistry';
-import { pluginsRegistry } from './registries/pluginsRegistry';
+import * as dashboardMod from './registries/dashboardRegistry';
+import * as academicMod from './registries/academicRegistry';
+import * as studentMod from './registries/studentRegistry';
+import * as financeMod from './registries/financeRegistry';
+import * as hrMod from './registries/hrRegistry';
+import * as assessmentMod from './registries/assessmentRegistry';
+import * as adminMod from './registries/adminRegistry';
+import * as moreMod from './registries/moreRegistry';
+import * as myDetailsMod from './registries/myDetailsRegistry';
+import * as pluginsMod from './registries/pluginsRegistry';
+
+type RegistryMap = Record<string, () => any>;
+
+const pickRegistry = (mod: Record<string, unknown>, name: string): RegistryMap => {
+  const value = (mod[name] ?? mod.default) as RegistryMap | undefined;
+  return value && typeof value === 'object' ? value : {};
+};
+
+const dashboardRegistry = pickRegistry(dashboardMod, 'dashboardRegistry');
+const academicRegistry = pickRegistry(academicMod, 'academicRegistry');
+const studentRegistry = pickRegistry(studentMod, 'studentRegistry');
+const financeRegistry = pickRegistry(financeMod, 'financeRegistry');
+const hrRegistry = pickRegistry(hrMod, 'hrRegistry');
+const assessmentRegistry = pickRegistry(assessmentMod, 'assessmentRegistry');
+const adminRegistry = pickRegistry(adminMod, 'adminRegistry');
+const moreRegistry = pickRegistry(moreMod, 'moreRegistry');
+const myDetailsRegistry = pickRegistry(myDetailsMod, 'myDetailsRegistry');
+const pluginsRegistry = pickRegistry(pluginsMod, 'pluginsRegistry');
 
 /**
  * Page-registry composition.
@@ -56,3 +74,5 @@ if (shadowedIds.length > 0 && typeof console !== 'undefined' && console.warn) {
       shadowedIds.join('\n  - ')
   );
 }
+
+export default pageRegistry;

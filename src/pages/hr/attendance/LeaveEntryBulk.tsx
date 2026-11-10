@@ -729,7 +729,10 @@ export function LeaveEntryBulk({ lockedMode }: { lockedMode?: 'bulk' | 'single' 
               </table>
             </div>
           </div>
+<<<<<<< HEAD
         
+=======
+>>>>>>> 905aa2e4c5bb4ee01eb78aa0858b6fa4ef72ea34
       }
 
       <Modal

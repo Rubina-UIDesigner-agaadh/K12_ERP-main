@@ -18,3 +18,5 @@ export const dashboardRegistry: Record<string, () => any> = {
     'SmsPredefinedAlerts'
   )
 };
+
+export default dashboardRegistry;

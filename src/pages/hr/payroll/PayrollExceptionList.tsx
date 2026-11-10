@@ -1,2090 +1,670 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
+import { Card } from '../../../components/ui/Card';
+import { Button } from '../../../components/ui/Button';
+import { Input } from '../../../components/ui/Input';
+import { Select } from '../../../components/ui/Select';
+import { Badge } from '../../../components/ui/Badge';
+import { Modal } from '../../../components/ui/Modal';
+import { Textarea } from '../../../components/ui/Textarea';
 import {
   AlertTriangle,
-  XCircle,
-  Info,
-  Eye,
-  Search,
-  X,
-  FileText,
-  Clock,
-  Plus,
-  Trash2,
+  Ban,
   CheckCircle,
-  Upload,
-  Download,
-  Filter,
-  RotateCcw,
-  MessageSquare,
-  Pencil,
-  ChevronUp,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  AlertCircle,
-  Send,
+  FileText,
+  Lock,
   Paperclip,
-  MoreVertical,
-  RefreshCw,
-  History,
-  UserCheck,
-  FileUp } from
-'lucide-react';
+  Plus,
+  Search,
+  Unlock
+} from 'lucide-react';
 
-// ============ UI COMPONENTS ============
-interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'outline' | 'ghost' | 'danger' | 'success';
-  size?: 'xs' | 'sm' | 'md' | 'lg';
-  children: React.ReactNode;
-}
+const inr = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
 
-function Button({
-  variant = 'primary',
-  size = 'md',
-  children,
-  className = '',
-  disabled,
-  ...props
-}: ButtonProps) {
-  const baseStyles =
-  'inline-flex items-center justify-center font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2';
+type HoldStatus = 'Draft' | 'Active' | 'Partially Released' | 'Released' | 'Cancelled';
+type ReasonCode =
+  | 'Disciplinary Investigation'
+  | 'Court Order'
+  | 'Document Non-Compliance'
+  | 'Absconding'
+  | 'Property Non-Return'
+  | 'CBSE Compliance Block'
+  | 'Audit Hold'
+  | 'Other';
+type NotifyMethod = 'Email' | 'Letter' | 'In-Person' | 'Not Yet Notified';
+type PageTab = 'list' | 'form' | 'report';
+type CyclePay = 'Unpaid' | 'Paid' | 'Partially Paid';
 
-  const variants = {
-    primary:
-    'bg-indigo-600 text-white hover:bg-indigo-700 focus:ring-indigo-500 disabled:bg-indigo-300',
-    outline:
-    'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 focus:ring-indigo-500',
-    ghost: 'text-slate-600 hover:bg-slate-100 focus:ring-slate-500',
-    danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500',
-    success: 'bg-green-600 text-white hover:bg-green-700 focus:ring-green-500'
-  };
+type Cycle = {
+  month: string;
+  slipId: string;
+  slipStatus: 'Withheld' | 'Released';
+  gross: number;
+  net: number;
+  withheldSince: string;
+  releaseEntry: string;
+  releaseDate: string;
+  payment: CyclePay;
+};
 
-  const sizes = {
-    xs: 'px-2 py-1 text-xs',
-    sm: 'px-3 py-1.5 text-sm',
-    md: 'px-4 py-2 text-sm',
-    lg: 'px-6 py-3 text-base'
-  };
-
-  return (
-    <button
-      className={`${baseStyles} ${variants[variant]} ${sizes[size]} ${disabled ? 'cursor-not-allowed opacity-50' : ''} ${className}`}
-      disabled={disabled}
-      {...props}>
-
-      {children}
-    </button>);
-
-}
-
-interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
-  label?: string;
-  leftIcon?: React.ReactNode;
-  error?: string;
-}
-
-function Input({
-  label,
-  leftIcon,
-  error,
-  className = '',
-  ...props
-}: InputProps) {
-  return (
-    <div className="w-full">
-      {label &&
-      <label className="block text-sm font-medium text-slate-700 mb-1">
-          {label}
-        </label>
-      }
-      <div className="relative">
-        {leftIcon &&
-        <div className="absolute left-3 top-1/2 -translate-y-1/2">
-            {leftIcon}
-          </div>
-        }
-        <input
-          className={`w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
-          leftIcon ? 'pl-10' : ''} ${
-          error ? 'border-red-500' : ''} ${className}`}
-          {...props} />
-
-      </div>
-      {error && <p className="mt-1 text-sm text-red-500">{error}</p>}
-    </div>);
-
-}
-
-interface TextareaProps extends
-  React.TextareaHTMLAttributes<HTMLTextAreaElement> {
-  label?: string;
-  error?: string;
-}
-
-function Textarea({ label, error, className = '', ...props }: TextareaProps) {
-  return (
-    <div className="w-full">
-      {label &&
-      <label className="block text-sm font-medium text-slate-700 mb-1">
-          {label}
-        </label>
-      }
-      <textarea
-        className={`w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none ${
-        error ? 'border-red-500' : ''} ${
-        className}`}
-        rows={3}
-        {...props} />
-
-      {error && <p className="mt-1 text-sm text-red-500">{error}</p>}
-    </div>);
-
-}
-
-interface SelectOption {
-  value: string;
-  label: string;
-}
-
-interface SelectProps {
-  label?: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: SelectOption[];
-  placeholder?: string;
-}
-
-function Select({
-  label,
-  value,
-  onChange,
-  options,
-  placeholder
-}: SelectProps) {
-  return (
-    <div className="w-full">
-      {label &&
-      <label className="block text-sm font-medium text-slate-700 mb-1">
-          {label}
-        </label>
-      }
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white">
-
-        {placeholder && <option value="">{placeholder}</option>}
-        {options.map((option) =>
-        <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        )}
-      </select>
-    </div>);
-
-}
-
-interface BadgeProps {
-  variant?: 'primary' | 'secondary' | 'success' | 'warning' | 'danger' | 'info';
-  children: React.ReactNode;
-  className?: string;
-}
-
-function Badge({ variant = 'primary', children, className = '' }: BadgeProps) {
-  const variants = {
-    primary: 'bg-indigo-100 text-indigo-700',
-    secondary: 'bg-slate-100 text-slate-700',
-    success: 'bg-green-100 text-green-700',
-    warning: 'bg-amber-100 text-amber-700',
-    danger: 'bg-red-100 text-red-700',
-    info: 'bg-blue-100 text-blue-700'
-  };
-
-  return (
-    <span
-      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${variants[variant]} ${className}`}>
-
-      {children}
-    </span>);
-
-}
-
-interface ModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  title: string;
-  children: React.ReactNode;
-  size?: 'sm' | 'md' | 'lg' | 'xl';
-}
-
-function Modal({
-  isOpen,
-  onClose,
-  title,
-  children,
-  size = 'md'
-}: ModalProps) {
-  if (!isOpen) return null;
-
-  const sizes = {
-    sm: 'max-w-sm',
-    md: 'max-w-lg',
-    lg: 'max-w-2xl',
-    xl: 'max-w-4xl'
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="flex min-h-screen items-center justify-center p-4">
-        <div
-          className="fixed inset-0 bg-black/50 transition-opacity"
-          onClick={onClose} />
-
-        <div
-          className={`relative bg-white rounded-xl shadow-xl ${sizes[size]} w-full p-6 z-10 max-h-[90vh] overflow-y-auto`}>
-
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-slate-900">{title}</h2>
-            <button
-              onClick={onClose}
-              className="p-1 rounded-lg hover:bg-slate-100 transition-colors">
-
-              <X className="w-5 h-5 text-slate-500" />
-            </button>
-          </div>
-          {children}
-        </div>
-      </div>
-    </div>);
-
-}
-
-// ============ TYPES ============
-interface TimelineItem {
+type Hold = {
   id: string;
-  date: string;
-  action: string;
-  user: string;
-  comment?: string;
-}
-
-interface Document {
-  id: string;
+  employeeId: string;
   name: string;
-  type: string;
-  size: string;
-  uploadedBy: string;
-  uploadedAt: string;
-}
-
-interface Exception {
-  id: number;
-  empName: string;
-  empCode: string;
+  photo: string;
   department: string;
-  exceptionType: string;
-  description: string;
-  detectedOn: string;
-  severity: 'High' | 'Medium' | 'Low';
-  status: 'Open' | 'Resolved' | 'In Progress' | 'Escalated';
-  assignedTo?: string;
-  resolvedBy?: string;
-  resolvedOn?: string;
-  resolutionNotes?: string;
-  documents: Document[];
-  timeline: TimelineItem[];
+  designation: string;
+  structure: string;
+  company: string;
+  fromDate: string;
+  toDate: string;
+  reason: ReasonCode;
+  detail: string;
+  documents: string[];
+  authority: string;
+  approvalDate: string;
+  notified: boolean;
+  notifyDate: string;
+  notifyMethod: NotifyMethod;
+  status: HoldStatus;
+  onNotice: boolean;
+  cycles: Cycle[];
+};
+
+const REASONS: ReasonCode[] = [
+  'Disciplinary Investigation',
+  'Court Order',
+  'Document Non-Compliance',
+  'Absconding',
+  'Property Non-Return',
+  'CBSE Compliance Block',
+  'Audit Hold',
+  'Other'
+];
+
+const STAFF = [
+  { id: 'EMP-2048', name: 'Sunita Rao', photo: 'SR', department: 'Science', designation: 'PGT Physics', structure: 'Teaching Grade A 2026', company: 'EduManager School', onNotice: false },
+  { id: 'EMP-2055', name: 'Mahesh T', photo: 'MT', department: 'Administration', designation: 'Clerk', structure: 'Non-Teaching Grade C', company: 'EduManager School', onNotice: true },
+  { id: 'EMP-2060', name: 'Rakesh Singh', photo: 'RS', department: 'Sports', designation: 'PET', structure: 'Teaching Grade B 2026', company: 'EduManager School', onNotice: false },
+  { id: 'EMP-1042', name: 'Meera Iyer', photo: 'MI', department: 'Science', designation: 'PGT Chemistry', structure: 'Teaching Grade A 2026', company: 'EduManager School', onNotice: false }
+];
+
+const emptyForm = (): Hold => ({
+  id: '',
+  employeeId: '',
+  name: '',
+  photo: '',
+  department: '',
+  designation: '',
+  structure: '',
+  company: 'EduManager School',
+  fromDate: '2026-11-01',
+  toDate: '',
+  reason: 'Disciplinary Investigation',
+  detail: '',
+  documents: [],
+  authority: 'Principal Rao',
+  approvalDate: '2026-11-01',
+  notified: false,
+  notifyDate: '',
+  notifyMethod: 'Not Yet Notified',
+  status: 'Draft',
+  onNotice: false,
+  cycles: []
+});
+
+const SEED: Hold[] = [
+  {
+    id: 'SW-2026-001',
+    employeeId: 'EMP-2048',
+    name: 'Sunita Rao',
+    photo: 'SR',
+    department: 'Science',
+    designation: 'PGT Physics',
+    structure: 'Teaching Grade A 2026',
+    company: 'EduManager School',
+    fromDate: '2026-09-01',
+    toDate: '',
+    reason: 'Disciplinary Investigation',
+    detail: 'Pending inquiry into alleged question-paper leak. Hold approved by Principal until committee closes.',
+    documents: ['HR-Committee-Minutes-Sep2026.pdf', 'Show-Cause-Notice.pdf'],
+    authority: 'Principal Rao',
+    approvalDate: '2026-08-28',
+    notified: true,
+    notifyDate: '2026-08-29',
+    notifyMethod: 'Letter',
+    status: 'Active',
+    onNotice: false,
+    cycles: [
+      { month: 'September 2026', slipId: 'HR-SLIP-09-2026-0088', slipStatus: 'Withheld', gross: 95000, net: 72660, withheldSince: '2026-09-28', releaseEntry: '', releaseDate: '', payment: 'Unpaid' },
+      { month: 'October 2026', slipId: 'HR-SLIP-10-2026-0088', slipStatus: 'Withheld', gross: 95000, net: 72660, withheldSince: '2026-10-28', releaseEntry: '', releaseDate: '', payment: 'Unpaid' },
+      { month: 'November 2026', slipId: 'HR-SLIP-11-2026-0088', slipStatus: 'Withheld', gross: 95000, net: 72660, withheldSince: '2026-11-05', releaseEntry: '', releaseDate: '', payment: 'Unpaid' }
+    ]
+  },
+  {
+    id: 'SW-2026-002',
+    employeeId: 'EMP-2055',
+    name: 'Mahesh T',
+    photo: 'MT',
+    department: 'Administration',
+    designation: 'Clerk',
+    structure: 'Non-Teaching Grade C',
+    company: 'EduManager School',
+    fromDate: '2026-07-15',
+    toDate: '',
+    reason: 'Property Non-Return',
+    detail: 'Laptop EMP-ASSET-441 and ID card not returned after transfer of desk. Partial humanitarian release of one cycle approved.',
+    documents: ['Asset-Movement-441.pdf'],
+    authority: 'HR Head',
+    approvalDate: '2026-07-14',
+    notified: true,
+    notifyDate: '2026-07-15',
+    notifyMethod: 'Email',
+    status: 'Partially Released',
+    onNotice: true,
+    cycles: [
+      { month: 'July 2026', slipId: 'HR-SLIP-07-2026-0112', slipStatus: 'Released', gross: 42000, net: 38000, withheldSince: '2026-07-28', releaseEntry: 'BE-REL-2026-07-01', releaseDate: '2026-08-10', payment: 'Paid' },
+      { month: 'August 2026', slipId: 'HR-SLIP-08-2026-0112', slipStatus: 'Withheld', gross: 42000, net: 38000, withheldSince: '2026-08-28', releaseEntry: '', releaseDate: '', payment: 'Unpaid' },
+      { month: 'September 2026', slipId: 'HR-SLIP-09-2026-0112', slipStatus: 'Withheld', gross: 42000, net: 38000, withheldSince: '2026-09-28', releaseEntry: '', releaseDate: '', payment: 'Unpaid' },
+      { month: 'October 2026', slipId: 'HR-SLIP-10-2026-0112', slipStatus: 'Withheld', gross: 42000, net: 38000, withheldSince: '2026-10-28', releaseEntry: '', releaseDate: '', payment: 'Unpaid' },
+      { month: 'November 2026', slipId: 'HR-SLIP-11-2026-0112', slipStatus: 'Withheld', gross: 42000, net: 38000, withheldSince: '2026-11-05', releaseEntry: '', releaseDate: '', payment: 'Unpaid' }
+    ]
+  },
+  {
+    id: 'SW-2025-005',
+    employeeId: 'EMP-2060',
+    name: 'Rakesh Singh',
+    photo: 'RS',
+    department: 'Sports',
+    designation: 'PET',
+    structure: 'Teaching Grade B 2026',
+    company: 'EduManager School',
+    fromDate: '2026-03-01',
+    toDate: '2026-08-31',
+    reason: 'Document Non-Compliance',
+    detail: 'Police verification and CBSE qualification certificate received after six months. All cycles released.',
+    documents: ['Police-Verification.pdf', 'CBSE-Qualification.pdf'],
+    authority: 'HR Head',
+    approvalDate: '2026-02-25',
+    notified: true,
+    notifyDate: '2026-02-26',
+    notifyMethod: 'In-Person',
+    status: 'Released',
+    onNotice: false,
+    cycles: [
+      { month: 'March 2026', slipId: 'HR-SLIP-03-2026-0201', slipStatus: 'Released', gross: 36000, net: 30000, withheldSince: '2026-03-28', releaseEntry: 'BE-REL-2026-09-01', releaseDate: '2026-09-05', payment: 'Paid' },
+      { month: 'April 2026', slipId: 'HR-SLIP-04-2026-0201', slipStatus: 'Released', gross: 36000, net: 30000, withheldSince: '2026-04-28', releaseEntry: 'BE-REL-2026-09-01', releaseDate: '2026-09-05', payment: 'Paid' },
+      { month: 'May 2026', slipId: 'HR-SLIP-05-2026-0201', slipStatus: 'Released', gross: 36000, net: 30000, withheldSince: '2026-05-28', releaseEntry: 'BE-REL-2026-09-01', releaseDate: '2026-09-05', payment: 'Paid' },
+      { month: 'June 2026', slipId: 'HR-SLIP-06-2026-0201', slipStatus: 'Released', gross: 36000, net: 30000, withheldSince: '2026-06-28', releaseEntry: 'BE-REL-2026-09-01', releaseDate: '2026-09-05', payment: 'Paid' },
+      { month: 'July 2026', slipId: 'HR-SLIP-07-2026-0201', slipStatus: 'Released', gross: 36000, net: 30000, withheldSince: '2026-07-28', releaseEntry: 'BE-REL-2026-09-01', releaseDate: '2026-09-05', payment: 'Paid' },
+      { month: 'August 2026', slipId: 'HR-SLIP-08-2026-0201', slipStatus: 'Released', gross: 36000, net: 30000, withheldSince: '2026-08-28', releaseEntry: 'BE-REL-2026-09-01', releaseDate: '2026-09-05', payment: 'Paid' }
+    ]
+  }
+];
+
+function totals(h: Hold) {
+  const net = h.cycles.reduce((s, c) => s + c.net, 0);
+  const released = h.cycles.filter((c) => c.slipStatus === 'Released').reduce((s, c) => s + c.net, 0);
+  const withheld = net - released;
+  const days = Math.max(1, Math.round((Date.parse('2026-11-05') - Date.parse(h.fromDate)) / 86400000));
+  return { net, released, withheld, days, months: h.cycles.length, still: h.cycles.filter((c) => c.slipStatus === 'Withheld').length };
 }
 
-type SortField = 'empName' | 'department' | 'exceptionType' | 'detectedOn' | 'severity' | 'status';
-type SortDirection = 'asc' | 'desc';
+function statusBadge(s: HoldStatus) {
+  if (s === 'Active') return <Badge variant="warning">Active</Badge>;
+  if (s === 'Partially Released') return <Badge variant="info">Partially Released</Badge>;
+  if (s === 'Released') return <Badge variant="success">Released</Badge>;
+  if (s === 'Cancelled') return <Badge variant="danger">Cancelled</Badge>;
+  return <Badge variant="secondary">Draft</Badge>;
+}
 
-// ============ INITIAL DATA ============
-const INITIAL_EXCEPTION_DATA: Exception[] = [
-{
-  id: 1,
-  empName: 'Rajesh Kumar',
-  empCode: 'EMP001',
-  department: 'Teaching',
-  exceptionType: 'Missing Bank Details',
-  description: 'Bank account number not updated in system',
-  detectedOn: '2025-05-15',
-  severity: 'High',
-  status: 'Open',
-  documents: [],
-  timeline: [
-  {
-    id: 't1',
-    date: '2025-05-15T10:30:00',
-    action: 'Exception detected',
-    user: 'System'
-  }]
-
-},
-{
-  id: 2,
-  empName: 'Priya Sharma',
-  empCode: 'EMP002',
-  department: 'Administration',
-  exceptionType: 'Attendance Mismatch',
-  description: 'Working days (22) do not match attendance records (20)',
-  detectedOn: '2025-05-14',
-  severity: 'Medium',
-  status: 'Open',
-  documents: [],
-  timeline: [
-  {
-    id: 't2',
-    date: '2025-05-14T09:15:00',
-    action: 'Exception detected',
-    user: 'System'
-  }]
-
-},
-{
-  id: 3,
-  empName: 'Amit Patel',
-  empCode: 'EMP003',
-  department: 'IT Department',
-  exceptionType: 'Salary Component Error',
-  description: 'HRA calculation exceeds 40% of basic salary',
-  detectedOn: '2025-05-13',
-  severity: 'Low',
-  status: 'Resolved',
-  resolvedBy: 'Admin User',
-  resolvedOn: '2025-05-14',
-  resolutionNotes: 'HRA percentage corrected to 35% as per policy',
-  documents: [],
-  timeline: [
-  {
-    id: 't3',
-    date: '2025-05-13T14:20:00',
-    action: 'Exception detected',
-    user: 'System'
-  },
-  {
-    id: 't4',
-    date: '2025-05-14T11:45:00',
-    action: 'Exception resolved',
-    user: 'Admin User',
-    comment: 'HRA percentage corrected to 35% as per policy'
-  }]
-
-},
-{
-  id: 4,
-  empName: 'Sneha Reddy',
-  empCode: 'EMP004',
-  department: 'Finance',
-  exceptionType: 'PF Deduction Error',
-  description: 'PF amount calculated incorrectly for current month',
-  detectedOn: '2025-05-12',
-  severity: 'High',
-  status: 'In Progress',
-  assignedTo: 'HR Manager',
-  documents: [],
-  timeline: [
-  {
-    id: 't5',
-    date: '2025-05-12T16:00:00',
-    action: 'Exception detected',
-    user: 'System'
-  },
-  {
-    id: 't6',
-    date: '2025-05-13T09:00:00',
-    action: 'Assigned to HR Manager',
-    user: 'Admin User'
-  }]
-
-},
-{
-  id: 5,
-  empName: 'Vikram Singh',
-  empCode: 'EMP005',
-  department: 'Support Staff',
-  exceptionType: 'Leave Without Pay',
-  description: 'LWP days not reflected in salary calculation',
-  detectedOn: '2025-05-11',
-  severity: 'Medium',
-  status: 'Escalated',
-  documents: [],
-  timeline: [
-  {
-    id: 't7',
-    date: '2025-05-11T08:30:00',
-    action: 'Exception detected',
-    user: 'System'
-  },
-  {
-    id: 't8',
-    date: '2025-05-12T10:00:00',
-    action: 'Escalated to senior management',
-    user: 'HR Manager',
-    comment: 'Requires policy clarification'
-  }]
-
-},
-{
-  id: 6,
-  empName: 'Ananya Gupta',
-  empCode: 'EMP006',
-  department: 'Teaching',
-  exceptionType: 'Tax Declaration Missing',
-  description: 'Investment declaration for current FY not submitted',
-  detectedOn: '2025-05-10',
-  severity: 'Medium',
-  status: 'Open',
-  documents: [],
-  timeline: [
-  {
-    id: 't9',
-    date: '2025-05-10T11:00:00',
-    action: 'Exception detected',
-    user: 'System'
-  }]
-
-},
-{
-  id: 7,
-  empName: 'Rahul Verma',
-  empCode: 'EMP007',
-  department: 'Administration',
-  exceptionType: 'Overtime Calculation Error',
-  description: 'Overtime hours not matching with approved requests',
-  detectedOn: '2025-05-09',
-  severity: 'Low',
-  status: 'Resolved',
-  resolvedBy: 'Payroll Admin',
-  resolvedOn: '2025-05-10',
-  resolutionNotes: 'Overtime hours verified and corrected',
-  documents: [],
-  timeline: [
-  {
-    id: 't10',
-    date: '2025-05-09T15:30:00',
-    action: 'Exception detected',
-    user: 'System'
-  },
-  {
-    id: 't11',
-    date: '2025-05-10T14:00:00',
-    action: 'Exception resolved',
-    user: 'Payroll Admin',
-    comment: 'Overtime hours verified and corrected'
-  }]
-
-}];
-
-
-const DEPARTMENTS = [
-{ value: 'Teaching', label: 'Teaching' },
-{ value: 'Administration', label: 'Administration' },
-{ value: 'IT Department', label: 'IT Department' },
-{ value: 'Finance', label: 'Finance' },
-{ value: 'Support Staff', label: 'Support Staff' }];
-
-
-const EXCEPTION_TYPES = [
-{ value: 'Missing Bank Details', label: 'Missing Bank Details' },
-{ value: 'Attendance Mismatch', label: 'Attendance Mismatch' },
-{ value: 'Salary Component Error', label: 'Salary Component Error' },
-{ value: 'PF Deduction Error', label: 'PF Deduction Error' },
-{ value: 'Leave Without Pay', label: 'Leave Without Pay' },
-{ value: 'Tax Declaration Missing', label: 'Tax Declaration Missing' },
-{ value: 'Overtime Calculation Error', label: 'Overtime Calculation Error' },
-{ value: 'Bonus Calculation Error', label: 'Bonus Calculation Error' },
-{ value: 'Reimbursement Pending', label: 'Reimbursement Pending' }];
-
-
-const STATUSES = [
-{ value: 'Open', label: 'Open' },
-{ value: 'In Progress', label: 'In Progress' },
-{ value: 'Escalated', label: 'Escalated' },
-{ value: 'Resolved', label: 'Resolved' }];
-
-
-const SEVERITIES = [
-{ value: 'High', label: 'High' },
-{ value: 'Medium', label: 'Medium' },
-{ value: 'Low', label: 'Low' }];
-
-
-const MONTHS = [
-{ value: 'May 2025', label: 'May 2025' },
-{ value: 'April 2025', label: 'April 2025' },
-{ value: 'March 2025', label: 'March 2025' },
-{ value: 'February 2025', label: 'February 2025' },
-{ value: 'January 2025', label: 'January 2025' }];
-
-
-const EMPLOYEES = [
-{ value: 'EMP001', label: 'Rajesh Kumar (EMP001)', name: 'Rajesh Kumar', department: 'Teaching' },
-{ value: 'EMP002', label: 'Priya Sharma (EMP002)', name: 'Priya Sharma', department: 'Administration' },
-{ value: 'EMP003', label: 'Amit Patel (EMP003)', name: 'Amit Patel', department: 'IT Department' },
-{ value: 'EMP004', label: 'Sneha Reddy (EMP004)', name: 'Sneha Reddy', department: 'Finance' },
-{ value: 'EMP005', label: 'Vikram Singh (EMP005)', name: 'Vikram Singh', department: 'Support Staff' },
-{ value: 'EMP006', label: 'Ananya Gupta (EMP006)', name: 'Ananya Gupta', department: 'Teaching' },
-{ value: 'EMP007', label: 'Rahul Verma (EMP007)', name: 'Rahul Verma', department: 'Administration' },
-{ value: 'EMP008', label: 'Kavita Nair (EMP008)', name: 'Kavita Nair', department: 'Finance' }];
-
-
-const ASSIGNEES = [
-{ value: 'HR Manager', label: 'HR Manager' },
-{ value: 'Payroll Admin', label: 'Payroll Admin' },
-{ value: 'Finance Head', label: 'Finance Head' },
-{ value: 'Admin User', label: 'Admin User' }];
-
-
-// ============ MAIN COMPONENT ============
 export function PayrollExceptionList() {
-  // Data state
-  const [exceptions, setExceptions] = useState<Exception[]>(INITIAL_EXCEPTION_DATA);
+  const [tab, setTab] = useState<PageTab>('list');
+  const [holds, setHolds] = useState<Hold[]>(SEED);
+  const [form, setForm] = useState<Hold>(emptyForm());
+  const [notice, setNotice] = useState('');
+  const [error, setError] = useState('');
+  const [warn, setWarn] = useState('');
+  const [search, setSearch] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filterDept, setFilterDept] = useState('');
+  const [filterReason, setFilterReason] = useState('');
+  const [releaseOpen, setReleaseOpen] = useState(false);
+  const [partialOpen, setPartialOpen] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [selectedCycles, setSelectedCycles] = useState<string[]>([]);
+  const [releaseReason, setReleaseReason] = useState('');
+  const [releaseAuth, setReleaseAuth] = useState('HR Head');
+  const [releaseDate, setReleaseDate] = useState('2026-11-05');
+  const [partialAmt, setPartialAmt] = useState('30000');
+  const [partialNote, setPartialNote] = useState('');
+  const [cancelReason, setCancelReason] = useState('');
+  const [docName, setDocName] = useState('');
+  const [repStatus, setRepStatus] = useState('');
+  const [repDept, setRepDept] = useState('');
+  const [repReason, setRepReason] = useState('');
+  const [repFrom, setRepFrom] = useState('');
+  const [repTo, setRepTo] = useState('');
+  const [repEmp, setRepEmp] = useState('');
 
-  // Filter state
-  const [filters, setFilters] = useState({
-    month: 'May 2025',
-    department: '',
-    exceptionType: '',
-    status: '',
-    severity: '',
-    search: ''
+  const flash = (t: string) => { setNotice(t); window.setTimeout(() => setNotice(''), 4500); };
+
+  const cards = useMemo(() => {
+    const active = holds.filter((h) => h.status === 'Active' || h.status === 'Partially Released');
+    const withheld = active.reduce((s, h) => s + totals(h).withheld, 0);
+    const releasedYtd = holds.reduce((s, h) => s + totals(h).released, 0);
+    const people = new Set(active.map((h) => h.employeeId)).size;
+    return { active: active.filter((h) => h.status === 'Active').length, withheld, people, releasedYtd };
+  }, [holds]);
+
+  const listRows = holds.filter((h) => {
+    if (filterStatus && h.status !== filterStatus) return false;
+    if (filterDept && h.department !== filterDept) return false;
+    if (filterReason && h.reason !== filterReason) return false;
+    const q = search.trim().toLowerCase();
+    if (q && !`${h.id} ${h.name} ${h.employeeId} ${h.reason}`.toLowerCase().includes(q)) return false;
+    return true;
   });
 
-  // Sort state
-  const [sortField, setSortField] = useState<SortField>('detectedOn');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
-
-  // Pagination state
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
-
-  // Selection state
-  const [selectedIds, setSelectedIds] = useState<number[]>([]);
-
-  // Modal states
-  const [showDetailModal, setShowDetailModal] = useState(false);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [showResolveModal, setShowResolveModal] = useState(false);
-  const [showAssignModal, setShowAssignModal] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [showBulkActionModal, setShowBulkActionModal] = useState(false);
-  const [showUploadModal, setShowUploadModal] = useState(false);
-  const [showHistoryModal, setShowHistoryModal] = useState(false);
-
-  // Current exception state
-  const [selectedExceptionId, setSelectedExceptionId] = useState<number | null>(null);
-  const [currentException, setCurrentException] = useState<Exception | null>(null);
-
-  // Form states
-  const [newException, setNewException] = useState({
-    empCode: '',
-    exceptionType: '',
-    description: '',
-    severity: 'Medium' as 'High' | 'Medium' | 'Low'
+  const reportRows = holds.filter((h) => {
+    if (repStatus && h.status !== repStatus) return false;
+    if (repDept && h.department !== repDept) return false;
+    if (repReason && h.reason !== repReason) return false;
+    if (repEmp && h.employeeId !== repEmp) return false;
+    if (repFrom && h.fromDate < repFrom) return false;
+    if (repTo && h.fromDate > repTo) return false;
+    return true;
   });
 
-  const [editForm, setEditForm] = useState({
-    exceptionType: '',
-    description: '',
-    severity: 'Medium' as 'High' | 'Medium' | 'Low'
-  });
+  const openNew = () => {
+    setForm(emptyForm());
+    setError('');
+    setWarn('');
+    setTab('form');
+  };
 
-  const [resolveForm, setResolveForm] = useState({
-    notes: ''
-  });
+  const openEdit = (h: Hold) => {
+    setForm({ ...h, cycles: h.cycles.map((c) => ({ ...c })) });
+    setError('');
+    setWarn('');
+    setTab('form');
+  };
 
-  const [assignForm, setAssignForm] = useState({
-    assignee: '',
-    comment: ''
-  });
+  const pickEmployee = (id: string) => {
+    const emp = STAFF.find((s) => s.id === id);
+    if (!emp) return;
+    const existing = holds.find((h) => h.employeeId === id && (h.status === 'Active' || h.status === 'Partially Released') && h.id !== form.id);
+    setForm((f) => ({
+      ...f,
+      employeeId: emp.id,
+      name: emp.name,
+      photo: emp.photo,
+      department: emp.department,
+      designation: emp.designation,
+      structure: emp.structure,
+      company: emp.company,
+      onNotice: emp.onNotice
+    }));
+    setError(existing ? `Active Salary Withholding ${existing.id} already exists for this employee.` : '');
+    setWarn(emp.onNotice ? 'Employee has an active resignation/notice period. Consider Full & Final Settlement instead.' : '');
+  };
 
-  const [commentText, setCommentText] = useState('');
-  const [bulkAction, setBulkAction] = useState('');
-
-  // ============ COMPUTED VALUES ============
-  const filteredExceptions = useMemo(() => {
-    let result = [...exceptions];
-
-    // Apply filters
-    if (filters.department) {
-      result = result.filter((e) => e.department === filters.department);
+  const saveHold = (asActive: boolean) => {
+    if (!form.employeeId) { setError('Employee is mandatory.'); return; }
+    const dup = holds.find((h) => h.employeeId === form.employeeId && (h.status === 'Active' || h.status === 'Partially Released') && h.id !== form.id);
+    if (asActive && dup) { setError(`Active Salary Withholding ${dup.id} already exists for this employee.`); return; }
+    if (form.toDate && form.fromDate > form.toDate) { setError('To Date must be after From Date.'); return; }
+    if (form.detail.trim().length < 20) { setError('Reason Detail is mandatory (minimum 20 characters) for the audit trail.'); return; }
+    if (asActive && !form.notified) {
+      setWarn('Labor-law warning: employee has not been notified about the salary hold.');
     }
-    if (filters.exceptionType) {
-      result = result.filter((e) => e.exceptionType === filters.exceptionType);
-    }
-    if (filters.status) {
-      result = result.filter((e) => e.status === filters.status);
-    }
-    if (filters.severity) {
-      result = result.filter((e) => e.severity === filters.severity);
-    }
-    if (filters.search) {
-      const searchLower = filters.search.toLowerCase();
-      result = result.filter(
-        (e) =>
-        e.empName.toLowerCase().includes(searchLower) ||
-        e.empCode.toLowerCase().includes(searchLower) ||
-        e.description.toLowerCase().includes(searchLower)
-      );
-    }
+    const id = form.id || `SW-2026-${String(holds.length + 1).padStart(3, '0')}`;
+    const cycles = form.cycles.length ? form.cycles : [
+      { month: 'November 2026', slipId: `HR-SLIP-11-2026-${form.employeeId.slice(-4)}`, slipStatus: 'Withheld' as const, gross: 95000, net: 72660, withheldSince: form.fromDate, releaseEntry: '', releaseDate: '', payment: 'Unpaid' as const }
+    ];
+    const next: Hold = { ...form, id, status: asActive ? 'Active' : 'Draft', cycles };
+    setHolds((p) => {
+      const i = p.findIndex((h) => h.id === id);
+      if (i >= 0) return p.map((h) => h.id === id ? next : h);
+      return [next, ...p];
+    });
+    setForm(next);
+    flash(asActive
+      ? `Withholding ${id} saved as Active. Submitted salary slips from ${form.fromDate} will be re-tagged Withheld and excluded from future bank entries.`
+      : `Draft ${id} saved.`);
+    setTab('list');
+  };
 
-    // Apply sorting
-    result.sort((a, b) => {
-      let aVal: string | number = a[sortField];
-      let bVal: string | number = b[sortField];
-
-      if (sortField === 'severity') {
-        const severityOrder = { High: 3, Medium: 2, Low: 1 };
-        aVal = severityOrder[a.severity];
-        bVal = severityOrder[b.severity];
+  const applyRelease = (mode: 'full' | 'partial' | 'forfeit') => {
+    if (!form.id) return;
+    if (mode !== 'forfeit' && !releaseReason.trim()) { flash('Release reason is mandatory.'); return; }
+    if (mode === 'forfeit' && !cancelReason.trim()) { flash('Forfeit reason and HR Head approval note are mandatory.'); return; }
+    const pick = mode === 'full' ? form.cycles.filter((c) => selectedCycles.includes(c.month) && c.slipStatus === 'Withheld') : [];
+    setHolds((p) => p.map((h) => {
+      if (h.id !== form.id) return h;
+      if (mode === 'forfeit') {
+        return { ...h, status: 'Cancelled', cycles: h.cycles.map((c) => c.slipStatus === 'Withheld' ? { ...c, slipStatus: 'Released', releaseEntry: 'JV-FORFEIT-2026-11', releaseDate, payment: 'Unpaid' } : c) };
       }
-
-      if (sortDirection === 'asc') {
-        return aVal > bVal ? 1 : -1;
-      } else {
-        return aVal < bVal ? 1 : -1;
+      if (mode === 'partial') {
+        const amt = Number(partialAmt) || 0;
+        const first = h.cycles.find((c) => c.slipStatus === 'Withheld');
+        if (!first) return h;
+        const cycles = h.cycles.map((c) => c.month === first.month ? { ...c, payment: 'Partially Paid' as const, releaseEntry: `BE-REL-PARTIAL-${Date.now().toString().slice(-4)}`, releaseDate } : c);
+        const still = cycles.some((c) => c.slipStatus === 'Withheld');
+        return { ...h, status: still ? 'Partially Released' : 'Released', cycles };
       }
-    });
-
-    return result;
-  }, [exceptions, filters, sortField, sortDirection]);
-
-  const paginatedExceptions = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    return filteredExceptions.slice(startIndex, startIndex + itemsPerPage);
-  }, [filteredExceptions, currentPage, itemsPerPage]);
-
-  const totalPages = Math.ceil(filteredExceptions.length / itemsPerPage);
-
-  const stats = useMemo(() => {
-    return {
-      total: exceptions.length,
-      open: exceptions.filter((e) => e.status === 'Open').length,
-      inProgress: exceptions.filter((e) => e.status === 'In Progress').length,
-      resolved: exceptions.filter((e) => e.status === 'Resolved').length,
-      escalated: exceptions.filter((e) => e.status === 'Escalated').length,
-      highSeverity: exceptions.filter((e) => e.severity === 'High' && e.status !== 'Resolved').length
-    };
-  }, [exceptions]);
-
-  // ============ HANDLERS ============
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDirection('asc');
-    }
+      const months = new Set(pick.map((c) => c.month));
+      const cycles = h.cycles.map((c) => months.has(c.month) ? { ...c, slipStatus: 'Released' as const, releaseEntry: `BE-REL-2026-11-${h.id.slice(-3)}`, releaseDate, payment: 'Paid' as const } : c);
+      const still = cycles.some((c) => c.slipStatus === 'Withheld');
+      const expired = h.toDate && h.toDate <= releaseDate;
+      return { ...h, status: !still && expired ? 'Released' : still ? (cycles.some((c) => c.slipStatus === 'Released') ? 'Partially Released' : h.status) : 'Released', cycles };
+    }));
+    const updated = { ...form };
+    setReleaseOpen(false);
+    setPartialOpen(false);
+    setCancelOpen(false);
+    if (mode === 'forfeit') flash(`Forfeit JE posted: Salaries Payable Dr / Salary & Wages Expense Cr. Hold ${form.id} cancelled.`);
+    else if (mode === 'partial') flash(`Partial bank entry ${inr(Number(partialAmt) || 0)} created. Remaining balance stays withheld. ${partialNote}`);
+    else flash(`Release bank entry created (Salaries Payable Dr / School Bank Cr) for ${pick.length} cycle(s).`);
+    const latest = holds.find((h) => h.id === form.id);
+    if (latest) setForm(latest);
+    setTab('list');
+    void updated;
   };
 
-  const handleSelectAll = () => {
-    if (selectedIds.length === paginatedExceptions.length) {
-      setSelectedIds([]);
-    } else {
-      setSelectedIds(paginatedExceptions.map((e) => e.id));
-    }
-  };
-
-  const handleSelectOne = (id: number) => {
-    if (selectedIds.includes(id)) {
-      setSelectedIds(selectedIds.filter((i) => i !== id));
-    } else {
-      setSelectedIds([...selectedIds, id]);
-    }
-  };
-
-  const handleViewDetails = (exception: Exception) => {
-    setCurrentException(exception);
-    setSelectedExceptionId(exception.id);
-    setShowDetailModal(true);
-  };
-
-  const handleOpenAdd = () => {
-    setNewException({
-      empCode: '',
-      exceptionType: '',
-      description: '',
-      severity: 'Medium'
-    });
-    setShowAddModal(true);
-  };
-
-  const handleAddException = () => {
-    if (!newException.empCode || !newException.exceptionType || !newException.description) {
-      alert('Please fill in all required fields');
-      return;
-    }
-
-    const employee = EMPLOYEES.find((e) => e.value === newException.empCode);
-    if (!employee) return;
-
-    const newExc: Exception = {
-      id: Date.now(),
-      empName: employee.name,
-      empCode: newException.empCode,
-      department: employee.department,
-      exceptionType: newException.exceptionType,
-      description: newException.description,
-      severity: newException.severity,
-      status: 'Open',
-      detectedOn: new Date().toISOString().split('T')[0],
-      documents: [],
-      timeline: [
-      {
-        id: `t-${Date.now()}`,
-        date: new Date().toISOString(),
-        action: 'Exception created manually',
-        user: 'Current User'
-      }]
-
-    };
-
-    setExceptions([newExc, ...exceptions]);
-    setShowAddModal(false);
-    alert('Exception added successfully');
-  };
-
-  const handleOpenEdit = (exception: Exception) => {
-    setCurrentException(exception);
-    setEditForm({
-      exceptionType: exception.exceptionType,
-      description: exception.description,
-      severity: exception.severity
-    });
-    setShowEditModal(true);
-  };
-
-  const handleEditException = () => {
-    if (!currentException) return;
-
-    setExceptions(
-      exceptions.map((e) => {
-        if (e.id === currentException.id) {
-          return {
-            ...e,
-            exceptionType: editForm.exceptionType,
-            description: editForm.description,
-            severity: editForm.severity,
-            timeline: [
-            ...e.timeline,
-            {
-              id: `t-${Date.now()}`,
-              date: new Date().toISOString(),
-              action: 'Exception details updated',
-              user: 'Current User'
-            }]
-
-          };
-        }
-        return e;
-      })
-    );
-
-    setShowEditModal(false);
-    // Update current exception in detail modal if open
-    if (showDetailModal && currentException) {
-      const updated = exceptions.find((e) => e.id === currentException.id);
-      if (updated) setCurrentException(updated);
-    }
-    alert('Exception updated successfully');
-  };
-
-  const handleOpenResolve = (exception: Exception) => {
-    setCurrentException(exception);
-    setResolveForm({ notes: '' });
-    setShowResolveModal(true);
-  };
-
-  const handleResolveException = () => {
-    if (!currentException) return;
-    if (!resolveForm.notes.trim()) {
-      alert('Please enter resolution notes');
-      return;
-    }
-
-    const now = new Date();
-
-    setExceptions(
-      exceptions.map((e) => {
-        if (e.id === currentException.id) {
-          return {
-            ...e,
-            status: 'Resolved',
-            resolvedBy: 'Current User',
-            resolvedOn: now.toISOString().split('T')[0],
-            resolutionNotes: resolveForm.notes,
-            timeline: [
-            ...e.timeline,
-            {
-              id: `t-${Date.now()}`,
-              date: now.toISOString(),
-              action: 'Exception resolved',
-              user: 'Current User',
-              comment: resolveForm.notes
-            }]
-
-          };
-        }
-        return e;
-      })
-    );
-
-    setShowResolveModal(false);
-    setShowDetailModal(false);
-    alert('Exception marked as resolved');
-  };
-
-  const handleOpenAssign = (exception: Exception) => {
-    setCurrentException(exception);
-    setAssignForm({ assignee: '', comment: '' });
-    setShowAssignModal(true);
-  };
-
-  const handleAssignException = () => {
-    if (!currentException || !assignForm.assignee) {
-      alert('Please select an assignee');
-      return;
-    }
-
-    setExceptions(
-      exceptions.map((e) => {
-        if (e.id === currentException.id) {
-          return {
-            ...e,
-            status: 'In Progress',
-            assignedTo: assignForm.assignee,
-            timeline: [
-            ...e.timeline,
-            {
-              id: `t-${Date.now()}`,
-              date: new Date().toISOString(),
-              action: `Assigned to ${assignForm.assignee}`,
-              user: 'Current User',
-              comment: assignForm.comment || undefined
-            }]
-
-          };
-        }
-        return e;
-      })
-    );
-
-    setShowAssignModal(false);
-    alert(`Exception assigned to ${assignForm.assignee}`);
-  };
-
-  const handleEscalate = (exception: Exception) => {
-    if (!window.confirm('Are you sure you want to escalate this exception?')) return;
-
-    setExceptions(
-      exceptions.map((e) => {
-        if (e.id === exception.id) {
-          return {
-            ...e,
-            status: 'Escalated',
-            timeline: [
-            ...e.timeline,
-            {
-              id: `t-${Date.now()}`,
-              date: new Date().toISOString(),
-              action: 'Exception escalated',
-              user: 'Current User'
-            }]
-
-          };
-        }
-        return e;
-      })
-    );
-
-    alert('Exception escalated successfully');
-  };
-
-  const handleOpenDelete = (exception: Exception) => {
-    setCurrentException(exception);
-    setShowDeleteConfirm(true);
-  };
-
-  const handleDeleteException = () => {
-    if (!currentException) return;
-
-    setExceptions(exceptions.filter((e) => e.id !== currentException.id));
-    setShowDeleteConfirm(false);
-    setShowDetailModal(false);
-    alert('Exception deleted successfully');
-  };
-
-  const handleAddComment = () => {
-    if (!currentException || !commentText.trim()) return;
-
-    setExceptions(
-      exceptions.map((e) => {
-        if (e.id === currentException.id) {
-          const updatedTimeline = [
-          ...e.timeline,
-          {
-            id: `t-${Date.now()}`,
-            date: new Date().toISOString(),
-            action: 'Comment added',
-            user: 'Current User',
-            comment: commentText
-          }];
-
-          return { ...e, timeline: updatedTimeline };
-        }
-        return e;
-      })
-    );
-
-    // Update current exception
-    const updated = exceptions.find((e) => e.id === currentException.id);
-    if (updated) {
-      setCurrentException({
-        ...updated,
-        timeline: [
-        ...updated.timeline,
-        {
-          id: `t-${Date.now()}`,
-          date: new Date().toISOString(),
-          action: 'Comment added',
-          user: 'Current User',
-          comment: commentText
-        }]
-
-      });
-    }
-
-    setCommentText('');
-  };
-
-  const handleUploadDocument = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!currentException || !e.target.files?.length) return;
-
-    const file = e.target.files[0];
-    const newDoc: Document = {
-      id: `doc-${Date.now()}`,
-      name: file.name,
-      type: file.type,
-      size: `${(file.size / 1024).toFixed(1)} KB`,
-      uploadedBy: 'Current User',
-      uploadedAt: new Date().toISOString()
-    };
-
-    setExceptions(
-      exceptions.map((exc) => {
-        if (exc.id === currentException.id) {
-          return {
-            ...exc,
-            documents: [...exc.documents, newDoc],
-            timeline: [
-            ...exc.timeline,
-            {
-              id: `t-${Date.now()}`,
-              date: new Date().toISOString(),
-              action: `Document uploaded: ${file.name}`,
-              user: 'Current User'
-            }]
-
-          };
-        }
-        return exc;
-      })
-    );
-
-    // Update current exception
-    setCurrentException({
-      ...currentException,
-      documents: [...currentException.documents, newDoc]
-    });
-
-    setShowUploadModal(false);
-    alert('Document uploaded successfully');
-  };
-
-  const handleDeleteDocument = (docId: string) => {
-    if (!currentException) return;
-    if (!window.confirm('Are you sure you want to delete this document?')) return;
-
-    setExceptions(
-      exceptions.map((exc) => {
-        if (exc.id === currentException.id) {
-          return {
-            ...exc,
-            documents: exc.documents.filter((d) => d.id !== docId)
-          };
-        }
-        return exc;
-      })
-    );
-
-    setCurrentException({
-      ...currentException,
-      documents: currentException.documents.filter((d) => d.id !== docId)
-    });
-  };
-
-  const handleBulkAction = () => {
-    if (!bulkAction || selectedIds.length === 0) return;
-
-    if (bulkAction === 'resolve') {
-      setExceptions(
-        exceptions.map((e) => {
-          if (selectedIds.includes(e.id)) {
-            return {
-              ...e,
-              status: 'Resolved',
-              resolvedBy: 'Current User',
-              resolvedOn: new Date().toISOString().split('T')[0],
-              timeline: [
-              ...e.timeline,
-              {
-                id: `t-${Date.now()}-${e.id}`,
-                date: new Date().toISOString(),
-                action: 'Exception resolved (bulk action)',
-                user: 'Current User'
-              }]
-
-            };
-          }
-          return e;
-        })
-      );
-      alert(`${selectedIds.length} exceptions marked as resolved`);
-    } else if (bulkAction === 'escalate') {
-      setExceptions(
-        exceptions.map((e) => {
-          if (selectedIds.includes(e.id)) {
-            return {
-              ...e,
-              status: 'Escalated',
-              timeline: [
-              ...e.timeline,
-              {
-                id: `t-${Date.now()}-${e.id}`,
-                date: new Date().toISOString(),
-                action: 'Exception escalated (bulk action)',
-                user: 'Current User'
-              }]
-
-            };
-          }
-          return e;
-        })
-      );
-      alert(`${selectedIds.length} exceptions escalated`);
-    } else if (bulkAction === 'delete') {
-      if (!window.confirm(`Are you sure you want to delete ${selectedIds.length} exceptions?`)) return;
-      setExceptions(exceptions.filter((e) => !selectedIds.includes(e.id)));
-      alert(`${selectedIds.length} exceptions deleted`);
-    }
-
-    setSelectedIds([]);
-    setShowBulkActionModal(false);
-    setBulkAction('');
-  };
-
-  const handleResetFilters = () => {
-    setFilters({
-      month: 'May 2025',
-      department: '',
-      exceptionType: '',
-      status: '',
-      severity: '',
-      search: ''
-    });
-    setCurrentPage(1);
-  };
-
-  const handleExport = () => {
-    const csvContent = [
-    ['Employee Name', 'Employee Code', 'Department', 'Exception Type', 'Description', 'Detected On', 'Severity', 'Status'].join(','),
-    ...filteredExceptions.map((e) =>
-    [e.empName, e.empCode, e.department, e.exceptionType, `"${e.description}"`, e.detectedOn, e.severity, e.status].join(',')
-    )].
-    join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `payroll-exceptions-${filters.month.replace(' ', '-')}.csv`;
-    a.click();
-    window.URL.revokeObjectURL(url);
-  };
-
-  const handleRefresh = () => {
-    // In real app, this would fetch from API
-    setExceptions([...INITIAL_EXCEPTION_DATA]);
-    setSelectedIds([]);
-    alert('Data refreshed');
-  };
-
-  // ============ RENDER HELPERS ============
-  const getSeverityBadge = (severity: string) => {
-    const config: Record<string, {variant: 'danger' | 'warning' | 'info';icon: React.ReactNode;}> = {
-      High: { variant: 'danger', icon: <XCircle className="w-3 h-3" /> },
-      Medium: { variant: 'warning', icon: <AlertTriangle className="w-3 h-3" /> },
-      Low: { variant: 'info', icon: <Info className="w-3 h-3" /> }
-    };
-    const { variant, icon } = config[severity] || config.Low;
-    return (
-      <Badge variant={variant} className="inline-flex items-center gap-1">
-        {icon}
-        {severity}
-      </Badge>);
-
-  };
-
-  const getStatusBadge = (status: string) => {
-    const variants: Record<string, 'success' | 'warning' | 'danger' | 'info'> = {
-      Open: 'warning',
-      'In Progress': 'info',
-      Resolved: 'success',
-      Escalated: 'danger'
-    };
-    return <Badge variant={variants[status] || 'secondary'}>{status}</Badge>;
-  };
-
-  const SortIcon = ({ field }: {field: SortField;}) => {
-    if (sortField !== field) return null;
-    return sortDirection === 'asc' ?
-    <ChevronUp className="w-3 h-3" /> :
-
-    <ChevronDown className="w-3 h-3" />;
-
-  };
+  const formTotals = totals(form.id ? form : emptyForm());
+  const durationWarn = form.id && formTotals.days > 60;
+  const longHold = form.id && formTotals.days > 90;
 
   return (
-    <div className="min-h-screen w-full bg-white font-sans text-slate-900">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold text-slate-900">
-              Payroll Exception List
-            </h1>
-            <p className="text-sm text-slate-500 mt-1">
-              Manage and resolve payroll processing exceptions
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handleRefresh}>
-              <RefreshCw className="w-4 h-4 mr-1" />
-              Refresh
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleExport}>
-              <Download className="w-4 h-4 mr-1" />
-              Export
-            </Button>
-            <Button size="sm" onClick={handleOpenAdd}>
-              <Plus className="w-4 h-4 mr-1" />
-              Add Exception
-            </Button>
-          </div>
+    <div className="space-y-6 p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Salary Withholding & Release</h1>
+          <p className="text-sm text-gray-500">Home › Payroll › Salary Withholding. Accrue the slip, block the bank payment, release later with a separate journal entry.</p>
         </div>
+        <Button onClick={openNew}><Plus className="mr-1 h-4 w-4" />New withholding</Button>
+      </div>
 
-        {/* Filters */}
-        <div className="bg-slate-50 rounded-xl p-4 mb-6">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4 text-slate-500" />
-              <span className="text-sm font-medium text-slate-700">Filters</span>
+      {notice && <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800">{notice}</div>}
+
+      <div className="flex flex-wrap gap-2">
+        {([
+          { id: 'list' as const, label: 'List' },
+          { id: 'form' as const, label: form.id ? `Record ${form.id}` : 'New / Edit' },
+          { id: 'report' as const, label: 'Withholding Report' }
+        ]).map((t) => (
+          <button key={t.id} type="button" onClick={() => setTab(t.id)} className={`rounded-lg border px-4 py-2 text-sm font-medium ${tab === t.id ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-200 bg-white text-gray-600'}`}>{t.label}</button>
+        ))}
+      </div>
+
+      {tab === 'list' && (
+        <>
+          <div className="grid gap-3 md:grid-cols-4">
+            <Card><p className="text-xs uppercase text-amber-600">Active holds</p><p className="text-2xl font-bold text-amber-700">{cards.active}</p></Card>
+            <Card><p className="text-xs uppercase text-red-600">Total withheld</p><p className="text-2xl font-bold text-red-700">{inr(cards.withheld)}</p></Card>
+            <Card><p className="text-xs uppercase text-indigo-600">Employees affected</p><p className="text-2xl font-bold text-indigo-700">{cards.people}</p></Card>
+            <Card><p className="text-xs uppercase text-emerald-600">Released YTD</p><p className="text-2xl font-bold text-emerald-700">{inr(cards.releasedYtd)}</p></Card>
+          </div>
+          <Card>
+            <div className="flex flex-wrap items-end gap-3 p-4">
+              <div className="relative min-w-[220px] flex-1">
+                <Search className="absolute left-3 top-8 h-4 w-4 text-gray-400" />
+                <Input label="Search" className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="ID, employee, reason" />
+              </div>
+              <Select label="Status" value={filterStatus} onChange={(e) => setFilterStatus(typeof e === 'string' ? e : e.target.value)} options={[{ value: '', label: 'All' }, { value: 'Active', label: 'Active' }, { value: 'Partially Released', label: 'Partially Released' }, { value: 'Released', label: 'Released' }, { value: 'Cancelled', label: 'Cancelled' }, { value: 'Draft', label: 'Draft' }]} />
+              <Select label="Department" value={filterDept} onChange={(e) => setFilterDept(typeof e === 'string' ? e : e.target.value)} options={[{ value: '', label: 'All' }, ...['Science', 'Administration', 'Sports'].map((v) => ({ value: v, label: v }))]} />
+              <Select label="Reason" value={filterReason} onChange={(e) => setFilterReason(typeof e === 'string' ? e : e.target.value)} options={[{ value: '', label: 'All' }, ...REASONS.map((v) => ({ value: v, label: v }))]} />
             </div>
-            <Button variant="ghost" size="xs" onClick={handleResetFilters}>
-              <RotateCcw className="w-3 h-3 mr-1" />
-              Reset
-            </Button>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
-            <Select
-              label="Month"
-              value={filters.month}
-              onChange={(val) => setFilters({ ...filters, month: val })}
-              options={MONTHS} />
-
-            <Select
-              label="Department"
-              value={filters.department}
-              onChange={(val) => setFilters({ ...filters, department: val })}
-              placeholder="All Departments"
-              options={DEPARTMENTS} />
-
-            <Select
-              label="Exception Type"
-              value={filters.exceptionType}
-              onChange={(val) => setFilters({ ...filters, exceptionType: val })}
-              placeholder="All Types"
-              options={EXCEPTION_TYPES} />
-
-            <Select
-              label="Status"
-              value={filters.status}
-              onChange={(val) => setFilters({ ...filters, status: val })}
-              placeholder="All Status"
-              options={STATUSES} />
-
-            <Select
-              label="Severity"
-              value={filters.severity}
-              onChange={(val) => setFilters({ ...filters, severity: val })}
-              placeholder="All Severity"
-              options={SEVERITIES} />
-
-            <Input
-              label="Search"
-              placeholder="Name, Code, Description..."
-              leftIcon={<Search className="w-4 h-4 text-slate-400" />}
-              value={filters.search}
-              onChange={(e) => setFilters({ ...filters, search: e.target.value })} />
-
-          </div>
-        </div>
-
-        {/* Bulk Actions */}
-        {selectedIds.length > 0 &&
-        <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 mb-4 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <CheckCircle className="w-5 h-5 text-indigo-600" />
-              <span className="text-sm font-medium text-indigo-700">
-                {selectedIds.length} exception(s) selected
-              </span>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
+                  <tr>{['Withholding ID', 'Employee', 'Department', 'From Date', 'Active months', 'Total withheld', 'Total released', 'Status', ''].map((h) => <th key={h || 'a'} className="px-3 py-2">{h}</th>)}</tr>
+                </thead>
+                <tbody className="divide-y">
+                  {listRows.map((h) => {
+                    const t = totals(h);
+                    return (
+                      <tr key={h.id} className="hover:bg-gray-50">
+                        <td className="px-3 py-2 font-mono text-xs text-indigo-700">{h.id}</td>
+                        <td className="px-3 py-2"><p className="font-medium">{h.name}</p><p className="text-xs text-gray-500">{h.employeeId}</p></td>
+                        <td className="px-3 py-2">{h.department}</td>
+                        <td className="px-3 py-2">{h.fromDate}</td>
+                        <td className="px-3 py-2 text-center">{t.months}</td>
+                        <td className="px-3 py-2 font-semibold text-red-700">{inr(t.withheld)}</td>
+                        <td className="px-3 py-2 text-emerald-700">{inr(t.released)}</td>
+                        <td className="px-3 py-2">{statusBadge(h.status)}</td>
+                        <td className="px-3 py-2"><Button size="xs" variant="ghost" onClick={() => openEdit(h)}>Open</Button></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
-            <div className="flex items-center gap-2">
-              <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setSelectedIds([])}>
+          </Card>
+        </>
+      )}
 
-                Clear Selection
-              </Button>
-              <Button
-              size="sm"
-              onClick={() => setShowBulkActionModal(true)}>
+      {tab === 'form' && (
+        <>
+          {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-800">{error}</div>}
+          {warn && <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800"><AlertTriangle className="mt-0.5 h-4 w-4" />{warn}</div>}
+          {durationWarn && <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">This withholding has exceeded the recommended duration under Gujarat labor regulations ({formTotals.days} days). Consult legal counsel.</div>}
+          {longHold && <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm text-indigo-800">Automatic reminder: withholding for {form.name} has been active for {formTotals.days} days. Weekly reminder is queued to HR Head.</div>}
 
-                Bulk Actions
-              </Button>
+          <Card title="A · Salary withholding form">
+            <div className="grid gap-4 p-5 md:grid-cols-3">
+              <Select label="Employee *" value={form.employeeId} onChange={(e) => pickEmployee(typeof e === 'string' ? e : e.target.value)} options={[{ value: '', label: 'Select employee' }, ...STAFF.map((s) => ({ value: s.id, label: `${s.name} (${s.id})` }))]} />
+              <Input label="Company" value={form.company} readOnly />
+              <div>
+                <p className="mb-1 text-xs font-medium text-gray-600">Status</p>
+                {statusBadge(form.status)}
+              </div>
             </div>
+            {form.employeeId && (
+              <div className="mx-5 mb-4 flex flex-wrap items-center gap-4 rounded-xl border bg-gray-50 p-4">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-indigo-100 text-lg font-bold text-indigo-700">{form.photo}</div>
+                <div className="flex-1">
+                  <p className="text-lg font-bold">{form.name}</p>
+                  <p className="text-sm text-gray-500">{form.employeeId} · {form.department} · {form.designation}</p>
+                  <p className="text-xs text-gray-400">Salary structure: {form.structure}</p>
+                </div>
+                {holds.filter((h) => h.employeeId === form.employeeId && h.id !== form.id).length > 0 && (
+                  <p className="text-xs text-amber-700">Existing holds: {holds.filter((h) => h.employeeId === form.employeeId && h.id !== form.id).map((h) => h.id).join(', ')}</p>
+                )}
+              </div>
+            )}
+            <div className="grid gap-4 border-t px-5 py-4 md:grid-cols-3">
+              <Input label="From Date *" type="date" value={form.fromDate} onChange={(e) => setForm({ ...form, fromDate: e.target.value })} />
+              <Input label="To Date (blank = ongoing)" type="date" value={form.toDate} onChange={(e) => setForm({ ...form, toDate: e.target.value })} />
+              <Select label="Withholding Reason *" value={form.reason} onChange={(e) => setForm({ ...form, reason: (typeof e === 'string' ? e : e.target.value) as ReasonCode })} options={REASONS.map((v) => ({ value: v, label: v }))} />
+              <div className="md:col-span-3">
+                <Textarea label="Reason Detail * (min 20 characters)" rows={3} value={form.detail} onChange={(e) => setForm({ ...form, detail: e.target.value })} />
+              </div>
+              <Input label="Withholding Authority" value={form.authority} onChange={(e) => setForm({ ...form, authority: e.target.value })} />
+              <Input label="Approval Date" type="date" value={form.approvalDate} onChange={(e) => setForm({ ...form, approvalDate: e.target.value })} />
+              <Select label="Notification Method" value={form.notifyMethod} onChange={(e) => setForm({ ...form, notifyMethod: (typeof e === 'string' ? e : e.target.value) as NotifyMethod })} options={['Email', 'Letter', 'In-Person', 'Not Yet Notified'].map((v) => ({ value: v, label: v }))} />
+              <label className="flex items-center gap-2 text-sm md:col-span-2">
+                <input type="checkbox" checked={form.notified} onChange={(e) => setForm({ ...form, notified: e.target.checked, notifyMethod: e.target.checked ? (form.notifyMethod === 'Not Yet Notified' ? 'Email' : form.notifyMethod) : 'Not Yet Notified' })} />
+                Employee notification (mandatory for labor-law compliance)
+              </label>
+              <Input label="Notification Date" type="date" value={form.notifyDate} onChange={(e) => setForm({ ...form, notifyDate: e.target.value })} />
+            </div>
+            <div className="border-t px-5 py-4">
+              <p className="mb-2 text-sm font-medium">Supporting documents</p>
+              <div className="flex flex-wrap gap-2">
+                {form.documents.map((d) => <Badge key={d} variant="secondary"><Paperclip className="mr-1 h-3 w-3" />{d}</Badge>)}
+              </div>
+              <div className="mt-2 flex gap-2">
+                <Input value={docName} onChange={(e) => setDocName(e.target.value)} placeholder="filename.pdf" />
+                <Button variant="outline" onClick={() => { if (docName.trim()) { setForm({ ...form, documents: [...form.documents, docName.trim()] }); setDocName(''); } }}><Paperclip className="mr-1 h-4 w-4" />Attach</Button>
+              </div>
+            </div>
+            <div className="flex flex-wrap justify-end gap-2 border-t bg-gray-50 px-5 py-3">
+              <Button variant="outline" onClick={() => saveHold(false)}>Save draft</Button>
+              <Button onClick={() => saveHold(true)}><Lock className="mr-1 h-4 w-4" />Save & activate</Button>
+            </div>
+          </Card>
+
+          {form.id && (
+            <Card title="B · Withholding cycles (auto-generated, read-only)">
+              <div className="overflow-x-auto p-5">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
+                    <tr>{['Payroll cycle', 'Salary slip', 'Slip status', 'Gross', 'Net', 'Withheld since', 'Release entry', 'Release date', 'Payment'].map((h) => <th key={h} className="px-3 py-2">{h}</th>)}</tr>
+                  </thead>
+                  <tbody>
+                    {form.cycles.map((c) => (
+                      <tr key={c.month} className="border-b">
+                        <td className="px-3 py-2">{c.month}</td>
+                        <td className="px-3 py-2 font-mono text-xs text-indigo-700">{c.slipId}</td>
+                        <td className="px-3 py-2"><Badge variant={c.slipStatus === 'Released' ? 'success' : 'warning'}>{c.slipStatus}</Badge></td>
+                        <td className="px-3 py-2 text-right">{inr(c.gross)}</td>
+                        <td className="px-3 py-2 text-right font-semibold">{inr(c.net)}</td>
+                        <td className="px-3 py-2">{c.withheldSince}</td>
+                        <td className="px-3 py-2 font-mono text-xs">{c.releaseEntry || '—'}</td>
+                        <td className="px-3 py-2">{c.releaseDate || '—'}</td>
+                        <td className="px-3 py-2">{c.payment}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="grid gap-3 border-t bg-gray-50 px-5 py-4 text-sm md:grid-cols-4">
+                <p>Total cycles withheld: <b>{formTotals.months}</b></p>
+                <p>Total net pay withheld: <b className="text-red-700">{inr(formTotals.withheld + formTotals.released)}</b></p>
+                <p>Total released: <b className="text-emerald-700">{inr(formTotals.released)}</b> ({form.cycles.filter((c) => c.slipStatus === 'Released').length} cycle)</p>
+                <p>Still withheld: <b className="text-amber-700">{inr(formTotals.withheld)}</b> ({formTotals.still} cycles)</p>
+              </div>
+            </Card>
+          )}
+
+          {form.id && (form.status === 'Active' || form.status === 'Partially Released') && (
+            <Card title="C · Release workflow">
+              <div className="flex flex-wrap gap-2 p-5">
+                <Button onClick={() => { setSelectedCycles(form.cycles.filter((c) => c.slipStatus === 'Withheld').map((c) => c.month)); setReleaseOpen(true); }}><Unlock className="mr-1 h-4 w-4" />Release Salary</Button>
+                <Button variant="outline" onClick={() => setPartialOpen(true)}>Partial release</Button>
+                <Button variant="danger" onClick={() => setCancelOpen(true)}>Forfeit / cancel (reverse expense)</Button>
+              </div>
+              <p className="px-5 pb-4 text-xs text-gray-500">Path 2: after Make Bank Entry on Payroll Entry, use Release Withheld Salaries to create a separate bank JE for selected employees.</p>
+            </Card>
+          )}
+
+          {form.id && (
+            <Card title="G · Accounting treatment">
+              <div className="grid gap-4 p-5 md:grid-cols-3 text-sm">
+                <div className="rounded-lg border p-3">
+                  <p className="font-semibold">While withheld (on slip submit)</p>
+                  <p>Salary & Wages Expense Dr {inr(95000)}</p>
+                  <p>Salaries Payable Cr {inr(72660)}</p>
+                  <p>EPF / TDS / PT payable Cr (statutory)</p>
+                  <p className="mt-2 text-amber-700">Bank: nothing posted. Liability stays on books.</p>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <p className="font-semibold">On release</p>
+                  <p>Salaries Payable Dr {inr(72660)}</p>
+                  <p>School Bank Account Cr {inr(72660)}</p>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <p className="font-semibold">If forfeited (rare)</p>
+                  <p>Salaries Payable Dr {inr(72660)}</p>
+                  <p>Salary & Wages Expense Cr {inr(72660)}</p>
+                  <p className="mt-2 text-red-700">Requires HR Head / legal approval.</p>
+                </div>
+              </div>
+            </Card>
+          )}
+
+          <Card title="I · School enhancements">
+            <ul className="list-disc space-y-1 p-5 pl-8 text-sm text-gray-700">
+              <li>Document compliance hold — auto-flag if PAN / Aadhaar / police verification / CBSE qualification is missing past 30 days of joining (configured in Payroll Settings).</li>
+              <li>Asset return hold — unreturned assets past due date are flagged; HR still activates the hold.</li>
+              <li>CBSE qualification block — invalid teacher qualification from CBSE compliance auto-suggests a hold.</li>
+              <li>Partial release — humanitarian / investigation relief without closing the hold.</li>
+              <li>ESS visibility — employee sees WITHHELD; disciplinary reason is redacted to “Administrative Hold”.</li>
+              <li>90-day reminder to HR Head; 60-day labor-law warning by state.</li>
+              <li>F&amp;F does not auto-pay withheld slips. Release them here or offset in F&amp;F as Pending Salary — Withheld.</li>
+            </ul>
+          </Card>
+        </>
+      )}
+
+      {tab === 'report' && (
+        <Card title="Salary Withholding Report">
+          <div className="grid gap-3 p-4 md:grid-cols-5">
+            <Select label="Status" value={repStatus} onChange={(e) => setRepStatus(typeof e === 'string' ? e : e.target.value)} options={[{ value: '', label: 'All' }, { value: 'Active', label: 'Active' }, { value: 'Partially Released', label: 'Partially Released' }, { value: 'Released', label: 'Released' }]} />
+            <Select label="Department" value={repDept} onChange={(e) => setRepDept(typeof e === 'string' ? e : e.target.value)} options={[{ value: '', label: 'All' }, ...['Science', 'Administration', 'Sports'].map((v) => ({ value: v, label: v }))]} />
+            <Select label="Reason code" value={repReason} onChange={(e) => setRepReason(typeof e === 'string' ? e : e.target.value)} options={[{ value: '', label: 'All' }, ...REASONS.map((v) => ({ value: v, label: v }))]} />
+            <Input label="From date" type="date" value={repFrom} onChange={(e) => setRepFrom(e.target.value)} />
+            <Input label="To date" type="date" value={repTo} onChange={(e) => setRepTo(e.target.value)} />
+            <Select label="Employee" value={repEmp} onChange={(e) => setRepEmp(typeof e === 'string' ? e : e.target.value)} options={[{ value: '', label: 'All' }, ...STAFF.map((s) => ({ value: s.id, label: s.name }))]} />
           </div>
-        }
-
-        {/* Results Info */}
-        <div className="flex items-center justify-between mb-4">
-          <p className="text-sm text-slate-500">
-            Showing {paginatedExceptions.length} of {filteredExceptions.length} exceptions
-          </p>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-slate-500">Per page:</span>
-            <select
-              value={itemsPerPage}
-              onChange={(e) => {
-                setItemsPerPage(Number(e.target.value));
-                setCurrentPage(1);
-              }}
-              className="px-2 py-1 border border-slate-300 rounded text-sm">
-
-              <option value={5}>5</option>
-              <option value={10}>10</option>
-              <option value={25}>25</option>
-              <option value={50}>50</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Exception Table */}
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead className="bg-slate-50 border-b border-slate-200">
-                <tr>
-                  <th className="py-3 px-4 w-12">
-                    <input
-                      type="checkbox"
-                      checked={
-                      selectedIds.length === paginatedExceptions.length &&
-                      paginatedExceptions.length > 0
-                      }
-                      onChange={handleSelectAll}
-                      className="w-4 h-4 rounded border-slate-300" />
-
-                  </th>
-                  <th
-                    className="py-3 px-4 text-xs font-medium text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100"
-                    onClick={() => handleSort('empName')}>
-
-                    <div className="flex items-center gap-1">
-                      Employee
-                      <SortIcon field="empName" />
-                    </div>
-                  </th>
-                  <th
-                    className="py-3 px-4 text-xs font-medium text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100"
-                    onClick={() => handleSort('department')}>
-
-                    <div className="flex items-center gap-1">
-                      Department
-                      <SortIcon field="department" />
-                    </div>
-                  </th>
-                  <th
-                    className="py-3 px-4 text-xs font-medium text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100"
-                    onClick={() => handleSort('exceptionType')}>
-
-                    <div className="flex items-center gap-1">
-                      Exception Type
-                      <SortIcon field="exceptionType" />
-                    </div>
-                  </th>
-                  <th className="py-3 px-4 text-xs font-medium text-slate-500 uppercase tracking-wider">
-                    Description
-                  </th>
-                  <th
-                    className="py-3 px-4 text-xs font-medium text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100"
-                    onClick={() => handleSort('detectedOn')}>
-
-                    <div className="flex items-center gap-1">
-                      Detected On
-                      <SortIcon field="detectedOn" />
-                    </div>
-                  </th>
-                  <th
-                    className="py-3 px-4 text-xs font-medium text-slate-500 uppercase tracking-wider text-center cursor-pointer hover:bg-slate-100"
-                    onClick={() => handleSort('severity')}>
-
-                    <div className="flex items-center justify-center gap-1">
-                      Severity
-                      <SortIcon field="severity" />
-                    </div>
-                  </th>
-                  <th
-                    className="py-3 px-4 text-xs font-medium text-slate-500 uppercase tracking-wider text-center cursor-pointer hover:bg-slate-100"
-                    onClick={() => handleSort('status')}>
-
-                    <div className="flex items-center justify-center gap-1">
-                      Status
-                      <SortIcon field="status" />
-                    </div>
-                  </th>
-                  <th className="py-3 px-4 text-xs font-medium text-slate-500 uppercase tracking-wider text-center">
-                    Actions
-                  </th>
-                </tr>
+            <table className="min-w-full text-sm">
+              <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
+                <tr>{['Employee', 'Dept / Desig', 'Withholding ID', 'Reason', 'From', 'Duration (days)', 'Months', 'Gross withheld', 'Net withheld', 'Released', 'Balance', 'Status'].map((h) => <th key={h} className="px-3 py-2">{h}</th>)}</tr>
               </thead>
-              <tbody className="text-sm divide-y divide-slate-100">
-                {paginatedExceptions.length === 0 ?
-                <tr>
-                    <td colSpan={9} className="py-12 text-center">
-                      <AlertCircle className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                      <p className="text-slate-500">No exceptions found</p>
-                    </td>
-                  </tr> :
-
-                paginatedExceptions.map((row) =>
-                <tr
-                  key={row.id}
-                  className={`hover:bg-slate-50 transition-colors ${
-                  row.severity === 'High' ?
-                  'border-l-4 border-l-red-400' :
-                  row.severity === 'Medium' ?
-                  'border-l-4 border-l-amber-400' :
-                  'border-l-4 border-l-blue-400'} ${
-                  selectedIds.includes(row.id) ? 'bg-indigo-50' : ''}`}>
-
-                      <td className="py-3 px-4">
-                        <input
-                      type="checkbox"
-                      checked={selectedIds.includes(row.id)}
-                      onChange={() => handleSelectOne(row.id)}
-                      className="w-4 h-4 rounded border-slate-300" />
-
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="font-medium text-slate-900">
-                          {row.empName}
-                        </div>
-                        <div className="text-xs text-slate-500">{row.empCode}</div>
-                      </td>
-                      <td className="py-3 px-4 text-slate-600">{row.department}</td>
-                      <td className="py-3 px-4 font-medium text-slate-700">
-                        {row.exceptionType}
-                      </td>
-                      <td className="py-3 px-4 text-slate-600 max-w-xs truncate">
-                        {row.description}
-                      </td>
-                      <td className="py-3 px-4 text-slate-600">
-                        {new Date(row.detectedOn).toLocaleDateString('en-IN', {
-                      day: '2-digit',
-                      month: 'short',
-                      year: 'numeric'
-                    })}
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        {getSeverityBadge(row.severity)}
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        {getStatusBadge(row.status)}
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <button
-                        onClick={() => handleViewDetails(row)}
-                        className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                        title="View Details">
-
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          {row.status !== 'Resolved' &&
-                      <>
-                              <button
-                          onClick={() => handleOpenEdit(row)}
-                          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="Edit">
-
-                                <Pencil className="w-4 h-4" />
-                              </button>
-                              <button
-                          onClick={() => handleOpenResolve(row)}
-                          className="p-1.5 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                          title="Mark Resolved">
-
-                                <CheckCircle className="w-4 h-4" />
-                              </button>
-                            </>
-                      }
-                          <button
-                        onClick={() => handleOpenDelete(row)}
-                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Delete">
-
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
+              <tbody>
+                {reportRows.map((h) => {
+                  const t = totals(h);
+                  const gross = h.cycles.reduce((s, c) => s + c.gross, 0);
+                  return (
+                    <tr key={h.id} className="border-b">
+                      <td className="px-3 py-2"><p className="font-medium">{h.name}</p><p className="font-mono text-xs text-gray-500">{h.employeeId}</p></td>
+                      <td className="px-3 py-2 text-xs">{h.department}<br />{h.designation}</td>
+                      <td className="px-3 py-2 font-mono text-xs text-indigo-700">{h.id}</td>
+                      <td className="px-3 py-2 text-xs">{h.reason}<br /><span className="text-gray-400">{h.detail.slice(0, 48)}…</span></td>
+                      <td className="px-3 py-2">{h.fromDate}</td>
+                      <td className="px-3 py-2 text-center">{t.days}</td>
+                      <td className="px-3 py-2 text-center">{t.months}</td>
+                      <td className="px-3 py-2 text-right">{inr(gross)}</td>
+                      <td className="px-3 py-2 text-right">{inr(t.net)}</td>
+                      <td className="px-3 py-2 text-right text-emerald-700">{inr(t.released)}</td>
+                      <td className="px-3 py-2 text-right font-semibold text-red-700">{inr(t.withheld)}</td>
+                      <td className="px-3 py-2">{statusBadge(h.status)}</td>
                     </tr>
-                )
-                }
+                  );
+                })}
               </tbody>
             </table>
           </div>
+          <div className="flex justify-end gap-2 border-t p-4">
+            <Button variant="outline" onClick={() => flash('Withholding report exported to Excel.')}><FileText className="mr-1 h-4 w-4" />Export</Button>
+          </div>
+        </Card>
+      )}
+
+      <Modal isOpen={releaseOpen} onClose={() => setReleaseOpen(false)} title="Release salary" size="lg" footer={<div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setReleaseOpen(false)}>Cancel</Button><Button onClick={() => applyRelease('full')}><CheckCircle className="mr-1 h-4 w-4" />Confirm release</Button></div>}>
+        <p className="mb-3 text-sm text-gray-600">Creates a Bank Entry (Journal Entry) for the selected cycles. If every cycle is released and To Date has passed, status becomes Released.</p>
+        <div className="space-y-2">
+          {form.cycles.filter((c) => c.slipStatus === 'Withheld').map((c) => (
+            <label key={c.month} className="flex items-center gap-2 rounded border px-3 py-2 text-sm">
+              <input type="checkbox" checked={selectedCycles.includes(c.month)} onChange={(e) => setSelectedCycles((p) => e.target.checked ? [...p, c.month] : p.filter((m) => m !== c.month))} />
+              {c.month} · {c.slipId} · {inr(c.net)}
+            </label>
+          ))}
         </div>
-
-        {/* Pagination */}
-        {totalPages > 1 &&
-        <div className="flex items-center justify-between mt-4">
-            <p className="text-sm text-slate-500">
-              Page {currentPage} of {totalPages}
-            </p>
-            <div className="flex items-center gap-2">
-              <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(1)}
-              disabled={currentPage === 1}>
-
-                First
-              </Button>
-              <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(currentPage - 1)}
-              disabled={currentPage === 1}>
-
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
-              <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(currentPage + 1)}
-              disabled={currentPage === totalPages}>
-
-                <ChevronRight className="w-4 h-4" />
-              </Button>
-              <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(totalPages)}
-              disabled={currentPage === totalPages}>
-
-                Last
-              </Button>
-            </div>
+        <div className="mt-3 grid gap-3 md:grid-cols-2">
+          <Textarea label="Release reason *" rows={2} value={releaseReason} onChange={(e) => setReleaseReason(e.target.value)} placeholder="Inquiry concluded — employee cleared." />
+          <div className="space-y-3">
+            <Input label="Release authority" value={releaseAuth} onChange={(e) => setReleaseAuth(e.target.value)} />
+            <Input label="Release date" type="date" value={releaseDate} onChange={(e) => setReleaseDate(e.target.value)} />
           </div>
-        }
+        </div>
+      </Modal>
 
-        {/* ============ MODALS ============ */}
+      <Modal isOpen={partialOpen} onClose={() => setPartialOpen(false)} title="Partial release" size="md" footer={<div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setPartialOpen(false)}>Cancel</Button><Button onClick={() => applyRelease('partial')}>Create partial bank entry</Button></div>}>
+        <p className="mb-3 text-sm text-gray-600">Release part of the latest withheld cycle (e.g. humanitarian relief). Remaining balance stays withheld.</p>
+        <Input label="Amount" value={partialAmt} onChange={(e) => setPartialAmt(e.target.value)} />
+        <Textarea className="mt-3" label="Adjustment notes *" rows={2} value={partialNote} onChange={(e) => setPartialNote(e.target.value)} />
+        <Input className="mt-3" label="Release reason *" value={releaseReason} onChange={(e) => setReleaseReason(e.target.value)} />
+      </Modal>
 
-        {/* Detail Modal */}
-        <Modal
-          isOpen={showDetailModal}
-          onClose={() => setShowDetailModal(false)}
-          title="Exception Details"
-          size="lg">
-
-          {currentException &&
-          <div className="space-y-6">
-              {/* Employee Info */}
-              <div className="bg-slate-50 rounded-lg p-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <div className="text-xs text-slate-500 uppercase tracking-wide mb-1">
-                      Employee Name
-                    </div>
-                    <div className="font-semibold text-slate-900">
-                      {currentException.empName}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 uppercase tracking-wide mb-1">
-                      Employee Code
-                    </div>
-                    <div className="font-semibold text-slate-900">
-                      {currentException.empCode}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 uppercase tracking-wide mb-1">
-                      Department
-                    </div>
-                    <div className="font-medium text-slate-700">
-                      {currentException.department}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 uppercase tracking-wide mb-1">
-                      Detected On
-                    </div>
-                    <div className="font-medium text-slate-700">
-                      {new Date(currentException.detectedOn).toLocaleDateString(
-                      'en-IN',
-                      {
-                        day: '2-digit',
-                        month: 'long',
-                        year: 'numeric'
-                      }
-                    )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Exception Details */}
-              <div>
-                <h4 className="text-sm font-semibold text-slate-700 mb-3">
-                  Exception Information
-                </h4>
-                <div className="space-y-3">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <div className="text-xs text-slate-500 uppercase tracking-wide mb-1">
-                        Exception Type
-                      </div>
-                      <div className="font-medium text-slate-900">
-                        {currentException.exceptionType}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {getSeverityBadge(currentException.severity)}
-                      {getStatusBadge(currentException.status)}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 uppercase tracking-wide mb-1">
-                      Description
-                    </div>
-                    <div className="text-sm text-slate-700">
-                      {currentException.description}
-                    </div>
-                  </div>
-                  {currentException.assignedTo &&
-                <div>
-                      <div className="text-xs text-slate-500 uppercase tracking-wide mb-1">
-                        Assigned To
-                      </div>
-                      <div className="text-sm text-slate-700">
-                        {currentException.assignedTo}
-                      </div>
-                    </div>
-                }
-                  {currentException.status === 'Resolved' &&
-                <>
-                      <div>
-                        <div className="text-xs text-slate-500 uppercase tracking-wide mb-1">
-                          Resolved By
-                        </div>
-                        <div className="text-sm text-slate-700">
-                          {currentException.resolvedBy} on{' '}
-                          {new Date(currentException.resolvedOn!).toLocaleDateString(
-                        'en-IN'
-                      )}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-xs text-slate-500 uppercase tracking-wide mb-1">
-                          Resolution Notes
-                        </div>
-                        <div className="text-sm text-slate-700 bg-green-50 p-3 rounded-lg">
-                          {currentException.resolutionNotes}
-                        </div>
-                      </div>
-                    </>
-                }
-                </div>
-              </div>
-
-              {/* Timeline */}
-              <div>
-                <h4 className="text-sm font-semibold text-slate-700 mb-3">
-                  Activity Timeline
-                </h4>
-                <div className="space-y-3 max-h-48 overflow-y-auto">
-                  {currentException.timeline.map((item) =>
-                <div key={item.id} className="flex items-start gap-3">
-                      <div className="flex-shrink-0 w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center">
-                        <Clock className="w-4 h-4 text-indigo-600" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="text-sm font-medium text-slate-900">
-                          {item.action}
-                        </div>
-                        {item.comment &&
-                    <div className="text-sm text-slate-600 mt-1 bg-slate-50 p-2 rounded">
-                            {item.comment}
-                          </div>
-                    }
-                        <div className="text-xs text-slate-500 mt-1">
-                          {new Date(item.date).toLocaleDateString('en-IN', {
-                        day: '2-digit',
-                        month: 'short',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}{' '}
-                          • {item.user}
-                        </div>
-                      </div>
-                    </div>
-                )}
-                </div>
-              </div>
-
-              {/* Add Comment */}
-              {currentException.status !== 'Resolved' &&
-            <div>
-                  <h4 className="text-sm font-semibold text-slate-700 mb-3">
-                    Add Comment
-                  </h4>
-                  <div className="flex gap-2">
-                    <Input
-                  placeholder="Type your comment..."
-                  value={commentText}
-                  onChange={(e) => setCommentText(e.target.value)} />
-
-                    <Button onClick={handleAddComment} disabled={!commentText.trim()}>
-                      <Send className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-            }
-
-              {/* Documents */}
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-semibold text-slate-700">
-                    Attached Documents
-                  </h4>
-                  {currentException.status !== 'Resolved' &&
-                <Button
-                  variant="outline"
-                  size="xs"
-                  onClick={() => setShowUploadModal(true)}>
-
-                      <Upload className="w-3 h-3 mr-1" />
-                      Upload
-                    </Button>
-                }
-                </div>
-                {currentException.documents.length === 0 ?
-              <div className="text-center py-6 bg-slate-50 rounded-lg">
-                    <FileText className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                    <p className="text-sm text-slate-500">No documents attached</p>
-                  </div> :
-
-              <div className="space-y-2">
-                    {currentException.documents.map((doc) =>
-                <div
-                  key={doc.id}
-                  className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-
-                        <div className="flex items-center gap-2">
-                          <FileText className="w-4 h-4 text-slate-400" />
-                          <div>
-                            <span className="text-sm text-slate-700">{doc.name}</span>
-                            <div className="text-xs text-slate-400">
-                              {doc.size} • Uploaded by {doc.uploadedBy}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Button variant="ghost" size="xs">
-                            <Eye className="w-3 h-3" />
-                          </Button>
-                          <Button
-                      variant="ghost"
-                      size="xs"
-                      onClick={() => handleDeleteDocument(doc.id)}>
-
-                            <Trash2 className="w-3 h-3 text-red-500" />
-                          </Button>
-                        </div>
-                      </div>
-                )}
-                  </div>
-              }
-              </div>
-
-              {/* Actions */}
-              <div className="flex items-center justify-between pt-4 border-t border-slate-200">
-                <div className="flex items-center gap-2">
-                  {currentException.status !== 'Resolved' &&
-                <>
-                      <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setShowDetailModal(false);
-                      handleOpenEdit(currentException);
-                    }}>
-
-                        <Pencil className="w-4 h-4 mr-1" />
-                        Edit
-                      </Button>
-                      <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setShowDetailModal(false);
-                      handleOpenAssign(currentException);
-                    }}>
-
-                        <UserCheck className="w-4 h-4 mr-1" />
-                        Assign
-                      </Button>
-                      {currentException.status !== 'Escalated' &&
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleEscalate(currentException)}>
-
-                          <AlertTriangle className="w-4 h-4 mr-1" />
-                          Escalate
-                        </Button>
-                  }
-                    </>
-                }
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                  variant="outline"
-                  onClick={() => setShowDetailModal(false)}>
-
-                    Close
-                  </Button>
-                  {currentException.status !== 'Resolved' &&
-                <Button
-                  variant="success"
-                  onClick={() => {
-                    setShowDetailModal(false);
-                    handleOpenResolve(currentException);
-                  }}>
-
-                      <CheckCircle className="w-4 h-4 mr-1" />
-                      Mark as Resolved
-                    </Button>
-                }
-                </div>
-              </div>
-            </div>
-          }
-        </Modal>
-
-        {/* Add Exception Modal */}
-        <Modal
-          isOpen={showAddModal}
-          onClose={() => setShowAddModal(false)}
-          title="Add New Exception"
-          size="md">
-
-          <div className="space-y-4">
-            <Select
-              label="Employee"
-              value={newException.empCode}
-              onChange={(val) => setNewException({ ...newException, empCode: val })}
-              placeholder="Select Employee"
-              options={EMPLOYEES} />
-
-            <Select
-              label="Exception Type"
-              value={newException.exceptionType}
-              onChange={(val) => setNewException({ ...newException, exceptionType: val })}
-              placeholder="Select Exception Type"
-              options={EXCEPTION_TYPES} />
-
-            <Textarea
-              label="Description"
-              value={newException.description}
-              onChange={(e) =>
-              setNewException({ ...newException, description: e.target.value })
-              }
-              placeholder="Describe the exception..." />
-
-            <Select
-              label="Severity"
-              value={newException.severity}
-              onChange={(val) =>
-              setNewException({
-                ...newException,
-                severity: val as 'High' | 'Medium' | 'Low'
-              })
-              }
-              options={SEVERITIES} />
-
-            <div className="flex justify-end gap-2 pt-4 border-t">
-              <Button variant="outline" onClick={() => setShowAddModal(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleAddException}>Add Exception</Button>
-            </div>
-          </div>
-        </Modal>
-
-        {/* Edit Exception Modal */}
-        <Modal
-          isOpen={showEditModal}
-          onClose={() => setShowEditModal(false)}
-          title="Edit Exception"
-          size="md">
-
-          <div className="space-y-4">
-            <Select
-              label="Exception Type"
-              value={editForm.exceptionType}
-              onChange={(val) => setEditForm({ ...editForm, exceptionType: val })}
-              options={EXCEPTION_TYPES} />
-
-            <Textarea
-              label="Description"
-              value={editForm.description}
-              onChange={(e) =>
-              setEditForm({ ...editForm, description: e.target.value })
-              } />
-
-            <Select
-              label="Severity"
-              value={editForm.severity}
-              onChange={(val) =>
-              setEditForm({
-                ...editForm,
-                severity: val as 'High' | 'Medium' | 'Low'
-              })
-              }
-              options={SEVERITIES} />
-
-            <div className="flex justify-end gap-2 pt-4 border-t">
-              <Button variant="outline" onClick={() => setShowEditModal(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleEditException}>Save Changes</Button>
-            </div>
-          </div>
-        </Modal>
-
-        {/* Resolve Exception Modal */}
-        <Modal
-          isOpen={showResolveModal}
-          onClose={() => setShowResolveModal(false)}
-          title="Resolve Exception"
-          size="md">
-
-          <div className="space-y-4">
-            {currentException &&
-            <div className="bg-slate-50 rounded-lg p-4">
-                <p className="text-sm text-slate-600">
-                  <strong>{currentException.empName}</strong> -{' '}
-                  {currentException.exceptionType}
-                </p>
-              </div>
-            }
-            <Textarea
-              label="Resolution Notes"
-              value={resolveForm.notes}
-              onChange={(e) => setResolveForm({ notes: e.target.value })}
-              placeholder="Describe how the exception was resolved..." />
-
-            <div className="flex justify-end gap-2 pt-4 border-t">
-              <Button variant="outline" onClick={() => setShowResolveModal(false)}>
-                Cancel
-              </Button>
-              <Button variant="success" onClick={handleResolveException}>
-                <CheckCircle className="w-4 h-4 mr-1" />
-                Mark as Resolved
-              </Button>
-            </div>
-          </div>
-        </Modal>
-
-        {/* Assign Exception Modal */}
-        <Modal
-          isOpen={showAssignModal}
-          onClose={() => setShowAssignModal(false)}
-          title="Assign Exception"
-          size="md">
-
-          <div className="space-y-4">
-            {currentException &&
-            <div className="bg-slate-50 rounded-lg p-4">
-                <p className="text-sm text-slate-600">
-                  <strong>{currentException.empName}</strong> -{' '}
-                  {currentException.exceptionType}
-                </p>
-              </div>
-            }
-            <Select
-              label="Assign To"
-              value={assignForm.assignee}
-              onChange={(val) => setAssignForm({ ...assignForm, assignee: val })}
-              placeholder="Select Assignee"
-              options={ASSIGNEES} />
-
-            <Textarea
-              label="Comment (Optional)"
-              value={assignForm.comment}
-              onChange={(e) =>
-              setAssignForm({ ...assignForm, comment: e.target.value })
-              }
-              placeholder="Add any notes for the assignee..." />
-
-            <div className="flex justify-end gap-2 pt-4 border-t">
-              <Button variant="outline" onClick={() => setShowAssignModal(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleAssignException}>
-                <UserCheck className="w-4 h-4 mr-1" />
-                Assign
-              </Button>
-            </div>
-          </div>
-        </Modal>
-
-        {/* Delete Confirmation Modal */}
-        <Modal
-          isOpen={showDeleteConfirm}
-          onClose={() => setShowDeleteConfirm(false)}
-          title="Delete Exception"
-          size="sm">
-
-          <div className="space-y-4">
-            <div className="flex items-center gap-3 p-4 bg-red-50 rounded-lg">
-              <AlertTriangle className="w-6 h-6 text-red-500" />
-              <p className="text-sm text-red-700">
-                Are you sure you want to delete this exception? This action cannot
-                be undone.
-              </p>
-            </div>
-            {currentException &&
-            <div className="bg-slate-50 rounded-lg p-4">
-                <p className="text-sm text-slate-600">
-                  <strong>{currentException.empName}</strong> -{' '}
-                  {currentException.exceptionType}
-                </p>
-              </div>
-            }
-            <div className="flex justify-end gap-2 pt-4 border-t">
-              <Button variant="outline" onClick={() => setShowDeleteConfirm(false)}>
-                Cancel
-              </Button>
-              <Button variant="danger" onClick={handleDeleteException}>
-                <Trash2 className="w-4 h-4 mr-1" />
-                Delete
-              </Button>
-            </div>
-          </div>
-        </Modal>
-
-        {/* Bulk Action Modal */}
-        <Modal
-          isOpen={showBulkActionModal}
-          onClose={() => setShowBulkActionModal(false)}
-          title="Bulk Actions"
-          size="sm">
-
-          <div className="space-y-4">
-            <p className="text-sm text-slate-600">
-              Apply action to {selectedIds.length} selected exception(s)
-            </p>
-            <Select
-              label="Select Action"
-              value={bulkAction}
-              onChange={setBulkAction}
-              placeholder="Choose action..."
-              options={[
-              { value: 'resolve', label: 'Mark as Resolved' },
-              { value: 'escalate', label: 'Escalate' },
-              { value: 'delete', label: 'Delete' }]
-              } />
-
-            <div className="flex justify-end gap-2 pt-4 border-t">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowBulkActionModal(false);
-                  setBulkAction('');
-                }}>
-
-                Cancel
-              </Button>
-              <Button onClick={handleBulkAction} disabled={!bulkAction}>
-                Apply Action
-              </Button>
-            </div>
-          </div>
-        </Modal>
-
-        {/* Upload Document Modal */}
-        <Modal
-          isOpen={showUploadModal}
-          onClose={() => setShowUploadModal(false)}
-          title="Upload Document"
-          size="sm">
-
-          <div className="space-y-4">
-            <div className="border-2 border-dashed border-slate-300 rounded-lg p-8 text-center">
-              <FileUp className="w-12 h-12 text-slate-400 mx-auto mb-3" />
-              <p className="text-sm text-slate-600 mb-3">
-                Click to select or drag and drop your file
-              </p>
-              <input
-                type="file"
-                onChange={handleUploadDocument}
-                className="hidden"
-                id="file-upload" />
-
-              <label htmlFor="file-upload">
-                <Button variant="outline" as="span" className="cursor-pointer">
-                  <Paperclip className="w-4 h-4 mr-1" />
-                  Select File
-                </Button>
-              </label>
-            </div>
-            <div className="flex justify-end">
-              <Button variant="outline" onClick={() => setShowUploadModal(false)}>
-                Cancel
-              </Button>
-            </div>
-          </div>
-        </Modal>
-      </div>
-    </div>);
-
+      <Modal isOpen={cancelOpen} onClose={() => setCancelOpen(false)} title="Forfeit withheld salary" size="md" footer={<div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setCancelOpen(false)}>Keep hold</Button><Button variant="danger" onClick={() => applyRelease('forfeit')}><Ban className="mr-1 h-4 w-4" />Post reversal JE</Button></div>}>
+        <p className="text-sm text-gray-600">Reverses Salaries Payable and Salary &amp; Wages Expense. Rare. Requires legal / HR Head approval.</p>
+        <Textarea className="mt-3" label="Approval note *" rows={3} value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} />
+      </Modal>
+    </div>
+  );
 }
 
 export default PayrollExceptionList;

@@ -76,6 +76,20 @@ function MonthlyRegister() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showStudentDetails, setShowStudentDetails] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [attendanceMode, setAttendanceMode] = useState<'whole-day' | 'subject-wise'>('whole-day');
+  const [selectedSubject, setSelectedSubject] = useState('');
+
+  const subjectOptions = [
+    { value: '', label: 'All Subjects' },
+    { value: 'MATH', label: 'Mathematics' },
+    { value: 'PHY', label: 'Physics' },
+    { value: 'CHEM', label: 'Chemistry' },
+    { value: 'BIO', label: 'Biology' },
+    { value: 'ENG', label: 'English' },
+    { value: 'HIN', label: 'Hindi' },
+    { value: 'SST', label: 'Social Studies' },
+    { value: 'CS', label: 'Computer Science' }
+  ];
 
   // Get days in selected month
   const getDaysInMonth = (month: number, year: number) => {
@@ -381,6 +395,8 @@ function MonthlyRegister() {
               setSelectedMonth('3');
               setSelectedYear('2024');
               setSearchTerm('');
+              setAttendanceMode('whole-day');
+              setSelectedSubject('');
             }}>
 
             <RefreshCwIcon className="w-4 h-4 mr-1" />
@@ -389,6 +405,30 @@ function MonthlyRegister() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Attendance type</label>
+            <div className="flex overflow-hidden rounded-lg border border-gray-300">
+              <button
+                type="button"
+                onClick={() => { setAttendanceMode('whole-day'); setSelectedSubject(''); }}
+                className={`flex-1 px-3 py-2 text-sm font-medium ${attendanceMode === 'whole-day' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+                Whole Day
+              </button>
+              <button
+                type="button"
+                onClick={() => setAttendanceMode('subject-wise')}
+                className={`flex-1 px-3 py-2 text-sm font-medium ${attendanceMode === 'subject-wise' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+                Subject-wise
+              </button>
+            </div>
+          </div>
+          {attendanceMode === 'subject-wise' &&
+          <Select
+            label="Subject"
+            value={selectedSubject}
+            onChange={(e) => setSelectedSubject(typeof e === 'string' ? e : e.target.value)}
+            options={subjectOptions} />
+          }
           <Select
             label="Class"
             value={selectedClass}
@@ -562,7 +602,7 @@ function MonthlyRegister() {
               <ChevronLeftIcon className="w-4 h-4" />
             </Button>
             <h3 className="text-lg font-semibold text-gray-900">
-              Monthly Attendance Register — {getMonthName(selectedMonth)} {selectedYear} · Class {selectedClass}-{selectedSection}
+              Monthly Attendance Register — {getMonthName(selectedMonth)} {selectedYear} · Class {selectedClass}-{selectedSection}{attendanceMode === 'subject-wise' ? ` · ${subjectOptions.find((s) => s.value === selectedSubject)?.label || 'Subject-wise'}` : ' · Whole Day'}
             </h3>
             <Button variant="ghost" size="sm" onClick={() => navigateMonth('next')}>
               <ChevronRightIcon className="w-4 h-4" />
